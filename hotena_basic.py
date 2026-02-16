@@ -1954,8 +1954,9 @@ def render_topcard():
             st.markdown("<div style='height:40px;'></div>", unsafe_allow_html=True)
 
     with r_my:
+        page = st.session_state.get("page", "home")
         st.button("📌 마이페이지", use_container_width=True, help="내 학습 기록/오답 TOP10 보기",
-                  key="topcard_btn_nav_my", on_click=nav_to, args=("my",))
+                  key=f"topcard_btn_nav_my__{page}", on_click=nav_to, args=("my",))
 
     with r_logout:
         st.button("🚪 로그아웃", use_container_width=True, help="로그아웃",
@@ -4189,6 +4190,7 @@ def render_chatbot(expanded: bool = False):
             # 입력칸 초기화 + 리렌더
             st.session_state.pop("chat_input_text", None)
             st.rerun()
+
 
 
 
