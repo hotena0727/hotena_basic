@@ -3123,7 +3123,7 @@ if not ok and (cookies.get("refresh_token") or cookies.get("access_token")):
     st.caption("세션 복원에 실패해서 로그인을 다시 요청합니다.")
 
 require_login()
-render_topcard_once()()
+render_topcard_once()
 
 # ✅ user 확보
 user = st.session_state.get("user")
@@ -4204,6 +4204,7 @@ def render_chatbot(expanded: bool = False):
             # 입력칸 초기화 + 리렌더
             st.session_state.pop("chat_input_text", None)
             st.rerun()
+
 
 
 
