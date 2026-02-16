@@ -45,6 +45,11 @@ import textwrap
 import json
 import html
 
+
+st.write("OPENAI_API_KEY exists:", bool(os.getenv("OPENAI_API_KEY")))
+st.write("OPENAI_API_KEY head:", (os.getenv("OPENAI_API_KEY") or "")[:7])
+
+
 # ============================================================
 # ✅ Page Config + Paths
 # ============================================================
@@ -4184,6 +4189,7 @@ def render_chatbot(expanded: bool = False):
             # 입력칸 초기화 + 리렌더
             st.session_state.pop("chat_input_text", None)
             st.rerun()
+
 
 
 
