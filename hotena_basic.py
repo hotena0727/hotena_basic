@@ -3076,14 +3076,31 @@ if not ok and (cookies.get("refresh_token") or cookies.get("access_token")):
 require_login()
 render_topcard()
 
-ALLOWED_PAGES = {"home", "quiz", "my", "admin"}
-if "page" not in st.session_state:
-    st.session_state.page = "home"
-if st.session_state.get("page") not in ALLOWED_PAGES:
-    st.session_state.page = "home"
-
+# ✅ user 확보
 user = st.session_state.get("user")
-user_id = getattr(user, "id", None) if user else None
+if not user:
+    st.error("로그인 정보가 없습니다. 다시 로그인해 주세요.")
+    st.stop()
+
+# ✅ user_id 확보
+user_id = None
+if isinstance(user, dict):
+    user_id = user.get("id") or (user.get("user") or {}).get("id")
+else:
+    user_id = getattr(user, "id", None) or getattr(getattr(user, "user", None), "id", None)
+
+if not user_id:
+    st.error("user_id를 가져오지 못했습니다. 로그인 세션을 확인해 주세요.")
+    st.stop()
+
+# ✅ sb_authed_local 확보 (여기 중요)
+sb_authed_local = st.session_state.get("sb_authed") or st.session_state.get("sb") or globals().get("sb_authed") or globals().get("sb")
+if not sb_authed_local:
+    st.error("인증된 Supabase 클라이언트를 찾지 못했습니다.")
+    st.stop()
+
+daily_solved = get_daily_solved_from_db(sb_authed_local, user_id)
+
 
 # ✅ plan 캐시가 다른 유저로 넘어가는 것 방지
 cached_uid = st.session_state.get("plan_cached_user_id")
@@ -4129,6 +4146,7 @@ def render_chatbot(expanded: bool = False):
             # 입력칸 초기화 + 리렌더
             st.session_state.pop("chat_input_text", None)
             st.rerun()
+
 
 
 
