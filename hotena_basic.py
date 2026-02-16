@@ -58,25 +58,37 @@ st.set_page_config(
 
 components.html("""
 <script>
-(function(){
+window.addEventListener("load", async () => {
+  // ✅ 작은 로그 박스(디버그용)
+  const pre = document.createElement("pre");
+  pre.id = "pwa_debug";
+  pre.style.cssText = "white-space:pre-wrap;font-size:12px;opacity:0.75;margin:6px 0 0;";
+  pre.textContent = "";
+  document.body.prepend(pre);
+
+  const log = (msg) => { pre.textContent += msg + "\\n"; };
+
   // ✅ manifest
   let m = document.querySelector("link[rel='manifest']");
   if (!m) { m = document.createElement("link"); m.rel = "manifest"; document.head.appendChild(m); }
   m.href = "/manifest.json";
+  log("manifest: /manifest.json");
 
-  // ✅ icons (iOS는 apple-touch-icon을 특히 좋아함)
+  // ✅ icons
   let a = document.querySelector("link[rel='apple-touch-icon']");
   if (!a) { a = document.createElement("link"); a.rel = "apple-touch-icon"; document.head.appendChild(a); }
   a.setAttribute("sizes", "180x180");
   a.href = "/apple-touch-icon.png";
+  log("apple-touch-icon: /apple-touch-icon.png");
 
   let i = document.querySelector("link[rel='icon']");
   if (!i) { i = document.createElement("link"); i.rel = "icon"; document.head.appendChild(i); }
   i.setAttribute("type", "image/png");
   i.setAttribute("sizes", "192x192");
   i.href = "/icon-192.png";
+  log("icon: /icon-192.png");
 
-  // ✅ iOS standalone 힌트
+  // ✅ meta
   const meta = (name, content) => {
     let el = document.querySelector(`meta[name='${name}']`);
     if (!el) { el = document.createElement("meta"); el.name = name; document.head.appendChild(el); }
@@ -86,13 +98,31 @@ components.html("""
   meta("apple-mobile-web-app-capable", "yes");
   meta("apple-mobile-web-app-status-bar-style", "black-translucent");
 
-  // ✅ Android install 조건(서비스워커)
-  if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("/sw.js").catch(()=>{});
+  // ✅ 먼저 sw.js가 실제로 200으로 오는지 확인(가장 중요)
+  try {
+    const r = await fetch("/sw.js", { cache: "no-store" });
+    log("fetch /sw.js status: " + r.status);
+  } catch (e) {
+    log("fetch /sw.js FAILED: " + e);
   }
-})();
+
+  // ✅ service worker 등록 + 실패 이유 출력
+  if ("serviceWorker" in navigator) {
+    try {
+      const reg = await navigator.serviceWorker.register("/sw.js");
+      log("SW registered scope: " + reg.scope);
+    } catch (e) {
+      log("SW register FAILED: " + e);
+    }
+  } else {
+    log("serviceWorker not supported");
+  }
+
+  log("UA: " + navigator.userAgent);
+});
 </script>
-""", height=0)
+""", height=140)
+
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -3739,6 +3769,7 @@ if st.session_state.get("submitted", False):
     show_naver_talk = (SHOW_NAVER_TALK == "N") or is_admin()
     if show_naver_talk:
         render_naver_talk()
+
 
 
 
