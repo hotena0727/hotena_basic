@@ -30,7 +30,9 @@ from __future__ import annotations
 from pathlib import Path
 import random
 import pandas as pd
+import os
 import streamlit as st
+from openai import OpenAI
 import unicodedata
 from supabase import create_client
 from streamlit_cookies_manager import EncryptedCookieManager
@@ -604,6 +606,277 @@ if not cookies.ready():
     st.stop()
 
 sb = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+
+def _openai_call(messages_for_api: list[dict]) -> str:
+    """
+    안정성 우선:
+    1) chat.completions.create 를 1순위
+    2) responses.create 는 fallback
+    """
+    if _openai_client is None:
+        return "현재 챗봇이 비활성화되어 있어요. (OPENAI_API_KEY 확인 필요)"
+
+    # ✅ 1) Chat Completions (가장 호환 잘 됨)
+    try:
+        r = _openai_client.chat.completions.create(
+            model=CHAT_MODEL,
+            messages=messages_for_api,
+            temperature=0.4,
+            max_tokens=400,   # ✅ 비용/지연/폭주 방지 (원하면 250~600 사이로)
+        )
+        return (r.choices[0].message.content or "").strip() or "음… 답변이 비어있어요. 질문을 조금만 바꿔볼까요?"
+    except Exception as e1:
+        err1 = str(e1)
+
+    # ✅ 2) Responses API (fallback)
+    try:
+        # Responses는 SDK/버전에 따라 input schema가 달라서,
+        # 가장 무난한 방식(문자열로 합치기)으로 fallback 처리
+        # (원하면 여기만 메시지 구조로 맞춰도 되지만, 배포 안정성은 이쪽이 높습니다)
+        joined = []
+        for m in messages_for_api:
+            role = m.get("role", "")
+            content = m.get("content", "")
+            if not content:
+                continue
+            prefix = "SYSTEM" if role == "system" else ("USER" if role == "user" else "ASSISTANT")
+            joined.append(f"[{prefix}] {content}")
+        prompt = "\n".join(joined).strip()
+
+        r = _openai_client.responses.create(
+            model=CHAT_MODEL,
+            input=prompt,
+            max_output_tokens=400,
+        )
+        txt = getattr(r, "output_text", None)
+        if txt:
+            return str(txt).strip()
+
+        # 출력 구조 fallback
+        if hasattr(r, "output") and r.output:
+            out = []
+            for o in r.output:
+                for c in getattr(o, "content", []) or []:
+                    t = getattr(c, "text", None)
+                    if t:
+                        out.append(t)
+            if out:
+                return "\n".join(out).strip()
+
+        return "답변 생성은 되었는데, 출력 파싱에 실패했어요. (SDK 출력 구조 확인 필요)"
+    except Exception as e2:
+        err2 = str(e2)
+
+    # ✅ 최종 실패
+    return (
+        "챗봇 호출에 실패했어요.\n"
+        f"- chat.completions 에러: {err1}\n"
+        f"- responses 에러: {err2}"
+    )
+
+# ============================================================
+# ✅ OpenAI API (Chatbot)
+# ============================================================
+OPENAI_API_KEY = get_cfg("OPENAI_API_KEY")  # Cloud Run env 또는 Streamlit secrets
+if not OPENAI_API_KEY:
+    # 운영에서는 에러로 막아도 되고, 챗봇만 비활성화해도 됩니다.
+    # st.warning("OPENAI_API_KEY가 없어 챗봇 기능이 비활성화됩니다.")
+    pass
+
+# ✅ OpenAI SDK client
+try:
+    _openai_client = OpenAI(api_key=OPENAI_API_KEY) if OPENAI_API_KEY else None
+except Exception:
+    _openai_client = None
+
+# ============================================================
+# ✅ Chatbot (PRO only) - render_chatbot()
+# - OpenAI key 없으면 "비활성" 안내만
+# - FREE면 잠금 안내
+# - PRO면 채팅 UI + 히스토리 저장 + 초기화 버튼
+# ============================================================
+
+CHAT_MODEL = os.getenv("OPENAI_CHAT_MODEL", "gpt-4.1-mini")  # 필요시 환경변수로 교체
+CHAT_MAX_TURNS = 40  # 히스토리 너무 길어지는 것 방지
+
+def _chat_enabled() -> bool:
+    return (_openai_client is not None) and bool(OPENAI_API_KEY)
+
+def _ensure_chat_state():
+    if "chat_messages" not in st.session_state or not isinstance(st.session_state.chat_messages, list):
+        # system 메시지는 서버로 보낼 때만 붙여도 되지만, 여기선 히스토리 관리 편하게 포함
+        st.session_state.chat_messages = []
+    if "chat_last_pos_group" not in st.session_state:
+        st.session_state.chat_last_pos_group = None
+
+def _build_system_prompt() -> str:
+    # “왕초보” 톤 + 학습코치 + 안전한 범위
+    return (
+        "당신은 일본어 초급 학습(왕초보)을 돕는 친절한 코치입니다.\n"
+        "원칙:\n"
+        "- 한국어로 설명하되, 일본어 예시는 짧고 자연스럽게 제시합니다.\n"
+        "- 어려운 문법 용어는 최소화하고, 바로 써먹는 예문 2개를 우선 제공합니다.\n"
+        "- 사용자가 단어/표현을 주면: 의미(한국어) → 발음(히라가나) → 짧은 예문 2개(일본어/한국어) 순서로 답합니다.\n"
+        "- 사용자가 '틀렸어'/'헷갈려'라고 하면: 무엇이 다른지 1~2문장으로 핵심만 비교해 줍니다.\n"
+        "- 과한 장문은 피합니다.\n"
+    )
+
+def _trim_history(msgs: list[dict]) -> list[dict]:
+    # system 제외하고 최근 N턴만 유지
+    if not msgs:
+        return []
+    # 최대 turns*2 정도(사용자/assistant)
+    keep = CHAT_MAX_TURNS * 2
+    if len(msgs) <= keep:
+        return msgs
+    return msgs[-keep:]
+
+def _openai_call(messages_for_api: list[dict]) -> str:
+    """
+    OpenAI SDK 호환을 최대화:
+    1) responses.create (최신)
+    2) chat.completions.create (구버전)
+    """
+    if _openai_client is None:
+        return "현재 챗봇이 비활성화되어 있어요. (OPENAI_API_KEY 확인 필요)"
+
+    # 1) Responses API
+    try:
+        r = _openai_client.responses.create(
+            model=CHAT_MODEL,
+            input=messages_for_api,  # OpenAI Responses는 messages 형태도 허용되는 케이스가 많음
+        )
+        # SDK 버전에 따라 출력 구조가 다를 수 있어 안전하게 처리
+        # 흔한 형태: r.output_text
+        txt = getattr(r, "output_text", None)
+        if txt:
+            return str(txt).strip()
+        # 다른 형태 fallback
+        if hasattr(r, "output") and r.output:
+            # output[*].content[*].text
+            out = []
+            for o in r.output:
+                for c in getattr(o, "content", []) or []:
+                    t = getattr(c, "text", None)
+                    if t:
+                        out.append(t)
+            if out:
+                return "\n".join(out).strip()
+    except Exception:
+        pass
+
+    # 2) Chat Completions API
+    try:
+        r = _openai_client.chat.completions.create(
+            model=CHAT_MODEL,
+            messages=messages_for_api,
+            temperature=0.4,
+        )
+        return (r.choices[0].message.content or "").strip()
+    except Exception as e:
+        return f"챗봇 호출에 실패했어요. (에러: {e})"
+
+def render_chatbot(expanded: bool = False):
+    """
+    PRO 전용 챗봇 UI.
+    - FREE면 잠금 UI만
+    - 키가 없으면 비활성 안내만
+    """
+    _ensure_chat_state()
+
+    # ✅ OpenAI 키 없으면(운영 실수 방지)
+    if not _chat_enabled():
+        with st.expander("🤖 일본어 챗코치 (설정 필요)", expanded=expanded):
+            st.caption("현재 챗봇이 비활성화되어 있어요. (OPENAI_API_KEY가 필요합니다.)")
+        return
+
+    # ✅ FREE 잠금
+    if not is_pro():
+        with st.expander("🤖 일본어 챗코치 (PRO)", expanded=expanded):
+            st.caption("🔒 챗봇은 PRO에서 이용할 수 있어요.")
+            if st.button("💎 PRO 신청/문의", use_container_width=True, key="btn_chatbot_go_pro"):
+                st.markdown(
+                    f"<meta http-equiv='refresh' content='0;url={NAVER_TALK_URL}'>",
+                    unsafe_allow_html=True
+                )
+        return
+
+    # ✅ PRO 챗 UI
+    with st.expander("🤖 일본어 챗코치", expanded=expanded):
+        # 품사 컨텍스트(선택)
+        pos_group = str(st.session_state.get("pos_group", "noun"))
+        pos_label = POS_LABEL_MAP.get(pos_group, pos_group)
+
+        # 품사가 바뀌면 “가이드 문구”만 부드럽게 추가(원치 않으면 삭제)
+        if st.session_state.get("chat_last_pos_group") != pos_group:
+            st.session_state.chat_last_pos_group = pos_group
+
+        # 상단 툴바
+        t1, t2 = st.columns([7, 3])
+        with t1:
+            st.caption(f"현재 선택 품사: **{pos_label}**  |  짧게 질문해도 OK 🙂")
+        with t2:
+            if st.button("🧹 대화 초기화", use_container_width=True, key="btn_chat_clear"):
+                st.session_state.chat_messages = []
+                st.rerun()
+
+        # 빠른 질문 버튼(왕초보용)
+        q1, q2, q3 = st.columns(3)
+        if q1.button("예문 2개", use_container_width=True, key="btn_chat_sugg_ex"):
+            st.session_state["chat_draft"] = "이 단어(또는 표현)로 자연스러운 예문 2개 만들어줘. 일본어/한국어 같이."
+        if q2.button("뉘앙스 차이", use_container_width=True, key="btn_chat_sugg_diff"):
+            st.session_state["chat_draft"] = "A와 B 차이를 왕초보도 알게 2문장으로 설명하고 예문 1개씩 줘."
+        if q3.button("정중/반말", use_container_width=True, key="btn_chat_sugg_polite"):
+            st.session_state["chat_draft"] = "이 표현을 정중체/보통체로 각각 1개씩 만들어줘."
+
+        st.markdown("---")
+
+        # 채팅 히스토리 렌더
+        for m in st.session_state.chat_messages:
+            role = m.get("role", "")
+            content = m.get("content", "")
+            if role == "user":
+                st.markdown(f"**🙂 나:** {content}")
+            else:
+                st.markdown(f"**🤖 코치:** {content}")
+
+        st.markdown("")
+
+        # 입력창
+        draft = st.session_state.get("chat_draft", "")
+        user_text = st.text_area(
+            "질문 입력",
+            value=draft,
+            placeholder="예) '行く'랑 '行きます' 뭐가 달라요? / '大丈夫' 예문 주세요 / 조사 が/は 헷갈려요",
+            height=90,
+            key="chat_input",
+        )
+        # draft는 1회성
+        st.session_state["chat_draft"] = ""
+
+        send_disabled = not bool(user_text.strip())
+        if st.button("보내기", type="primary", use_container_width=True, disabled=send_disabled, key="btn_chat_send"):
+            txt = user_text.strip()
+
+            # 1) user append
+            st.session_state.chat_messages.append({"role": "user", "content": txt})
+            st.session_state.chat_messages = _trim_history(st.session_state.chat_messages)
+
+            # 2) system + history -> API
+            system_msg = {"role": "system", "content": _build_system_prompt()}
+
+            # API로 보낼 메시지 구성
+            api_msgs = [system_msg] + st.session_state.chat_messages
+
+            with st.spinner("답변 생성 중..."):
+                answer = _openai_call(api_msgs)
+
+            # 3) assistant append
+            st.session_state.chat_messages.append({"role": "assistant", "content": answer})
+            st.session_state.chat_messages = _trim_history(st.session_state.chat_messages)
+
+            # 4) rerun to refresh UI
+            st.rerun()
 
 # ============================================================
 # ✅ Utils: 위젯 잔상(q_...) 제거
@@ -2474,14 +2747,13 @@ def render_home():
         unsafe_allow_html=True,
     )
 
-    # ✅ (2) 오늘의 학습 리포트: 홈에서만 / 타이틀 다음, 오늘의 말 위
+    # ✅ (2) 오늘의 학습 리포트: 홈에서만
     try:
         sb_authed = get_authed_sb()
         user_id = getattr(u, "id", None) if u else None
         if sb_authed and user_id:
             render_today_report_db_only(sb_authed, user_id)
     except Exception:
-        # 리포트 실패해도 홈 화면은 멈추지 않게
         pass
 
     # ✅ (3) 오늘의 말
@@ -2494,6 +2766,13 @@ def render_home():
     ]
     q = random.choice(quotes)
 
+    # (선택) 챗봇만 PRO 안내 — 홈 전체를 막지 말기!
+    if not is_pro():
+        st.caption("🔒 챗봇은 PRO에서 이용할 수 있어요.")
+        if st.button("💎 PRO 신청/문의", use_container_width=True, key="btn_chat_go_pro"):
+            st.markdown(f"<meta http-equiv='refresh' content='0;url={NAVER_TALK_URL}'>", unsafe_allow_html=True)
+
+    # ✅ 홈 본문은 FREE/PRO 모두 보여주기
     st.markdown(
         f"""
 <div class="jp" style="
@@ -2517,14 +2796,14 @@ def render_home():
     with c1:
         st.button("▶ 오늘의 퀴즈 시작", type="primary", use_container_width=True,
                   key="btn_home_start", on_click=go_quiz_from_home)
-                  
+
     with c2:
         st.button("📌 마이페이지", use_container_width=True,
                   key="btn_home_my", on_click=nav_to, args=("my",))
+
     with c3:
         st.button("🚪 로그아웃", use_container_width=True,
                   key="btn_home_logout", on_click=nav_logout)
-
 
 # ============================================================
 # ✅ 오늘의 학습 리포트 (DB only / quiz_attempts 기반)
@@ -2727,112 +3006,6 @@ def render_today_report_db_only(sb_authed, user_id: str):
     except Exception:
         # 리포트가 실패해도 앱이 멈추면 안 됨
         st.caption("오늘 리포트를 불러오지 못했어요.")
-# ============================================================
-# ✅ App Start: refresh → login → routing
-# ============================================================
-ok = refresh_session_from_cookie_if_needed(force=False)
-if not ok and (cookies.get("refresh_token") or cookies.get("access_token")):
-    clear_auth_everywhere()
-    st.caption("세션 복원에 실패해서 로그인을 다시 요청합니다.")
-
-require_login()
-
-ALLOWED_PAGES = {"home", "quiz", "my", "admin"}
-if "page" not in st.session_state:
-    st.session_state.page = "home"
-if st.session_state.get("page") not in ALLOWED_PAGES:
-    st.session_state.page = "home"
-
-user = st.session_state.get("user")
-user_id = getattr(user, "id", None) if user else None
-user_email = getattr(user, "email", None) if user else None
-user_email = user_email or st.session_state.get("login_email")
-
-sb_authed = get_authed_sb()
-
-# ✅ PRO 캐시가 다른 유저에게 넘어가는 것 방지 (먼저!)
-cached_uid = st.session_state.get("plan_cached_user_id")
-if cached_uid != user_id:
-    st.session_state.pop("plan_cached", None)
-    st.session_state["plan_cached_user_id"] = user_id
-
-# ✅ 로그인 유저 + authed 클라 둘 다 있을 때만 리포트 표시
-# if sb_authed and user_id:
-#    render_today_report_db_only(sb_authed, user_id)
-
-# ✅ pos_group 기반 available_types 적용
-try:
-    if sb_authed is not None:
-        available_types = get_available_quiz_types_for_pos(st.session_state.get("pos_group", "noun"))
-    else:
-        base_types = QUIZ_TYPES_USER
-        g_now = str(st.session_state.get("pos_group", "noun")).lower().strip()
-        available_types = [t for t in base_types if t in ("meaning", "kr2jp")] if g_now in POS_ONLY_2TYPES else base_types
-except Exception:
-    g_now = str(st.session_state.get("pos_group", "noun")).lower().strip()
-    available_types = ["meaning", "kr2jp"] if g_now in POS_ONLY_2TYPES else QUIZ_TYPES_USER
-
-# ✅ 현재 선택된 유형이 pos_group에서 허용되지 않으면 meaning으로 강제
-if st.session_state.get("quiz_type") not in available_types:
-    st.session_state.quiz_type = "meaning"
-
-if sb_authed is not None and not st.session_state.get("progress_restored"):
-    try:
-        restore_progress_from_db(sb_authed, user_id)
-    except Exception:
-        pass
-    st.session_state.progress_restored = True
-
-# ✅ 복원 후에도 pos_group/available_types 재동기화
-try:
-    available_types = get_available_quiz_types_for_pos(st.session_state.get("pos_group", "noun")) if sb_authed is not None else available_types
-except Exception:
-    pass
-if st.session_state.get("quiz_type") not in available_types:
-    st.session_state.quiz_type = "meaning"
-
-if st.session_state.get("page") != "home":
-    u = st.session_state.get("user")
-    email = (getattr(u, "email", None) if u else None) or st.session_state.get("login_email", "")
-    st.markdown(
-        f"""
-<div class="jp headbar">
-  <div class="headtitle">✨ 왕초보 탈출 하테나일본어</div>
-  <div class="headhello">환영합니다 🙂 <span class="mail">{email}</span></div>
-</div>
-""",
-        unsafe_allow_html=True,
-    )
-
-if sb_authed is not None:
-    ensure_profile(sb_authed, user)
-    att = mark_attendance_once(sb_authed)
-    if att:
-        st.session_state["streak_count"] = int(att.get("streak_count", 0) or 0)
-        st.session_state["did_attend_today"] = bool(att.get("did_attend", False))
-
-# ============================================================
-# ✅ Routing
-# ============================================================
-if st.session_state.page == "home":
-    render_home()
-    st.stop()
-
-if st.session_state.page == "admin":
-    if not is_admin():
-        st.session_state.page = "quiz"
-        st.warning("관리자 권한이 없습니다.")
-        st.rerun()
-    render_admin_dashboard()
-    st.stop()
-
-if st.session_state.page == "my":
-    try:
-        render_my_dashboard()
-    except Exception:
-        st.error("마이페이지에서 예외가 발생했습니다. 아래 Traceback을 확인해 주세요.")
-        st.code(traceback.format_exc())
-    st.stop()
 
 # ============================================================
 # ✅ PAYWALL CHECK (render_topcard() 보다 위에서 1번만!)
@@ -2893,6 +3066,58 @@ except Exception:
     total = 0
 
 # ============================================================
+# ✅ App Start: refresh → login → routing
+# ============================================================
+ok = refresh_session_from_cookie_if_needed(force=False)
+if not ok and (cookies.get("refresh_token") or cookies.get("access_token")):
+    clear_auth_everywhere()
+    st.caption("세션 복원에 실패해서 로그인을 다시 요청합니다.")
+
+require_login()
+render_topcard()
+
+ALLOWED_PAGES = {"home", "quiz", "my", "admin"}
+if "page" not in st.session_state:
+    st.session_state.page = "home"
+if st.session_state.get("page") not in ALLOWED_PAGES:
+    st.session_state.page = "home"
+
+user = st.session_state.get("user")
+user_id = getattr(user, "id", None) if user else None
+
+# ✅ plan 캐시가 다른 유저로 넘어가는 것 방지
+cached_uid = st.session_state.get("plan_cached_user_id")
+if cached_uid != user_id:
+    st.session_state.pop("plan_cached", None)
+    st.session_state["plan_cached_user_id"] = user_id
+
+# ✅ pos_group에 따라 가능한 유형 목록을 세션에 반영(필요 시)
+pos_group_now = str(st.session_state.get("pos_group", "noun")).strip().lower()
+available_types = get_available_quiz_types_for_pos(pos_group_now)
+
+# ✅ 현재 선택된 quiz_type이 불가하면 안전한 값으로 보정
+qt = str(st.session_state.get("quiz_type", "meaning")).strip()
+if qt not in available_types:
+    st.session_state.quiz_type = available_types[0] if available_types else "meaning"
+
+# ✅ 라우팅
+page = st.session_state.get("page", "home")
+
+if page == "home":
+    render_home()
+elif page == "my":
+    render_my_dashboard()
+elif page == "admin":
+    render_admin_dashboard()
+else:
+    # page == "quiz"
+    # (퀴즈 페이지가 없다면 여기에서 st.error로 알려주기)
+    if "render_quiz" not in globals():
+        st.error("render_quiz() 함수가 없습니다. (퀴즈 화면 렌더 함수 필요)")
+    else:
+        render_quiz()
+
+# ============================================================
 # ✅ Quiz Page
 # ============================================================
 def render_plan_banner():
@@ -2905,6 +3130,8 @@ def render_plan_banner():
     if st.button("💎 PRO 신청/문의", use_container_width=True, key="btn_go_pro"):
         st.session_state["_scroll_top_once"] = True
         st.markdown(f"<meta http-equiv='refresh' content='0;url={NAVER_TALK_URL}'>", unsafe_allow_html=True)
+
+render_chatbot(expanded=False)
 
 # ✅ 호출은 정의 아래에서
 render_topcard()
@@ -3776,6 +4003,132 @@ if st.session_state.get("submitted", False):
     show_naver_talk = (SHOW_NAVER_TALK == "N") or is_admin()
     if show_naver_talk:
         render_naver_talk()
+
+# ============================================================
+# ✅ Chatbot UI + Logic (App Tutor / Support Bot)
+# - 세션에 대화 저장
+# - 비용/토큰 보호: max_output 제한
+# - 안전하게: 시스템 프롬프트 + 간단 컨텍스트(현재 품사/유형/오늘 푼 문항수)
+# ============================================================
+
+def _chat_system_prompt() -> str:
+    return (
+        "당신은 일본어 초급 학습 앱(왕초보 탈출 하테나일본어)의 친절한 도우미입니다.\n"
+        "사용자는 한국인 일본어 학습자이며, 답변은 한국어로 하되 일본어 예시는 짧고 쉬운 문장으로 제공합니다.\n"
+        "앱 사용법(로그인, 품사 선택, 유형, 오답 복습, PRO 기능 등)과 일본어 학습 질문에 답합니다.\n"
+        "확신이 없으면 단정하지 말고, 앱 화면에서 확인할 방법을 안내합니다.\n"
+        "개인정보/비밀번호/토큰 등 민감정보 입력을 유도하지 마세요."
+    )
+
+def ensure_chat_state():
+    if "chat_messages" not in st.session_state or not isinstance(st.session_state.chat_messages, list):
+        st.session_state.chat_messages = []
+
+def _chat_context_brief() -> str:
+    # ✅ 앱 상태를 “살짝만” 컨텍스트로 제공 (너무 길게 주면 비용↑)
+    try:
+        pos_group = str(st.session_state.get("pos_group", "noun"))
+        quiz_type = str(st.session_state.get("quiz_type", "meaning"))
+    except Exception:
+        pos_group, quiz_type = "noun", "meaning"
+
+    # today_total은 기존 코드에서 total을 계산해두었으니 있으면 사용
+    today_total = 0
+    try:
+        today_total = int(st.session_state.get("_today_total_cached", 0))
+    except Exception:
+        pass
+
+    return (
+        f"[현재 상태]\n"
+        f"- 품사 그룹: {pos_group}\n"
+        f"- 유형: {quiz_type}\n"
+        f"- 오늘 푼 문항 수: {today_total}\n"
+    )
+
+def call_chatbot(user_text: str) -> str:
+    if not _openai_client:
+        return "현재 챗봇 설정(OPENAI_API_KEY)이 없어 이용할 수 있어요. 관리자에게 문의해 주세요."
+
+    # ✅ 시스템+컨텍스트+대화 기록 구성
+    msgs = [{"role": "system", "content": _chat_system_prompt()}]
+    msgs.append({"role": "system", "content": _chat_context_brief()})
+
+    # ✅ 최근 n개만 사용 (비용/속도 안정화)
+    history = st.session_state.get("chat_messages", [])[-12:]
+    for m in history:
+        if isinstance(m, dict) and "role" in m and "content" in m:
+            msgs.append({"role": m["role"], "content": str(m["content"])})
+
+    msgs.append({"role": "user", "content": user_text})
+
+    try:
+        # ⚠️ 모델명은 선우님 계정/환경에 맞춰 바꾸셔도 됩니다.
+        # 예: "gpt-4.1-mini", "gpt-4o-mini" 등
+        resp = _openai_client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=msgs,
+            temperature=0.4,
+            max_tokens=450,  # ✅ 과금/길이 보호
+        )
+        return (resp.choices[0].message.content or "").strip() or "음… 다시 한 번만 말씀해 주실래요?"
+    except Exception as e:
+        if is_admin():
+            return f"챗봇 호출 오류: {e}"
+        return "지금은 챗봇 응답이 불안정해요. 잠시 후 다시 시도해 주세요."
+
+def render_chatbot(expanded: bool = False):
+    ensure_chat_state()
+
+    with st.expander("💬 하테나쌤 챗봇 (앱 사용/학습 질문)", expanded=expanded):
+        st.caption("앱 사용법/학습 질문을 편하게 물어보세요. (민감정보는 입력하지 마세요)")
+
+        # ✅ 대화 표시
+        for m in st.session_state.chat_messages[-20:]:
+            role = m.get("role")
+            content = m.get("content", "")
+            if role == "user":
+                st.markdown(f"**🙂 나:** {content}")
+            else:
+                st.markdown(f"**🤖 챗봇:** {content}")
+
+        st.markdown("<div style='height:6px;'></div>", unsafe_allow_html=True)
+
+        user_text = st.text_input(
+            "질문 입력",
+            key="chat_input_text",
+            placeholder="예) '발음 문제는 왜 안 떠요?' / 'な형용사 예문 좀 만들어줘'",
+        )
+
+        c1, c2 = st.columns([7, 3])
+        with c1:
+            send = st.button("보내기", type="primary", use_container_width=True, key="btn_chat_send")
+        with c2:
+            clear = st.button("대화 지우기", use_container_width=True, key="btn_chat_clear")
+
+        if clear:
+            st.session_state.chat_messages = []
+            st.session_state.pop("chat_input_text", None)
+            st.rerun()
+
+        if send:
+            text = (user_text or "").strip()
+            if not text:
+                st.warning("질문을 입력해 주세요.")
+                st.stop()
+
+            # ✅ 유저 메시지 저장
+            st.session_state.chat_messages.append({"role": "user", "content": text})
+
+            # ✅ 응답 생성
+            answer = call_chatbot(text)
+
+            # ✅ 챗봇 메시지 저장
+            st.session_state.chat_messages.append({"role": "assistant", "content": answer})
+
+            # 입력칸 초기화 + 리렌더
+            st.session_state.pop("chat_input_text", None)
+            st.rerun()
 
 
 
