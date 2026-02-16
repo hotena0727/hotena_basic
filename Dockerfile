@@ -14,16 +14,11 @@ EXPOSE 8080
 
 CMD ["bash", "-lc", "\
 set -e; \
-( while true; do \
-    echo '[boot] starting streamlit...'; \
-    streamlit run hotena_basic.py \
-      --server.port=8501 \
-      --server.address=0.0.0.0 \
-      --server.headless=true \
-      --browser.gatherUsageStats=false \
-      --server.fileWatcherType=none ; \
-    echo '[warn] streamlit exited. restarting in 1s...'; \
-    sleep 1; \
-  done ) & \
-nginx -g 'daemon off;' \
+streamlit run hotena_basic.py \
+  --server.port=8501 \
+  --server.address=0.0.0.0 \
+  --server.headless=true \
+  --browser.gatherUsageStats=false \
+  --server.fileWatcherType=none & \
+exec nginx -g 'daemon off;' \
 "]
