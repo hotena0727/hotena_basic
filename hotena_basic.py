@@ -3046,6 +3046,49 @@ def get_daily_solved_from_db(sb_authed_local, user_id: str) -> int:
 is_locked = False
 daily_solved = 0
 
+# ===========================
+# ✅ 1) user_id 안전 확보
+# ===========================
+user_id = st.session_state.get("user_id")
+
+if not user_id:
+    user = st.session_state.get("user")
+    if not user:
+        st.error("로그인 정보가 없습니다. 다시 로그인해 주세요.")
+        st.stop()
+
+    if isinstance(user, dict):
+        user_id = user.get("id") or (user.get("user") or {}).get("id")
+    else:
+        user_id = getattr(user, "id", None) or getattr(getattr(user, "user", None), "id", None)
+
+    if not user_id:
+        st.error("user_id를 가져오지 못했습니다. 로그인 세션을 확인해 주세요.")
+        st.stop()
+
+    # 다음부터는 빠르게 쓰도록 캐시
+    st.session_state["user_id"] = user_id
+
+
+# ===========================
+# ✅ 2) 인증된 supabase client 확보
+# ===========================
+sb_authed_local = (
+    st.session_state.get("sb_authed")
+    or st.session_state.get("sb")
+    or globals().get("sb_authed")
+    or globals().get("sb")
+)
+
+if not sb_authed_local:
+    st.error("인증된 Supabase 클라이언트를 찾지 못했습니다.")
+    st.stop()
+
+# ===========================
+# ✅ 3) 이제 DB 호출
+# ===========================
+daily_solved = get_daily_solved_from_db(sb_authed_local, user_id)
+
 if not is_pro():
     sb_authed_local = get_authed_sb()
     if sb_authed_local is not None:
@@ -4146,6 +4189,7 @@ def render_chatbot(expanded: bool = False):
             # 입력칸 초기화 + 리렌더
             st.session_state.pop("chat_input_text", None)
             st.rerun()
+
 
 
 
