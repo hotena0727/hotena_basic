@@ -54,6 +54,8 @@ st.set_page_config(
     layout="centered",
 )
 
+st.session_state["_topcard_rendered"] = False
+
 # ============================================================
 # ✅ PWA/아이콘 - set_page_config 바로 아래
 # ============================================================
@@ -2004,6 +2006,12 @@ def render_topcard():
 
     st.markdown("</div>", unsafe_allow_html=True)
 
+def render_topcard_once():
+    if st.session_state.get("_topcard_rendered", False):
+        return
+    st.session_state["_topcard_rendered"] = True
+    render_topcard()
+
 # ============================================================
 # ✅ CSV Load Pool  (✅ CSV 최종 스펙 반영)
 # ============================================================
@@ -3084,33 +3092,25 @@ def get_daily_solved_from_db(sb_authed_local, user_id: str) -> int:
     rows = res.data or []
     return int(sum(int(r.get("quiz_len") or 0) for r in rows))
 
-# ============================================================
-# ✅ 계산 (딱 1번만)
-# ============================================================
-daily_solved = 0
+# ✅ 공통: 오늘 푼 문항 수(total)
+total = 0
 is_locked = False
 
 if not is_pro():
     sb_authed_local = get_authed_sb()
     uid = get_current_user_id()
 
-    if not uid:
-        st.stop()
-
-    if sb_authed_local is not None:
+    # uid나 sb 없으면 "잠금 판단 불가" → 일단 통과(혹은 보수적으로 잠금)
+    if sb_authed_local is not None and uid:
         try:
-            daily_solved = get_daily_solved_from_db(sb_authed_local, uid)
+            total = get_daily_solved_from_db(sb_authed_local, uid)
         except Exception:
-            daily_solved = 0
+            total = 0
 
-    is_locked = (daily_solved >= FREE_LIMIT)
+        is_locked = (total >= FREE_LIMIT)
 
-# ✅ 공통 UI/DEBUG에서 쓰고 싶다면 total = daily_solved 로 통일
-total = daily_solved
-
-# ✅ 잠금이면 즉시 중단
 if is_locked:
-    render_paywall(daily_solved)
+    render_paywall(total)
     st.stop()
 
 
@@ -3123,7 +3123,7 @@ if not ok and (cookies.get("refresh_token") or cookies.get("access_token")):
     st.caption("세션 복원에 실패해서 로그인을 다시 요청합니다.")
 
 require_login()
-render_topcard()
+render_topcard_once()()
 
 # ✅ user 확보
 user = st.session_state.get("user")
@@ -3169,6 +3169,15 @@ if qt not in available_types:
 # ✅ 라우팅
 page = st.session_state.get("page", "home")
 
+st.button(
+    "📌 마이페이지",
+    use_container_width=True,
+    help="내 학습 기록/오답 TOP10 보기",
+    key=f"topcard_btn_nav_my__{page}",
+    on_click=nav_to,
+    args=("my",),
+)
+
 if page == "home":
     render_home()
 elif page == "my":
@@ -3200,7 +3209,7 @@ def render_plan_banner():
 render_chatbot(expanded=False)
 
 # ✅ 호출은 정의 아래에서
-render_topcard()
+render_topcard_once()
 render_plan_banner()
 render_sound_toggle()
 
@@ -4195,6 +4204,7 @@ def render_chatbot(expanded: bool = False):
             # 입력칸 초기화 + 리렌더
             st.session_state.pop("chat_input_text", None)
             st.rerun()
+
 
 
 
