@@ -59,46 +59,53 @@ st.set_page_config(
 components.html("""
 <script>
 window.addEventListener("load", async () => {
-  // ✅ 작은 로그 박스(디버그용)
-  const pre = document.createElement("pre");
+  // ✅ 부모 문서(=진짜 페이지)로 주입
+  const doc = (window.parent && window.parent.document) ? window.parent.document : document;
+
+  // ✅ 작은 로그 박스(디버그용) - 가능하면 부모 body에
+  const pre = doc.createElement("pre");
   pre.id = "pwa_debug";
   pre.style.cssText = "white-space:pre-wrap;font-size:12px;opacity:0.75;margin:6px 0 0;";
   pre.textContent = "";
-  document.body.prepend(pre);
+  (doc.body || doc.documentElement).prepend(pre);
 
   const log = (msg) => { pre.textContent += msg + "\\n"; };
 
   // ✅ manifest
-  let m = document.querySelector("link[rel='manifest']");
-  if (!m) { m = document.createElement("link"); m.rel = "manifest"; document.head.appendChild(m); }
+  let m = doc.querySelector("link[rel='manifest']");
+  if (!m) { m = doc.createElement("link"); m.rel = "manifest"; doc.head.appendChild(m); }
   m.href = "/manifest.json";
   log("manifest: /manifest.json");
 
   // ✅ icons
-  let a = document.querySelector("link[rel='apple-touch-icon']");
-  if (!a) { a = document.createElement("link"); a.rel = "apple-touch-icon"; document.head.appendChild(a); }
+  let a = doc.querySelector("link[rel='apple-touch-icon']");
+  if (!a) { a = doc.createElement("link"); a.rel = "apple-touch-icon"; doc.head.appendChild(a); }
   a.setAttribute("sizes", "180x180");
   a.href = "/apple-touch-icon.png";
   log("apple-touch-icon: /apple-touch-icon.png");
 
-  let i = document.querySelector("link[rel='icon']");
-  if (!i) { i = document.createElement("link"); i.rel = "icon"; document.head.appendChild(i); }
+  // ✅ Android/Chrome icon
+  let i = doc.querySelector("link[rel='icon']");
+  if (!i) { i = doc.createElement("link"); i.rel = "icon"; doc.head.appendChild(i); }
   i.setAttribute("type", "image/png");
   i.setAttribute("sizes", "192x192");
   i.href = "/icon-192.png";
   log("icon: /icon-192.png");
 
-  // ✅ meta
+  // ✅ meta (iOS + theme)
   const meta = (name, content) => {
-    let el = document.querySelector(`meta[name='${name}']`);
-    if (!el) { el = document.createElement("meta"); el.name = name; document.head.appendChild(el); }
+    let el = doc.querySelector(`meta[name='${name}']`);
+    if (!el) { el = doc.createElement("meta"); el.name = name; doc.head.appendChild(el); }
     el.content = content;
   };
   meta("theme-color", "#0B2A6F");
   meta("apple-mobile-web-app-capable", "yes");
   meta("apple-mobile-web-app-status-bar-style", "black-translucent");
 
-  // ✅ 먼저 sw.js가 실제로 200으로 오는지 확인(가장 중요)
+  // ✅ SW 등록은 “부모 navigator”로 시도(환경에 따라 더 안정적)
+  const nav = (window.parent && window.parent.navigator) ? window.parent.navigator : navigator;
+
+  // ✅ 먼저 sw.js가 실제로 200으로 오는지 확인
   try {
     const r = await fetch("/sw.js", { cache: "no-store" });
     log("fetch /sw.js status: " + r.status);
@@ -106,10 +113,9 @@ window.addEventListener("load", async () => {
     log("fetch /sw.js FAILED: " + e);
   }
 
-  // ✅ service worker 등록 + 실패 이유 출력
-  if ("serviceWorker" in navigator) {
+  if ("serviceWorker" in nav) {
     try {
-      const reg = await navigator.serviceWorker.register("/sw.js");
+      const reg = await nav.serviceWorker.register("/sw.js");
       log("SW registered scope: " + reg.scope);
     } catch (e) {
       log("SW register FAILED: " + e);
@@ -118,10 +124,11 @@ window.addEventListener("load", async () => {
     log("serviceWorker not supported");
   }
 
-  log("UA: " + navigator.userAgent);
+  log("UA: " + nav.userAgent);
 });
 </script>
 """, height=140)
+
 
 
 
@@ -3769,6 +3776,7 @@ if st.session_state.get("submitted", False):
     show_naver_talk = (SHOW_NAVER_TALK == "N") or is_admin()
     if show_naver_talk:
         render_naver_talk()
+
 
 
 
