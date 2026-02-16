@@ -49,15 +49,19 @@ import html
 st.set_page_config(page_title="왕초보탈출 하테나일본어", layout="centered")
 
 # ============================================================
-# ✅ PWA/아이콘(외부 URL) - set_page_config 바로 아래
+# ✅ PWA/아이콘 - set_page_config 바로 아래
 # ============================================================
-ICON_192 = "/assets/icon-192.png"
-APPLE_180 = "/assets/apple-touch-icon.png"
+MANIFEST = "/app/static/manifest.json"
+ICON_192 = "/app/static/icon-192.png"
+APPLE_180 = "/app/static/apple-touch-icon.png"
 
 st.markdown(f"""
+<link rel="manifest" href="{MANIFEST}">
 <link rel="icon" href="{ICON_192}">
 <link rel="apple-touch-icon" href="{APPLE_180}">
 <meta name="theme-color" content="#0B2A6F">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 """, unsafe_allow_html=True)
 
 
@@ -3705,4 +3709,5 @@ if st.session_state.get("submitted", False):
     show_naver_talk = (SHOW_NAVER_TALK == "N") or is_admin()
     if show_naver_talk:
         render_naver_talk()
+
 
