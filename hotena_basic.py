@@ -1954,9 +1954,8 @@ def render_topcard():
             st.markdown("<div style='height:40px;'></div>", unsafe_allow_html=True)
 
     with r_my:
-        page = st.session_state.get("page", "home")
         st.button("📌 마이페이지", use_container_width=True, help="내 학습 기록/오답 TOP10 보기",
-                  key=f"topcard_btn_nav_my__{page}", on_click=nav_to, args=("my",))
+                  key="topcard_btn_nav_my", on_click=nav_to, args=("my",))
 
     with r_logout:
         st.button("🚪 로그아웃", use_container_width=True, help="로그아웃",
@@ -2968,7 +2967,7 @@ def render_today_report_db_only(sb_authed, user_id: str):
             st.caption("오늘의 학습 리포트: 아직 학습 기록이 없어요 🙂")
             return
 
-         st.markdown(
+        st.markdown(
             f"""
 <div class="jp" style="
   border:1px solid rgba(120,120,120,0.18);
@@ -2978,37 +2977,31 @@ def render_today_report_db_only(sb_authed, user_id: str):
   margin: 6px 0 10px 0;
 ">
   <div style="font-weight:900; font-size:14px; opacity:.75;">📈 오늘의 학습 리포트</div>
-
   <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
-    <div style="flex:1 1 120px; border:1px solid rgba(120,120,120,0.18); border-radius:14px; padding:10px 12px;">
-      <div style="font-size:12px; font-weight:800; opacity:.70;">오늘 푼 문항</div>
-      <div style="font-size:20px; font-weight:900; margin-top:4px;">{total_display}</div>
+    <div style="flex:1 1 120px; min-width:120px;">
+      <div style="font-size:12px; opacity:.7; font-weight:800;">오늘 푼 문항</div>
+      <div style="font-size:22px; font-weight:900; line-height:1.1;">{mask_value(total)}</div>
     </div>
-
-    <div style="flex:1 1 120px; border:1px solid rgba(120,120,120,0.18); border-radius:14px; padding:10px 12px;">
-      <div style="font-size:12px; font-weight:800; opacity:.70;">정답률</div>
-      <div style="font-size:20px; font-weight:900; margin-top:4px;">{acc_display}</div>
+    <div style="flex:1 1 120px; min-width:120px;">
+      <div style="font-size:12px; opacity:.7; font-weight:800;">정답률</div>
+      <div style="font-size:22px; font-weight:900; line-height:1.1;">{mask_value(acc, "%")}</div>
     </div>
-
-    <div style="flex:1 1 120px; border:1px solid rgba(120,120,120,0.18); border-radius:14px; padding:10px 12px;">
-      <div style="font-size:12px; font-weight:800; opacity:.70;">오늘 오답</div>
-      <div style="font-size:20px; font-weight:900; margin-top:4px;">{wrong_display}</div>
+    <div style="flex:1 1 120px; min-width:120px;">
+      <div style="font-size:12px; opacity:.7; font-weight:800;">오늘 오답</div>
+      <div style="font-size:22px; font-weight:900; line-height:1.1;">{mask_value(wrong)}</div>
     </div>
-
-    <div style="flex:1 1 120px; border:1px solid rgba(120,120,120,0.18); border-radius:14px; padding:10px 12px;">
-      <div style="font-size:12px; font-weight:800; opacity:.70;">연속 학습</div>
-      <div style="font-size:20px; font-weight:900; margin-top:4px;">{streak_display}</div>
+    <div style="flex:1 1 160px; min-width:160px;">
+      <div style="font-size:12px; opacity:.7; font-weight:800;">연속 학습</div>
+      <div style="font-size:22px; font-weight:900; line-height:1.1;">{mask_value(streak, "일")}</div>
     </div>
   </div>
-
-  <div style="margin-top:10px; font-size:13px; opacity:.80;">
-    가장 많이 틀린 유형: <b>{html.escape(str(top_mode))}</b>
+  <div style="margin-top:8px; font-size:12px; opacity:.78; line-height:1.4;">
+    오늘 가장 많이 틀린 모드: <b>{html.escape(str(top_mode))}</b>
   </div>
 </div>
 """,
             unsafe_allow_html=True,
         )
-
 
     except Exception:
         # 리포트가 실패해도 앱이 멈추면 안 됨
@@ -4196,9 +4189,6 @@ def render_chatbot(expanded: bool = False):
             # 입력칸 초기화 + 리렌더
             st.session_state.pop("chat_input_text", None)
             st.rerun()
-
-
-
 
 
 
