@@ -622,73 +622,6 @@ if not cookies.ready():
 
 sb = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
 
-def _openai_call(messages_for_api: list[dict]) -> str:
-    """
-    안정성 우선:
-    1) chat.completions.create 를 1순위
-    2) responses.create 는 fallback
-    """
-    if _openai_client is None:
-        return "현재 챗봇이 비활성화되어 있어요. (OPENAI_API_KEY 확인 필요)"
-
-    # ✅ 1) Chat Completions (가장 호환 잘 됨)
-    try:
-        r = _openai_client.chat.completions.create(
-            model=CHAT_MODEL,
-            messages=messages_for_api,
-            temperature=0.4,
-            max_tokens=400,   # ✅ 비용/지연/폭주 방지 (원하면 250~600 사이로)
-        )
-        return (r.choices[0].message.content or "").strip() or "음… 답변이 비어있어요. 질문을 조금만 바꿔볼까요?"
-    except Exception as e1:
-        err1 = str(e1)
-
-    # ✅ 2) Responses API (fallback)
-    try:
-        # Responses는 SDK/버전에 따라 input schema가 달라서,
-        # 가장 무난한 방식(문자열로 합치기)으로 fallback 처리
-        # (원하면 여기만 메시지 구조로 맞춰도 되지만, 배포 안정성은 이쪽이 높습니다)
-        joined = []
-        for m in messages_for_api:
-            role = m.get("role", "")
-            content = m.get("content", "")
-            if not content:
-                continue
-            prefix = "SYSTEM" if role == "system" else ("USER" if role == "user" else "ASSISTANT")
-            joined.append(f"[{prefix}] {content}")
-        prompt = "\n".join(joined).strip()
-
-        r = _openai_client.responses.create(
-            model=CHAT_MODEL,
-            input=prompt,
-            max_output_tokens=400,
-        )
-        txt = getattr(r, "output_text", None)
-        if txt:
-            return str(txt).strip()
-
-        # 출력 구조 fallback
-        if hasattr(r, "output") and r.output:
-            out = []
-            for o in r.output:
-                for c in getattr(o, "content", []) or []:
-                    t = getattr(c, "text", None)
-                    if t:
-                        out.append(t)
-            if out:
-                return "\n".join(out).strip()
-
-        return "답변 생성은 되었는데, 출력 파싱에 실패했어요. (SDK 출력 구조 확인 필요)"
-    except Exception as e2:
-        err2 = str(e2)
-
-    # ✅ 최종 실패
-    return (
-        "챗봇 호출에 실패했어요.\n"
-        f"- chat.completions 에러: {err1}\n"
-        f"- responses 에러: {err2}"
-    )
-
 # ============================================================
 # ✅ OpenAI API (Chatbot)
 # ============================================================
@@ -748,27 +681,47 @@ def _trim_history(msgs: list[dict]) -> list[dict]:
 
 def _openai_call(messages_for_api: list[dict]) -> str:
     """
-    OpenAI SDK 호환을 최대화:
-    1) responses.create (최신)
-    2) chat.completions.create (구버전)
+    OpenAI SDK 호환 최대화:
+    1) responses.create (최신)  - 안전하게 '문자열'로 보내기
+    2) chat.completions.create (구버전) - messages 그대로
     """
     if _openai_client is None:
         return "현재 챗봇이 비활성화되어 있어요. (OPENAI_API_KEY 확인 필요)"
+
+    # ✅ messages -> 단일 텍스트로 변환 (Responses에서 가장 안전)
+    def _as_text(msgs: list[dict]) -> str:
+        parts = []
+        for m in msgs:
+            role = (m.get("role") or "").strip()
+            content = m.get("content")
+            if content is None:
+                continue
+
+            # content가 list/str 등으로 들어오는 경우를 최대한 흡수
+            if isinstance(content, list):
+                texts = []
+                for item in content:
+                    # [{"type":"text","text":"..."}] 형태 대응
+                    if isinstance(item, dict) and item.get("type") == "text":
+                        texts.append(str(item.get("text", "")))
+                content = "\n".join([t for t in texts if t])
+
+            parts.append(f"{role}: {str(content).strip()}")
+        return "\n".join(parts).strip()
 
     # 1) Responses API
     try:
         r = _openai_client.responses.create(
             model=CHAT_MODEL,
-            input=messages_for_api,  # OpenAI Responses는 messages 형태도 허용되는 케이스가 많음
+            input=_as_text(messages_for_api),
         )
-        # SDK 버전에 따라 출력 구조가 다를 수 있어 안전하게 처리
-        # 흔한 형태: r.output_text
+
         txt = getattr(r, "output_text", None)
         if txt:
             return str(txt).strip()
-        # 다른 형태 fallback
+
+        # fallback: output[*].content[*].text
         if hasattr(r, "output") and r.output:
-            # output[*].content[*].text
             out = []
             for o in r.output:
                 for c in getattr(o, "content", []) or []:
@@ -777,6 +730,7 @@ def _openai_call(messages_for_api: list[dict]) -> str:
                         out.append(t)
             if out:
                 return "\n".join(out).strip()
+
     except Exception:
         pass
 
@@ -788,6 +742,7 @@ def _openai_call(messages_for_api: list[dict]) -> str:
             temperature=0.4,
         )
         return (r.choices[0].message.content or "").strip()
+
     except Exception as e:
         return f"챗봇 호출에 실패했어요. (에러: {e})"
 
@@ -1857,6 +1812,8 @@ else:
     if st.button("📘 이용안내 다시보기", use_container_width=True):
         render_onboarding_card(expanded=True)
 
+require_login()  # ✅ 로그인 안 했으면 auth_box 띄우고 stop
+
 # ✅ 로그인 이후엔 무조건 user_id 확보 (NameError/None 방지)
 _uid = get_current_user_id()
 if not _uid:
@@ -1965,6 +1922,29 @@ def render_naver_talk():
 """,
         unsafe_allow_html=True,
     )
+
+def require_user():
+    u = st.session_state.get("user")
+    if u:
+        return u
+
+    # 세션 복원 로직이 따로 있다면 여기서 1번 더 시도 (예: restore_auth())
+    # restore_auth_if_possible()
+
+    u = st.session_state.get("user")
+    if not u:
+        st.warning("유저 정보를 불러오지 못했습니다. 다시 로그인해 주세요.")
+        st.session_state.page = "login"
+        st.stop()
+    return u
+
+# ✅ 항상 먼저
+user = require_user()
+user_id = get_current_user_id()
+if not user_id:
+    st.warning("유저 정보를 불러오지 못했습니다. 다시 로그인해 주세요.")
+    st.session_state.page = "login"
+    st.stop()
 
 # ============================================================
 # ✅ Top Card (마이페이지/관리자/로그아웃)
@@ -4204,6 +4184,7 @@ def render_chatbot(expanded: bool = False):
             # 입력칸 초기화 + 리렌더
             st.session_state.pop("chat_input_text", None)
             st.rerun()
+
 
 
 
