@@ -139,6 +139,19 @@ CSV_PATH = BASE_DIR / "data" / "beginner.csv"   # ✅ 왕초보 단어 CSV
 PATTERN_CSV_PATH = BASE_DIR / "data" / "patterns_beginner.csv"
 APP_URL = "https://hotena-basic-925102605904.asia-northeast3.run.app/"      # ✅ 이메일 인증 redirect용 (스트림릿 앱 주소로 교체)
 
+def _safe_error_box(title: str, e: Exception):
+    # Streamlit이 redacted 하더라도, 화면엔 최소 정보만 보여주기
+    st.error(title)
+    st.caption(f"{type(e).__name__}: {str(e)[:200]}")
+
+# ✅ Session defaults (중요: user_id NameError 방지)
+if "is_authed" not in st.session_state:
+    st.session_state["is_authed"] = False
+if "user_id" not in st.session_state:
+    st.session_state["user_id"] = None
+if "user_email" not in st.session_state:
+    st.session_state["user_email"] = None
+
 # ============================================================
 # ✅ App Settings
 # ============================================================
@@ -886,6 +899,27 @@ def clear_question_widget_keys():
     for k in keys_to_del:
         st.session_state.pop(k, None)
 
+# ============================================================
+# ✅ Current user helpers (NameError 방지 핵심 패치)
+# ============================================================
+def get_current_user_id() -> str | None:
+    u = st.session_state.get("user")
+    uid = getattr(u, "id", None) if u else None
+    if uid:
+        st.session_state["user_id"] = uid  # 세션에도 동기화
+        return uid
+    # 세션에 남아있을 수도 있으니 fallback
+    uid2 = st.session_state.get("user_id")
+    return uid2 if uid2 else None
+
+def get_current_user_email() -> str:
+    u = st.session_state.get("user")
+    em = getattr(u, "email", None) if u else None
+    if em:
+        st.session_state["user_email"] = em
+        return str(em)
+    em2 = st.session_state.get("user_email") or st.session_state.get("login_email") or ""
+    return str(em2)
         
 # ============================================================
 # ✅ FREE 관련 공통 유틸 (현재 제한 OFF 모드)
@@ -1820,6 +1854,13 @@ if not has_seen_onboarding():
 else:
     if st.button("📘 이용안내 다시보기", use_container_width=True):
         render_onboarding_card(expanded=True)
+
+# ✅ 로그인 이후엔 무조건 user_id 확보 (NameError/None 방지)
+_uid = get_current_user_id()
+if not _uid:
+    st.warning("유저 정보를 불러오지 못했습니다. 다시 로그인해 주세요.")
+    clear_auth_everywhere()
+    st.rerun()
 
 # ============================================================
 # ✅ 네이버톡 배너 (제출 후만)
@@ -3022,14 +3063,15 @@ def render_paywall(daily_solved: int):
     st.info("PRO로 업그레이드하면 오늘도 계속 풀 수 있어요.")
     if st.button("💎 PRO 신청/문의", use_container_width=True, key="btn_paywall_go_pro"):
         st.session_state["_scroll_top_once"] = True
-        st.markdown(f"<meta http-equiv='refresh' content='0;url={NAVER_TALK_URL}'>", unsafe_allow_html=True)
+        st.markdown(
+            f"<meta http-equiv='refresh' content='0;url={NAVER_TALK_URL}'>",
+            unsafe_allow_html=True
+        )
 
 def get_daily_solved_from_db(sb_authed_local, user_id: str) -> int:
     """오늘(KST) 푼 문항 수 합계 (quiz_attempts.quiz_len 합산)"""
     now = datetime.now(KST)
     start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-
-    # created_at이 timestamptz라면, KST start를 ISO로 넣어도 대부분 정상 필터됩니다.
     start_iso = start.isoformat()
 
     res = (
@@ -3042,28 +3084,35 @@ def get_daily_solved_from_db(sb_authed_local, user_id: str) -> int:
     rows = res.data or []
     return int(sum(int(r.get("quiz_len") or 0) for r in rows))
 
-# ✅ 잠금 판단
-is_locked = False
+# ============================================================
+# ✅ 계산 (딱 1번만)
+# ============================================================
 daily_solved = 0
+is_locked = False
 
 if not is_pro():
     sb_authed_local = get_authed_sb()
-    if sb_authed_local is not None:
-        daily_solved = get_daily_solved_from_db(sb_authed_local, user_id)
-        is_locked = (daily_solved >= FREE_LIMIT)
+    uid = get_current_user_id()
 
+    if not uid:
+        st.stop()
+
+    if sb_authed_local is not None:
+        try:
+            daily_solved = get_daily_solved_from_db(sb_authed_local, uid)
+        except Exception:
+            daily_solved = 0
+
+    is_locked = (daily_solved >= FREE_LIMIT)
+
+# ✅ 공통 UI/DEBUG에서 쓰고 싶다면 total = daily_solved 로 통일
+total = daily_solved
+
+# ✅ 잠금이면 즉시 중단
 if is_locked:
     render_paywall(daily_solved)
     st.stop()
 
-# ✅ 오늘 푼 문항 수(total) 정의: 목표 UI/DEBUG에서 공통 사용
-total = 0
-try:
-    sb_authed_local = get_authed_sb()
-    if sb_authed_local is not None and user_id:
-        total = get_daily_solved_from_db(sb_authed_local, user_id)  # 오늘 푼 문항 수
-except Exception:
-    total = 0
 
 # ============================================================
 # ✅ App Start: refresh → login → routing
@@ -4146,6 +4195,7 @@ def render_chatbot(expanded: bool = False):
             # 입력칸 초기화 + 리렌더
             st.session_state.pop("chat_input_text", None)
             st.rerun()
+
 
 
 
