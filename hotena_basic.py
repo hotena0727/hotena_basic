@@ -491,22 +491,47 @@ if st.session_state.get("_scroll_top_once"):
     scroll_to_top(nonce=st.session_state["_scroll_top_nonce"])
 
 # ============================================================
-# ✅ Cookies + Supabase
+# ✅ Cookies + Supabase (Cloud Run env + Streamlit secrets 겸용)
 # ============================================================
+import os
+import streamlit as st
+from streamlit_cookies_manager import EncryptedCookieManager
+from supabase import create_client
+
+def get_cfg(key: str) -> str:
+    # 1) Cloud Run: 환경변수 우선
+    v = os.getenv(key)
+    if v:
+        return v
+    # 2) Streamlit Cloud: secrets
+    try:
+        return st.secrets[key]
+    except Exception:
+        return ""
+
+COOKIE_PASSWORD = get_cfg("COOKIE_PASSWORD")
+SUPABASE_URL = get_cfg("SUPABASE_URL")
+SUPABASE_ANON_KEY = get_cfg("SUPABASE_ANON_KEY")
+
+# ✅ 필수값 체크
+missing = [k for k, v in {
+    "COOKIE_PASSWORD": COOKIE_PASSWORD,
+    "SUPABASE_URL": SUPABASE_URL,
+    "SUPABASE_ANON_KEY": SUPABASE_ANON_KEY,
+}.items() if not v]
+
+if missing:
+    st.error(f"설정값이 없습니다: {', '.join(missing)} (Cloud Run env 또는 Streamlit secrets 확인)")
+    st.stop()
+
 cookies = EncryptedCookieManager(
-    prefix="hatena_beginner_",
-    password=st.secrets["COOKIE_PASSWORD"],
+    prefix="hotena_beginner_",   # ✅ hotena로 통일 권장
+    password=COOKIE_PASSWORD,
 )
 if not cookies.ready():
     st.info("잠깐만요! 곧 시작할게요🙂")
     st.stop()
 
-if "SUPABASE_URL" not in st.secrets or "SUPABASE_ANON_KEY" not in st.secrets:
-    st.error("Supabase Secrets가 설정되지 않았습니다. (SUPABASE_URL / SUPABASE_ANON_KEY)")
-    st.stop()
-
-SUPABASE_URL = st.secrets["SUPABASE_URL"]
-SUPABASE_ANON_KEY = st.secrets["SUPABASE_ANON_KEY"]
 sb = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
 
 # ============================================================
@@ -3680,3 +3705,4 @@ if st.session_state.get("submitted", False):
     show_naver_talk = (SHOW_NAVER_TALK == "N") or is_admin()
     if show_naver_talk:
         render_naver_talk()
+
