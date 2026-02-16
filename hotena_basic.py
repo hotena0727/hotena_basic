@@ -46,7 +46,11 @@ import html
 # ============================================================
 # ✅ Page Config + Paths
 # ============================================================
-st.set_page_config(page_title="왕초보탈출 하테나일본어", layout="centered")
+st.set_page_config(
+    page_title="왕초보탈출 하테나일본어",
+    page_icon="static/icon-192.png",   # 또는 "🟦"
+    layout="centered",
+)
 
 # ============================================================
 # ✅ PWA/아이콘 - set_page_config 바로 아래
@@ -55,21 +59,34 @@ components.html(
     """
 <script>
 (function() {
-  const addLink = (rel, href) => {
-    let el = document.querySelector(`link[rel='${rel}']`);
+  const upsertLink = (selector, attrs) => {
+    let el = document.querySelector(selector);
     if (!el) {
       el = document.createElement("link");
-      el.rel = rel;
-      el.href = href;
       document.head.appendChild(el);
-    } else {
-      el.href = href;
     }
+    Object.entries(attrs).forEach(([k,v]) => el.setAttribute(k, v));
   };
 
-  addLink("manifest", "/app/static/manifest.json");
-  addLink("apple-touch-icon", "/app/static/apple-touch-icon.png");
-  addLink("icon", "/app/static/icon-192.png");
+  upsertLink("link[rel='manifest']", {
+    rel: "manifest",
+    href: "/app/static/manifest.json"
+  });
+
+  // iOS 홈화면 아이콘 (sizes 명시)
+  upsertLink("link[rel='apple-touch-icon']", {
+    rel: "apple-touch-icon",
+    sizes: "180x180",
+    href: "/app/static/apple-touch-icon.png"
+  });
+
+  // 일반 아이콘도 sizes 명시
+  upsertLink("link[rel='icon']", {
+    rel: "icon",
+    type: "image/png",
+    sizes: "192x192",
+    href: "/app/static/icon-192.png"
+  });
 
   const setMeta = (name, content) => {
     let m = document.querySelector(`meta[name='${name}']`);
@@ -91,10 +108,11 @@ components.html(
 )
 
 
+
 BASE_DIR = Path(__file__).resolve().parent
 CSV_PATH = BASE_DIR / "data" / "beginner.csv"   # ✅ 왕초보 단어 CSV
 PATTERN_CSV_PATH = BASE_DIR / "data" / "patterns_beginner.csv"
-APP_URL = "https://YOUR_STREAMLIT_APP_URL_HERE/"      # ✅ 이메일 인증 redirect용 (스트림릿 앱 주소로 교체)
+APP_URL = "https://hotena-basic-925102605904.asia-northeast3.run.app/"      # ✅ 이메일 인증 redirect용 (스트림릿 앱 주소로 교체)
 
 # ============================================================
 # ✅ App Settings
@@ -3735,6 +3753,7 @@ if st.session_state.get("submitted", False):
     show_naver_talk = (SHOW_NAVER_TALK == "N") or is_admin()
     if show_naver_talk:
         render_naver_talk()
+
 
 
 
