@@ -1,1 +1,1 @@
-# hotena_basic
+# hotena_one_app

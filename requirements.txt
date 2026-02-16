@@ -1,0 +1,6 @@
+streamlit
+gTTS==2.5.3
+pandas
+supabase
+python-dotenv
+streamlit-cookies-manager
