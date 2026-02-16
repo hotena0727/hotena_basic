@@ -55,58 +55,44 @@ st.set_page_config(
 # ============================================================
 # ✅ PWA/아이콘 - set_page_config 바로 아래
 # ============================================================
-components.html(
-    """
+
+components.html("""
 <script>
-(function() {
-  const upsertLink = (selector, attrs) => {
-    let el = document.querySelector(selector);
-    if (!el) {
-      el = document.createElement("link");
-      document.head.appendChild(el);
-    }
-    Object.entries(attrs).forEach(([k,v]) => el.setAttribute(k, v));
+(function(){
+  // ✅ manifest
+  let m = document.querySelector("link[rel='manifest']");
+  if (!m) { m = document.createElement("link"); m.rel = "manifest"; document.head.appendChild(m); }
+  m.href = "/manifest.json";
+
+  // ✅ icons (iOS는 apple-touch-icon을 특히 좋아함)
+  let a = document.querySelector("link[rel='apple-touch-icon']");
+  if (!a) { a = document.createElement("link"); a.rel = "apple-touch-icon"; document.head.appendChild(a); }
+  a.setAttribute("sizes", "180x180");
+  a.href = "/apple-touch-icon.png";
+
+  let i = document.querySelector("link[rel='icon']");
+  if (!i) { i = document.createElement("link"); i.rel = "icon"; document.head.appendChild(i); }
+  i.setAttribute("type", "image/png");
+  i.setAttribute("sizes", "192x192");
+  i.href = "/icon-192.png";
+
+  // ✅ iOS standalone 힌트
+  const meta = (name, content) => {
+    let el = document.querySelector(`meta[name='${name}']`);
+    if (!el) { el = document.createElement("meta"); el.name = name; document.head.appendChild(el); }
+    el.content = content;
   };
+  meta("theme-color", "#0B2A6F");
+  meta("apple-mobile-web-app-capable", "yes");
+  meta("apple-mobile-web-app-status-bar-style", "black-translucent");
 
-  upsertLink("link[rel='manifest']", {
-    rel: "manifest",
-    href: "/app/static/manifest.json"
-  });
-
-  // iOS 홈화면 아이콘 (sizes 명시)
-  upsertLink("link[rel='apple-touch-icon']", {
-    rel: "apple-touch-icon",
-    sizes: "180x180",
-    href: "/app/static/apple-touch-icon.png"
-  });
-
-  // 일반 아이콘도 sizes 명시
-  upsertLink("link[rel='icon']", {
-    rel: "icon",
-    type: "image/png",
-    sizes: "192x192",
-    href: "/app/static/icon-192.png"
-  });
-
-  const setMeta = (name, content) => {
-    let m = document.querySelector(`meta[name='${name}']`);
-    if (!m) {
-      m = document.createElement("meta");
-      m.name = name;
-      document.head.appendChild(m);
-    }
-    m.content = content;
-  };
-
-  setMeta("theme-color", "#0B2A6F");
-  setMeta("apple-mobile-web-app-capable", "yes");
-  setMeta("apple-mobile-web-app-status-bar-style", "black-translucent");
+  // ✅ Android install 조건(서비스워커)
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("/sw.js").catch(()=>{});
+  }
 })();
 </script>
-""",
-    height=0,
-)
-
+""", height=0)
 
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -3753,6 +3739,7 @@ if st.session_state.get("submitted", False):
     show_naver_talk = (SHOW_NAVER_TALK == "N") or is_admin()
     if show_naver_talk:
         render_naver_talk()
+
 
 
 
