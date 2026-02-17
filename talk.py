@@ -66,6 +66,8 @@ def load_csv(path: Path) -> pd.DataFrame:
     for c in df.columns:
         if df[c].dtype == object:
             df[c] = df[c].astype(str).str.strip()
+            # pandas가 빈 값을 NaN으로 읽으면 'nan' 문자열이 될 수 있음 → 제거
+            df[c] = df[c].replace({"nan": "", "NaN": "", "None": ""})
     df = df[df["answer_jp"].astype(str).str.len() > 0].reset_index(drop=True)
     return df
 
@@ -350,7 +352,7 @@ pool_answers = DF["answer_jp"].astype(str).tolist()
 choices = build_choices(row, pool_answers)
 
 st.progress((idx) / max(1, len(set_qids)))
-st.markdown(f"#### Q{idx+1} / {len(set_qids)}")
+st.markdown(f"#### {idx+1} / {len(set_qids)}")
 
 # 상황
 st.markdown("### 상황")
