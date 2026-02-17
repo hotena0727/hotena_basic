@@ -202,17 +202,17 @@ def go(page: str):
     st.rerun()
 
 def run_script(filename: str):
-    path = (BASE_DIR / filename).resolve()
+    base_dir = Path(__file__).resolve().parent   # ✅ 여기서 즉시 계산
+    path = (base_dir / filename).resolve()
 
     if not path.exists():
         st.error(f"파일을 찾을 수 없습니다: {path}")
         st.caption("✅ 확인: home.py와 hotena_basic.py / app.py / talk.py가 '같은 폴더'에 있어야 합니다.")
-        st.caption(f"현재 BASE_DIR: {BASE_DIR}")
-        st.caption("BASE_DIR 안의 파일 목록:")
-        st.code("\n".join(sorted([p.name for p in BASE_DIR.glob('*')])) or "(비어있음)")
+        st.caption(f"현재 폴더(base_dir): {base_dir}")
+        st.caption("base_dir 안의 파일 목록:")
+        st.code("\n".join(sorted([p.name for p in base_dir.glob('*')])) or "(비어있음)")
         st.stop()
 
-    # ✅ 실행
     runpy.run_path(str(path), run_name="__main__")
 
 # ============================================================
