@@ -2474,42 +2474,6 @@ def render_home():
         unsafe_allow_html=True,
     )
 
-    # ============================================================
-    # ✅ 홈 학습 선택 (단어 / 한자 / 회화)
-    # - "한자"는 멀티페이지(pages/kanji.py)로 이동
-    # ============================================================
-    try:
-        home_mode = st.segmented_control(
-            "학습 선택",
-            options=["단어", "한자", "회화"],
-            default=st.session_state.get("home_mode", "단어"),
-            key="home_mode",
-            label_visibility="collapsed",
-        )
-    except Exception:
-        home_mode = st.radio(
-            "학습 선택",
-            ["단어", "한자", "회화"],
-            index=["단어", "한자", "회화"].index(st.session_state.get("home_mode", "단어")),
-            horizontal=True,
-            key="home_mode_radio_fallback",
-            label_visibility="collapsed",
-        )
-        # radio fallback 선택값을 home_mode로 동기화
-        st.session_state["home_mode"] = home_mode
-
-    if home_mode == "한자":
-        try:
-            st.switch_page("pages/kanji.py")
-        except Exception:
-            st.info("왼쪽 사이드바에서 **한자** 페이지를 선택해 주세요.")
-        st.stop()
-
-    if home_mode == "회화":
-        st.info("회화 훈련은 준비 중입니다. (곧 연결해 드릴게요!)")
-        st.stop()
-
-
     # ✅ (2) 오늘의 학습 리포트: 홈에서만 / 타이틀 다음, 오늘의 말 위
     try:
         sb_authed = get_authed_sb()
@@ -3812,4 +3776,5 @@ if st.session_state.get("submitted", False):
     show_naver_talk = (SHOW_NAVER_TALK == "N") or is_admin()
     if show_naver_talk:
         render_naver_talk()
+
 
