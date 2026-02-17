@@ -30,6 +30,9 @@ cookies = EncryptedCookieManager(prefix=COOKIE_PREFIX, password=st.secrets.get("
 if not cookies.ready():
     st.stop()
 
+# ✅ reuse cookies in child scripts (avoid StreamlitDuplicateElementKey)
+st.session_state["cookies"] = cookies
+
 SUPABASE_URL = st.secrets.get("SUPABASE_URL")
 SUPABASE_ANON_KEY = st.secrets.get("SUPABASE_ANON_KEY")
 if not SUPABASE_URL or not SUPABASE_ANON_KEY:

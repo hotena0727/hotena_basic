@@ -388,10 +388,17 @@ if st.session_state.get("_scroll_top_once"):
 # ============================================================
 # ✅ Cookies
 # ============================================================
-cookies = EncryptedCookieManager(
-    prefix="hatena_kanji_",
-    password=st.secrets["COOKIE_PASSWORD"],
-)
+# ✅ cookies manager is created once in home.py to avoid StreamlitDuplicateElementKey
+#    Reuse it here if present; otherwise create (e.g., standalone run).
+if "cookies" in st.session_state:
+    cookies = st.session_state["cookies"]
+else:
+    cookies = EncryptedCookieManager(
+        prefix="hotena_beginner_",
+        password=st.secrets.get("COOKIE_PASSWORD") or st.secrets.get("COOKIE_PASSWORD".lower()),
+    )
+    st.session_state["cookies"] = cookies
+
 if not cookies.ready():
     st.info("잠깐만요! 곧 시작할게요🙂")
     st.stop()

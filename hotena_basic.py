@@ -598,10 +598,14 @@ if missing:
     st.error(f"설정값이 없습니다: {', '.join(missing)} (Cloud Run env 또는 Streamlit secrets 확인)")
     st.stop()
 
-cookies = EncryptedCookieManager(
-    prefix="hotena_beginner_",   # ✅ hotena로 통일 권장
-    password=COOKIE_PASSWORD,
-)
+# ✅ cookies manager is created once in home.py to avoid StreamlitDuplicateElementKey
+#    Reuse it here if present; otherwise create (e.g., when running this file standalone).
+if "cookies" in st.session_state:
+    cookies = st.session_state["cookies"]
+else:
+    cookies = EncryptedCookieManager(prefix="hotena_beginner_", password=COOKIE_PASSWORD)
+    st.session_state["cookies"] = cookies
+
 if not cookies.ready():
     st.info("잠깐만요! 곧 시작할게요🙂")
     st.stop()
