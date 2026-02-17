@@ -11,6 +11,11 @@ import streamlit.components.v1 as components
 from supabase import create_client
 
 # ============================================================
+# ✅ Namespace (session_state keys)
+# ============================================================
+NS = "talk"
+
+# ============================================================
 # ✅ Session gate (공통 로그인은 home.py에서)
 # ============================================================
 if "user" not in st.session_state:
@@ -28,6 +33,12 @@ st.caption("상황 → 상대의 한마디(발음 지원) → 쌩뚱맞은 보�
 # ✅ Supabase client
 # ============================================================
 def _sb():
+    # Prefer the hub-created client (shared auth/session)
+    sb = st.session_state.get("supabase")
+    if sb is not None:
+        return sb
+
+    # Fallback for standalone run
     url = st.secrets.get("SUPABASE_URL", "")
     key = st.secrets.get("SUPABASE_ANON_KEY", "")
     if not url or not key:

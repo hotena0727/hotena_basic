@@ -382,10 +382,19 @@ page = st.session_state.get("hub_page", "home")
 if page == "home":
     st.info("원하는 훈련을 선택하세요.")
 elif page == "word":
+    if st.button("← 홈으로", use_container_width=True):
+        go("home")
+    st.divider()
     run_script("hotena_basic.py")
 elif page == "kanji":
+    if st.button("← 홈으로", use_container_width=True):
+        go("home")
+    st.divider()
     run_script("app.py")
 elif page == "talk":
+    if st.button("← 홈으로", use_container_width=True):
+        go("home")
+    st.divider()
     run_script("talk.py")
 else:
     st.info("원하는 훈련을 선택하세요.")
