@@ -201,7 +201,7 @@ def render_login():
 # ============================================================
 
 def go(page: str):
-    st.session_state["page"] = page
+    st.session_state["hub_page"] = page
     st.rerun()
 
 def run_script(filename: str):
@@ -324,7 +324,7 @@ st.session_state["is_admin"] = profile.get("is_admin", False)
 # schedule notification silently
 schedule_in_tab_notification(str(user_id), progress_all)
 
-page = st.session_state.get("page", "home")
+page = st.session_state.get("hub_page", "home")
 
 if page == "home":
     st.title("훈련 선택")
