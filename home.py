@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from pathlib import Path
 from datetime import datetime, timedelta, date
 import hashlib
 import json
 import runpy
-import traceback
+from pathlib import Path
+
 import streamlit as st
 import streamlit.components.v1 as components
 from supabase import create_client
@@ -202,43 +202,15 @@ def go(page: str):
     st.rerun()
 
 def run_script(filename: str):
+    # ✅ always resolve relative to this file (Streamlit Cloud CWD may differ)
     base_dir = Path(__file__).resolve().parent
     path = (base_dir / filename).resolve()
-
-    # 1) 존재/형태 체크
-    if not path.exists():
+    if not path.exists() or not path.is_file():
         st.error(f"파일을 찾을 수 없습니다: {path}")
+        st.caption("home.py와 hotena_basic.py / app.py / talk.py가 같은 폴더에 있어야 합니다.")
+        st.code("\n".join(sorted([p.name for p in base_dir.glob('*')])) or "(empty)")
         st.stop()
-
-    if not path.is_file():
-        st.error(f"경로는 존재하지만 '파일'이 아닙니다: {path}")
-        st.caption("폴더로 올라가 있거나 이름이 같은 폴더가 있는 경우입니다.")
-        st.code("\n".join(sorted([p.name for p in base_dir.glob('*')])) or "(비어있음)")
-        st.stop()
-
-    # 2) 파일 기본 정보 출력
-    try:
-        st.caption(f"실행 대상: {path}  ({path.stat().st_size} bytes)")
-    except Exception:
-        pass
-
-    # 3) 파일 앞부분 미리보기(인코딩 문제/깨진 파일 감지)
-    try:
-        head = path.read_text(encoding="utf-8", errors="replace").splitlines()[:40]
-        st.caption("파일 상단(40줄) 미리보기:")
-        st.code("\n".join(head) if head else "(내용 없음)")
-    except Exception as e:
-        st.error("파일을 텍스트로 읽는 중 에러가 났습니다(인코딩/파일 손상 가능).")
-        st.code(repr(e))
-        st.stop()
-
-    # 4) 실제 실행 + 예외 전체 출력
-    try:
-        runpy.run_path(str(path), run_name="__main__")
-    except Exception:
-        st.error("스크립트 실행 중 예외가 발생했습니다. 아래 Traceback이 진짜 원인입니다.")
-        st.code(traceback.format_exc())
-        st.stop()
+    runpy.run_path(str(path), run_name="__main__")
 
 # ============================================================
 # 🔔 Global reminder UI + in-tab scheduling

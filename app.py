@@ -5,6 +5,16 @@ from pathlib import Path
 import random
 import pandas as pd
 import streamlit as st
+
+# ✅ Home hub provides the shared login; gate here.
+def require_login():
+    if st.session_state.get('user') is None:
+        st.warning('홈에서 로그인 후 이용해 주세요.')
+        if st.button('← 홈으로', use_container_width=True, key='go_home_from_kanji'):
+            st.session_state['page'] = 'home'
+            st.rerun()
+        st.stop()
+
 import unicodedata
 from supabase import create_client
 from streamlit_cookies_manager import EncryptedCookieManager
@@ -16,10 +26,7 @@ import base64
 import io
 import textwrap
 
-# NOTE: page config is handled by home.py
-if not st.session_state.get('_page_config_set'):
-    st.set_page_config(page_title='Hatena', layout='centered')
-    st.session_state['_page_config_set'] = True
+st.set_page_config(page_title="Kanji Quiz", layout="centered")
 # ============================================================
 # ✅ [SOUND] 사운드 유틸 (모바일 자동재생 정책 대응)
 # ============================================================
@@ -382,7 +389,7 @@ if st.session_state.get("_scroll_top_once"):
 # ✅ Cookies
 # ============================================================
 cookies = EncryptedCookieManager(
-    prefix="hotena_beginner_",
+    prefix="hatena_kanji_",
     password=st.secrets["COOKIE_PASSWORD"],
 )
 if not cookies.ready():
@@ -953,13 +960,9 @@ def auth_box():
     st.markdown("</div>", unsafe_allow_html=True)
 
 def require_login():
-    # NOTE: Auth is handled by home.py (single shared login).
     if st.session_state.get("user") is None:
-        st.warning("홈에서 로그인 후 이용해 주세요.")
-        if st.button("← 홈으로", use_container_width=True, key="go_home_from_kanji"):
-            st.session_state["page"] = "home"
-            st.rerun()
-        st.stop()
+        st.markdown(
+            """
 <div class="jp" style="margin: 8px 0 14px 0;">
   <div style="
     border:1px solid rgba(120,120,120,0.18);

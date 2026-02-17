@@ -46,11 +46,13 @@ import html
 # ============================================================
 # ✅ Page Config + Paths
 # ============================================================
-# NOTE: page config is handled by home.py
-import streamlit as st
-
+# NOTE: page config is handled by home.py when launched from the hub.
 if not st.session_state.get("_page_config_set"):
-    st.set_page_config(page_title="Hatena", layout="centered")
+    st.set_page_config(
+        page_title="왕초보탈출 하테나일본어",
+        page_icon="static/icon-192.png",
+        layout="centered",
+    )
     st.session_state["_page_config_set"] = True
 
 # ============================================================
@@ -1517,33 +1519,12 @@ def auth_box():
     st.markdown("</div>", unsafe_allow_html=True)
 
 def require_login():
-    # NOTE: Auth is handled by home.py (single shared login).
+    # ✅ Home hub provides the shared login.
     if st.session_state.get("user") is None:
         st.warning("홈에서 로그인 후 이용해 주세요.")
         if st.button("← 홈으로", use_container_width=True, key="go_home_from_word"):
             st.session_state["page"] = "home"
             st.rerun()
-        st.stop()
-<div class="jp" style="margin: 8px 0 14px 0;">
-  <div style="
-    border:1px solid rgba(120,120,120,0.18);
-    border-radius:18px;
-    padding:16px 16px;
-    background: rgba(255,255,255,0.03);
-  ">
-    <div style="font-weight:900; font-size:22px; line-height:1.15;">
-      ✨ 왕초보 탈출 하테나일본어
-    </div>
-    <div style="margin-top:6px; opacity:.85; font-size:13px; line-height:1.55;">
-      하루 10문항으로 가볍게 루틴을 만들어요.<br/>
-      정답은 저장되고, 오답은 다시 풀 수 있어요.
-    </div>
-  </div>
-</div>
-""",
-            unsafe_allow_html=True,
-        )
-        auth_box()
         st.stop()
 
 # ✅ 첫 방문 자동 노출
@@ -3781,6 +3762,7 @@ if st.session_state.get("submitted", False):
     show_naver_talk = (SHOW_NAVER_TALK == "N") or is_admin()
     if show_naver_talk:
         render_naver_talk()
+
 
 
 
