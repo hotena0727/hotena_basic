@@ -42,6 +42,12 @@ import base64
 import textwrap 
 import json
 import html
+from datetime import datetime, timezone, timedelta
+try:
+    from zoneinfo import ZoneInfo
+except Exception:
+    ZoneInfo = None
+
 
 # ============================================================
 # ✅ Page Config + Paths
@@ -51,6 +57,33 @@ st.set_page_config(
     page_icon="static/icon-192.png",   # 또는 "🟦"
     layout="centered",
 )
+
+
+# ============================================================
+# ✅ Time helpers (KST)
+# ============================================================
+def _kst_now():
+    if ZoneInfo:
+        return datetime.now(ZoneInfo("Asia/Seoul"))
+    return datetime.now(timezone(timedelta(hours=9)))
+
+def _kst_today_str() -> str:
+    return _kst_now().date().isoformat()
+
+def _reset_daily_session_state():
+    """Reset 'daily' state when KST date changes (combo, 'today only' excludes, etc.)."""
+    today = _kst_today_str()
+
+    # ✅ 콤보(일일 기준)
+    if st.session_state.get("combo_date") != today:
+        st.session_state["combo_date"] = today
+        st.session_state["combo_best_today"] = 0
+        st.session_state["combo_last_notice"] = 0
+
+    # ✅ '오늘만 제외' 류 상태(일일 기준)
+    if st.session_state.get("exclude_date") != today:
+        st.session_state["exclude_date"] = today
+        st.session_state["excluded_wrong_words"] = {}
 
 # ============================================================
 # ✅ PWA/아이콘 - set_page_config 바로 아래
@@ -637,6 +670,7 @@ def should_lock_quiz() -> bool:
 # ============================================================
 
 def ensure_combo_state():
+    _reset_daily_session_state()
     if "combo_best_today" not in st.session_state:
         st.session_state.combo_best_today = 0
     if "combo_last_notice" not in st.session_state:
@@ -2537,6 +2571,12 @@ from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 from collections import Counter
 import html
+from datetime import datetime, timezone, timedelta
+try:
+    from zoneinfo import ZoneInfo
+except Exception:
+    ZoneInfo = None
+
 import streamlit as st
 
 KST = ZoneInfo("Asia/Seoul")
@@ -3776,10 +3816,3 @@ if st.session_state.get("submitted", False):
     show_naver_talk = (SHOW_NAVER_TALK == "N") or is_admin()
     if show_naver_talk:
         render_naver_talk()
-
-
-
-
-
-
-
