@@ -42,12 +42,6 @@ import base64
 import textwrap 
 import json
 import html
-from datetime import datetime, timezone, timedelta
-try:
-    from zoneinfo import ZoneInfo
-except Exception:
-    ZoneInfo = None
-
 
 # ============================================================
 # ✅ Page Config + Paths
@@ -57,33 +51,6 @@ st.set_page_config(
     page_icon="static/icon-192.png",   # 또는 "🟦"
     layout="centered",
 )
-
-
-# ============================================================
-# ✅ Time helpers (KST)
-# ============================================================
-def _kst_now():
-    if ZoneInfo:
-        return datetime.now(ZoneInfo("Asia/Seoul"))
-    return datetime.now(timezone(timedelta(hours=9)))
-
-def _kst_today_str() -> str:
-    return _kst_now().date().isoformat()
-
-def _reset_daily_session_state():
-    """Reset 'daily' state when KST date changes (combo, 'today only' excludes, etc.)."""
-    today = _kst_today_str()
-
-    # ✅ 콤보(일일 기준)
-    if st.session_state.get("combo_date") != today:
-        st.session_state["combo_date"] = today
-        st.session_state["combo_best_today"] = 0
-        st.session_state["combo_last_notice"] = 0
-
-    # ✅ '오늘만 제외' 류 상태(일일 기준)
-    if st.session_state.get("exclude_date") != today:
-        st.session_state["exclude_date"] = today
-        st.session_state["excluded_wrong_words"] = {}
 
 # ============================================================
 # ✅ PWA/아이콘 - set_page_config 바로 아래
@@ -670,11 +637,24 @@ def should_lock_quiz() -> bool:
 # ============================================================
 
 def ensure_combo_state():
-    _reset_daily_session_state()
+    """콤보(연속 정답) 상태를 보장합니다.
+    - 콤보는 '일일 기준'으로 관리: 날짜가 바뀌면 오늘 콤보/오늘 최고콤보를 0으로 리셋합니다.
+    """
+    from datetime import date
+
+    today = date.today().isoformat()
+    if "combo_date" not in st.session_state:
+        st.session_state.combo_date = today
+    if st.session_state.combo_date != today:
+        # 날짜 변경 → 오늘 기록 리셋
+        st.session_state.combo_date = today
+        st.session_state.combo_current = 0
+        st.session_state.combo_best_today = 0
+
+    if "combo_current" not in st.session_state:
+        st.session_state.combo_current = 0
     if "combo_best_today" not in st.session_state:
         st.session_state.combo_best_today = 0
-    if "combo_last_notice" not in st.session_state:
-        st.session_state.combo_last_notice = 0  # 마지막으로 띄운 콤보 단계(5/10 등)
 
 def compute_max_combo(correct_flags: list[bool]) -> int:
     mx = 0
@@ -2571,12 +2551,6 @@ from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 from collections import Counter
 import html
-from datetime import datetime, timezone, timedelta
-try:
-    from zoneinfo import ZoneInfo
-except Exception:
-    ZoneInfo = None
-
 import streamlit as st
 
 KST = ZoneInfo("Asia/Seoul")
@@ -2780,6 +2754,8 @@ require_login()
 ALLOWED_PAGES = {"home", "quiz", "my", "admin"}
 if "page" not in st.session_state:
     st.session_state.page = "home"
+    if "service" not in st.session_state:
+        st.session_state.service = "word"
 if st.session_state.get("page") not in ALLOWED_PAGES:
     st.session_state.page = "home"
 
