@@ -46,14 +46,11 @@ import html
 # ============================================================
 # ✅ Page Config + Paths
 # ============================================================
-# NOTE: page config is handled by home.py when launched from the hub.
-if not st.session_state.get("_page_config_set"):
-    st.set_page_config(
-        page_title="왕초보탈출 하테나일본어",
-        page_icon="static/icon-192.png",
-        layout="centered",
-    )
-    st.session_state["_page_config_set"] = True
+st.set_page_config(
+    page_title="왕초보탈출 하테나일본어",
+    page_icon="static/icon-192.png",   # 또는 "🟦"
+    layout="centered",
+)
 
 # ============================================================
 # ✅ PWA/아이콘 - set_page_config 바로 아래
@@ -573,6 +570,13 @@ from streamlit_cookies_manager import EncryptedCookieManager
 from supabase import create_client
 
 def get_cfg(key: str) -> str:
+    # 0) Hub(home.py)에서 주입된 설정 우선
+    try:
+        cfg = st.session_state.get("cfg", {}) or {}
+        if key in cfg and cfg[key]:
+            return str(cfg[key])
+    except Exception:
+        pass
     # 1) Cloud Run: 환경변수 우선
     v = os.getenv(key)
     if v:
@@ -581,7 +585,7 @@ def get_cfg(key: str) -> str:
     try:
         return st.secrets[key]
     except Exception:
-        return ""
+        return 
 
 COOKIE_PASSWORD = get_cfg("COOKIE_PASSWORD")
 SUPABASE_URL = get_cfg("SUPABASE_URL")
@@ -598,19 +602,23 @@ if missing:
     st.error(f"설정값이 없습니다: {', '.join(missing)} (Cloud Run env 또는 Streamlit secrets 확인)")
     st.stop()
 
-# ✅ cookies manager is created once in home.py to avoid StreamlitDuplicateElementKey
-#    Reuse it here if present; otherwise create (e.g., when running this file standalone).
-if "cookies" in st.session_state:
-    cookies = st.session_state["cookies"]
-else:
-    cookies = EncryptedCookieManager(prefix="hotena_beginner_", password=COOKIE_PASSWORD)
+# ✅ cookies/supabase는 Hub(home.py)에서 1회 생성 후 공유합니다.
+cookies = st.session_state.get("cookies")
+sb = st.session_state.get("sb")
+
+if cookies is None:
+    cookies = EncryptedCookieManager(
+        prefix="hotena_beginner_",
+        password=COOKIE_PASSWORD,
+    )
+    if not cookies.ready():
+        st.info("잠깐만요! 곧 시작할게요🙂")
+        st.stop()
     st.session_state["cookies"] = cookies
 
-if not cookies.ready():
-    st.info("잠깐만요! 곧 시작할게요🙂")
-    st.stop()
-
-sb = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+if sb is None:
+    sb = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+    st.session_state["sb"] = sb
 
 # ============================================================
 # ✅ Utils: 위젯 잔상(q_...) 제거
@@ -1523,12 +1531,29 @@ def auth_box():
     st.markdown("</div>", unsafe_allow_html=True)
 
 def require_login():
-    # ✅ Home hub provides the shared login.
     if st.session_state.get("user") is None:
-        st.warning("홈에서 로그인 후 이용해 주세요.")
-        if st.button("← 홈으로", use_container_width=True, key="go_home_from_word"):
-            st.session_state["page"] = "home"
-            st.rerun()
+        st.markdown(
+            """
+<div class="jp" style="margin: 8px 0 14px 0;">
+  <div style="
+    border:1px solid rgba(120,120,120,0.18);
+    border-radius:18px;
+    padding:16px 16px;
+    background: rgba(255,255,255,0.03);
+  ">
+    <div style="font-weight:900; font-size:22px; line-height:1.15;">
+      ✨ 왕초보 탈출 하테나일본어
+    </div>
+    <div style="margin-top:6px; opacity:.85; font-size:13px; line-height:1.55;">
+      하루 10문항으로 가볍게 루틴을 만들어요.<br/>
+      정답은 저장되고, 오답은 다시 풀 수 있어요.
+    </div>
+  </div>
+</div>
+""",
+            unsafe_allow_html=True,
+        )
+        auth_box()
         st.stop()
 
 # ✅ 첫 방문 자동 노출

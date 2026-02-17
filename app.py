@@ -5,16 +5,6 @@ from pathlib import Path
 import random
 import pandas as pd
 import streamlit as st
-
-# ✅ Home hub provides the shared login; gate here.
-def require_login():
-    if st.session_state.get('user') is None:
-        st.warning('홈에서 로그인 후 이용해 주세요.')
-        if st.button('← 홈으로', use_container_width=True, key='go_home_from_kanji'):
-            st.session_state['page'] = 'home'
-            st.rerun()
-        st.stop()
-
 import unicodedata
 from supabase import create_client
 from streamlit_cookies_manager import EncryptedCookieManager
@@ -26,7 +16,10 @@ import base64
 import io
 import textwrap
 
-st.set_page_config(page_title="Kanji Quiz", layout="centered")
+# NOTE: page config is handled by home.py
+if not st.session_state.get("_page_config_set"):
+    st.set_page_config(page_title="Hatena", layout="centered")
+    st.session_state["_page_config_set"] = True
 # ============================================================
 # ✅ [SOUND] 사운드 유틸 (모바일 자동재생 정책 대응)
 # ============================================================
@@ -388,32 +381,32 @@ if st.session_state.get("_scroll_top_once"):
 # ============================================================
 # ✅ Cookies
 # ============================================================
-# ✅ cookies manager is created once in home.py to avoid StreamlitDuplicateElementKey
-#    Reuse it here if present; otherwise create (e.g., standalone run).
-if "cookies" in st.session_state:
-    cookies = st.session_state["cookies"]
-else:
-    cookies = EncryptedCookieManager(
-        prefix="hotena_beginner_",
-        password=st.secrets.get("COOKIE_PASSWORD") or st.secrets.get("COOKIE_PASSWORD".lower()),
-    )
+# ✅ cookies/supabase는 Hub(home.py)에서 1회 생성 후 공유합니다.
+cfg = st.session_state.get("cfg", {}) or {}
+cookies = st.session_state.get("cookies")
+sb = st.session_state.get("sb")
+
+if cookies is None:
+    # 단독 실행 대비
+    COOKIE_PASSWORD = cfg.get("COOKIE_PASSWORD") or st.secrets.get("COOKIE_PASSWORD", "")
+    cookies = EncryptedCookieManager(prefix="hotena_beginner_", password=COOKIE_PASSWORD)
+    if not cookies.ready():
+        st.info("잠깐만요! 곧 시작할게요🙂")
+        st.stop()
     st.session_state["cookies"] = cookies
 
-if not cookies.ready():
-    st.info("잠깐만요! 곧 시작할게요🙂")
-    st.stop()
-
-if "SUPABASE_URL" not in st.secrets or "SUPABASE_ANON_KEY" not in st.secrets:
-    st.error("Supabase Secrets가 설정되지 않았습니다. (SUPABASE_URL / SUPABASE_ANON_KEY)")
-    st.stop()
-
+if sb is None:
+    SUPABASE_URL = cfg.get("SUPABASE_URL") or st.secrets.get("SUPABASE_URL", "")
+    SUPABASE_ANON_KEY = cfg.get("SUPABASE_ANON_KEY") or st.secrets.get("SUPABASE_ANON_KEY", "")
+    if not SUPABASE_URL or not SUPABASE_ANON_KEY:
+        st.error("Supabase 설정값이 없습니다. (SUPABASE_URL / SUPABASE_ANON_KEY)")
+        st.stop()
+    sb = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+    st.session_state["sb"] = sb
 # ============================================================
 # ✅ Supabase 연결
 # ============================================================
-SUPABASE_URL = st.secrets["SUPABASE_URL"]
-SUPABASE_ANON_KEY = st.secrets["SUPABASE_ANON_KEY"]
-sb = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
-
+# Supabase client is provided by hub (home.py)
 # ============================================================
 # ✅ 상수/설정
 # ============================================================
