@@ -2538,10 +2538,23 @@ def render_kanji_app(supabase, user_email, user_id, user_plan):
         if c in df.columns:
             df[c] = df[c].astype(str).fillna("").str.strip()
 
-    # ✅ 레벨 5개 선택 (사용자 요구사항)
+    # ✅ 레벨 5개 선택 (사용자 요구사항) - "첨부 app.py"와 동일하게 5버튼 UI
     LEVELS = ["N5", "N4", "N3", "N2", "N1"]
-    # 데이터에 없는 레벨은 UI에서 비활성 대신, 선택해도 빈 데이터 안내
-    level = st.radio("레벨 선택", LEVELS, horizontal=True, key="kanji_level_pick")
+
+    if "kanji_level" not in st.session_state:
+        st.session_state["kanji_level"] = "N5"
+
+    st.markdown("#### 레벨 선택")
+    cols = st.columns(5)
+    for i, lv in enumerate(LEVELS):
+        # 선택된 레벨은 살짝 강조(라벨에 ●)
+        label = f"● {lv}" if st.session_state["kanji_level"] == lv else lv
+        if cols[i].button(label, key=f"kanji_level_btn_{lv}"):
+            st.session_state["kanji_level"] = lv
+            st.session_state["kanji_level_pick"] = lv  # 과거 키 호환
+            st.rerun()
+
+    level = st.session_state["kanji_level"]
 
     df_lv = df[df["level"].str.upper() == level].copy()
     if df_lv.empty:
