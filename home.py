@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from datetime import datetime, timedelta, date
 import hashlib
 import json
@@ -200,8 +201,19 @@ def go(page: str):
     st.session_state["page"] = page
     st.rerun()
 
-def run_script(path: str):
-    runpy.run_path(path, run_name="__main__")
+def run_script(filename: str):
+    path = (BASE_DIR / filename).resolve()
+
+    if not path.exists():
+        st.error(f"파일을 찾을 수 없습니다: {path}")
+        st.caption("✅ 확인: home.py와 hotena_basic.py / app.py / talk.py가 '같은 폴더'에 있어야 합니다.")
+        st.caption(f"현재 BASE_DIR: {BASE_DIR}")
+        st.caption("BASE_DIR 안의 파일 목록:")
+        st.code("\n".join(sorted([p.name for p in BASE_DIR.glob('*')])) or "(비어있음)")
+        st.stop()
+
+    # ✅ 실행
+    runpy.run_path(str(path), run_name="__main__")
 
 # ============================================================
 # 🔔 Global reminder UI + in-tab scheduling
