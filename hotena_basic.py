@@ -42,6 +42,12 @@ import base64
 import textwrap 
 import json
 import html
+from datetime import datetime, timezone, timedelta
+try:
+    from zoneinfo import ZoneInfo
+except Exception:
+    ZoneInfo = None
+
 
 # ============================================================
 # ✅ Page Config + Paths
@@ -51,6 +57,41 @@ st.set_page_config(
     page_icon="static/icon-192.png",   # 또는 "🟦"
     layout="centered",
 )
+
+
+
+# ============================================================
+# ✅ Session defaults (route/page)
+# ============================================================
+if "page" not in st.session_state:
+    st.session_state.page = "home"
+if "app_mode" not in st.session_state:
+    st.session_state["app_mode"] = "home"  # home | word | kanji | conv
+# ============================================================
+# ✅ Time helpers (KST)
+# ============================================================
+def _kst_now():
+    if ZoneInfo:
+        return datetime.now(ZoneInfo("Asia/Seoul"))
+    return datetime.now(timezone(timedelta(hours=9)))
+
+def _kst_today_str() -> str:
+    return _kst_now().date().isoformat()
+
+def _reset_daily_session_state():
+    """Reset 'daily' state when KST date changes (combo, 'today only' excludes, etc.)."""
+    today = _kst_today_str()
+
+    # ✅ 콤보(일일 기준)
+    if st.session_state.get("combo_date") != today:
+        st.session_state["combo_date"] = today
+        st.session_state["combo_best_today"] = 0
+        st.session_state["combo_last_notice"] = 0
+
+    # ✅ '오늘만 제외' 류 상태(일일 기준)
+    if st.session_state.get("exclude_date") != today:
+        st.session_state["exclude_date"] = today
+        st.session_state["excluded_wrong_words"] = {}
 
 # ============================================================
 # ✅ PWA/아이콘 - set_page_config 바로 아래
@@ -637,6 +678,7 @@ def should_lock_quiz() -> bool:
 # ============================================================
 
 def ensure_combo_state():
+    _reset_daily_session_state()
     if "combo_best_today" not in st.session_state:
         st.session_state.combo_best_today = 0
     if "combo_last_notice" not in st.session_state:
@@ -2459,7 +2501,252 @@ MODE_LABEL_MAP = {
 def mode_label(x: str) -> str:
     x = "" if x is None else str(x).strip().lower()
     return MODE_LABEL_MAP.get(x, x)  # 없는 값이면 원문 유지
+
+
+# ============================================================
+# ✅ [KANJI] 한자 퀴즈 (words_kanji.csv / 레벨 5단계)
+# - 선우님이 주신 app.py 로직을 "통합 앱" 구조에 맞게 이식
+# - 세션키 충돌 방지: kanji_* prefix 사용
+# ============================================================
+
+# ============================================================
+def render_kanji_app(supabase, user_email, user_id, user_plan):
+    """✅ 한자 퀴즈 (단일 파일 내장)
+    - 레벨 5개(N5~N1) 선택
+    - 기본: '읽기(よみ)' 4지선다
+    - CSV: data/words_kanji.csv (level, jp_word, reading, meaning, example_jp, example_kr)
+    """
+
+    from pathlib import Path
+    import random
+    import pandas as pd
+    import streamlit as st
+
+    st.subheader("한자 퀴즈")
+
+    csv_path = Path("data/words_kanji.csv")
+    if not csv_path.exists():
+        st.error("data/words_kanji.csv 파일을 찾을 수 없습니다. (한자 데이터 파일)")
+        return
+
+    # ✅ 로드 (BOM/인코딩 안전)
+    try:
+        df = pd.read_csv(csv_path, encoding="utf-8-sig")
+    except Exception:
+        df = pd.read_csv(csv_path)
+
+    # 필수 컬럼 체크
+    need_cols = {"level", "jp_word", "reading", "meaning"}
+    if not need_cols.issubset(set(map(str, df.columns))):
+        st.error(f"words_kanji.csv에 필수 컬럼이 부족합니다. 필요: {sorted(need_cols)} / 현재: {list(df.columns)}")
+        return
+
+    # ✅ 정규화
+    for c in ["level", "jp_word", "reading", "meaning", "example_jp", "example_kr"]:
+        if c in df.columns:
+            df[c] = df[c].astype(str).fillna("").str.strip()
+
+    # ✅ 레벨 5개 선택 (사용자 요구사항) - "첨부 app.py"와 동일하게 5버튼 UI
+    LEVELS = ["N5", "N4", "N3", "N2", "N1"]
+
+    if "kanji_level" not in st.session_state:
+        st.session_state["kanji_level"] = "N5"
+
+    st.markdown("#### 레벨 선택")
+    cols = st.columns(5)
+    for i, lv in enumerate(LEVELS):
+        # 선택된 레벨은 살짝 강조(라벨에 ●)
+        label = f"● {lv}" if st.session_state["kanji_level"] == lv else lv
+        if cols[i].button(label, key=f"kanji_level_btn_{lv}"):
+            st.session_state["kanji_level"] = lv
+            st.session_state["kanji_level_pick"] = lv  # 과거 키 호환
+            st.rerun()
+
+    level = st.session_state["kanji_level"]
+
+    df_lv = df[df["level"].str.upper() == level].copy()
+    if df_lv.empty:
+        st.warning(f"{level} 데이터가 없습니다. words_kanji.csv의 level 값을 확인해 주세요.")
+        return
+
+    quiz_len = 10  # 한 페이지 10문(기존 앱 컨셉 유지)
+
+    # ✅ 세션 상태
+    ss = st.session_state
+    if "kanji_state" not in ss:
+        ss.kanji_state = {}
+    ks = ss.kanji_state
+
+    def _reset_round():
+        ks["level"] = level
+        ks["idx"] = 0
+        ks["score"] = 0
+        ks["wrong"] = []
+        ks["pool_ids"] = df_lv.sample(n=min(len(df_lv), quiz_len), replace=False).index.tolist()
+        ks["q"] = None
+        ks["choices"] = None
+        ks["answer"] = None
+        ks["answered"] = False
+        ks["picked"] = None
+
+    # 레벨이 바뀌면 자동 리셋
+    if ks.get("level") != level or "pool_ids" not in ks:
+        _reset_round()
+
+    def _make_question():
+        i = ks["idx"]
+        if i >= len(ks["pool_ids"]):
+            return None
+        ridx = ks["pool_ids"][i]
+        row = df.loc[ridx]
+        jp_word = row["jp_word"]
+        ans = row["reading"]
+
+        # 오답 보기 만들기 (같은 레벨 내에서 reading 뽑기)
+        distract_pool = df_lv[df_lv.index != ridx]["reading"].dropna().astype(str).str.strip().tolist()
+        distract_pool = [x for x in distract_pool if x and x != ans]
+        random.shuffle(distract_pool)
+        distracts = distract_pool[:3]
+        # 부족하면 전체에서 보충
+        if len(distracts) < 3:
+            extra = df[df.index != ridx]["reading"].dropna().astype(str).str.strip().tolist()
+            extra = [x for x in extra if x and x != ans and x not in distracts]
+            random.shuffle(extra)
+            distracts += extra[: (3 - len(distracts))]
+
+        choices = distracts + [ans]
+        choices = list(dict.fromkeys(choices))  # 중복 제거
+        while len(choices) < 4:
+            choices.append(ans)  # 최후의 안전장치 (사실상 잘 안 탐)
+        choices = choices[:4]
+        random.shuffle(choices)
+
+        return {
+            "ridx": ridx,
+            "jp_word": jp_word,
+            "answer": ans,
+            "choices": choices,
+        }
+
+    if ks.get("q") is None:
+        q = _make_question()
+        if q is None:
+            # 문제 끝
+            st.success(f"완료! 점수: {ks['score']} / {len(ks['pool_ids'])}")
+            if ks.get("wrong"):
+                st.info("오답(읽기): " + ", ".join([w["jp_word"] for w in ks["wrong"]][:50]))
+            if st.button("새 문제(10문)", key="kanji_new_round_btn"):
+                _reset_round()
+                st.rerun()
+            return
+        ks["q"] = q
+        ks["choices"] = q["choices"]
+        ks["answer"] = q["answer"]
+        ks["answered"] = False
+        ks["picked"] = None
+
+    q = ks["q"]
+    total = len(ks["pool_ids"])
+    st.markdown(f"**Q{ks['idx']+1} / {total}**")
+    st.markdown(f"### {q['jp_word']}")
+    picked = st.radio("읽기를 고르세요.", ks["choices"], key=f"kanji_pick_{level}_{ks['idx']}", disabled=ks.get("answered", False))
+    ks["picked"] = picked
+
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("정답 확인", disabled=ks.get("answered", False), key=f"kanji_check_{level}_{ks['idx']}"):
+            ks["answered"] = True
+            if picked == ks["answer"]:
+                ks["score"] += 1
+                st.success("정답!")
+            else:
+                st.error(f"오답. 정답: {ks['answer']}")
+                ks["wrong"].append({"jp_word": q["jp_word"], "answer": ks["answer"], "picked": picked})
+
+    with col2:
+        if st.button("다음", disabled=not ks.get("answered", False), key=f"kanji_next_{level}_{ks['idx']}"):
+            ks["idx"] += 1
+            ks["q"] = None
+            ks["choices"] = None
+            ks["answer"] = None
+            ks["answered"] = False
+            ks["picked"] = None
+            st.rerun()
+
+
 def render_home():
+    """✅ 홈 대시보드: 학습 앱(단어/한자/회화) 선택 → 선택된 앱의 홈으로 진입"""
+    st.title("하테나 일본어")
+    st.caption("오늘도 가볍게 10분부터 시작해요.")
+
+    # ✅ 앱 선택 상태
+    if "app_mode" not in st.session_state:
+        st.session_state["app_mode"] = None  # "word" | "kanji" | "conv"
+
+    # ✅ 선택 UI
+    st.subheader("무엇을 할까요?")
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        if st.button("📝 단어", use_container_width=True):
+            st.session_state["app_mode"] = "word"
+            st.session_state["page"] = "home"
+            st.rerun()
+    with c2:
+        if st.button("🈶 한자", use_container_width=True):
+            st.session_state["app_mode"] = "kanji"
+            st.session_state["page"] = "home"
+            st.rerun()
+    with c3:
+        if st.button("💬 회화 훈련", use_container_width=True):
+            st.session_state["app_mode"] = "conv"
+            st.session_state["page"] = "home"
+            st.rerun()
+
+    mode = st.session_state.get("app_mode")
+
+    # ✅ 아직 선택 전이면 여기서 종료
+    if not mode:
+        st.info("위에서 학습을 선택해 주세요.")
+        return
+
+    # ✅ 선택된 앱 표시 + 변경 버튼
+    label = {"word":"단어", "kanji":"한자", "conv":"회화 훈련"}.get(mode, str(mode))
+    st.markdown(f"**선택된 학습:** {label}")
+    if st.button("↩️ 다른 학습 선택", use_container_width=True):
+        st.session_state["app_mode"] = None
+        st.session_state["page"] = "home"
+        st.rerun()
+
+    st.divider()
+
+    # ✅ 단어 앱: 기존(사용자 제공) 전체 코드 흐름 진입
+    if mode == "word":
+        render_word_home()
+        return
+
+    # ✅ 한자/회화: 추후 확장(현재는 자리만 잡아둠)
+    if mode == "kanji":
+        u = st.session_state.get("user")
+        sb_authed_local = get_authed_sb()
+        user_email = getattr(u, "email", None) if u else None
+        user_id = getattr(u, "id", None) if u else None
+        try:
+            render_kanji_app(sb_authed_local, user_email, user_id, get_user_plan())
+        except Exception as e:
+            st.error("한자 파트에서 오류가 발생했습니다. (개발 중)")
+            st.exception(e)
+            if st.button("🏠 홈으로"):
+                st.session_state["app_mode"] = "home"
+                st.rerun()
+        return
+
+    if mode == "conv":
+        st.warning("회화 훈련은 다음 단계에서 붙일게요. (AI 대화/롤플레이/표현 드릴) 형태로 확장 가능합니다.")
+        st.markdown("- 다음: 상황별 롤플레이 / 음성(TTS) / 오늘의 한 문장")
+        return
+
+
+def render_word_home():
     u = st.session_state.get("user")
     email = (getattr(u, "email", None) if u else None) or st.session_state.get("login_email", "")
 
@@ -2537,6 +2824,12 @@ from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 from collections import Counter
 import html
+from datetime import datetime, timezone, timedelta
+try:
+    from zoneinfo import ZoneInfo
+except Exception:
+    ZoneInfo = None
+
 import streamlit as st
 
 KST = ZoneInfo("Asia/Seoul")
