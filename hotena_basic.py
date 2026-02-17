@@ -47,13 +47,11 @@ import html
 # ✅ Page Config + Paths
 # ============================================================
 # NOTE: page config is handled by home.py
-if not st.session_state.get('_page_config_set'):
-    st.set_page_config(page_title='Hatena', layout='centered')
-    st.session_state['_page_config_set'] = True
-    page_title="왕초보탈출 하테나일본어",
-    page_icon="static/icon-192.png",   # 또는 "🟦"
-    layout="centered",
-)
+import streamlit as st
+
+if not st.session_state.get("_page_config_set"):
+    st.set_page_config(page_title="Hatena", layout="centered")
+    st.session_state["_page_config_set"] = True
 
 # ============================================================
 # ✅ PWA/아이콘 - set_page_config 바로 아래
