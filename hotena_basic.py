@@ -42,6 +42,12 @@ import base64
 import textwrap 
 import json
 import html
+from datetime import datetime, timezone, timedelta
+try:
+    from zoneinfo import ZoneInfo
+except Exception:
+    ZoneInfo = None
+
 
 # ============================================================
 # ✅ Page Config + Paths
@@ -51,6 +57,33 @@ st.set_page_config(
     page_icon="static/icon-192.png",   # 또는 "🟦"
     layout="centered",
 )
+
+
+# ============================================================
+# ✅ Time helpers (KST)
+# ============================================================
+def _kst_now():
+    if ZoneInfo:
+        return datetime.now(ZoneInfo("Asia/Seoul"))
+    return datetime.now(timezone(timedelta(hours=9)))
+
+def _kst_today_str() -> str:
+    return _kst_now().date().isoformat()
+
+def _reset_daily_session_state():
+    """Reset 'daily' state when KST date changes (combo, 'today only' excludes, etc.)."""
+    today = _kst_today_str()
+
+    # ✅ 콤보(일일 기준)
+    if st.session_state.get("combo_date") != today:
+        st.session_state["combo_date"] = today
+        st.session_state["combo_best_today"] = 0
+        st.session_state["combo_last_notice"] = 0
+
+    # ✅ '오늘만 제외' 류 상태(일일 기준)
+    if st.session_state.get("exclude_date") != today:
+        st.session_state["exclude_date"] = today
+        st.session_state["excluded_wrong_words"] = {}
 
 # ============================================================
 # ✅ PWA/아이콘 - set_page_config 바로 아래
@@ -637,24 +670,11 @@ def should_lock_quiz() -> bool:
 # ============================================================
 
 def ensure_combo_state():
-    """콤보(연속 정답) 상태를 보장합니다.
-    - 콤보는 '일일 기준'으로 관리: 날짜가 바뀌면 오늘 콤보/오늘 최고콤보를 0으로 리셋합니다.
-    """
-    from datetime import date
-
-    today = date.today().isoformat()
-    if "combo_date" not in st.session_state:
-        st.session_state.combo_date = today
-    if st.session_state.combo_date != today:
-        # 날짜 변경 → 오늘 기록 리셋
-        st.session_state.combo_date = today
-        st.session_state.combo_current = 0
-        st.session_state.combo_best_today = 0
-
-    if "combo_current" not in st.session_state:
-        st.session_state.combo_current = 0
+    _reset_daily_session_state()
     if "combo_best_today" not in st.session_state:
         st.session_state.combo_best_today = 0
+    if "combo_last_notice" not in st.session_state:
+        st.session_state.combo_last_notice = 0  # 마지막으로 띄운 콤보 단계(5/10 등)
 
 def compute_max_combo(correct_flags: list[bool]) -> int:
     mx = 0
@@ -2473,7 +2493,70 @@ MODE_LABEL_MAP = {
 def mode_label(x: str) -> str:
     x = "" if x is None else str(x).strip().lower()
     return MODE_LABEL_MAP.get(x, x)  # 없는 값이면 원문 유지
+
 def render_home():
+    """✅ 홈 대시보드: 학습 앱(단어/한자/회화) 선택 → 선택된 앱의 홈으로 진입"""
+    st.title("하테나 일본어")
+    st.caption("오늘도 가볍게 10분부터 시작해요.")
+
+    # ✅ 앱 선택 상태
+    if "app_mode" not in st.session_state:
+        st.session_state["app_mode"] = None  # "word" | "kanji" | "conv"
+
+    # ✅ 선택 UI
+    st.subheader("무엇을 할까요?")
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        if st.button("📝 단어", use_container_width=True):
+            st.session_state["app_mode"] = "word"
+            st.session_state["page"] = "home"
+            st.rerun()
+    with c2:
+        if st.button("🈶 한자", use_container_width=True):
+            st.session_state["app_mode"] = "kanji"
+            st.session_state["page"] = "home"
+            st.rerun()
+    with c3:
+        if st.button("💬 회화 훈련", use_container_width=True):
+            st.session_state["app_mode"] = "conv"
+            st.session_state["page"] = "home"
+            st.rerun()
+
+    mode = st.session_state.get("app_mode")
+
+    # ✅ 아직 선택 전이면 여기서 종료
+    if not mode:
+        st.info("위에서 학습을 선택해 주세요.")
+        return
+
+    # ✅ 선택된 앱 표시 + 변경 버튼
+    label = {"word":"단어", "kanji":"한자", "conv":"회화 훈련"}.get(mode, str(mode))
+    st.markdown(f"**선택된 학습:** {label}")
+    if st.button("↩️ 다른 학습 선택", use_container_width=True):
+        st.session_state["app_mode"] = None
+        st.session_state["page"] = "home"
+        st.rerun()
+
+    st.divider()
+
+    # ✅ 단어 앱: 기존(사용자 제공) 전체 코드 흐름 진입
+    if mode == "word":
+        render_word_home()
+        return
+
+    # ✅ 한자/회화: 추후 확장(현재는 자리만 잡아둠)
+    if mode == "kanji":
+        st.warning("한자 학습(퀴즈/쓰기)은 다음 단계에서 붙일게요. 지금은 ‘단어’부터 완성도를 올리는 게 최우선입니다.")
+        st.markdown("- 다음: 한자 퀴즈(읽기/뜻) / 한자 쓰기(자기채점) / 오답노트 연동")
+        return
+
+    if mode == "conv":
+        st.warning("회화 훈련은 다음 단계에서 붙일게요. (AI 대화/롤플레이/표현 드릴) 형태로 확장 가능합니다.")
+        st.markdown("- 다음: 상황별 롤플레이 / 음성(TTS) / 오늘의 한 문장")
+        return
+
+
+def render_word_home():
     u = st.session_state.get("user")
     email = (getattr(u, "email", None) if u else None) or st.session_state.get("login_email", "")
 
@@ -2551,6 +2634,12 @@ from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 from collections import Counter
 import html
+from datetime import datetime, timezone, timedelta
+try:
+    from zoneinfo import ZoneInfo
+except Exception:
+    ZoneInfo = None
+
 import streamlit as st
 
 KST = ZoneInfo("Asia/Seoul")
@@ -2754,8 +2843,6 @@ require_login()
 ALLOWED_PAGES = {"home", "quiz", "my", "admin"}
 if "page" not in st.session_state:
     st.session_state.page = "home"
-    if "service" not in st.session_state:
-        st.session_state.service = "word"
 if st.session_state.get("page") not in ALLOWED_PAGES:
     st.session_state.page = "home"
 
@@ -3792,3 +3879,4 @@ if st.session_state.get("submitted", False):
     show_naver_talk = (SHOW_NAVER_TALK == "N") or is_admin()
     if show_naver_talk:
         render_naver_talk()
+
