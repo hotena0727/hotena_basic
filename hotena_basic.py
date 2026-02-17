@@ -2502,42 +2502,157 @@ def mode_label(x: str) -> str:
 # ============================================================
 
 # ============================================================
-# ✅ [KANJI] 외부 파일(사용자 제공 app.py) 로딩 실행
-# - 기존 'KANJI_APP_CODE' 문자열 exec 방식에서 발생하던 인코딩/실행 이슈를 피하기 위해
-#   'app.py' 원본을 그대로 읽어 exec 합니다.
-# - 프로젝트 루트에 app.py(한자 앱)가 함께 있어야 합니다.
-# ============================================================
-
-from pathlib import Path as _Path
-
-def _load_user_kanji_code() -> str:
-    # Streamlit Cloud: 현재 파일 기준 같은 폴더에 app.py가 있다고 가정
-    candidates = [
-        _Path(__file__).parent / "app.py",
-        _Path("app.py"),
-        _Path("kanji_app.py"),
-    ]
-    for c in candidates:
-        try:
-            if c.exists():
-                return c.read_text(encoding="utf-8")
-        except Exception:
-            pass
-    # 마지막 fallback: 빈 코드
-    return ""
-
 def render_kanji_app(supabase, user_email, user_id, user_plan):
-    """✅ '한자' 선택 시, 사용자가 제공한 app.py(한자 앱)를 그대로 기동합니다."""
-    _g = {
-        "__name__": "__hatena_kanji_app__",
-        "__file__": __file__,
-    }
-    # app.py 내부에서 streamlit을 import 하므로 여기서는 그대로 exec만 수행합니다.
-    code = _load_user_kanji_code()
-    if not code.strip():
-        st.error('한자 앱 파일(app.py)을 찾지 못했습니다. 같은 폴더에 app.py를 넣어 주세요.')
+    """✅ 한자 퀴즈 (단일 파일 내장)
+    - 레벨 5개(N5~N1) 선택
+    - 기본: '읽기(よみ)' 4지선다
+    - CSV: data/words_kanji.csv (level, jp_word, reading, meaning, example_jp, example_kr)
+    """
+
+    from pathlib import Path
+    import random
+    import pandas as pd
+    import streamlit as st
+
+    st.subheader("한자 퀴즈")
+
+    csv_path = Path("data/words_kanji.csv")
+    if not csv_path.exists():
+        st.error("data/words_kanji.csv 파일을 찾을 수 없습니다. (한자 데이터 파일)")
         return
-    exec(code, _g, _g)
+
+    # ✅ 로드 (BOM/인코딩 안전)
+    try:
+        df = pd.read_csv(csv_path, encoding="utf-8-sig")
+    except Exception:
+        df = pd.read_csv(csv_path)
+
+    # 필수 컬럼 체크
+    need_cols = {"level", "jp_word", "reading", "meaning"}
+    if not need_cols.issubset(set(map(str, df.columns))):
+        st.error(f"words_kanji.csv에 필수 컬럼이 부족합니다. 필요: {sorted(need_cols)} / 현재: {list(df.columns)}")
+        return
+
+    # ✅ 정규화
+    for c in ["level", "jp_word", "reading", "meaning", "example_jp", "example_kr"]:
+        if c in df.columns:
+            df[c] = df[c].astype(str).fillna("").str.strip()
+
+    # ✅ 레벨 5개 선택 (사용자 요구사항)
+    LEVELS = ["N5", "N4", "N3", "N2", "N1"]
+    # 데이터에 없는 레벨은 UI에서 비활성 대신, 선택해도 빈 데이터 안내
+    level = st.radio("레벨 선택", LEVELS, horizontal=True, key="kanji_level_pick")
+
+    df_lv = df[df["level"].str.upper() == level].copy()
+    if df_lv.empty:
+        st.warning(f"{level} 데이터가 없습니다. words_kanji.csv의 level 값을 확인해 주세요.")
+        return
+
+    quiz_len = 10  # 한 페이지 10문(기존 앱 컨셉 유지)
+
+    # ✅ 세션 상태
+    ss = st.session_state
+    if "kanji_state" not in ss:
+        ss.kanji_state = {}
+    ks = ss.kanji_state
+
+    def _reset_round():
+        ks["level"] = level
+        ks["idx"] = 0
+        ks["score"] = 0
+        ks["wrong"] = []
+        ks["pool_ids"] = df_lv.sample(n=min(len(df_lv), quiz_len), replace=False).index.tolist()
+        ks["q"] = None
+        ks["choices"] = None
+        ks["answer"] = None
+        ks["answered"] = False
+        ks["picked"] = None
+
+    # 레벨이 바뀌면 자동 리셋
+    if ks.get("level") != level or "pool_ids" not in ks:
+        _reset_round()
+
+    def _make_question():
+        i = ks["idx"]
+        if i >= len(ks["pool_ids"]):
+            return None
+        ridx = ks["pool_ids"][i]
+        row = df.loc[ridx]
+        jp_word = row["jp_word"]
+        ans = row["reading"]
+
+        # 오답 보기 만들기 (같은 레벨 내에서 reading 뽑기)
+        distract_pool = df_lv[df_lv.index != ridx]["reading"].dropna().astype(str).str.strip().tolist()
+        distract_pool = [x for x in distract_pool if x and x != ans]
+        random.shuffle(distract_pool)
+        distracts = distract_pool[:3]
+        # 부족하면 전체에서 보충
+        if len(distracts) < 3:
+            extra = df[df.index != ridx]["reading"].dropna().astype(str).str.strip().tolist()
+            extra = [x for x in extra if x and x != ans and x not in distracts]
+            random.shuffle(extra)
+            distracts += extra[: (3 - len(distracts))]
+
+        choices = distracts + [ans]
+        choices = list(dict.fromkeys(choices))  # 중복 제거
+        while len(choices) < 4:
+            choices.append(ans)  # 최후의 안전장치 (사실상 잘 안 탐)
+        choices = choices[:4]
+        random.shuffle(choices)
+
+        return {
+            "ridx": ridx,
+            "jp_word": jp_word,
+            "answer": ans,
+            "choices": choices,
+        }
+
+    if ks.get("q") is None:
+        q = _make_question()
+        if q is None:
+            # 문제 끝
+            st.success(f"완료! 점수: {ks['score']} / {len(ks['pool_ids'])}")
+            if ks.get("wrong"):
+                st.info("오답(읽기): " + ", ".join([w["jp_word"] for w in ks["wrong"]][:50]))
+            if st.button("새 문제(10문)", key="kanji_new_round_btn"):
+                _reset_round()
+                st.rerun()
+            return
+        ks["q"] = q
+        ks["choices"] = q["choices"]
+        ks["answer"] = q["answer"]
+        ks["answered"] = False
+        ks["picked"] = None
+
+    q = ks["q"]
+    total = len(ks["pool_ids"])
+    st.markdown(f"**Q{ks['idx']+1} / {total}**")
+    st.markdown(f"### {q['jp_word']}")
+    picked = st.radio("읽기를 고르세요.", ks["choices"], key=f"kanji_pick_{level}_{ks['idx']}", disabled=ks.get("answered", False))
+    ks["picked"] = picked
+
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("정답 확인", disabled=ks.get("answered", False), key=f"kanji_check_{level}_{ks['idx']}"):
+            ks["answered"] = True
+            if picked == ks["answer"]:
+                ks["score"] += 1
+                st.success("정답!")
+            else:
+                st.error(f"오답. 정답: {ks['answer']}")
+                ks["wrong"].append({"jp_word": q["jp_word"], "answer": ks["answer"], "picked": picked})
+
+    with col2:
+        if st.button("다음", disabled=not ks.get("answered", False), key=f"kanji_next_{level}_{ks['idx']}"):
+            ks["idx"] += 1
+            ks["q"] = None
+            ks["choices"] = None
+            ks["answer"] = None
+            ks["answered"] = False
+            ks["picked"] = None
+            st.rerun()
+
+
 def render_home():
     """✅ 홈 대시보드: 학습 앱(단어/한자/회화) 선택 → 선택된 앱의 홈으로 진입"""
     st.title("하테나 일본어")
@@ -3926,5 +4041,10 @@ if st.session_state.get("submitted", False):
     show_naver_talk = (SHOW_NAVER_TALK == "N") or is_admin()
     if show_naver_talk:
         render_naver_talk()
+
+
+
+
+
 
 
