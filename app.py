@@ -637,24 +637,60 @@ def refresh_session_from_cookie_if_needed(force: bool = False) -> bool:
     return False
 
 def get_authed_sb():
+    """Return an authed Supabase client.
+    In the hub architecture, home.py is responsible for creating the base client
+    and restoring the session. This function reuses that client to avoid
+    missing secret vars / duplicate setup.
+    """
+    # ✅ Prefer a client already prepared by home.py
+    sb = st.session_state.get("supabase_authed") or st.session_state.get("sb_authed")
+    if sb is not None:
+        return sb
+
+    # ✅ Ensure token exists (home should have restored it)
     if not st.session_state.get("access_token"):
-        refresh_session_from_cookie_if_needed(force=True)
+        try:
+            refresh_session_from_cookie_if_needed(force=True)
+        except Exception:
+            pass
 
     token = st.session_state.get("access_token")
-    if not token:
-        return None
+    refresh_token = st.session_state.get("refresh_token")
 
-    cached = st.session_state.get("_sb_authed")
-    cached_token = st.session_state.get("_sb_authed_token")
+    # ✅ Reuse base client from home.py if present
+    base = st.session_state.get("supabase") or st.session_state.get("sb")
+    if base is not None:
+        if token and refresh_token:
+            try:
+                base.auth.set_session(token, refresh_token)
+            except Exception:
+                # Some supabase-py versions use different auth plumbing; ignore and proceed.
+                pass
+        st.session_state["supabase_authed"] = base
+        return base
 
-    if cached is not None and cached_token == token:
-        return cached
+    # ✅ Fallback: build a client from secrets (for standalone run)
+    url = None
+    key = None
+    try:
+        url = st.secrets.get("SUPABASE_URL")
+        key = st.secrets.get("SUPABASE_ANON_KEY")
+    except Exception:
+        url = None
+        key = None
 
-    sb2 = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
-    sb2.postgrest.auth(token)
+    if not url or not key:
+        st.error("Supabase 설정이 없습니다. home.py에서 먼저 로그인/세션을 생성해 주세요. (SUPABASE_URL / SUPABASE_ANON_KEY)")
+        st.stop()
 
-    st.session_state["_sb_authed"] = sb2
-    st.session_state["_sb_authed_token"] = token
+    sb2 = create_client(url, key)
+    if token and refresh_token:
+        try:
+            sb2.auth.set_session(token, refresh_token)
+        except Exception:
+            pass
+
+    st.session_state["supabase_authed"] = sb2
     return sb2
 
 def to_kst_naive(x):

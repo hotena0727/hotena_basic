@@ -149,99 +149,85 @@ def build_choices(row: dict, pool_answers: list[str]) -> list[str]:
     return choices
 
 def speak_buttons_html(items: list[tuple[str, str]], block_id: str) -> str:
+    """Render TTS buttons using browser SpeechSynthesis.
+    Uses parent window's SpeechSynthesis when possible (Streamlit components iframe issue workaround).
     """
-    items: [(label, text_to_speak), ...]
-    block_id: unique id for this block
-    """
-    # Escape for JS string safely
-    def js(s): 
-        return s.replace("\\", "\\\\").replace("`", "\\`").replace("${", "\\${")
+    def esc(s: str) -> str:
+        return (
+            str(s)
+            .replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace('"', "&quot;")
+        )
+
     btns = []
-    for i, (label, text) in enumerate(items):
-        btns.append(f"""
-        <button class="tts-btn" data-text="{js(text)}" type="button">
-          🔊 {js(label)}
-        </button>
-        """)
+    for label, text in items:
+        btns.append(
+            f'<button class="tts-btn" data-text="{esc(text)}" type="button">🔊 {esc(label)}</button>'
+        )
+
     return f"""
-    <div id="tts_{block_id}" style="display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 10px;">
+    <style>
+      #tts_{block_id} {{
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+        margin: 0.25rem 0 0.25rem;
+      }}
+      #tts_{block_id} .tts-btn {{
+        border: 1px solid rgba(49, 51, 63, 0.2);
+        background: white;
+        padding: 6px 10px;
+        border-radius: 10px;
+        cursor: pointer;
+        font-size: 14px;
+      }}
+      #tts_{block_id} .tts-btn:active {{
+        transform: translateY(1px);
+      }}
+    </style>
+
+    <div id="tts_{block_id}">
       {''.join(btns)}
     </div>
+
     <script>
       (function(){{
         const root = document.getElementById("tts_{block_id}");
         if(!root) return;
 
+        // ✅ Use parent window's SpeechSynthesis if available (more reliable than iframe on some envs)
+        const win = (window.parent && window.parent.speechSynthesis) ? window.parent : window;
+        const synth = win.speechSynthesis;
+        const Utter = win.SpeechSynthesisUtterance || SpeechSynthesisUtterance;
+
         function speak(text){{
-          if(!("speechSynthesis" in window)) {{
-            alert("이 브라우저는 음성 합성을 지원하지 않아요.");
-            return;
+          try {{
+            if(!synth || !Utter) {{
+              alert("이 브라우저는 음성 합성을 지원하지 않아요.");
+              return;
+            }}
+            synth.cancel();
+            const u = new Utter(text);
+            u.lang = "ja-JP";
+            u.rate = 1.0;
+            synth.speak(u);
+          }} catch(e) {{
+            console.error(e);
+            alert("발음 재생에 실패했습니다. (브라우저 설정/권한을 확인해 주세요)");
           }}
-          window.speechSynthesis.cancel();
-          const u = new SpeechSynthesisUtterance(text);
-          u.lang = "ja-JP";
-          u.rate = 1.0;
-          window.speechSynthesis.speak(u);
         }}
 
         root.querySelectorAll("button.tts-btn").forEach(btn => {{
           btn.addEventListener("click", () => {{
-            const t = btn.getAttribute("data-text") || "";
-            speak(t);
+            const text = btn.getAttribute("data-text") || "";
+            speak(text);
           }});
         }});
       }})();
     </script>
-    <style>
-      #tts_{block_id} .tts-btn {{
-        padding: 8px 10px;
-        border-radius: 12px;
-        border: 1px solid rgba(49,51,63,0.2);
-        background: rgba(255,255,255,0.04);
-        cursor: pointer;
-      }}
-      #tts_{block_id} .tts-btn:hover {{
-        border-color: rgba(49,51,63,0.35);
-      }}
-    </style>
     """
-
-# ============================================================
-# ✅ Filters
-# ============================================================
-progress_all, talk_prog = ensure_progress()
-mastered_ids = set(normalize_list(talk_prog.get("mastered_ids")))
-wrong_ids = set(normalize_list(talk_prog.get("wrong_ids")))
-
-levels = sorted(DF["level"].astype(str).unique().tolist())
-tags = ["전체"] + sorted([t for t in DF.get("tag", pd.Series(dtype=str)).astype(str).unique().tolist() if t and t != "nan"])
-
-top1, top2, top3 = st.columns([1, 1, 1])
-with top1:
-    level = st.selectbox("레벨", levels, index=0, key="talk_level")
-with top2:
-    tag = st.selectbox("태그", tags, index=0, key="talk_tag")
-with top3:
-    exclude_mastered = st.toggle("정복(맞힌 문항) 제외", value=True, key="talk_exclude_mastered")
-
-st.info(pick_daily_message(str(USER_ID or "guest")))
-
-df2 = DF[DF["level"].astype(str) == str(level)]
-if tag != "전체" and "tag" in df2.columns:
-    df2 = df2[df2["tag"].astype(str) == str(tag)]
-
-if exclude_mastered:
-    df2 = df2[~df2["qid"].astype(str).isin(mastered_ids)]
-
-if len(df2) < 4:
-    st.warning("이 조건에서는 문제가 너무 적습니다. (최소 4문항 필요)")
-    st.stop()
-
-# ============================================================
-# ✅ 10문 세트(단어/한자처럼)
-# ============================================================
-QUIZ_LEN = 10
-NS = "talk"
 
 def start_new_set():
     pool = df2.sample(n=min(QUIZ_LEN, len(df2)), replace=False)
