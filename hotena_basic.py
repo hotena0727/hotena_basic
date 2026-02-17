@@ -46,14 +46,14 @@ import html
 # ============================================================
 # ✅ Page Config + Paths
 # ============================================================
-if not st.session_state.get("_page_config_done"):
-    st.set_page_config(
-        page_title="왕초보탈출 하테나일본어",
-        page_icon="static/icon-192.png",   # 또는 "🟦"
-        layout="centered",
-    )
-    st.session_state["_page_config_done"] = True
-
+# NOTE: page config is handled by home.py
+if not st.session_state.get('_page_config_set'):
+    st.set_page_config(page_title='Hatena', layout='centered')
+    st.session_state['_page_config_set'] = True
+    page_title="왕초보탈출 하테나일본어",
+    page_icon="static/icon-192.png",   # 또는 "🟦"
+    layout="centered",
+)
 
 # ============================================================
 # ✅ PWA/아이콘 - set_page_config 바로 아래
@@ -826,29 +826,6 @@ def start_quiz_state(quiz_list: list, qtype: str, clear_wrongs: bool = True):
 def mark_progress_dirty():
     st.session_state.progress_dirty = True
 
-PROGRESS_NS_WORD = "word"
-PROGRESS_NS_KANJI = "kanji"
-PROGRESS_NS_TALK = "talk"
-
-def _progress_signature_word(p: object) -> bool:
-    return isinstance(p, dict) and ("pos_group" in p or "other_pos_selected" in p or "pos" in p)
-
-def _progress_signature_kanji(p: object) -> bool:
-    return isinstance(p, dict) and ("quiz" in p and "answers" in p and "quiz_type" in p) and ("pos_group" not in p)
-
-def _ensure_namespaced_progress(existing: object) -> dict:
-    """profiles.progress를 {word:{...}, kanji:{...}, talk:{...}} 형태로 정규화."""
-    if not isinstance(existing, dict):
-        return {}
-    if any(k in existing for k in (PROGRESS_NS_WORD, PROGRESS_NS_KANJI, PROGRESS_NS_TALK)):
-        return existing
-    # 구버전(단일 dict) 흡수
-    if _progress_signature_word(existing):
-        return {PROGRESS_NS_WORD: existing}
-    if _progress_signature_kanji(existing):
-        return {PROGRESS_NS_KANJI: existing}
-    return {}
-
     sb_authed_local = get_authed_sb()
     u = st.session_state.get("user")
     if (sb_authed_local is None) or (u is None):
@@ -1125,9 +1102,7 @@ def build_word_results_bulk_payload(quiz: list[dict], answers: list, quiz_type: 
 # ============================================================
 # ✅ Progress (DB 저장/복원)  (✅ pos_group + 기타 체크 저장)
 # ============================================================
-
 def save_progress_to_db(sb_authed, user_id: str):
-    # ✅ word 네임스페이스로 저장 (kanji/talk 진행상황은 보존)
     if "quiz" not in st.session_state or "answers" not in st.session_state:
         return
 
@@ -1141,62 +1116,16 @@ def save_progress_to_db(sb_authed, user_id: str):
         "submitted": bool(st.session_state.get("submitted", False)),
     }
 
-    # 기존 progress 읽어서 병합 (다른 앱 진행상황 보존)
-    try:
-        res = (
-            sb_authed.table("profiles")
-            .select("progress")
-            .eq("id", user_id)
-            .single()
-            .execute()
-        )
-        existing = (res.data or {}).get("progress") if res else None
-    except Exception:
-        existing = None
-
-    progress_all = _ensure_namespaced_progress(existing)
-    progress_all[PROGRESS_NS_WORD] = payload
-
     sb_authed.table("profiles").upsert(
-        {"id": user_id, "progress": progress_all},
+        {"id": user_id, "progress": payload},
         on_conflict="id",
     ).execute()
-
-
 
 def clear_progress_in_db(sb_authed, user_id: str):
-    # ✅ word만 초기화 (kanji/talk 진행상황은 보존)
-    try:
-        res = (
-            sb_authed.table("profiles")
-            .select("progress")
-            .eq("id", user_id)
-            .single()
-            .execute()
-        )
-        existing = (res.data or {}).get("progress") if res else None
-    except Exception:
-        existing = None
-
-    # 구버전(단일 dict)이고 word 시그니처면 전체 progress 제거
-    if _progress_signature_word(existing) and (
-        not (isinstance(existing, dict) and any(k in existing for k in (PROGRESS_NS_WORD, PROGRESS_NS_KANJI, PROGRESS_NS_TALK)))
-    ):
-        sb_authed.table("profiles").upsert(
-            {"id": user_id, "progress": None},
-            on_conflict="id",
-        ).execute()
-        return
-
-    progress_all = _ensure_namespaced_progress(existing)
-    progress_all.pop(PROGRESS_NS_WORD, None)
-
     sb_authed.table("profiles").upsert(
-        {"id": user_id, "progress": (progress_all if progress_all else None)},
+        {"id": user_id, "progress": None},
         on_conflict="id",
     ).execute()
-
-
 
 def restore_progress_from_db(sb_authed, user_id: str):
     try:
@@ -1213,17 +1142,7 @@ def restore_progress_from_db(sb_authed, user_id: str):
     if not res or not res.data:
         return
 
-    raw = res.data.get("progress")
-    if not raw:
-        return
-
-    # ✅ namespaced 우선
-    if isinstance(raw, dict) and PROGRESS_NS_WORD in raw:
-        progress = raw.get(PROGRESS_NS_WORD) or {}
-    else:
-        # ✅ 구버전 단일 progress는 "word" 시그니처일 때만 복원
-        progress = raw if _progress_signature_word(raw) else None
-
+    progress = res.data.get("progress")
     if not progress:
         return
 
@@ -1241,6 +1160,23 @@ def restore_progress_from_db(sb_authed, user_id: str):
     st.session_state.answers = progress.get("answers", st.session_state.get("answers"))
     st.session_state.submitted = bool(progress.get("submitted", st.session_state.get("submitted", False)))
 
+    if st.session_state.pos_group not in POS_GROUP_OPTIONS:
+        st.session_state.pos_group = "noun"
+    if st.session_state.quiz_type not in QUIZ_TYPES_USER:
+        st.session_state.quiz_type = "meaning"
+
+    # ✅ 제한 그룹이면 reading 복원되더라도 meaning으로 강제
+    if str(st.session_state.get("pos_group", "noun")).lower().strip() in POS_ONLY_2TYPES and st.session_state.quiz_type == "reading":
+        st.session_state.quiz_type = "meaning"
+
+    if isinstance(st.session_state.quiz, list):
+        qlen = len(st.session_state.quiz)
+        if not isinstance(st.session_state.answers, list) or len(st.session_state.answers) != qlen:
+            st.session_state.answers = [None] * qlen
+
+# ============================================================
+# ✅ Admin
+# ============================================================
 def get_available_quiz_types() -> list[str]:
     return QUIZ_TYPES_ADMIN if is_admin() else QUIZ_TYPES_USER
 
@@ -1583,9 +1519,13 @@ def auth_box():
     st.markdown("</div>", unsafe_allow_html=True)
 
 def require_login():
+    # NOTE: Auth is handled by home.py (single shared login).
     if st.session_state.get("user") is None:
-        st.markdown(
-            """
+        st.warning("홈에서 로그인 후 이용해 주세요.")
+        if st.button("← 홈으로", use_container_width=True, key="go_home_from_word"):
+            st.session_state["page"] = "home"
+            st.rerun()
+        st.stop()
 <div class="jp" style="margin: 8px 0 14px 0;">
   <div style="
     border:1px solid rgba(120,120,120,0.18);
@@ -3843,7 +3783,6 @@ if st.session_state.get("submitted", False):
     show_naver_talk = (SHOW_NAVER_TALK == "N") or is_admin()
     if show_naver_talk:
         render_naver_talk()
-
 
 
 
