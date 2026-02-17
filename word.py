@@ -42,6 +42,7 @@ import base64
 import textwrap 
 import json
 import html
+import base64
 
 def render_word():
     # ============================================================
