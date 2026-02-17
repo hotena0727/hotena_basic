@@ -1,13 +1,39 @@
 # home.py
 # ============================================================
-# ✅ Home page (Streamlit)
+# ✅ Home page (Streamlit) - NO SIDEBAR
 # - render_home(user, user_plan)
-# - Designed for "왕초보 탈출 하테나일본어" single-file router style
+# - Can be used as main entry file
 # ============================================================
 
 from __future__ import annotations
 
 import streamlit as st
+
+
+def _apply_no_sidebar_ui():
+    """✅ 사이드바(좌측 영역) 자체를 완전히 숨김 + 상단 여백 약간 정리"""
+    st.set_page_config(
+        page_title="왕초보 탈출 · 하테나일본어",
+        layout="centered",
+        initial_sidebar_state="collapsed",
+    )
+
+    st.markdown(
+        """
+<style>
+/* ✅ 좌측 사이드바 영역 완전 제거 */
+section[data-testid="stSidebar"] { display: none !important; }
+
+/* ✅ 상단 햄버거/헤더 여백 줄이기(필요 없으면 지워도 됨) */
+header[data-testid="stHeader"] { height: 0px; }
+header[data-testid="stHeader"] * { display: none !important; }
+
+/* ✅ 기본 패딩 약간 조정(취향) */
+.block-container { padding-top: 1.2rem; }
+</style>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def render_home(user=None, user_plan: str = "free"):
@@ -22,13 +48,9 @@ def render_home(user=None, user_plan: str = "free"):
         "free" | "pro"
     """
 
-    # ----------------------------
-    # Hero
-    # ----------------------------
     st.markdown("## は  왕초보 탈출 · 하테나일본어")
     st.caption("매일 10문제, 가볍게. 꾸준함이 실력입니다.")
 
-    # Login status badge
     if user:
         email = getattr(user, "email", "") or ""
         st.success(f"로그인됨: {email}  ·  플랜: {str(user_plan).upper()}")
@@ -37,9 +59,6 @@ def render_home(user=None, user_plan: str = "free"):
 
     st.markdown("---")
 
-    # ----------------------------
-    # Quick actions
-    # ----------------------------
     st.markdown("### 🚀 오늘의 학습, 바로 시작")
     c1, c2, c3 = st.columns(3)
 
@@ -62,9 +81,6 @@ def render_home(user=None, user_plan: str = "free"):
 
     st.markdown("---")
 
-    # ----------------------------
-    # How to use
-    # ----------------------------
     st.markdown("### 📌 사용 방법 (딱 3단계)")
     st.markdown(
         """
@@ -74,9 +90,6 @@ def render_home(user=None, user_plan: str = "free"):
         """.strip()
     )
 
-    # ----------------------------
-    # Feature highlights
-    # ----------------------------
     st.markdown("### ✨ 들어있는 기능")
     f1, f2 = st.columns(2)
 
@@ -110,9 +123,6 @@ def render_home(user=None, user_plan: str = "free"):
 
     st.markdown("---")
 
-    # ----------------------------
-    # Plan (FREE/PRO) notice
-    # ----------------------------
     st.markdown("### 🧩 이용 플랜")
     p1, p2 = st.columns(2)
 
@@ -136,9 +146,20 @@ def render_home(user=None, user_plan: str = "free"):
             st.rerun()
 
     st.markdown("---")
-
-    # ----------------------------
-    # Motivational footer
-    # ----------------------------
     st.markdown("### ☑️ 오늘의 한마디")
     st.write("공부는 길게가 아니라, **매일** 가는 게 이깁니다. 오늘 10문제면 충분합니다.")
+
+
+def main():
+    _apply_no_sidebar_ui()
+
+    # ✅ 단독 실행 시 기본 홈 렌더
+    # (선우님 앱에서는 여기에서 user/user_plan을 실제 값으로 넣어주면 됩니다.)
+    user = None
+    user_plan = st.session_state.get("user_plan", "free")
+
+    render_home(user=user, user_plan=user_plan)
+
+
+if __name__ == "__main__":
+    main()
