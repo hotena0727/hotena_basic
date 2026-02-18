@@ -33,7 +33,18 @@ import textwrap
 # NOTE: page config is handled by home.py
 if not st.session_state.get("_page_config_set"):
     st.set_page_config(page_title="Hatena", layout="centered")
-    st.session_state["_page_config_set"] = True
+    
+
+# ============================================================
+# ✅ Hub entry: go straight to quiz (no '오늘의 말' / no start screen)
+# ============================================================
+try:
+    if st.session_state.get("_hub_child") == "app.py":
+        st.session_state["page"] = "quiz"
+except Exception:
+    pass
+
+st.session_state["_page_config_set"] = True
 # ============================================================
 # ✅ [SOUND] 사운드 유틸 (모바일 자동재생 정책 대응)
 # ============================================================

@@ -62,7 +62,18 @@ import html
 # ============================================================
 if not st.session_state.get("_page_config_set"):
     st.set_page_config(page_title="왕초보 탈출 하테나일본어", page_icon="static/icon-192.png", layout="centered")
-    st.session_state["_page_config_set"] = True
+    
+
+# ============================================================
+# ✅ Hub entry: go straight to quiz (no '오늘의 말' / no start screen)
+# ============================================================
+try:
+    if st.session_state.get("_hub_child") == "hotena_basic.py":
+        st.session_state["page"] = "quiz"
+except Exception:
+    pass
+
+st.session_state["_page_config_set"] = True
 # ============================================================
 # ✅ PWA/아이콘 - set_page_config 바로 아래
 # ============================================================
@@ -1583,15 +1594,7 @@ def require_login():
         )
         auth_box()
         st.stop()
-
-# ✅ 첫 방문 자동 노출
-# ✅ 첫 방문 자동 노출
-if not has_seen_onboarding():
-    render_onboarding_card(expanded=True)
-else:
-    if st.button("📘 이용안내 다시보기", use_container_width=True):
-        render_onboarding_card(expanded=True)
-
+# (onboarding removed for training pages)
 # ============================================================
 # ✅ 네이버톡 배너 (제출 후만)
 # ============================================================

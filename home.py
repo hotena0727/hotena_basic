@@ -716,16 +716,16 @@ def render_top_bar():
     st.session_state["_hub_last_view"] = view
 
     # view -> hub_page mapping (internal router)
-    mapping = {"요약":"home", "단어":"word", "한자":"kanji", "회화":"talk", "마이페이지":"mypage"}
+    mapping = {"요약":"home", "홈":"home", "단어":"word", "한자":"kanji", "회화":"talk", "마이페이지":"mypage"}
     st.session_state["hub_page"] = mapping.get(view, "home")
 
     # Plan badge (subtle)
-    c1, c2 = st.columns([6, 1.6], vertical_alignment="center")
+    c1, c2 = st.columns([1.6, 6], vertical_alignment="center")
     with c1:
         st.markdown("""<div style='height:4px;'></div>""", unsafe_allow_html=True)
     with c2:
         st.markdown(
-            f"""<div style="text-align:right;margin-top:2px;">
+            f"""<div style="text-align:left;margin-top:2px;">
   <span style="display:inline-block;padding:6px 10px;border-radius:999px;
                border:1px solid rgba(49,51,63,.14);
                background:rgba(49,51,63,.035);
@@ -761,7 +761,7 @@ def run_script(filename: str):
 def render_top_tabs() -> str:
     """Top navigation tabs (text-only). Returns selected view key."""
     # Options: Summary hub + three trainings + mypage
-    options = ["홈", "단어", "한자", "회화", "마이페이지"]
+    options = ["홈", "단어", "한자", "회화", "마이페이지", "로그아웃"]
     default = st.session_state.get("hub_view") or "홈"
     if default not in options:
         default = "홈"
@@ -792,6 +792,25 @@ def _on_view_changed(new_view: str, prev_view: str | None):
         st.session_state["page"] = "quiz"
     elif new_view == "회화":
         st.session_state["_hub_force_new_talk"] = True
+    elif new_view == "로그아웃":
+        # Clear session + cookies if available
+        try:
+            st.session_state.pop("user", None)
+            st.session_state.pop("user_email", None)
+            st.session_state.pop("user_plan", None)
+            st.session_state.pop("hub_view", None)
+        except Exception:
+            pass
+        # Cookie manager lives in this module scope
+        try:
+            if "cookies" in globals():
+                globals()["cookies"].clear()
+                globals()["cookies"].save()
+        except Exception:
+            pass
+        st.session_state["view"] = "hub"
+        st.session_state["hub_page"] = "home"
+        st.rerun()
 
 # ============================================================
 # ✅ Hub UI (Top Navigation)
@@ -799,17 +818,7 @@ def _on_view_changed(new_view: str, prev_view: str | None):
 if st.session_state.get('view','hub') != 'hub':
     render_top_bar()
 def render_guide_block(page: str):
-    with st.expander("이용 가이드", expanded=False):
-        if page == "word":
-            st.markdown("- **단어 훈련**: 한 번에 10문제씩 풀어주세요.")
-            st.markdown("- 보기 선택 후 **정답 제출** → 채점 결과 확인.")
-        elif page == "kanji":
-            st.markdown("- **한자 훈련**: N5~N3 (왕초보용).")
-            st.markdown("- 보기 선택 후 **정답 제출** → 채점 결과 확인.")
-        elif page == "talk":
-            st.markdown("- **회화 훈련**: 상황 + 상대 발화 + 보기 선택.")
-            st.markdown("- **발음 듣기(🔊)** 는 PRO에서 제공됩니다.")
-        st.markdown("- 홈으로 돌아가려면 상단 탭 메뉴을 누르세요.")
+    return
 
 def _safe_int(x, default=0):
     try:
