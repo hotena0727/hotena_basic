@@ -589,12 +589,14 @@ user = st.session_state.get("user")
 sb_authed = st.session_state.get("sb_authed")
 
 if not user:
-    st.subheader("로그인")
-    with st.form("login_form", clear_on_submit=False):
-        email = st.text_input("이메일", key="hub_email")
-        pw = st.text_input("비밀번호", type="password", key="hub_pw")
-        mode = st.radio("모드", ["로그인", "회원가입"], horizontal=True)
-        submit = st.form_submit_button("확인", use_container_width=True)
+    cL, cM, cR = st.columns([1, 1.4, 1])
+    with cM:
+        st.subheader("로그인")
+        with st.form("login_form", clear_on_submit=False):
+            email = st.text_input("이메일", key="hub_email")
+            pw = st.text_input("비밀번호", type="password", key="hub_pw")
+            mode = st.radio("모드", ["로그인", "회원가입"], horizontal=True)
+            submit = st.form_submit_button("확인", use_container_width=True)
 
     if submit:
         if not email or not pw:
@@ -612,7 +614,13 @@ if not user:
                 st.session_state["refresh_token"] = res.session.refresh_token
                 cookies["access_token"] = res.session.access_token
                 cookies["refresh_token"] = res.session.refresh_token
-                cookies.save()
+                # ✅ CookieManager duplicate-key guard
+                try:
+                    if "_cookie_save_guard" not in st.session_state:
+                        st.session_state["_cookie_save_guard"] = True
+                        cookies.save()
+                except Exception:
+                    pass
                 st.success("로그인 완료!")
                 st.rerun()
             else:
@@ -712,30 +720,54 @@ def render_top_bar():
     plan = _plan_label()
     prev = st.session_state.get("_hub_last_view")
     view = render_top_tabs()
+    # 로그아웃
+    if view == "로그아웃":
+        try:
+            # supabase sign out (best-effort)
+            sb.auth.sign_out()
+        except Exception:
+            pass
+        # clear cookies
+        for k in ["access_token", "refresh_token"]:
+            try:
+                cookies[k] = ""
+            except Exception:
+                pass
+        try:
+            st.session_state.pop("_cookie_save_guard", None)
+            cookies.save()
+        except Exception:
+            pass
+        # clear session state
+        for k in ["user","access_token","refresh_token","profile","user_plan","hub_view","hub_view_radio","hub_page"]:
+            st.session_state.pop(k, None)
+        st.session_state["hub_page"] = "home"
+        st.session_state["hub_view"] = "홈"
+        st.rerun()
+
     _on_view_changed(view, prev)
     st.session_state["_hub_last_view"] = view
 
     # view -> hub_page mapping (internal router)
-    mapping = {"요약":"home", "단어":"word", "한자":"kanji", "회화":"talk", "마이페이지":"mypage"}
+    mapping = {"홈":"home", "단어":"word", "한자":"kanji", "회화":"talk", "마이페이지":"mypage"}
     st.session_state["hub_page"] = mapping.get(view, "home")
 
     # Plan badge (subtle)
-    c1, c2 = st.columns([6, 1.6], vertical_alignment="center")
+    c1, c2 = st.columns([1.6, 6], vertical_alignment="center")
     with c1:
-        st.markdown("""<div style='height:4px;'></div>""", unsafe_allow_html=True)
-    with c2:
         st.markdown(
-            f"""<div style="text-align:right;margin-top:2px;">
-  <span style="display:inline-block;padding:6px 10px;border-radius:999px;
+            f"""<div style=\"text-align:left;margin-top:2px;\">
+  <span style=\"display:inline-block;padding:6px 10px;border-radius:999px;
                border:1px solid rgba(49,51,63,.14);
                background:rgba(49,51,63,.035);
-               font-weight:700;font-size:12.5px;">
+               font-weight:700;font-size:12.5px;\">
     {plan} 플랜
   </span>
 </div>""",
             unsafe_allow_html=True,
         )
-
+    with c2:
+        st.markdown("""<div style='height:4px;'></div>""", unsafe_allow_html=True)
 # ============================================================
 # ✅ Hub UI
 # ============================================================
@@ -761,7 +793,7 @@ def run_script(filename: str):
 def render_top_tabs() -> str:
     """Top navigation tabs (text-only). Returns selected view key."""
     # Options: Summary hub + three trainings + mypage
-    options = ["홈", "단어", "한자", "회화", "마이페이지"]
+    options = ["홈", "단어", "한자", "회화", "마이페이지", "로그아웃"]
     default = st.session_state.get("hub_view") or "홈"
     if default not in options:
         default = "홈"
