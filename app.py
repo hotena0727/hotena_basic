@@ -6,7 +6,6 @@ import random
 import pandas as pd
 import streamlit as st
 
-import ui_shared as ui
 # ✅ Hub theme
 try:
     _fn = st.session_state.get('hub_apply_theme')
@@ -34,11 +33,7 @@ import textwrap
 # NOTE: page config is handled by home.py
 if not st.session_state.get("_page_config_set"):
     st.set_page_config(page_title="Hatena", layout="centered")
-    
-
-ui.render_top_nav()
-
-st.session_state["_page_config_set"] = True
+    st.session_state["_page_config_set"] = True
 # ============================================================
 # ✅ [SOUND] 사운드 유틸 (모바일 자동재생 정책 대응)
 # ============================================================
@@ -2044,22 +2039,6 @@ if sb_authed is not None:
         st.session_state["did_attend_today"] = bool(att.get("did_attend", False))
 else:
     st.caption("세션 토큰이 없습니다. (sb_authed=None) 다시 로그인해 주세요.")
-
-
-# ============================================================
-# ✅ Hub direct-start (skip '오늘의 퀴즈 시작' screen)
-#   - Prevent infinite rerun by CONSUMING the flag (pop)
-#   - Do NOT call st.rerun() here; let routing render quiz in same run
-# ============================================================
-if st.session_state.pop("_hub_autostart_kanji", False):
-    try:
-        go_quiz_from_home()
-    except Exception:
-        st.session_state.page = "quiz"
-        st.session_state["_scroll_top_once"] = True
-
-    # ✅ 허브 진입은 항상 '새 문제'로 시작 (1회만)
-    st.session_state["_auto_new_quiz_kanji_once"] = True
 
 # ============================================================
 # ✅ 라우팅

@@ -32,7 +32,6 @@ import random
 import pandas as pd
 import streamlit as st
 
-import ui_shared as ui
 # ✅ Hub theme
 try:
     _fn = st.session_state.get('hub_apply_theme')
@@ -63,11 +62,7 @@ import html
 # ============================================================
 if not st.session_state.get("_page_config_set"):
     st.set_page_config(page_title="왕초보 탈출 하테나일본어", page_icon="static/icon-192.png", layout="centered")
-    
-
-ui.render_top_nav()
-
-st.session_state["_page_config_set"] = True
+    st.session_state["_page_config_set"] = True
 # ============================================================
 # ✅ PWA/아이콘 - set_page_config 바로 아래
 # ============================================================
@@ -2871,22 +2866,6 @@ if sb_authed is not None:
     if att:
         st.session_state["streak_count"] = int(att.get("streak_count", 0) or 0)
         st.session_state["did_attend_today"] = bool(att.get("did_attend", False))
-
-
-# ============================================================
-# ✅ Hub direct-start (skip '오늘의 퀴즈 시작' screen)
-#   - Prevent infinite rerun by CONSUMING the flag (pop)
-#   - Do NOT call st.rerun() here; let routing render quiz in same run
-# ============================================================
-if st.session_state.pop("_hub_autostart_word", False):
-    try:
-        go_quiz_from_home()
-    except Exception:
-        st.session_state.page = "quiz"
-        st.session_state["_scroll_top_once"] = True
-
-    # ✅ 허브 진입은 항상 '새 문제'로 시작 (1회만)
-    st.session_state["_auto_new_quiz_word_once"] = True
 
 # ============================================================
 # ✅ Routing

@@ -68,7 +68,7 @@ st.set_page_config(page_title="왕초보 탈출 하테나일본어", layout="cen
 st.session_state["_page_config_set"] = True  # children should not call set
 
 # ✅ Hub version
-HUB_VERSION = "v39.1"
+HUB_VERSION = "v36"
 
 # ============================================================
 # ✅ Navy Theme (v32)
@@ -116,132 +116,40 @@ def apply_navy_theme():
     div.stButton>button:hover{background:var(--h-navy2); border-color:rgba(28,42,58,.25);}
     div.stButton>button:disabled{opacity:.55;}
     
-    /* Top tabs (text-only) - REAL sticky (Streamlit-safe) */
-    /* We anchor then style the NEXT horizontal block (the columns that contain badge+tabs) */
-    #htabs_anchor + div[data-testid="stHorizontalBlock"]{
-      position: sticky !important;
-      top: 0 !important;
-      z-index: 9999 !important;
-      background: rgba(249,250,252,.96);
-      backdrop-filter: blur(6px);
-      border-bottom: 1px solid rgba(0,0,0,.06);
-      padding: 0.35rem 0.25rem 0.45rem;
-      margin: 0 0 0.35rem 0;
-    }
-    #htabs_anchor + div[data-testid="stHorizontalBlock"] .stRadio [role="radiogroup"]{
-      flex-direction: row;
-      gap: 0.85rem;
-      align-items: center;
-      flex-wrap: wrap;
-    }
-    #htabs_anchor + div[data-testid="stHorizontalBlock"] .stRadio label{margin:0; padding:0.35rem 0.35rem;}
-    #htabs_anchor + div[data-testid="stHorizontalBlock"] .stRadio div[role="radio"]{border:0 !important;}
-    #htabs_anchor + div[data-testid="stHorizontalBlock"] .stRadio span{font-size:15px;}
-    #htabs_anchor + div[data-testid="stHorizontalBlock"] div[role="radio"][aria-checked="true"] span{
-      font-weight: 800;
-      border-bottom: 2px solid rgba(28,42,58,.85);
-      padding-bottom: 2px;
-    }
-
-    /* Plan badge (left of Home) */
-    .h-plan-badge{
-      display:inline-flex;
-      align-items:center;
-      justify-content:center;
-      padding:4px 10px;
-      border-radius:999px;
-      font-weight:800;
-      font-size:12px;
-      letter-spacing:0.02em;
-      border:1px solid rgba(0,0,0,.12);
-      user-select:none;
-      white-space:nowrap;
-    }
-    .h-plan-free{background:rgba(160,160,160,.12);}
-    .h-plan-pro{background:rgba(55,140,255,.12);}
-
+    /* Top tabs (text-only) */
+    .h-tabs{position:sticky; top:0; z-index:999; background:var(--h-bg); padding:0.15rem 0 0.35rem; margin-bottom:0.25rem;}
+    .h-tabs .stRadio [role="radiogroup"]{flex-direction:row; gap:0.75rem;}
+    .h-tabs .stRadio label{margin:0; padding:0.35rem 0.35rem;}
+    .h-tabs .stRadio div[role="radio"]{border:0 !important;}
+    .h-tabs .stRadio span{font-size:15px;}
     /* soften segmented/toggle visuals */
     div[data-testid="stSegmentedControl"] button{border-radius:999px !important;}
 
-    /* ✅ Top nav container (sticky look) */
-    .h-topnav{
-      padding: 10px 0 8px 0;
-      margin: 0 0 10px 0;
-      border-bottom: 1px solid rgba(28,42,58,.10);
-      background: rgba(245,247,250,.86);
-      backdrop-filter: blur(10px);
-    }
-
-    /* ✅ Plan badge (left) */
-    .h-plan-badge{
-      display:inline-flex;
-      align-items:center;
-      justify-content:center;
-      min-width: 54px;
-      padding: 6px 12px;
-      border-radius: 999px;
-      font-size: 12px;
-      font-weight: 900;
-      letter-spacing: .9px;
-      border: 1px solid rgba(28,42,58,.14);
-      box-shadow: 0 10px 26px rgba(0,0,0,.06);
-      user-select:none;
-    }
-    .h-plan-free{
-      background: rgba(255,255,255,.92);
-      color: rgba(28,42,58,.80);
-    }
-    .h-plan-pro{
-      background: linear-gradient(135deg, rgba(255,206,230,.95), rgba(205,235,255,.98));
-      color: rgba(28,42,58,.88);
-      border-color: rgba(255, 72, 140, .22);
-    }
-
-    /* ✅ Top tabs: pill + subtle active state */
-    .h-tabs .stRadio [role="radiogroup"]{
-      gap: .45rem;
-      flex-wrap: nowrap;
-      overflow-x: auto;
-      padding-bottom: 2px;
-      -webkit-overflow-scrolling: touch;
-    }
-    .h-tabs .stRadio [role="radiogroup"]::-webkit-scrollbar{ height: 6px; }
-    .h-tabs .stRadio [role="radiogroup"]::-webkit-scrollbar-thumb{ background: rgba(0,0,0,.10); border-radius: 999px; }
-
-    /* Hide native radio circles */
-    .h-tabs .stRadio input[type="radio"]{
-      position: absolute !important;
-      opacity: 0 !important;
-      width: 1px !important;
-      height: 1px !important;
-      pointer-events: none !important;
-    }
+    /* ✅ Top tabs: pill + active highlight (no icons) */
+    .h-tabs .stRadio [role="radiogroup"]{gap:0.5rem;}
     .h-tabs .stRadio label{
-      padding: .40rem .90rem;
-      border-radius: 999px;
-      border: 1px solid transparent;
-      background: transparent;
-      transition: transform .08s ease, background .12s ease, border-color .12s ease, box-shadow .12s ease;
-      white-space: nowrap;
+      padding:0.35rem 0.85rem;
+      border-radius:999px;
+      border:1px solid transparent;
+      background:transparent;
+      transition:all .12s ease;
     }
     .h-tabs .stRadio label:hover{
-      background: rgba(255,255,255,.92);
-      border-color: rgba(28,42,58,.14);
-      transform: translateY(-1px);
-      box-shadow: 0 12px 24px rgba(0,0,0,.07);
+      background:rgba(255,255,255,.9);
+      border-color:var(--h-border);
     }
     .h-tabs .stRadio label:has(input:checked){
-      background: rgba(255,255,255,1);
-      border-color: rgba(255, 72, 140, .20);
-      box-shadow: 0 0 0 2px rgba(135, 206, 250, .14) inset, 0 10px 22px rgba(0,0,0,.06);
+      background:rgba(255,255,255,1);
+      border-color:var(--h-border);
+      box-shadow:0 1px 0 rgba(0,0,0,.03);
     }
     .h-tabs .stRadio label:has(input:checked) span{
-      color: var(--h-navy);
-      font-weight: 900;
+      color:var(--h-navy);
+      font-weight:900;
     }
     .h-tabs .stRadio label:not(:has(input:checked)) span{
-      color: rgba(28,42,58,.60);
-      font-weight: 800;
+      color:rgba(28,42,58,.55);
+      font-weight:800;
     }
 
     /* ✅ Segmented control: softer pastel instead of heavy navy */
@@ -884,88 +792,24 @@ def run_script(filename: str):
 
 def render_top_tabs() -> str:
     """Top navigation tabs (text-only). Returns selected view key."""
+    # Options: Summary hub + three trainings + mypage
     options = ["홈", "단어", "한자", "회화", "마이페이지", "로그아웃"]
     default = st.session_state.get("hub_view") or "홈"
     if default not in options:
         default = "홈"
-
-    # ✅ IMPORTANT: Streamlit markdown HTML cannot wrap widgets.
-    # We render an anchor, then a horizontal block (columns), and CSS makes that block sticky.
-    st.markdown('<div id="htabs_anchor"></div>', unsafe_allow_html=True)
-
-    c_plan, c_tabs = st.columns([1.0, 9.0], vertical_alignment="center")
-    with c_plan:
-        plan = (st.session_state.get("user_plan") or "free").strip().lower()
-        label = "FREE" if plan == "free" else "PRO"
-        cls = "h-plan-badge h-plan-free" if plan == "free" else "h-plan-badge h-plan-pro"
-        st.markdown(f'<span class="{cls}">{label}</span>', unsafe_allow_html=True)
-
-    with c_tabs:
-        view = st.radio(
-            label="",
-            options=options,
-            index=options.index(default),
-            horizontal=True,
-            key="hub_view_radio",
-            label_visibility="collapsed",
-        )
-
+    # Sticky wrapper
+    st.markdown('<div class="h-tabs">', unsafe_allow_html=True)
+    view = st.radio(
+        label="",
+        options=options,
+        index=options.index(default),
+        horizontal=True,
+        key="hub_view_radio",
+        label_visibility="collapsed",
+    )
+    st.markdown("</div>", unsafe_allow_html=True)
     st.session_state["hub_view"] = view
-
-    # ✅ Make the nav block truly sticky + attach styling class (robust across Streamlit DOM changes)
-    try:
-        components.html(
-            """
-<script>
-(function(){
-  const doc = window.parent.document;
-  const anchor = doc.getElementById("htabs_anchor");
-  if(!anchor) return;
-
-  // Find the next block that contains our radio inputs
-  let el = anchor.nextElementSibling;
-  for(let i=0;i<10 && el;i++){
-    if(el.querySelector && el.querySelector('input[type="radio"]')) break;
-    el = el.nextElementSibling;
-  }
-  if(!el || !el.querySelector) return;
-
-  // Prefer the horizontal block wrapper if present
-  let container = el;
-  // Sometimes Streamlit nests: block -> div -> radiogroup
-  // If the next sibling is just a wrapper, climb a bit to a stable parent.
-  for(let j=0;j<4 && container && container.parentElement; j++){
-    // Stop climbing if parent is the main container
-    const p = container.parentElement;
-    if(p && p.getAttribute && p.getAttribute("data-testid") === "stAppViewContainer") break;
-    // Use parent only if it still contains the anchor marker vicinity
-    if(p && p.querySelector && p.querySelector("#htabs_anchor")) container = p;
-  }
-
-  // Idempotent
-  container.classList.add("h-topnav");
-  container.classList.add("h-tabs");
-
-  // Sticky styles (inline so they win even if CSS selector misses)
-  container.style.position = "sticky";
-  container.style.top = "0px";
-  container.style.zIndex = "1000";
-  container.style.background = "rgba(245,247,250,.86)";
-  container.style.backdropFilter = "blur(10px)";
-  container.style.borderBottom = "1px solid rgba(28,42,58,.10)";
-  container.style.padding = "10px 0 8px 0";
-  container.style.margin = "0 0 10px 0";
-  container.style.boxShadow = "0 10px 26px rgba(0,0,0,.06)";
-})();
-</script>
-            """,
-            height=0,
-        )
-    except Exception:
-        pass
-
     return view
-
 
 def _on_view_changed(new_view: str, prev_view: str | None):
     """When user switches between major views, trigger fresh quiz for that module."""
@@ -1465,61 +1309,6 @@ def render_home_dashboard():
     streak = int(st.session_state.get("streak_count") or 0)
     badge = _badge_for_streak(streak)
 
-    # ============================================================
-    # ✅ 오늘의 추천 루틴 (V39-lite, 최소 침습)
-    # - "얼마나 해야 하지?"를 없애는 5~10분 균형 루틴
-    # - 기존 구조/페이지는 그대로 사용 (자동 연쇄 이동은 추후 단계)
-    # ============================================================
-    def _acc_from_df7(_df7: pd.DataFrame) -> float:
-        try:
-            if not isinstance(_df7, pd.DataFrame) or _df7.empty:
-                return 0.0
-            s = pd.to_numeric(_df7.get("score"), errors="coerce").fillna(0).sum()
-            q = pd.to_numeric(_df7.get("quiz_len"), errors="coerce").fillna(0).sum()
-            return float(s / q) if q > 0 else 0.0
-        except Exception:
-            return 0.0
-
-    acc = _acc_from_df7(df7)
-    # 기본: 7분(단어3/한자3/회화2)
-    w_len, k_len, t_len, minutes = 3, 3, 2, 7
-    if streak >= 7 and acc >= 0.80:
-        w_len, k_len, t_len, minutes = 4, 4, 3, 11
-    elif streak >= 3 and acc >= 0.70:
-        w_len, k_len, t_len, minutes = 4, 3, 2, 9
-    elif acc > 0 and acc < 0.55:
-        w_len, k_len, t_len, minutes = 3, 2, 2, 7
-
-    st.markdown(
-        f"""<div class="h-card" style="padding:14px 14px;margin:12px 0 10px 0;">
-  <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
-    <div>
-      <div style="font-weight:900;color:var(--h-navy);font-size:14px;opacity:.95;">🔥 오늘의 추천 루틴</div>
-      <div style="margin-top:6px;font-size:13px;opacity:.85;line-height:1.5;">
-        단어 <b>{w_len}</b>문제 · 한자 <b>{k_len}</b>문제 · 회화 <b>{t_len}</b>문장
-        <span style="margin-left:6px;opacity:.7;">(약 {minutes}분)</span>
-      </div>
-    </div>
-  </div>
-</div>""",
-        unsafe_allow_html=True
-    )
-
-    c_rt1, c_rt2 = st.columns([1, 1])
-    with c_rt1:
-        if st.button("▶️ 오늘 루틴 시작", type="primary", use_container_width=True, key="hub_daily_routine_start"):
-            # 루틴 정보만 저장 (연쇄 이동은 다음 버전에서)
-            st.session_state["hub_daily_routine"] = {
-                "lens": {"word": w_len, "kanji": k_len, "talk": t_len},
-                "minutes": minutes,
-                "started_at": datetime.now().isoformat(),
-            }
-            st.session_state["_auto_new_quiz_word"] = True
-            go("word")
-    with c_rt2:
-        st.button("⏭️ 나중에", use_container_width=True, disabled=True, key="hub_daily_routine_later")
-
-
     c1, c2, c3 = st.columns(3)
     with c1:
         st.metric("오늘 완료(세트)", f"{today_sets} / 1")
@@ -1603,23 +1392,19 @@ elif page == "word":
         st.session_state["_auto_new_quiz_word_once"] = True
     # (v36) 단어 페이지는 바로 훈련에 집중: 상단 가이드 블록 제거
     render_today_report_card(_get_last7_df_for_ui(), compact=True)
-    # ✅ 허브 진입 시 "오늘의 퀴즈 시작" 화면을 건너뛰고 바로 퀴즈로
-    st.session_state["_hub_autostart_word"] = True
     run_script("hotena_basic.py")
 
 elif page == "kanji":
     if st.session_state.pop("_auto_new_quiz_kanji", False):
         st.session_state["_auto_new_quiz_kanji_once"] = True
-    # (v39.1) 허브에서 바로 문제로 진입: 가이드 블록 제거
+    render_guide_block("kanji")
     render_today_report_card(_get_last7_df_for_ui(), compact=True)
-    # ✅ 허브 진입 시 "오늘의 퀴즈 시작" 화면을 건너뛰고 바로 퀴즈로
-    st.session_state["_hub_autostart_kanji"] = True
     run_script("app.py")
 
 elif page == "talk":
     if st.session_state.pop("_hub_force_new_talk", False):
         st.session_state["_hub_force_new_talk_once"] = True
-    # (v39.1) 허브에서 바로 문제로 진입: 가이드 블록 제거
+    render_guide_block("talk")
     render_today_report_card(_get_last7_df_for_ui(), compact=True)
     run_script("talk.py")
 
