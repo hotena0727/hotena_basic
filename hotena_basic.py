@@ -44,7 +44,7 @@ except Exception:
 # ============================================================
 # ✅ Hub Mode Flag (home.py에서 실행 중인지)
 # ============================================================
-HUB_MODE = bool(st.session_state.get("hub_mode") or st.session_state.get("_hub_child") or st.session_state.get("_hub_common_header") or st.session_state.get("_HATENA_EMBEDDED"))
+HUB_MODE = bool(st.session_state.get("hub_mode") or st.session_state.get("_hub_child") or st.session_state.get("_hub_common_header"))
 import unicodedata
 from supabase import create_client
 from streamlit_cookies_manager import EncryptedCookieManager
@@ -61,29 +61,8 @@ import html
 # ✅ Page Config + Paths
 # ============================================================
 if not st.session_state.get("_page_config_set"):
-    if not st.session_state.get("_HATENA_EMBEDDED"):
-        st.set_page_config(page_title="왕초보 탈출 하테나일본어", page_icon="static/icon-192.png", layout="centered")
+    st.set_page_config(page_title="왕초보 탈출 하테나일본어", page_icon="static/icon-192.png", layout="centered")
     st.session_state["_page_config_set"] = True
-# ============================================================
-# ✅ Embedded mode sync (Home router -> hotena_basic)
-# ============================================================
-if st.session_state.get("_HATENA_EMBEDDED"):
-    hv = st.session_state.get("hub_view")
-    if hv == "단어":
-        st.session_state.page = "quiz"
-    elif hv == "마이페이지":
-        st.session_state.page = "my"
-
-
-# ============================================================
-# ✅ Hub quick actions (MyPage -> Word app)
-# ============================================================
-if st.session_state.pop("_hub_reset_mastery_once", False):
-    st.session_state["_hub_do_reset_mastery"] = True
-
-if st.session_state.pop("_hub_retry_wrongs_once", False):
-    st.session_state["_hub_do_retry_wrongs"] = True
-
 # ============================================================
 # ✅ PWA/아이콘 - set_page_config 바로 아래
 # ============================================================
@@ -1079,15 +1058,6 @@ def save_attempt_to_db(sb_authed, user_id, user_email, pos, quiz_type, quiz_len,
         "wrong_list": wrong_list,
     }
     sb_authed.table("quiz_attempts").insert(payload).execute()
-
-    # ✅ Hub 통계용(마이페이지 7일 기록) — embedded일 때만 세션에 기록
-    try:
-        if st.session_state.get("_HATENA_EMBEDDED"):
-            from stats import log_attempt as _hub_log_attempt
-            _hub_log_attempt("word", int(quiz_len), int(score))
-    except Exception:
-        pass
-
 
 def fetch_recent_attempts(sb_authed, user_id, limit=10):
     return (
@@ -3342,10 +3312,6 @@ def reset_mastery_current():
     st.session_state["_scroll_top_once"] = True
     st.rerun()
 
-# ✅ Hub trigger: reset mastery once
-if st.session_state.pop("_hub_do_reset_mastery", False):
-    reset_mastery_current()
-
 with cbtn2:
     if st.button("맞힌 단어 제외 초기화", disabled=locked, use_container_width=True, key="btn_reset_mastery"):
         reset_mastery_current()
@@ -3869,11 +3835,11 @@ if st.session_state.get("submitted", False):
         has_wrongs = bool(st.session_state.get("wrong_list"))
         pro_only_disabled = (not is_pro()) or (not has_wrongs)
         if st.button(
-            \"❌ 틀린 문제만 다시 풀기\",
+            "❌ 틀린 문제만 다시 풀기",
             use_container_width=True,
             disabled=pro_only_disabled,
             key="btn_retry_wrongs_bottom_global"
-        ) or st.session_state.pop(\"_hub_do_retry_wrongs\", False):
+        ):
             clear_question_widget_keys()
             retry_quiz = build_quiz_from_wrongs(
                 st.session_state.wrong_list,

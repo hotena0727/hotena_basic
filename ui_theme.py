@@ -1,6 +1,12 @@
 # ui_theme.py
 import streamlit as st
 
+# ============================================================
+# ✅ V37 Common CSS (Phase 2) — Hatena Calm + Minimal
+# - "공통 CSS부터 끝내자" 기준: Hub 전체에서 1번만 주입
+# - home.py에서 apply_ui_theme() 1회 호출하면, 이후 child 렌더에도 유지됨
+# ============================================================
+
 THEME = {
     "PRIMARY": "#2F5FA7",
     "PRIMARY_L": "#3A7BD5",
@@ -14,17 +20,17 @@ THEME = {
 }
 
 def apply_ui_theme():
-    """
-    ✅ Common CSS injector (safe)
-    - Ensures CSS is injected only once per session
-    - Avoids Python syntax errors by keeping CSS inside a single triple-quoted string
-    """
+    """Inject common CSS once per session (safe to call multiple times)."""
     if st.session_state.get("_hatena_ui_theme_applied"):
         return
     st.session_state["_hatena_ui_theme_applied"] = True
 
-    css = f"""
+    st.markdown(
+        f"""
 <style>
+/* ============================================================
+   ✅ Theme variables
+   ============================================================ */
 :root {{
   --primary: {THEME["PRIMARY"]};
   --primaryL: {THEME["PRIMARY_L"]};
@@ -37,151 +43,179 @@ def apply_ui_theme():
   --shadowBtn: {THEME["SHADOW_BTN"]};
 }}
 
-html, body, [class*="css"] {{ color: var(--text); }}
+/* ============================================================
+   ✅ Global layout / spacing
+   ============================================================ */
+html, body, [class*="css"] {{
+  color: var(--text);
+}}
 
-/* Layout */
 .block-container {{
-  padding-top: 1.15rem !important;
+  padding-top: 1.2rem !important;
   padding-bottom: 2.2rem !important;
   padding-left: 18px !important;
   padding-right: 18px !important;
   max-width: 720px !important;
 }}
-section[data-testid="stSidebar"], div[data-testid="collapsedControl"] {{
-  display:none !important;
+
+@media (min-width: 900px) {{
+  .block-container {{
+    padding-left: 20px !important;
+    padding-right: 20px !important;
+  }}
 }}
 
-/* Typography */
-h1 {{ font-size: 1.35rem !important; margin: 0.4rem 0 0.65rem 0 !important; }}
-h2 {{ font-size: 1.10rem !important; margin: 0.8rem 0 0.5rem 0 !important; }}
-p {{ color: var(--subtext); }}
+/* ============================================================
+   ✅ No sidebar UX
+   ============================================================ */
+section[data-testid="stSidebar"] {{
+  display: none !important;
+}}
+div[data-testid="collapsedControl"] {{
+  display: none !important;
+}}
 
-/* Buttons */
+/* ============================================================
+   ✅ Typography
+   ============================================================ */
+h1, h2, h3 {{
+  letter-spacing: -0.2px;
+}}
+h1 {{
+  font-size: 1.35rem !important;
+  margin: 0.4rem 0 0.65rem 0 !important;
+}}
+h2 {{
+  font-size: 1.1rem !important;
+  margin: 0.8rem 0 0.5rem 0 !important;
+}}
+p {{
+  color: var(--subtext);
+}}
+
+/* ============================================================
+   ✅ Buttons (default)
+   ============================================================ */
 .stButton > button {{
   width: 100%;
   border-radius: 14px !important;
   padding: 12px 16px !important;
-  font-weight: 700 !important;
+  font-weight: 600 !important;
   border: 1px solid var(--border) !important;
   box-shadow: var(--shadowBtn) !important;
   transition: transform 0.06s ease, filter 0.12s ease;
 }}
-.stButton > button:hover {{ filter: brightness(1.05); }}
-.stButton > button:active {{ transform: translateY(1px); }}
-
-.stButton > button[kind="primary"]{{
-  background: var(--primary) !important;
-  color: #fff !important;
-  border: 1px solid rgba(47,95,167,.45) !important;
+.stButton > button:hover {{
+  filter: brightness(1.05);
 }}
-.stButton > button[kind="secondary"]{{
-  background: #fff !important;
-  color: var(--text) !important;
-  border: 1px solid var(--border) !important;
+.stButton > button:active {{
+  transform: translateY(1px);
 }}
 
-/* Cards */
+/* ============================================================
+   ✅ Cards / panels / badges (common components)
+   ============================================================ */
 .ht-card {{
-  background:#fff;
-  border:1px solid var(--border);
-  border-radius:18px;
-  padding:18px 18px;
+  background: #FFFFFF;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 18px 18px;
   box-shadow: var(--shadowSoft);
 }}
-.ht-card + .ht-card {{ margin-top: 14px; }}
-.ht-card-title {{ font-size: 1.02rem; font-weight: 900; margin: 0 0 6px 0; color: var(--text);}}
-.ht-card-sub {{ font-size: 0.92rem; margin: 0; color: var(--subtext);}}
+.ht-card + .ht-card {{
+  margin-top: 16px;
+}}
+.ht-card-title {{
+  font-size: 1.02rem;
+  font-weight: 800;
+  color: var(--text);
+  margin: 0 0 6px 0;
+}}
+.ht-card-sub {{
+  font-size: 0.92rem;
+  color: var(--subtext);
+  margin: 0;
+}}
+
 .ht-panel {{
   background: var(--bgSoft);
   border: 1px solid var(--border);
   border-radius: 16px;
   padding: 14px 14px;
 }}
-.ht-divider {{ height:1px; background: rgba(0,0,0,0.06); margin: 14px 0; }}
 
-/* Badge */
+.ht-divider {{
+  height: 1px;
+  background: rgba(0,0,0,0.06);
+  margin: 14px 0;
+}}
+
 .ht-badge {{
-  display:inline-flex; align-items:center; gap:6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   padding: 6px 10px;
   border-radius: 999px;
   font-size: 0.82rem;
-  font-weight: 800;
+  font-weight: 700;
   border: 1px solid var(--border);
   background: #fff;
   color: var(--text);
 }}
-.ht-badge.pro {{ border-color: rgba(58,123,213,0.35); color: var(--primaryL);}}
-.ht-badge.free {{ color: var(--subtext);}}
-
-/* MyPage */
-.ht-mypage-wrap{{display:flex;flex-direction:column;gap:14px;margin-top:6px}}
-.ht-kpi-row{{display:flex;gap:10px}}
-.ht-kpi{{
-  flex:1;background:#fff;border:1px solid var(--border);
-  border-radius:16px;padding:14px 14px;box-shadow: var(--shadowSoft);
+.ht-badge.pro {{
+  border-color: rgba(58,123,213,0.35);
+  color: var(--primaryL);
 }}
-.ht-kpi-label{{font-size:0.82rem;color:var(--subtext);font-weight:800;margin-bottom:6px}}
-.ht-kpi-value{{font-size:1.25rem;color:var(--text);font-weight:900;line-height:1.1}}
-.ht-kpi-sub{{font-size:0.86rem;color:var(--subtext);margin-top:6px}}
-.ht-section-title{{font-weight:900;color:var(--text);margin:2px 0 2px 0}}
-
-/* 7-day mini heatmap */
-.ht-heatmap{{
-  display:grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap:8px;
-  margin-top:8px;
-}}
-.ht-heatcell{{
-  border-radius:12px;
-  border:1px solid var(--border);
-  padding:10px 10px;
-  background: #fff;
-  box-shadow: var(--shadowSoft);
-}}
-.ht-heat-top{{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}}
-.ht-heat-day{{font-weight:900;color:var(--text);font-size:0.9rem}}
-.ht-heat-date{{color:var(--subtext);font-size:0.78rem;font-weight:800}}
-.ht-heat-bar{{height:8px;border-radius:999px;background:rgba(47,95,167,.10);overflow:hidden}}
-.ht-heat-bar > span{{display:block;height:100%;border-radius:999px;background:rgba(47,95,167,.55);}}
-.ht-heat-num{{margin-top:8px;color:var(--subtext);font-size:0.82rem;font-weight:800}}
-@media (max-width: 520px){{
-  .ht-heatmap{{grid-template-columns: repeat(4, 1fr);}}
+.ht-badge.free {{
+  color: var(--subtext);
 }}
 
-/* Dashboard extras */
-.ht-goal{{
-  background:#fff;
-  border:1px solid var(--border);
-  border-radius:18px;
-  padding:16px 16px;
-  box-shadow: var(--shadowSoft);
+/* ============================================================
+   ✅ Inputs
+   ============================================================ */
+div[data-baseweb="input"] > div {{
+  border-radius: 14px !important;
 }}
-.ht-goal-top{{display:flex;justify-content:space-between;align-items:baseline;gap:10px}}
-.ht-goal-title{{font-weight:900;color:var(--text);margin:0}}
-.ht-goal-sub{{color:var(--subtext);font-weight:800;font-size:0.86rem;margin:0}}
-.ht-recent{{
-  background:#fff;
-  border:1px solid var(--border);
-  border-radius:18px;
-  padding:14px 14px;
-  box-shadow: var(--shadowSoft);
+div[data-baseweb="textarea"] > div {{
+  border-radius: 14px !important;
 }}
-.ht-recent-item{{
-  display:flex;justify-content:space-between;align-items:center;
-  padding:10px 10px;border-radius:14px;
-  border:1px solid rgba(0,0,0,0.04);
-  background: rgba(0,0,0,0.015);
-}}
-.ht-recent-item + .ht-recent-item{{margin-top:8px}}
-.ht-recent-left{{display:flex;flex-direction:column;gap:2px}}
-.ht-recent-mode{{font-weight:900;color:var(--text);font-size:0.92rem}}
-.ht-recent-time{{color:var(--subtext);font-weight:800;font-size:0.78rem}}
-.ht-recent-score{{font-weight:900;color:var(--primaryL)}}
 
-/* Hide Streamlit chrome */
-div[data-testid="stToolbar"] {{ visibility:hidden; height:0; position:fixed; }}
-footer {{ visibility:hidden; height:0; }}
+/* ============================================================
+   ✅ Hub top nav pills (from home.py inline CSS → common)
+   - It targets ONLY horizontal button blocks (top tabs UX)
+   ============================================================ */
+.hub-nav-wrap {{
+  display:flex;align-items:center;gap:10px;margin:2px 0 10px 0;
+}}
+.hub-plan {{
+  padding:4px 10px;border-radius:999px;border:1px solid rgba(49,51,63,.18);
+  background:rgba(49,51,63,.04);font-weight:800;font-size:12px;letter-spacing:0.6px;
+}}
+
+/* Make buttons pill-like in horizontal blocks (tabs row) */
+div[data-testid="stHorizontalBlock"] .stButton>button{{
+  border-radius:999px !important;
+  padding:0.35rem 0.85rem !important;
+  border:1px solid rgba(49,51,63,.18) !important;
+  box-shadow:none !important;
+}}
+div[data-testid="stHorizontalBlock"] .stButton>button[kind="primary"]{{
+  border:1px solid rgba(47,95,167,.40) !important;
+}}
+
+/* ============================================================
+   ✅ Hide Streamlit chrome
+   ============================================================ */
+div[data-testid="stToolbar"] {{
+  visibility: hidden;
+  height: 0px;
+  position: fixed;
+}}
+footer {{
+  visibility: hidden;
+  height: 0px;
+}}
 </style>
-"""
-    st.markdown(css, unsafe_allow_html=True)
+        """,
+        unsafe_allow_html=True,
+    )
