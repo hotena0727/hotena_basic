@@ -6,6 +6,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
+from ui_components import render_header, nav_to
 # ============================================================
 # ✅ Talk (Conversation) training - V37 style safe patch
 # - 1 question at a time (better for recording / self-check)
@@ -77,6 +78,8 @@ def build_choices(df: pd.DataFrame, row: pd.Series) -> list[str]:
     return uniq
 
 def render_talk_page(user_plan: str = "free"):
+    apply_ui_theme()
+    render_header(\"회화 훈련\", user_plan=user_plan, show_home=True, show_mypage=True)
     st.markdown("## 회화 훈련")
 
     df = load_talk_df()

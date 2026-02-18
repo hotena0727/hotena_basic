@@ -14,6 +14,7 @@ import pandas as pd
 import streamlit as st
 
 
+from ui_components import render_header, nav_to
 # ============================================================
 # ✅ Last 7 days flow (mini bars)
 # ============================================================
