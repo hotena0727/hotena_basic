@@ -1585,9 +1585,12 @@ def require_login():
         st.stop()
 
 # ✅ 첫 방문 자동 노출
+# ✅ 첫 방문 자동 노출
 if not has_seen_onboarding():
+    render_onboarding_card(expanded=True)
 else:
     if st.button("📘 이용안내 다시보기", use_container_width=True):
+        render_onboarding_card(expanded=True)
 
 # ============================================================
 # ✅ 네이버톡 배너 (제출 후만)
