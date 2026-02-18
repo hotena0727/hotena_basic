@@ -14,7 +14,6 @@ import pandas as pd
 import streamlit as st
 
 
-import ui_shared as ui
 # ============================================================
 # ✅ Last 7 days flow (mini bars)
 # ============================================================
@@ -716,7 +715,7 @@ def _plan_label() -> str:
     plan = (st.session_state.get("user_plan") or "free").lower()
     return "PRO" if plan == "pro" else "FREE"
 
-def render_top_nav():
+def render_top_bar():
     """상단 고정 탭(텍스트) + 공통 플랜 표시."""
     plan = _plan_label()
     prev = st.session_state.get("_hub_last_view")
@@ -772,7 +771,7 @@ def render_top_nav():
 # ============================================================
 # ✅ Hub UI
 # ============================================================
-# ui.render_top_nav()  # moved below (V35 fix)
+# render_top_bar()  # moved below (V35 fix)
 
 # ✅ Runner
 # ============================================================
@@ -830,7 +829,7 @@ def _on_view_changed(new_view: str, prev_view: str | None):
 # ✅ Hub UI (Top Navigation)
 # ============================================================
 if st.session_state.get('view','hub') != 'hub':
-    ui.render_top_nav()
+    render_top_bar()
 def render_guide_block(page: str):
     with st.expander("이용 가이드", expanded=False):
         if page == "word":
@@ -1448,6 +1447,8 @@ elif page == "word":
         st.session_state["_auto_new_quiz_word_once"] = True
     # (v36) 단어 페이지는 바로 훈련에 집중: 상단 가이드 블록 제거
     render_today_report_card(_get_last7_df_for_ui(), compact=True)
+    # ✅ 허브 진입 시 "오늘의 퀴즈 시작" 화면을 건너뛰고 바로 퀴즈로
+    st.session_state["_hub_autostart_word"] = True
     run_script("hotena_basic.py")
 
 elif page == "kanji":
@@ -1455,6 +1456,8 @@ elif page == "kanji":
         st.session_state["_auto_new_quiz_kanji_once"] = True
     # (v39.1) 허브에서 바로 문제로 진입: 가이드 블록 제거
     render_today_report_card(_get_last7_df_for_ui(), compact=True)
+    # ✅ 허브 진입 시 "오늘의 퀴즈 시작" 화면을 건너뛰고 바로 퀴즈로
+    st.session_state["_hub_autostart_kanji"] = True
     run_script("app.py")
 
 elif page == "talk":

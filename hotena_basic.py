@@ -32,7 +32,6 @@ import random
 import pandas as pd
 import streamlit as st
 
-import ui_shared as ui
 # ✅ Hub theme
 try:
     _fn = st.session_state.get('hub_apply_theme')
@@ -63,11 +62,7 @@ import html
 # ============================================================
 if not st.session_state.get("_page_config_set"):
     st.set_page_config(page_title="왕초보 탈출 하테나일본어", page_icon="static/icon-192.png", layout="centered")
-    
-
-ui.render_top_nav()
-
-st.session_state["_page_config_set"] = True
+    st.session_state["_page_config_set"] = True
 # ============================================================
 # ✅ PWA/아이콘 - set_page_config 바로 아래
 # ============================================================
@@ -2780,6 +2775,11 @@ if "page" not in st.session_state:
 if st.session_state.get("page") not in ALLOWED_PAGES:
     st.session_state.page = "home"
 
+# ✅ Hub 진입: 홈의 '오늘의 퀴즈 시작' 화면을 스킵하고 바로 퀴즈로
+if st.session_state.pop("_hub_autostart_word", False):
+    go_quiz_from_home()
+    st.rerun()
+
 user = st.session_state.get("user")
 user_id = getattr(user, "id", None) if user else None
 user_email = getattr(user, "email", None) if user else None
@@ -3858,7 +3858,6 @@ if st.session_state.get("submitted", False):
     show_naver_talk = (SHOW_NAVER_TALK == "N") or is_admin()
     if show_naver_talk:
         render_naver_talk()
-
 
 
 
