@@ -14,7 +14,6 @@ import pandas as pd
 import streamlit as st
 
 
-import ui_shared as ui
 # ============================================================
 # ✅ Last 7 days flow (mini bars)
 # ============================================================
@@ -117,12 +116,33 @@ def apply_navy_theme():
     div.stButton>button:hover{background:var(--h-navy2); border-color:rgba(28,42,58,.25);}
     div.stButton>button:disabled{opacity:.55;}
     
-    /* Top tabs (text-only) */
-    .h-tabs{position:sticky; top:0; z-index:999; background:var(--h-bg); padding:0.15rem 0 0.35rem; margin-bottom:0.25rem;}
-    .h-tabs .stRadio [role="radiogroup"]{flex-direction:row; gap:0.75rem;}
-    .h-tabs .stRadio label{margin:0; padding:0.35rem 0.35rem;}
-    .h-tabs .stRadio div[role="radio"]{border:0 !important;}
-    .h-tabs .stRadio span{font-size:15px;}
+    /* Top tabs (sticky) */
+    #hub_nav_anchor + div{
+      position:sticky; top:0; z-index:999;
+      background:var(--h-bg);
+      padding:0.25rem 0 0.35rem;
+      margin-bottom:0.25rem;
+      border-bottom:1px solid rgba(28,42,58,.08);
+      backdrop-filter:saturate(1.05) blur(2px);
+    }
+    .h-plan{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      padding:4px 10px;
+      border-radius:999px;
+      border:1px solid rgba(28,42,58,.18);
+      background:rgba(255,255,255,.70);
+      font-weight:900;
+      font-size:12px;
+      letter-spacing:0.6px;
+      color:var(--h-navy);
+      line-height:1;
+    }
+    #hub_nav_anchor + div .stRadio [role="radiogroup"]{flex-direction:row; gap:0.75rem;}
+    #hub_nav_anchor + div .stRadio label{margin:0; padding:0.35rem 0.35rem;}
+    #hub_nav_anchor + div .stRadio div[role="radio"]{border:0 !important;}
+    #hub_nav_anchor + div .stRadio span{font-size:15px;}
     /* soften segmented/toggle visuals */
     div[data-testid="stSegmentedControl"] button{border-radius:999px !important;}
 
@@ -716,7 +736,7 @@ def _plan_label() -> str:
     plan = (st.session_state.get("user_plan") or "free").lower()
     return "PRO" if plan == "pro" else "FREE"
 
-def render_top_nav():
+def render_top_bar():
     """상단 고정 탭(텍스트) + 공통 플랜 표시."""
     plan = _plan_label()
     prev = st.session_state.get("_hub_last_view")
@@ -772,7 +792,7 @@ def render_top_nav():
 # ============================================================
 # ✅ Hub UI
 # ============================================================
-# ui.render_top_nav()  # moved below (V35 fix)
+# render_top_bar()  # moved below (V35 fix)
 
 # ✅ Runner
 # ============================================================
@@ -792,23 +812,29 @@ def run_script(filename: str):
 
 
 def render_top_tabs() -> str:
-    """Top navigation tabs (text-only). Returns selected view key."""
-    # Options: Summary hub + three trainings + mypage
+    """Top navigation tabs (sticky). Returns selected view key."""
     options = ["홈", "단어", "한자", "회화", "마이페이지", "로그아웃"]
     default = st.session_state.get("hub_view") or "홈"
     if default not in options:
         default = "홈"
-    # Sticky wrapper
-    st.markdown('<div class="h-tabs">', unsafe_allow_html=True)
-    view = st.radio(
-        label="",
-        options=options,
-        index=options.index(default),
-        horizontal=True,
-        key="hub_view_radio",
-        label_visibility="collapsed",
-    )
-    st.markdown("</div>", unsafe_allow_html=True)
+
+    # Anchor right before the nav block so CSS can make it sticky reliably.
+    st.markdown('<div id="hub_nav_anchor"></div>', unsafe_allow_html=True)
+
+    left, right = st.columns([1.2, 8.8], vertical_alignment="center")
+    with left:
+        st.markdown(f'<span class="h-plan">{_plan_label()}</span>', unsafe_allow_html=True)
+
+    with right:
+        view = st.radio(
+            label="",
+            options=options,
+            index=options.index(default),
+            horizontal=True,
+            key="hub_view_radio",
+            label_visibility="collapsed",
+        )
+
     st.session_state["hub_view"] = view
     return view
 
@@ -830,7 +856,7 @@ def _on_view_changed(new_view: str, prev_view: str | None):
 # ✅ Hub UI (Top Navigation)
 # ============================================================
 if st.session_state.get('view','hub') != 'hub':
-    ui.render_top_nav()
+    render_top_bar()
 def render_guide_block(page: str):
     with st.expander("이용 가이드", expanded=False):
         if page == "word":
@@ -1448,6 +1474,8 @@ elif page == "word":
         st.session_state["_auto_new_quiz_word_once"] = True
     # (v36) 단어 페이지는 바로 훈련에 집중: 상단 가이드 블록 제거
     render_today_report_card(_get_last7_df_for_ui(), compact=True)
+    # ✅ 허브 진입 시 "오늘의 퀴즈 시작" 화면을 건너뛰고 바로 퀴즈로
+    st.session_state["_hub_autostart_word"] = True
     run_script("hotena_basic.py")
 
 elif page == "kanji":
@@ -1455,6 +1483,8 @@ elif page == "kanji":
         st.session_state["_auto_new_quiz_kanji_once"] = True
     # (v39.1) 허브에서 바로 문제로 진입: 가이드 블록 제거
     render_today_report_card(_get_last7_df_for_ui(), compact=True)
+    # ✅ 허브 진입 시 "오늘의 퀴즈 시작" 화면을 건너뛰고 바로 퀴즈로
+    st.session_state["_hub_autostart_kanji"] = True
     run_script("app.py")
 
 elif page == "talk":
