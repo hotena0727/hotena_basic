@@ -14,6 +14,22 @@ import pandas as pd
 import streamlit as st
 
 
+
+import runpy
+from pathlib import Path as _Path
+
+BASE_DIR = _Path(__file__).resolve().parent
+
+def run_script(filename: str):
+    """Run a child Streamlit script (word/kanji/talk) in-process."""
+    path = (BASE_DIR / filename).resolve()
+    if not path.exists():
+        raise FileNotFoundError(f"Script not found: {path}")
+    # mark which child is running (so child can auto-jump to quiz, etc.)
+    st.session_state["_hub_child"] = filename
+    runpy.run_path(str(path), run_name="__main__");
+
+
 # ============================================================
 # ✅ Last 7 days flow (mini bars)
 # ============================================================
