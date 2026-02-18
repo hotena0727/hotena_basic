@@ -497,14 +497,26 @@ def _safe_int(x, default=0):
     except Exception:
         return default
 
+
 def render_mypage_block(page: str):
-    # 페이지별로도 보여주지만, 내용은 '전체 요약' 중심으로 깔끔하게
+    """
+    공통 마이페이지(학습자용 대시보드)
+    - 개발자용 원본(progress JSON)은 기본 숨김
+    - 최근 7일: 세트 수 / 정답률
+    - 회화 말하기 자기평가(최근 7일 평균)
+    """
     with st.expander("마이페이지", expanded=False):
         u = st.session_state.get("user")
         email = getattr(u, "email", "") if u else ""
         plan = _plan_label()
-        st.markdown(f"**이메일:** {email}")
-        st.markdown(f"**플랜:** {plan}")
+
+        # --- 헤더(깔끔하게)
+        h1, h2 = st.columns([3, 1])
+        with h1:
+            st.markdown(f"**{email}**")
+            st.caption("학습 기록은 자동 저장됩니다.")
+        with h2:
+            st.markdown(f"**플랜**: {plan}")
 
         prog = st.session_state.get("progress_all") or {}
 
@@ -529,182 +541,152 @@ def render_mypage_block(page: str):
         k = summarize("kanji")
         t = summarize("talk")
 
-        st.markdown("#### 학습 요약")
-        c1, c2, c3 = st.columns(3)
+        # --- 상단 요약(예전 한자 스타일 느낌: metric 중심)
+        st.markdown("#### 요약")
+        c1, c2, c3, c4 = st.columns(4)
         with c1:
-            st.markdown("**단어**")
-            st.metric("정답률", f"{w['acc']:.0f}%")
-            st.caption(f"시도 {w['attempts']} · 정답 {w['correct']} · 오답 {w['wrong']}")
-            st.caption(f"정복 {w['mastered']} · 오답저장 {w['wrong_saved']}")
+            st.metric("단어 정답률", f"{w['acc']:.0f}%")
+            st.caption(f"시도 {w['attempts']} · 정복 {w['mastered']}")
         with c2:
-            st.markdown("**한자**")
-            st.metric("정답률", f"{k['acc']:.0f}%")
-            st.caption(f"시도 {k['attempts']} · 정답 {k['correct']} · 오답 {k['wrong']}")
-            st.caption(f"정복 {k['mastered']} · 오답저장 {k['wrong_saved']}")
+            st.metric("한자 정답률", f"{k['acc']:.0f}%")
+            st.caption(f"시도 {k['attempts']} · 정복 {k['mastered']}")
         with c3:
-            st.markdown("**회화**")
-            st.metric("정답률", f"{t['acc']:.0f}%")
-            st.caption(f"시도 {t['attempts']} · 정답 {t['correct']} · 오답 {t['wrong']}")
-            st.caption(f"정복 {t['mastered']} · 오답저장 {t['wrong_saved']}")
+            st.metric("회화 정답률", f"{t['acc']:.0f}%")
+            st.caption(f"시도 {t['attempts']} · 오답저장 {t['wrong_saved']}")
+        with c4:
+            meta = (prog.get("_meta") or {})
+            streak = _safe_int(meta.get("streak"))
+            today_sets = _safe_int(meta.get("today_sets"))
+            st.metric("연속 학습", f"{streak}일")
+            st.caption(f"오늘 완료 {today_sets}세트")
 
+        # --- 탭(보기 좋게)
+        tab_over, tab_hist, tab_speak = st.tabs(["최근 7일", "최근 기록", "말하기(자기평가)"])
 
         # ----------------------------
         # ✅ 최근 7일 학습(간단 그래프)
-        # - quiz_attempts 테이블이 있으면 일자별 시도/정답률을 보여줍니다.
-        # - 없거나 권한/컬럼 문제가 있으면 조용히 스킵합니다.
         # ----------------------------
-        try:
-            sb = st.session_state.get("supabase")
-            u2 = st.session_state.get("user")
-            uid = getattr(u2, "id", None) if u2 else None
-            if sb and uid:
-                since = (datetime.utcnow() - timedelta(days=6)).replace(hour=0, minute=0, second=0, microsecond=0).isoformat() + "Z"
-                resp = (
-                    sb.table("quiz_attempts")
-                      .select("created_at,score,quiz_len,level")
-                      .eq("user_id", uid)
-                      .gte("created_at", since)
-                      .order("created_at", desc=False)
-                      .execute()
-                )
-                rows = getattr(resp, "data", None) or []
-                if rows:
-                    df7 = pd.DataFrame(rows)
-                    df7["created_at"] = pd.to_datetime(df7["created_at"], errors="coerce", utc=True)
-                    df7 = df7.dropna(subset=["created_at"])
-                    df7["date"] = df7["created_at"].dt.tz_convert("Asia/Seoul").dt.date.astype(str)
-
-                    # 숫자 안전 변환
-                    for c in ["score", "quiz_len"]:
-                        if c in df7.columns:
-                            df7[c] = pd.to_numeric(df7[c], errors="coerce").fillna(0).astype(int)
-                        else:
-                            df7[c] = 0
-
-                    g = df7.groupby("date", as_index=False).agg(
-                        quizzes=("date", "count"),
-                        correct=("score", "sum"),
-                        total=("quiz_len", "sum"),
+        with tab_over:
+            try:
+                sb = st.session_state.get("supabase")
+                uid = getattr(u, "id", None) if u else None
+                if sb and uid:
+                    since = (datetime.utcnow() - timedelta(days=6)).replace(hour=0, minute=0, second=0, microsecond=0).isoformat() + "Z"
+                    resp = (
+                        sb.table("quiz_attempts")
+                          .select("created_at,score,quiz_len,level")
+                          .eq("user_id", uid)
+                          .gte("created_at", since)
+                          .order("created_at", desc=False)
+                          .execute()
                     )
-                    g["acc"] = g.apply(lambda r: (r["correct"] / r["total"] * 100.0) if r["total"] else 0.0, axis=1)
+                    rows = getattr(resp, "data", None) or []
+                    if rows:
+                        df7 = pd.DataFrame(rows)
+                        df7["created_at"] = pd.to_datetime(df7["created_at"], errors="coerce", utc=True)
+                        df7 = df7.dropna(subset=["created_at"])
+                        df7["date"] = df7["created_at"].dt.tz_convert("Asia/Seoul").dt.date.astype(str)
 
-                    # 최근 7일 빈 날짜 채우기
-                    today = date.today()
-                    dates = [(today - timedelta(days=i)) for i in range(6, -1, -1)]
-                    base = pd.DataFrame({"date": [d.isoformat() for d in dates]})
-                    g = base.merge(g, on="date", how="left").fillna(0)
-                    g["quizzes"] = g["quizzes"].astype(int)
-                    g["acc"] = g["acc"].astype(float)
+                        for c in ["score", "quiz_len"]:
+                            df7[c] = pd.to_numeric(df7.get(c), errors="coerce").fillna(0).astype(int)
 
-                    st.markdown("#### 최근 7일")
-                    st.caption("일자별 ‘세트(퀴즈) 시도 횟수’와 ‘정답률(%)’입니다.")
-                    st.bar_chart(g.set_index("date")["quizzes"])
-                    st.line_chart(g.set_index("date")["acc"])
-        except Exception:
-            pass
+                        g = df7.groupby("date", as_index=False).agg(
+                            quizzes=("date", "count"),
+                            correct=("score", "sum"),
+                            total=("quiz_len", "sum"),
+                        )
+                        g["acc"] = g.apply(lambda r: (r["correct"] / r["total"] * 100.0) if r["total"] else 0.0, axis=1)
 
-        st.divider()
-        st.markdown("#### 상세 기록")
+                        today = date.today()
+                        dates = [(today - timedelta(days=i)) for i in range(6, -1, -1)]
+                        base = pd.DataFrame({"date": [d.isoformat() for d in dates]})
+                        g = base.merge(g, on="date", how="left").fillna(0)
+                        g["quizzes"] = g["quizzes"].astype(int)
+                        g["acc"] = g["acc"].astype(float)
 
-        # 최근 기록 테이블(가능하면 quiz_attempts에서)
-        try:
-            sb = st.session_state.get("supabase")
-            u2 = st.session_state.get("user")
-            uid = getattr(u2, "id", None) if u2 else None
-            if sb and uid:
-                resp2 = (
-                    sb.table("quiz_attempts")
-                      .select("created_at,score,quiz_len,level,pos_mode")
-                      .eq("user_id", uid)
-                      .order("created_at", desc=True)
-                      .limit(30)
-                      .execute()
-                )
-                rows2 = getattr(resp2, "data", None) or []
-                if rows2:
-                    df = pd.DataFrame(rows2)
-                    df["created_at"] = pd.to_datetime(df["created_at"], errors="coerce", utc=True)
-                    df = df.dropna(subset=["created_at"])
-                    df["날짜"] = df["created_at"].dt.tz_convert("Asia/Seoul").dt.strftime("%m-%d %H:%M")
-                    df["훈련"] = df.get("level").astype(str)
-                    # 단어/한자/회화 구분이 pos_mode/level에 섞여 있을 수 있어, 안전하게 가공
-                    if "pos_mode" in df.columns:
-                        df["모드"] = df["pos_mode"].astype(str)
+                        st.caption("일자별 ‘세트(퀴즈) 시도 횟수’와 ‘정답률(%)’입니다.")
+                        st.bar_chart(g.set_index("date")["quizzes"])
+                        st.line_chart(g.set_index("date")["acc"])
                     else:
-                        df["모드"] = ""
-                    df["점수"] = pd.to_numeric(df.get("score"), errors="coerce").fillna(0).astype(int)
-                    df["문항"] = pd.to_numeric(df.get("quiz_len"), errors="coerce").fillna(0).astype(int)
-                    show = df[["날짜", "훈련", "모드", "점수", "문항"]].copy()
-                    with st.expander("최근 30개 기록 보기", expanded=False):
-                        st.dataframe(show, use_container_width=True, hide_index=True)
+                        st.info("최근 7일 기록이 아직 없어요. 오늘 10문제만 해도 바로 쌓입니다.")
                 else:
-                    st.caption("최근 기록이 아직 없습니다.")
-        except Exception:
-            st.caption("최근 기록을 불러오지 못했습니다.")
+                    st.info("로그인 후 이용해 주세요.")
+            except Exception:
+                st.info("최근 7일 그래프를 불러오지 못했습니다. (권한/테이블 설정을 확인해 주세요.)")
 
-        # 원본은 관리자 전용으로 숨김
-        if bool(st.session_state.get("is_admin")):
-            with st.expander("(관리자) 원본 progress JSON", expanded=False):
-                st.json(prog)
+        # ----------------------------
+        # ✅ 최근 기록 테이블(학습자용)
+        # ----------------------------
+        with tab_hist:
+            try:
+                sb = st.session_state.get("supabase")
+                uid = getattr(u, "id", None) if u else None
+                if sb and uid:
+                    resp = (
+                        sb.table("quiz_attempts")
+                          .select("created_at,level,score,quiz_len,wrong_count")
+                          .eq("user_id", uid)
+                          .order("created_at", desc=True)
+                          .limit(30)
+                          .execute()
+                    )
+                    rows = getattr(resp, "data", None) or []
+                    if rows:
+                        dfh = pd.DataFrame(rows)
+                        dfh["created_at"] = pd.to_datetime(dfh["created_at"], errors="coerce", utc=True)
+                        dfh["날짜"] = dfh["created_at"].dt.tz_convert("Asia/Seoul").dt.strftime("%m/%d %H:%M")
+                        dfh["훈련"] = dfh["level"].astype(str).map(lambda x: "회화" if x=="talk" else ("단어" if x=="word" else ("한자" if x=="kanji" else str(x))))
+                        dfh["점수"] = pd.to_numeric(dfh.get("score"), errors="coerce").fillna(0).astype(int)
+                        dfh["문항"] = pd.to_numeric(dfh.get("quiz_len"), errors="coerce").fillna(0).astype(int)
+                        dfh["오답"] = pd.to_numeric(dfh.get("wrong_count"), errors="coerce").fillna(0).astype(int)
+                        show = dfh[["날짜","훈련","점수","문항","오답"]].head(30)
+                        st.dataframe(show, use_container_width=True, hide_index=True)
+                    else:
+                        st.info("아직 기록이 없어요. 첫 세트를 풀면 여기에 자동으로 쌓입니다.")
+                else:
+                    st.info("로그인 후 이용해 주세요.")
+            except Exception:
+                st.info("최근 기록을 불러오지 못했습니다.")
+
+            # 관리자/고급용 원본은 완전히 숨김(필요할 때만)
+            is_admin = bool((st.session_state.get("is_admin")) or (prog.get("_meta") or {}).get("is_admin"))
+            if is_admin:
+                with st.expander("고급(관리자용 원본 데이터)", expanded=False):
+                    st.json(prog)
+
+        # ----------------------------
+        # ✅ 말하기 자기평가(최근 7일 평균)
+        # ----------------------------
+        with tab_speak:
+            talk = prog.get("talk") or {}
+            hist = talk.get("self_eval_history") or []
+            if not hist:
+                st.info("회화 ‘말하기 모드’에서 자기평가를 남기면 이곳에 요약이 표시됩니다.")
+            else:
+                try:
+                    df = pd.DataFrame(hist)
+                    df["ts"] = pd.to_datetime(df["ts"], errors="coerce", utc=True)
+                    df = df.dropna(subset=["ts"])
+                    df["date"] = df["ts"].dt.tz_convert("Asia/Seoul").dt.date
+                    since_date = (date.today() - timedelta(days=6))
+                    df = df[df["date"] >= since_date]
+                    if df.empty:
+                        st.info("최근 7일 자기평가 기록이 없어요.")
+                    else:
+                        for c in ["pron", "inton", "speed", "conf"]:
+                            df[c] = pd.to_numeric(df.get(c), errors="coerce").fillna(0).astype(int)
+                        avg = df[["pron","inton","speed","conf"]].mean().to_dict()
+                        a1,a2,a3,a4 = st.columns(4)
+                        a1.metric("발음", f"{avg['pron']:.1f}/5")
+                        a2.metric("억양", f"{avg['inton']:.1f}/5")
+                        a3.metric("속도", f"{avg['speed']:.1f}/5")
+                        a4.metric("자신감", f"{avg['conf']:.1f}/5")
+
+                        daily = df.groupby("date", as_index=False).agg(pron=("pron","mean"), inton=("inton","mean"), speed=("speed","mean"), conf=("conf","mean"))
+                        daily["date"] = daily["date"].astype(str)
+                        st.caption("최근 7일 평균 추이입니다.")
+                        st.line_chart(daily.set_index("date")[["pron","inton","speed","conf"]])
+                except Exception:
+                    st.info("자기평가 데이터를 표시할 수 없습니다.")
 
 
-page = st.session_state.get("hub_page", "home")
-
-if page == "home":
-    # ✅ 정체성 강화: 홈 메시지 + 오늘의 말 + 오늘 목표
-    st.markdown("# 왕초보 탈출 하테나일본어")
-    st.caption("오늘도 **10문제만**. 작은 루틴이 실력을 만듭니다.")
-    render_today_quote()
-
-    # ✅ 보상/연속학습 배너
-    reward = st.session_state.pop("hub_reward", None)
-    if reward:
-        st.balloons()
-        st.success(
-            f"10문제 완주! (점수 {reward['score']}/{reward['quiz_len']}) · 연속 {reward['streak']}일 · 오늘 {reward['today_sets']}세트",
-            icon="🎉",
-        )
-
-    meta = (st.session_state.get("progress_all") or {}).get("_meta") or {}
-    streak = int(meta.get("streak") or 0)
-    today_sets = int(meta.get("today_sets") or 0)
-    c1, c2 = st.columns(2)
-    with c1:
-        st.metric("연속 학습", f"{streak}일")
-    with c2:
-        st.metric("오늘 완료", f"{today_sets}세트")
-
-    st.markdown("## 훈련 선택")
-    b1, b2, b3 = st.columns(3)
-    with b1:
-        if st.button("단어 훈련", use_container_width=True, key="hub_btn_word"):
-            go("word")
-    with b2:
-        if st.button("한자 훈련", use_container_width=True, key="hub_btn_kanji"):
-            go("kanji")
-    with b3:
-        if st.button("회화 훈련", use_container_width=True, key="hub_btn_talk"):
-            go("talk")
-
-    st.divider()
-    st.caption(f"로그인: {getattr(user, 'email', '')}")
-
-else:
-    # 허브 공통 헤더가 렌더링됨(각 훈련 스크립트는 page_config/상단메뉴를 최소화)
-    st.session_state["_hub_common_header"] = True
-
-    render_guide_block(page)
-    render_mypage_block(page)
-    st.divider()
-
-    st.session_state["hub_mode"] = True
-    st.session_state["page"] = "quiz"  # 단어/한자: 바로 시험으로
-
-    if page == "word":
-        run_script("hotena_basic.py")
-    elif page == "kanji":
-        run_script("app.py")
-    elif page == "talk":
-        run_script("talk.py")
-    else:
-        st.info("원하는 훈련을 선택하세요.")
