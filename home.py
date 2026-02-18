@@ -716,7 +716,7 @@ def _plan_label() -> str:
     plan = (st.session_state.get("user_plan") or "free").lower()
     return "PRO" if plan == "pro" else "FREE"
 
-def ui.render_top_nav():
+def render_top_nav():
     """상단 고정 탭(텍스트) + 공통 플랜 표시."""
     plan = _plan_label()
     prev = st.session_state.get("_hub_last_view")
