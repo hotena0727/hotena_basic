@@ -14,12 +14,16 @@ THEME = {
 }
 
 def apply_ui_theme():
+    """
+    ✅ Common CSS injector (safe)
+    - Ensures CSS is injected only once per session
+    - Avoids Python syntax errors by keeping CSS inside a single triple-quoted string
+    """
     if st.session_state.get("_hatena_ui_theme_applied"):
         return
     st.session_state["_hatena_ui_theme_applied"] = True
 
-    st.markdown(
-        f"""
+    css = f"""
 <style>
 :root {{
   --primary: {THEME["PRIMARY"]};
@@ -35,6 +39,7 @@ def apply_ui_theme():
 
 html, body, [class*="css"] {{ color: var(--text); }}
 
+/* Layout */
 .block-container {{
   padding-top: 1.15rem !important;
   padding-bottom: 2.2rem !important;
@@ -42,11 +47,11 @@ html, body, [class*="css"] {{ color: var(--text); }}
   padding-right: 18px !important;
   max-width: 720px !important;
 }}
-
 section[data-testid="stSidebar"], div[data-testid="collapsedControl"] {{
   display:none !important;
 }}
 
+/* Typography */
 h1 {{ font-size: 1.35rem !important; margin: 0.4rem 0 0.65rem 0 !important; }}
 h2 {{ font-size: 1.10rem !important; margin: 0.8rem 0 0.5rem 0 !important; }}
 p {{ color: var(--subtext); }}
@@ -108,38 +113,7 @@ p {{ color: var(--subtext); }}
 .ht-badge.pro {{ border-color: rgba(58,123,213,0.35); color: var(--primaryL);}}
 .ht-badge.free {{ color: var(--subtext);}}
 
-/* Header */
-.ht-header {{
-  display:flex; align-items:center; justify-content:space-between;
-  gap:12px; padding: 10px 12px;
-  border: 1px solid var(--border);
-  border-radius: 16px;
-  background:#fff;
-  box-shadow: var(--shadowSoft);
-  margin: 2px 0 12px 0;
-}}
-.ht-header-title {{ font-weight: 900; text-align:center; flex:1; }}
-.ht-header-left {{ min-width: 80px; }}
-.ht-header-right {{ min-width: 140px; display:flex; justify-content:flex-end; }}
-
-/* Home card buttons */
-.ht-cardbtn-anchor{{display:block;height:0;overflow:hidden}}
-#ht_card_word + div[data-testid="stButton"] > button,
-#ht_card_kanji + div[data-testid="stButton"] > button,
-#ht_card_talk + div[data-testid="stButton"] > button{{
-  text-align:left !important;
-  white-space:normal !important;
-  height:auto !important;
-  padding:18px 18px !important;
-  border-radius:18px !important;
-  border:1px solid var(--border) !important;
-  background:#fff !important;
-  box-shadow: var(--shadowSoft) !important;
-  font-weight:900 !important;
-  line-height:1.2 !important;
-}}
-
-/* MyPage KPIs */
+/* MyPage */
 .ht-mypage-wrap{{display:flex;flex-direction:column;gap:14px;margin-top:6px}}
 .ht-kpi-row{{display:flex;gap:10px}}
 .ht-kpi{{
@@ -150,23 +124,20 @@ p {{ color: var(--subtext); }}
 .ht-kpi-value{{font-size:1.25rem;color:var(--text);font-weight:900;line-height:1.1}}
 .ht-kpi-sub{{font-size:0.86rem;color:var(--subtext);margin-top:6px}}
 .ht-section-title{{font-weight:900;color:var(--text);margin:2px 0 2px 0}}
-.ht-cta{{
-  background: rgba(47,95,167,.06);
-  border: 1px solid rgba(47,95,167,.18);
-  border-radius:18px;
-  padding:16px 16px;
-}}
-.ht-cta-title{{font-weight:900;color:var(--text);margin:0 0 6px 0}}
-.ht-cta-sub{{color:var(--subtext);margin:0}}
 
 /* 7-day mini heatmap */
 .ht-heatmap{{
-  display:grid; grid-template-columns: repeat(7, 1fr);
-  gap:8px; margin-top:8px;
+  display:grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap:8px;
+  margin-top:8px;
 }}
 .ht-heatcell{{
-  border-radius:12px; border:1px solid var(--border);
-  padding:10px 10px; background:#fff; box-shadow: var(--shadowSoft);
+  border-radius:12px;
+  border:1px solid var(--border);
+  padding:10px 10px;
+  background: #fff;
+  box-shadow: var(--shadowSoft);
 }}
 .ht-heat-top{{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}}
 .ht-heat-day{{font-weight:900;color:var(--text);font-size:0.9rem}}
@@ -178,43 +149,39 @@ p {{ color: var(--subtext); }}
   .ht-heatmap{{grid-template-columns: repeat(4, 1fr);}}
 }}
 
-/* Hide Streamlit chrome */
-div[data-testid="stToolbar"] {{ visibility:hidden; height:0; position:fixed; }}
-footer {{ visibility:hidden; height:0; }}
-
-/* ============================================================
-   ✅ MyPage dashboard extras: goal + recent list
-   ============================================================ */
-.ht-goal{
+/* Dashboard extras */
+.ht-goal{{
   background:#fff;
   border:1px solid var(--border);
   border-radius:18px;
   padding:16px 16px;
   box-shadow: var(--shadowSoft);
-}
-.ht-goal-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
-.ht-goal-title{font-weight:900;color:var(--text);margin:0}
-.ht-goal-sub{color:var(--subtext);font-weight:800;font-size:0.86rem;margin:0}
-.ht-recent{
+}}
+.ht-goal-top{{display:flex;justify-content:space-between;align-items:baseline;gap:10px}}
+.ht-goal-title{{font-weight:900;color:var(--text);margin:0}}
+.ht-goal-sub{{color:var(--subtext);font-weight:800;font-size:0.86rem;margin:0}}
+.ht-recent{{
   background:#fff;
   border:1px solid var(--border);
   border-radius:18px;
   padding:14px 14px;
   box-shadow: var(--shadowSoft);
-}
-.ht-recent-item{
+}}
+.ht-recent-item{{
   display:flex;justify-content:space-between;align-items:center;
   padding:10px 10px;border-radius:14px;
   border:1px solid rgba(0,0,0,0.04);
   background: rgba(0,0,0,0.015);
-}
-.ht-recent-item + .ht-recent-item{margin-top:8px}
-.ht-recent-left{display:flex;flex-direction:column;gap:2px}
-.ht-recent-mode{font-weight:900;color:var(--text);font-size:0.92rem}
-.ht-recent-time{color:var(--subtext);font-weight:800;font-size:0.78rem}
-.ht-recent-score{font-weight:900;color:var(--primaryL)}
+}}
+.ht-recent-item + .ht-recent-item{{margin-top:8px}}
+.ht-recent-left{{display:flex;flex-direction:column;gap:2px}}
+.ht-recent-mode{{font-weight:900;color:var(--text);font-size:0.92rem}}
+.ht-recent-time{{color:var(--subtext);font-weight:800;font-size:0.78rem}}
+.ht-recent-score{{font-weight:900;color:var(--primaryL)}}
 
+/* Hide Streamlit chrome */
+div[data-testid="stToolbar"] {{ visibility:hidden; height:0; position:fixed; }}
+footer {{ visibility:hidden; height:0; }}
 </style>
-""",
-        unsafe_allow_html=True,
-    )
+"""
+    st.markdown(css, unsafe_allow_html=True)
