@@ -430,7 +430,7 @@ quiz_label_for_table = quiz_label_map.copy()
 QUIZ_TYPES_USER = ["reading", "meaning", "kr2jp"]
 QUIZ_TYPES_ADMIN = ["reading", "meaning", "kr2jp"]
 
-LEVEL_OPTIONS = ["N5", "N4", "N3", "N2", "N1"]
+LEVEL_OPTIONS = ["N5", "N4", "N3"]
 LEVEL_LABEL_MAP = {lv: lv for lv in LEVEL_OPTIONS}
 
 # ✅ 세션 기본값(가장 중요)

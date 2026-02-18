@@ -6,6 +6,7 @@ import os
 import runpy
 import json
 import hashlib
+import random
 from datetime import date, datetime
 
 import streamlit as st
@@ -16,8 +17,29 @@ from streamlit_cookies_manager import EncryptedCookieManager
 # ============================================================
 # ✅ Page Config (Hub only)
 # ============================================================
-st.set_page_config(page_title="Hatena Hub", layout="centered")
-st.session_state["_page_config_set"] = True  # children should not call set_page_config
+st.set_page_config(page_title="왕초보 탈출 하테나일본어", layout="centered")
+st.session_state["_page_config_set"] = True  # children should not call set
+# ============================================================
+# ✅ 오늘의 말 (공통)
+# ============================================================
+def render_today_quote():
+    quotes = [
+        "오늘은 10문제만! 그걸로 충분합니다.",
+        "루틴은 작게, 지속은 길게.",
+        "정답보다 중요한 건 ‘계속’입니다.",
+        "단어가 쌓이면 문장이 열립니다.",
+        "오늘의 한 번이 내일의 자신감이에요.",
+    ]
+    q = random.choice(quotes)
+    st.markdown(
+        f"""<div style="padding:12px 14px;border:1px solid rgba(49,51,63,.12);border-radius:14px;margin:8px 0 14px 0;">
+        <div style="font-weight:900;">오늘의 말</div>
+        <div style="margin-top:6px;opacity:.9;">{q}</div>
+        </div>""",
+        unsafe_allow_html=True,
+    )
+
+_page_config
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -380,21 +402,28 @@ def run_script(filename: str):
 page = st.session_state.get("hub_page", "home")
 
 if page == "home":
+    st.markdown("## 왕초보 탈출 하테나일본어")
+    render_today_quote()
     st.info("원하는 훈련을 선택하세요.")
 elif page == "word":
     if st.button("← 홈으로", use_container_width=True):
         go("home")
     st.divider()
+    st.session_state["hub_mode"] = True
+    st.session_state["page"] = "quiz"
     run_script("hotena_basic.py")
 elif page == "kanji":
     if st.button("← 홈으로", use_container_width=True):
         go("home")
     st.divider()
+    st.session_state["hub_mode"] = True
+    st.session_state["page"] = "quiz"
     run_script("app.py")
 elif page == "talk":
     if st.button("← 홈으로", use_container_width=True):
         go("home")
     st.divider()
+    st.session_state["hub_mode"] = True
     run_script("talk.py")
 else:
     st.info("원하는 훈련을 선택하세요.")
