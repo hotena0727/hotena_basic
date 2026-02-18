@@ -1,12 +1,31 @@
 from __future__ import annotations
 
+from pathlib import Path
+import importlib.util
+import sys
+
 import streamlit as st
 from supabase import create_client
 from streamlit_cookies_manager import EncryptedCookieManager
 
-# local modules
-import word_app
-import kanji_app
+# ============================================================
+# ✅ Local module loader (import 에러 방지)
+# ============================================================
+BASE_DIR = Path(__file__).parent
+
+def load_module(module_name: str, filename: str):
+    path = BASE_DIR / filename
+    if not path.exists():
+        raise FileNotFoundError(f"Missing file: {path}")
+    spec = importlib.util.spec_from_file_location(module_name, str(path))
+    mod = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = mod
+    assert spec and spec.loader
+    spec.loader.exec_module(mod)
+    return mod
+
+word_app  = load_module("word_app", "word_app.py")
+kanji_app = load_module("kanji_app", "kanji_app.py")
 
 # ============================================================
 # ✅ Page Config (ONLY ONCE)
@@ -23,12 +42,10 @@ st.set_page_config(
 st.markdown(
     """
 <style>
-/* Streamlit 기본 상단 여백이 테마/브라우저에 따라 달라서, 안전하게 padding 확보 */
 .block-container{
   padding-top: 2.2rem !important;
   padding-bottom: 2.0rem !important;
 }
-/* 모바일에서 상단 헤더 겹침 방지 */
 @media (max-width: 768px){
   .block-container{ padding-top: 2.6rem !important; }
 }
