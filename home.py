@@ -404,32 +404,6 @@ def render_top_bar():
 # ============================================================
 render_top_bar()
 
-if st.session_state["hub_page"] == "home":
-    render_today_quote()
-    st.markdown("## 메뉴")
-    b1, b2, b3 = st.columns(3)
-    with b1:
-        if st.button("단어 훈련", use_container_width=True):
-            go("word")
-    with b2:
-        if st.button("한자 훈련", use_container_width=True):
-            go("kanji")
-    with b3:
-        if st.button("회화 훈련", use_container_width=True):
-            go("talk")
-
-    st.divider()
-    st.caption(f"로그인: {getattr(user, 'email', '')}")
-
-else:
-    # ✅ 각 훈련 페이지 상단 가이드(공통)
-    page_key = st.session_state["hub_page"]
-    render_guide(page_key)
-    st.divider()
-
-# ============================================================
-
-# ============================================================
 # ✅ Runner
 # ============================================================
 def run_script(filename: str):
@@ -484,13 +458,13 @@ if page == "home":
     st.markdown("## 메뉴")
     b1, b2, b3 = st.columns(3)
     with b1:
-        if st.button("단어 훈련", use_container_width=True):
+        if st.button("단어 훈련", use_container_width=True, key="hub_btn_word"):
             go("word")
     with b2:
-        if st.button("한자 훈련", use_container_width=True):
+        if st.button("한자 훈련", use_container_width=True, key="hub_btn_kanji"):
             go("kanji")
     with b3:
-        if st.button("회화 훈련", use_container_width=True):
+        if st.button("회화 훈련", use_container_width=True, key="hub_btn_talk"):
             go("talk")
 
     st.divider()
