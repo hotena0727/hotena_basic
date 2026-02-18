@@ -54,3 +54,57 @@ def aggregate_last_7_days():
         last_score = None
 
     return days, stat, streak, (today_total, today_correct), last_score
+
+
+def recent_attempts(limit: int = 10, mode: str | None = None):
+    _ensure_attempt_log()
+    items = list(reversed(st.session_state["attempt_log"][-500:]))
+    if mode:
+        m = str(mode).lower()
+        items = [a for a in items if str(a.get("mode","")).lower() == m]
+    return items[: max(0, int(limit))]
+
+def aggregate_last_7_days_by_mode(mode: str | None = None):
+    days, agg, streak, today_stats, last_score = aggregate_last_7_days()
+    if mode is None:
+        return days, agg, streak, today_stats, last_score
+    # rebuild agg for the given mode
+    _ensure_attempt_log()
+    stat = {d.isoformat(): {"total": 0, "correct": 0} for d in days}
+    for a in st.session_state["attempt_log"][-500:]:
+        try:
+            if str(a.get("mode","")).lower() != str(mode).lower():
+                continue
+            ts = str(a.get("ts",""))[:10]
+            if ts in stat:
+                stat[ts]["total"] += int(a.get("total",0) or 0)
+                stat[ts]["correct"] += int(a.get("correct",0) or 0)
+        except Exception:
+            continue
+    # streak for this mode
+    import datetime as _dt
+    today = _dt.date.today()
+    streak_m = 0
+    for i in range(0, 365):
+        d = today - _dt.timedelta(days=i)
+        k = d.isoformat()
+        if k in stat and stat[k]["total"] > 0:
+            streak_m += 1
+        else:
+            break
+    tk = today.isoformat()
+    today_total = stat.get(tk, {}).get("total", 0)
+    today_correct = stat.get(tk, {}).get("correct", 0)
+    # last score for this mode
+    last = None
+    for a in reversed(st.session_state["attempt_log"]):
+        if str(a.get("mode","")).lower() == str(mode).lower():
+            last = a
+            break
+    last_score_m = None
+    if last:
+        try:
+            last_score_m = (int(last.get("correct",0)), int(last.get("total",0)))
+        except Exception:
+            last_score_m = None
+    return days, stat, streak_m, (today_total, today_correct), last_score_m

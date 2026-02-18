@@ -181,6 +181,39 @@ p {{ color: var(--subtext); }}
 /* Hide Streamlit chrome */
 div[data-testid="stToolbar"] {{ visibility:hidden; height:0; position:fixed; }}
 footer {{ visibility:hidden; height:0; }}
+
+/* ============================================================
+   ✅ MyPage dashboard extras: goal + recent list
+   ============================================================ */
+.ht-goal{
+  background:#fff;
+  border:1px solid var(--border);
+  border-radius:18px;
+  padding:16px 16px;
+  box-shadow: var(--shadowSoft);
+}
+.ht-goal-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.ht-goal-title{font-weight:900;color:var(--text);margin:0}
+.ht-goal-sub{color:var(--subtext);font-weight:800;font-size:0.86rem;margin:0}
+.ht-recent{
+  background:#fff;
+  border:1px solid var(--border);
+  border-radius:18px;
+  padding:14px 14px;
+  box-shadow: var(--shadowSoft);
+}
+.ht-recent-item{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:10px 10px;border-radius:14px;
+  border:1px solid rgba(0,0,0,0.04);
+  background: rgba(0,0,0,0.015);
+}
+.ht-recent-item + .ht-recent-item{margin-top:8px}
+.ht-recent-left{display:flex;flex-direction:column;gap:2px}
+.ht-recent-mode{font-weight:900;color:var(--text);font-size:0.92rem}
+.ht-recent-time{color:var(--subtext);font-weight:800;font-size:0.78rem}
+.ht-recent-score{font-weight:900;color:var(--primaryL)}
+
 </style>
 """,
         unsafe_allow_html=True,

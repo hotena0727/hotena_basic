@@ -1,3 +1,21 @@
+
+
+    # ---- Daily goal
+    goal = int(st.session_state.get("daily_goal", 10) or 10)
+    # today progress = today_total
+    st.markdown("<div class='ht-divider'></div>", unsafe_allow_html=True)
+    st.markdown("<div class='ht-goal'>", unsafe_allow_html=True)
+    st.markdown(f"<div class='ht-goal-top'><p class='ht-goal-title'>오늘 목표</p><p class='ht-goal-sub'>{today_total}/{goal}문</p></div>", unsafe_allow_html=True)
+    st.progress(min(1.0, (today_total / goal) if goal else 0.0))
+    cga, cgb = st.columns([1.2, 1.0])
+    with cga:
+        st.caption("목표 문항 수는 마이페이지에서 언제든 바꿀 수 있어요.")
+    with cgb:
+        new_goal = st.number_input("목표", min_value=1, max_value=200, value=goal, step=1, label_visibility="collapsed", key="mp_goal_input")
+        if int(new_goal) != goal:
+            st.session_state["daily_goal"] = int(new_goal)
+            st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
 # home.py (V37 integrated router - embedded word app)
 from __future__ import annotations
 
@@ -6,7 +24,7 @@ import streamlit as st
 
 from ui_theme import apply_ui_theme
 from ui_components import render_header, nav_to
-from stats import aggregate_last_7_days
+from stats import aggregate_last_7_days, aggregate_last_7_days_by_mode, recent_attempts
 
 import kanji
 import talk
@@ -17,6 +35,7 @@ apply_ui_theme()
 st.session_state.setdefault("hub_view", "홈")
 st.session_state.setdefault("user_plan", "free")  # "free" | "pro"
 
+st.session_state.setdefault("daily_goal", 10)
 def _plan():
     return str(st.session_state.get("user_plan","free")).lower()
 
