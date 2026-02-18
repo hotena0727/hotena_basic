@@ -1394,7 +1394,12 @@ def render_pronounce_button(text: str, uid: str, label: str = "🔊 발음"):
         height=43,
     )
 # ============================================================
-# ✅ Onboarding (첫 방문 이용안내)
+# ✅ Onboarding (v36: 단어 페이지에서는 미노출)
+# ============================================================
+
+def render_onboarding_card(expanded=True):
+    return
+
 # ============================================================
 
 ONBOARDING_COOKIE_KEY = "onboarding_seen_v1"
@@ -1581,10 +1586,8 @@ def require_login():
 
 # ✅ 첫 방문 자동 노출
 if not has_seen_onboarding():
-    render_onboarding_card(expanded=True)
 else:
     if st.button("📘 이용안내 다시보기", use_container_width=True):
-        render_onboarding_card(expanded=True)
 
 # ============================================================
 # ✅ 네이버톡 배너 (제출 후만)

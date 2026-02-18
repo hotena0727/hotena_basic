@@ -2085,31 +2085,69 @@ if streak is not None:
     elif streak >= 7:
         st.info("🏅 7일 연속 달성! 흐름이 잡혔어요.")
 
-if "today_goal" not in st.session_state:
-    st.session_state.today_goal = "오늘은 10문항 1회 완주"
-if "today_goal_done" not in st.session_state:
-    st.session_state.today_goal_done = False
 
-with st.container():
-    st.markdown("### 🎯 오늘의 목표(루틴)")
-    c1, c2 = st.columns([7, 3])
-    with c1:
-        st.session_state.today_goal = st.text_input(
-            "목표 문장",
-            value=st.session_state.today_goal,
-            label_visibility="collapsed",
-            placeholder="예) 오늘은 10문항 2회 + 오답만 다시풀기 1회",
-        )
-    with c2:
-        st.session_state.today_goal_done = st.checkbox("달성", value=bool(st.session_state.today_goal_done))
+# ============================================================
+# ✅ 상단: 오늘의 목표 (단어 페이지 스타일)
+# ============================================================
+# hub(home.py)에서 today_total_kanji 를 세팅해 둡니다(없으면 0)
+today_total = int(st.session_state.get("today_total_kanji", 0))
 
-    if st.session_state.today_goal_done:
-        st.success("좋아요. 오늘 루틴 완료 ✅")
-    else:
-        st.caption("가볍게라도 체크하면 루틴이 끊기지 않습니다.")
+if "target_questions_kanji" not in st.session_state:
+    st.session_state["target_questions_kanji"] = 10
 
-st.divider()
+target_questions = st.slider(
+    "오늘 목표",
+    min_value=10, max_value=60, step=10,
+    value=int(st.session_state.get("target_questions_kanji", 10)),
+)
+st.session_state["target_questions_kanji"] = int(target_questions)
 
+goal_done = today_total >= target_questions
+goal_percent = int(min(100, (today_total / max(1, target_questions)) * 100))
+remain = max(0, target_questions - today_total)
+goal_msg = "오늘 목표 달성! 내일도 루틴 이어가요 🔥" if goal_done else f"남은 문항: {remain}"
+
+card_html = f"""
+<div style="
+  border:1px solid rgba(49,51,63,.12);
+  border-radius:18px;
+  padding:14px 14px;
+  background:#fff;
+  box-shadow: 0 1px 0 rgba(0,0,0,.02);
+  margin: 6px 0 10px 0;
+">
+  <div style="display:flex; justify-content:space-between; align-items:center;">
+    <div style="font-weight:900; font-size:14px; opacity:.80;">🎯 오늘 목표</div>
+    <div style="font-size:12px; font-weight:900; opacity:.85;">
+      {"✅ 달성" if goal_done else "⏳ 진행중"}
+    </div>
+  </div>
+
+  <div style="margin-top:10px; display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+    <div style="font-size:13px; font-weight:800; opacity:.85;">
+      목표: <b>{target_questions}</b>문항
+    </div>
+    <div style="font-size:13px; font-weight:800; opacity:.85;">
+      진행: <b>{today_total}</b> / {target_questions}문항
+    </div>
+    <div style="font-size:13px; font-weight:900; opacity:.85;">
+      {goal_percent}%
+    </div>
+  </div>
+
+  <div style="margin-top:10px;">
+    <div style="height:10px; border-radius:999px; background: rgba(0,0,0,0.07); overflow:hidden;">
+      <div style="height:100%; width:{goal_percent}%; background: rgba(0,0,0,0.25);"></div>
+    </div>
+
+    <div style="margin-top:10px; font-size:12.5px; opacity:.72; font-weight:700;">
+      {goal_msg}
+    </div>
+  </div>
+</div>
+"""
+
+components.html(card_html, height=150)
 # ============================================================
 # ✅ 세션 초기화
 # ============================================================

@@ -24,7 +24,7 @@ st.set_page_config(page_title="왕초보 탈출 하테나일본어", layout="cen
 st.session_state["_page_config_set"] = True  # children should not call set
 
 # ✅ Hub version
-HUB_VERSION = "v35"
+HUB_VERSION = "v36"
 
 # ============================================================
 # ✅ Navy Theme (v32)
@@ -80,6 +80,52 @@ def apply_navy_theme():
     .h-tabs .stRadio span{font-size:15px;}
     /* soften segmented/toggle visuals */
     div[data-testid="stSegmentedControl"] button{border-radius:999px !important;}
+
+    /* ✅ Top tabs: pill + active highlight (no icons) */
+    .h-tabs .stRadio [role="radiogroup"]{gap:0.5rem;}
+    .h-tabs .stRadio label{
+      padding:0.35rem 0.85rem;
+      border-radius:999px;
+      border:1px solid transparent;
+      background:transparent;
+      transition:all .12s ease;
+    }
+    .h-tabs .stRadio label:hover{
+      background:rgba(255,255,255,.9);
+      border-color:var(--h-border);
+    }
+    .h-tabs .stRadio label:has(input:checked){
+      background:rgba(255,255,255,1);
+      border-color:var(--h-border);
+      box-shadow:0 1px 0 rgba(0,0,0,.03);
+    }
+    .h-tabs .stRadio label:has(input:checked) span{
+      color:var(--h-navy);
+      font-weight:900;
+    }
+    .h-tabs .stRadio label:not(:has(input:checked)) span{
+      color:rgba(28,42,58,.55);
+      font-weight:800;
+    }
+
+    /* ✅ Segmented control: softer pastel instead of heavy navy */
+    div[data-testid="stSegmentedControl"]{
+      border-radius:16px !important;
+      padding:8px 10px !important;
+      background:rgba(255,255,255,.92) !important;
+      border:1px solid var(--h-border) !important;
+      box-shadow:0 1px 0 rgba(0,0,0,.02);
+    }
+    div[data-testid="stSegmentedControl"] button{
+      border-radius:14px !important;
+      border:1px solid rgba(28,42,58,.10) !important;
+      font-weight:800 !important;
+    }
+    div[data-testid="stSegmentedControl"] button[aria-pressed="true"]{
+      border-color: rgba(255, 72, 140, .35) !important;
+      box-shadow: 0 0 0 2px rgba(135, 206, 250, .18) inset !important;
+      background: linear-gradient(90deg, rgba(255, 206, 230, .85), rgba(205, 235, 255, .95)) !important;
+    }
 
 </style>
     """
@@ -665,10 +711,10 @@ def run_script(filename: str):
 def render_top_tabs() -> str:
     """Top navigation tabs (text-only). Returns selected view key."""
     # Options: Summary hub + three trainings + mypage
-    options = ["요약", "단어", "한자", "회화", "마이페이지"]
-    default = st.session_state.get("hub_view") or "요약"
+    options = ["홈", "단어", "한자", "회화", "마이페이지"]
+    default = st.session_state.get("hub_view") or "홈"
     if default not in options:
-        default = "요약"
+        default = "홈"
     # Sticky wrapper
     st.markdown('<div class="h-tabs">', unsafe_allow_html=True)
     view = st.radio(
@@ -788,6 +834,15 @@ def render_today_report_card(df7: pd.DataFrame | None, compact: bool = False):
             row_for("kanji", "한자"),
             row_for("talk", "회화"),
         ]
+        # ✅ (v36) 훈련별 '오늘 푼 문항수'를 세션에 공유 (목표 카드 등에서 사용)
+        try:
+            st.session_state["today_total_word"] = int(rows[0].get("total", 0))
+            st.session_state["today_total_kanji"] = int(rows[1].get("total", 0))
+            st.session_state["today_total_talk"] = int(rows[2].get("total", 0))
+        except Exception:
+            pass
+
+
 
         st.markdown('<div class="h-card">', unsafe_allow_html=True)
         for label, sets, acc in rows:
@@ -1224,32 +1279,27 @@ def render_home_dashboard():
         st.session_state["_hub_quick_review"] = "today_wrongs"
         go("word")
 
-    # Level progress visualization (last 7 days attempts by level)
+    # Recent 7 days: simple, user-friendly activity dots
     if isinstance(df7, pd.DataFrame) and df7 is not None and not df7.empty:
         try:
-            g = df7.groupby(["pos_mode","level"], as_index=False).size()
-            g.rename(columns={"size":"sets"}, inplace=True)
-            st.markdown("### 최근 7일 레벨 진행도(세트 수)")
-            try:
-                gg = g.copy()
-                gg["pos_mode"] = gg["pos_mode"].astype(str)
-                gg["level"] = gg["level"].astype(str)
-                alt.themes.enable(_altair_theme_minimal)
-                ch = (
-                    alt.Chart(gg)
-                    .mark_bar(cornerRadiusTopLeft=6, cornerRadiusTopRight=6)
-                    .encode(
-                        x=alt.X("level:N", sort=None),
-                        y=alt.Y("sets:Q"),
-                        color=alt.Color("pos_mode:N", legend=alt.Legend(orient="top")),
-                        tooltip=["level:N", "pos_mode:N", "sets:Q"],
-                    )
-                    .properties(height=220)
-                )
-                st.altair_chart(ch, use_container_width=True)
-            except Exception:
-                piv = g.pivot(index="level", columns="pos_mode", values="sets").fillna(0)
-                st.bar_chart(piv)
+            dfu = df7.copy()
+            dfu["date"] = pd.to_datetime(dfu["created_at"], utc=True, errors="coerce").dt.tz_convert("Asia/Seoul").dt.date
+            today = pd.Timestamp.now(tz="Asia/Seoul").date()
+            days = [today - timedelta(days=i) for i in range(6,-1,-1)]
+            # module key: word/kanji/talk
+            dfu["level"] = dfu["level"].astype(str)
+            modules = [("word","단어"),("kanji","한자"),("talk","회화")]
+            st.markdown("### 최근 7일 학습 흐름")
+            for key, label in modules:
+                row = dfu[dfu["level"] == key]
+                dots = []
+                for d in days:
+                    cnt = int((row["date"] == d).sum())
+                    dots.append("●" if cnt > 0 else "○")
+                line = " ".join(dots)
+                st.markdown(f"**{label}**  
+{line}")
+            st.caption("● 학습함  ○ 기록 없음")
         except Exception:
             pass
 
@@ -1268,7 +1318,7 @@ elif page == "word":
     # ✅ enter = always fresh set (avoid 'already submitted' screen)
     if st.session_state.pop("_auto_new_quiz_word", False):
         st.session_state["_auto_new_quiz_word_once"] = True
-    render_guide_block("word")
+    # (v36) 단어 페이지는 바로 훈련에 집중: 상단 가이드 블록 제거
     render_today_report_card(_get_last7_df_for_ui(), compact=True)
     run_script("hotena_basic.py")
 
