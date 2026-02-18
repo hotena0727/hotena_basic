@@ -218,16 +218,16 @@ def record_completion(mode: str, score: int, quiz_len: int):
         meta["today_sets"] = 0
 
     meta["today_sets"] = int(meta.get("today_sets") or 0) + 1
-# ✅ XP: 10문제 세트 완주 보상
-meta["xp"] = int(meta.get("xp") or 0) + 10
-# 레벨 계산(헬퍼가 아직 없을 수 있어, 로컬로 계산)
-_xp = int(meta.get("xp") or 0)
-_thresholds = [0, 30, 70, 120, 180, 260]
-_lv = 1
-for i, th in enumerate(_thresholds, start=1):
-    if _xp >= th:
-        _lv = i
-meta["level"] = min(_lv, len(_thresholds))
+    # ✅ XP: 10문제 세트 완주 보상
+    meta["xp"] = int(meta.get("xp") or 0) + 10
+    # 레벨 계산(헬퍼가 아직 없을 수 있어, 로컬로 계산)
+    _xp = int(meta.get("xp") or 0)
+    _thresholds = [0, 30, 70, 120, 180, 260]
+    _lv = 1
+    for i, th in enumerate(_thresholds, start=1):
+        if _xp >= th:
+            _lv = i
+    meta["level"] = min(_lv, len(_thresholds))
 
     meta["last_mode"] = mode
     meta["last_score"] = int(score)
