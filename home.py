@@ -116,33 +116,50 @@ def apply_navy_theme():
     div.stButton>button:hover{background:var(--h-navy2); border-color:rgba(28,42,58,.25);}
     div.stButton>button:disabled{opacity:.55;}
     
-    /* Top tabs (sticky) */
-    #hub_nav_anchor + div{
-      position:sticky; top:0; z-index:999;
-      background:var(--h-bg);
-      padding:0.25rem 0 0.35rem;
-      margin-bottom:0.25rem;
-      border-bottom:1px solid rgba(28,42,58,.08);
-      backdrop-filter:saturate(1.05) blur(2px);
+    /* Top tabs (text-only) - REAL sticky (Streamlit-safe) */
+    /* We anchor then style the NEXT horizontal block (the columns that contain badge+tabs) */
+    #htabs_anchor + div[data-testid="stHorizontalBlock"]{
+      position: sticky !important;
+      top: 0 !important;
+      z-index: 9999 !important;
+      background: rgba(249,250,252,.96);
+      backdrop-filter: blur(6px);
+      border-bottom: 1px solid rgba(0,0,0,.06);
+      padding: 0.35rem 0.25rem 0.45rem;
+      margin: 0 0 0.35rem 0;
     }
-    .h-plan{
+    #htabs_anchor + div[data-testid="stHorizontalBlock"] .stRadio [role="radiogroup"]{
+      flex-direction: row;
+      gap: 0.85rem;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    #htabs_anchor + div[data-testid="stHorizontalBlock"] .stRadio label{margin:0; padding:0.35rem 0.35rem;}
+    #htabs_anchor + div[data-testid="stHorizontalBlock"] .stRadio div[role="radio"]{border:0 !important;}
+    #htabs_anchor + div[data-testid="stHorizontalBlock"] .stRadio span{font-size:15px;}
+    #htabs_anchor + div[data-testid="stHorizontalBlock"] div[role="radio"][aria-checked="true"] span{
+      font-weight: 800;
+      border-bottom: 2px solid rgba(28,42,58,.85);
+      padding-bottom: 2px;
+    }
+
+    /* Plan badge (left of Home) */
+    .h-plan-badge{
       display:inline-flex;
       align-items:center;
       justify-content:center;
       padding:4px 10px;
       border-radius:999px;
-      border:1px solid rgba(28,42,58,.18);
-      background:rgba(255,255,255,.70);
-      font-weight:900;
+      font-weight:800;
       font-size:12px;
-      letter-spacing:0.6px;
-      color:var(--h-navy);
-      line-height:1;
+      letter-spacing:0.02em;
+      border:1px solid rgba(0,0,0,.12);
+      user-select:none;
+      white-space:nowrap;
     }
-    #hub_nav_anchor + div .stRadio [role="radiogroup"]{flex-direction:row; gap:0.75rem;}
-    #hub_nav_anchor + div .stRadio label{margin:0; padding:0.35rem 0.35rem;}
-    #hub_nav_anchor + div .stRadio div[role="radio"]{border:0 !important;}
-    #hub_nav_anchor + div .stRadio span{font-size:15px;}
+    .h-plan-free{background:rgba(160,160,160,.12);}
+    .h-plan-pro{background:rgba(55,140,255,.12);}
+
     /* soften segmented/toggle visuals */
     div[data-testid="stSegmentedControl"] button{border-radius:999px !important;}
 
@@ -812,20 +829,24 @@ def run_script(filename: str):
 
 
 def render_top_tabs() -> str:
-    """Top navigation tabs (sticky). Returns selected view key."""
+    """Top navigation tabs (text-only). Returns selected view key."""
     options = ["홈", "단어", "한자", "회화", "마이페이지", "로그아웃"]
     default = st.session_state.get("hub_view") or "홈"
     if default not in options:
         default = "홈"
 
-    # Anchor right before the nav block so CSS can make it sticky reliably.
-    st.markdown('<div id="hub_nav_anchor"></div>', unsafe_allow_html=True)
+    # ✅ IMPORTANT: Streamlit markdown HTML cannot wrap widgets.
+    # We render an anchor, then a horizontal block (columns), and CSS makes that block sticky.
+    st.markdown('<div id="htabs_anchor"></div>', unsafe_allow_html=True)
 
-    left, right = st.columns([1.2, 8.8], vertical_alignment="center")
-    with left:
-        st.markdown(f'<span class="h-plan">{_plan_label()}</span>', unsafe_allow_html=True)
+    c_plan, c_tabs = st.columns([1.0, 9.0], vertical_alignment="center")
+    with c_plan:
+        plan = (st.session_state.get("user_plan") or "free").strip().lower()
+        label = "FREE" if plan == "free" else "PRO"
+        cls = "h-plan-badge h-plan-free" if plan == "free" else "h-plan-badge h-plan-pro"
+        st.markdown(f'<span class="{cls}">{label}</span>', unsafe_allow_html=True)
 
-    with right:
+    with c_tabs:
         view = st.radio(
             label="",
             options=options,
@@ -837,6 +858,7 @@ def render_top_tabs() -> str:
 
     st.session_state["hub_view"] = view
     return view
+
 
 def _on_view_changed(new_view: str, prev_view: str | None):
     """When user switches between major views, trigger fresh quiz for that module."""
