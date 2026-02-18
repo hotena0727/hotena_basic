@@ -156,63 +156,6 @@ SHOW_NAVER_TALK = "Y"
 NAVER_TALK_URL = "https://talk.naver.com/W45141"
 
 KST_TZ = "Asia/Seoul"
-
-# ============================================================
-# ✅ Hub Routine helpers (V39)
-# - home.py(허브)에서 '오늘의 루틴'을 시작하면 hub_routine dict가 세션에 저장됩니다.
-# - 각 모듈(단어/한자/회화)은 제출 시 자동으로 다음 모듈로 넘어갑니다.
-# ============================================================
-def _hub_routine_get():
-    r = st.session_state.get("hub_routine")
-    return r if isinstance(r, dict) else None
-
-def _hub_routine_is_active(module_key: str) -> bool:
-    r = _hub_routine_get()
-    return bool(r and r.get("active") and r.get("current") == module_key)
-
-def _hub_routine_record_and_advance(module_key: str, score: int, qlen: int):
-    r = _hub_routine_get()
-    if not (r and r.get("active")):
-        return
-    # record
-    results = r.get("results") or {}
-    results[module_key] = {"score": int(score), "len": int(qlen)}
-    r["results"] = results
-
-    order = r.get("order") or ["word","kanji","talk"]
-    try:
-        idx = order.index(module_key)
-    except Exception:
-        idx = -1
-
-    if idx >= 0 and idx + 1 < len(order):
-        nxt = order[idx + 1]
-        r["current"] = nxt
-        st.session_state["hub_routine"] = r
-
-        # next page routing (허브에서 사용)
-        view_map = {"word":"단어","kanji":"한자","talk":"회화"}
-        st.session_state["hub_view"] = view_map.get(nxt, "홈")
-        st.session_state["hub_page"] = nxt
-
-        # enter fresh set on next module
-        if nxt == "word":
-            st.session_state["_auto_new_quiz_word"] = True
-        elif nxt == "kanji":
-            st.session_state["_auto_new_quiz_kanji"] = True
-        elif nxt == "talk":
-            st.session_state["_hub_force_new_talk"] = True
-
-        st.rerun()
-    else:
-        # routine done -> back to home
-        r["active"] = False
-        st.session_state["hub_routine"] = r
-        st.session_state["hub_routine_done"] = True
-        st.session_state["hub_view"] = "홈"
-        st.session_state["hub_page"] = "home"
-        st.rerun()
-
 N = 10  # 한 번에 10문항
 
 # ============================================================
@@ -2129,8 +2072,6 @@ def build_quiz(qtype: str, pos_group: str) -> list[dict]:
     ensure_excluded_wrong_words_shape()
     ensure_mastery_banner_shape()
     ensure_seen_words_shape()
-    # ✅ Hub routine: override quiz length when running daily routine
-    QN = int(st.session_state.get('_hub_quiz_len_override') or N)
 
     pool = st.session_state["_pool"]
 
@@ -2141,8 +2082,8 @@ def build_quiz(qtype: str, pos_group: str) -> list[dict]:
     if qtype == "reading":
         base_pos = base_pos[base_pos["jp_word"].apply(_has_kanji)].copy()
 
-    if len(base_pos) < QN:
-        st.warning(f"{POS_LABEL_MAP.get(pos_group,pos_group)} 단어가 부족합니다. (현재 {len(base_pos)}개 / 필요 {QN}개)")
+    if len(base_pos) < N:
+        st.warning(f"{POS_LABEL_MAP.get(pos_group,pos_group)} 단어가 부족합니다. (현재 {len(base_pos)}개 / 필요 {N}개)")
         return []
 
     k = mastery_key(qtype=qtype, pos=pos_group)
@@ -2167,13 +2108,13 @@ def build_quiz(qtype: str, pos_group: str) -> list[dict]:
 
     base = _filter_blocked(base_pos)
 
-    if len(base) < QN:
+    if len(base) < N:
         st.session_state.setdefault("mastery_done", {})
         st.session_state.mastery_done[k] = True
         return []
 
-    sampled = base.sample(n=QN, replace=False).reset_index(drop=True)
-    return [make_question(sampled.iloc[i], qtype, pool) for i in range(QN)]
+    sampled = base.sample(n=N, replace=False).reset_index(drop=True)
+    return [make_question(sampled.iloc[i], qtype, pool) for i in range(N)]
 
 
 # ============================================================
@@ -2258,8 +2199,8 @@ def build_quiz_from_wrongs(wrong_list: list, qtype: str, pos_group: str) -> list
     retry_df = retry_df.sample(frac=1).reset_index(drop=True)
 
     # ✅ 오답 전체를 문제로 만들되, 최대 N개까지만 (원하면 삭제 가능)
-    if len(retry_df) > QN:
-        retry_df = retry_df.head(QN).copy()
+    if len(retry_df) > N:
+        retry_df = retry_df.head(N).copy()
 
     return [make_question(retry_df.iloc[i], qtype, pool) for i in range(len(retry_df))]
 
@@ -3633,11 +3574,6 @@ if st.session_state.submitted:
     st.session_state.wrong_list = wrong_list
 
     st.success(f"점수: {score} / {quiz_len}")
-
-    # ✅ Hub routine auto-advance
-    if _hub_routine_is_active('word'):
-        _hub_routine_record_and_advance('word', score, quiz_len)
-
 
     # ✅ FREE 제한 카운트 누적 (제출 1회 = quiz_len 소비)
     #    같은 제출 화면에서 rerun이 여러 번 나도 중복 누적되지 않도록 1회만 적용
