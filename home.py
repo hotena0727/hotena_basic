@@ -715,6 +715,9 @@ def go(page: str):
     else:
         st.session_state.pop("_hub_entry", None)
         st.session_state.pop("_hub_direct_quiz", None)
+    # ✅ 탑 메뉴 상태도 함께 동기화 (선택 즉시 해당 탭으로 유지)
+    view_map = {"home":"홈","word":"단어","kanji":"한자","talk":"회화","mypage":"마이페이지"}
+    st.session_state["hub_view"] = view_map.get(page, "홈")
     st.session_state["hub_page"] = page
     st.rerun()
 
