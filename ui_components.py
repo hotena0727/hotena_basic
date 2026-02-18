@@ -8,9 +8,11 @@ def nav_to(view: str):
     st.rerun()
 
 def render_top_menu(active: str):
+    st.markdown('<div class="ht-topmenu">', unsafe_allow_html=True)
     cols = st.columns(5, gap="small")
     for i, v in enumerate(VIEWS):
-        t = "primary" if v == active else "secondary"
+        btn_type = "primary" if v == active else "secondary"
         with cols[i]:
-            if st.button(v, type=t, key=f"nav_{v}"):
+            if st.button(v, type=btn_type, key=f"nav_{v}"):
                 nav_to(v)
+    st.markdown("</div>", unsafe_allow_html=True)
