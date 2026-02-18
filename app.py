@@ -1983,14 +1983,6 @@ if "page" not in st.session_state:
 if st.session_state.get("page") not in ALLOWED_PAGES:
     st.session_state.page = "home"
 
-# ============================================================
-# ✅ Hub quick-start (from home hub buttons)
-# - 허브에서 '한자 훈련' 버튼으로 들어오면 '오늘의 말' 홈 화면을 건너뛰고 바로 퀴즈로
-# ============================================================
-if st.session_state.pop("_hub_autostart_kanji", False):
-    st.session_state.page = "quiz"
-    st.session_state["_auto_new_quiz_kanji_once"] = True
-
 user = st.session_state.user
 user_id = user.id
 user_email = getattr(user, "email", None) or st.session_state.get("login_email")
@@ -2052,6 +2044,22 @@ if sb_authed is not None:
         st.session_state["did_attend_today"] = bool(att.get("did_attend", False))
 else:
     st.caption("세션 토큰이 없습니다. (sb_authed=None) 다시 로그인해 주세요.")
+
+
+# ============================================================
+# ✅ Hub direct-start (skip '오늘의 퀴즈 시작' screen)
+#   - Prevent infinite rerun by CONSUMING the flag (pop)
+#   - Do NOT call st.rerun() here; let routing render quiz in same run
+# ============================================================
+if st.session_state.pop("_hub_autostart_kanji", False):
+    try:
+        go_quiz_from_home()
+    except Exception:
+        st.session_state.page = "quiz"
+        st.session_state["_scroll_top_once"] = True
+
+    # ✅ 허브 진입은 항상 '새 문제'로 시작 (1회만)
+    st.session_state["_auto_new_quiz_kanji_once"] = True
 
 # ============================================================
 # ✅ 라우팅

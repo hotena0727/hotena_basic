@@ -2780,15 +2780,6 @@ if "page" not in st.session_state:
 if st.session_state.get("page") not in ALLOWED_PAGES:
     st.session_state.page = "home"
 
-# ============================================================
-# ✅ Hub quick-start (from home hub buttons)
-# - 허브에서 '단어 훈련' 버튼으로 들어오면 '오늘의 말' 홈 화면을 건너뛰고 바로 퀴즈로
-# ============================================================
-if st.session_state.pop("_hub_autostart_word", False):
-    st.session_state.page = "quiz"
-    # 허브 진입 시에는 새 세트를 바로 생성하도록 1회 플래그를 켭니다.
-    st.session_state["_auto_new_quiz_word_once"] = True
-
 user = st.session_state.get("user")
 user_id = getattr(user, "id", None) if user else None
 user_email = getattr(user, "email", None) if user else None
@@ -2880,6 +2871,22 @@ if sb_authed is not None:
     if att:
         st.session_state["streak_count"] = int(att.get("streak_count", 0) or 0)
         st.session_state["did_attend_today"] = bool(att.get("did_attend", False))
+
+
+# ============================================================
+# ✅ Hub direct-start (skip '오늘의 퀴즈 시작' screen)
+#   - Prevent infinite rerun by CONSUMING the flag (pop)
+#   - Do NOT call st.rerun() here; let routing render quiz in same run
+# ============================================================
+if st.session_state.pop("_hub_autostart_word", False):
+    try:
+        go_quiz_from_home()
+    except Exception:
+        st.session_state.page = "quiz"
+        st.session_state["_scroll_top_once"] = True
+
+    # ✅ 허브 진입은 항상 '새 문제'로 시작 (1회만)
+    st.session_state["_auto_new_quiz_word_once"] = True
 
 # ============================================================
 # ✅ Routing
