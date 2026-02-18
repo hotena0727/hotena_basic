@@ -383,7 +383,7 @@ if st.session_state.get("_scroll_top_once"):
 # ✅ Cookies
 # ============================================================
 cookies = EncryptedCookieManager(
-    prefix="hatena_",
+    prefix="hotena_",
     password=st.secrets["COOKIE_PASSWORD"],
 )
 if not cookies.ready():

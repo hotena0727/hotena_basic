@@ -1,6 +1,6 @@
 # main.py
 # ============================================================
-# ✅ Hatena Trainer Launcher (No sidebar)
+# ✅ Hotena Trainer Launcher (No sidebar)
 # - Home with 3 buttons: Word / Kanji / Talk(coming soon)
 # - Runs existing apps via runpy.run_path in the same Streamlit process
 # - Sub-apps must avoid st.set_page_config when launched here (handled by __SUBAPP__ flag)

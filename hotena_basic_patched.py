@@ -602,7 +602,7 @@ if missing:
     st.stop()
 
 cookies = EncryptedCookieManager(
-    prefix="hatena_",   # ✅ hotena로 통일 권장
+    prefix="hotena_",   # ✅ hotena로 통일 권장
     password=COOKIE_PASSWORD,
 )
 if not cookies.ready():
