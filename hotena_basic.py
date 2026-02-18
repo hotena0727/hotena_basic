@@ -31,6 +31,11 @@ from pathlib import Path
 import random
 import pandas as pd
 import streamlit as st
+
+# ============================================================
+# ✅ Hub Mode Flag (home.py에서 실행 중인지)
+# ============================================================
+HUB_MODE = bool(st.session_state.get("hub_mode") or st.session_state.get("_hub_child") or st.session_state.get("_hub_common_header"))
 import unicodedata
 from supabase import create_client
 from streamlit_cookies_manager import EncryptedCookieManager
@@ -1680,27 +1685,28 @@ def render_topcard():
         return
 
     st.markdown('<div class="topcard">', unsafe_allow_html=True)
+    if not HUB_MODE:
     left, r_admin, r_my, r_logout = st.columns([6.0, 1.2, 2.4, 2.4], vertical_alignment="center")
 
-    with left:
-        st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
+        with left:
+            st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
 
-    with r_admin:
-        if is_admin():
-            st.button("📊", use_container_width=True, help="관리자 대시보드",
-                      key="topcard_btn_nav_admin", on_click=nav_to, args=("admin",))
-        else:
-            st.markdown("<div style='height:40px;'></div>", unsafe_allow_html=True)
+        with r_admin:
+            if is_admin():
+                st.button("📊", use_container_width=True, help="관리자 대시보드",
+                          key="topcard_btn_nav_admin", on_click=nav_to, args=("admin",))
+            else:
+                st.markdown("<div style='height:40px;'></div>", unsafe_allow_html=True)
 
-    with r_my:
-        st.button("📌 마이페이지", use_container_width=True, help="내 학습 기록/오답 TOP10 보기",
-                  key="topcard_btn_nav_my", on_click=nav_to, args=("my",))
+        with r_my:
+            st.button("📌 마이페이지", use_container_width=True, help="내 학습 기록/오답 TOP10 보기",
+                      key="topcard_btn_nav_my", on_click=nav_to, args=("my",))
 
-    with r_logout:
-        st.button("🚪 로그아웃", use_container_width=True, help="로그아웃",
-                  key="topcard_btn_logout", on_click=nav_logout)
+        with r_logout:
+            st.button("🚪 로그아웃", use_container_width=True, help="로그아웃",
+                      key="topcard_btn_logout", on_click=nav_logout)
 
-    st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
 
 # ============================================================
 # ✅ CSV Load Pool  (✅ CSV 최종 스펙 반영)
@@ -2769,6 +2775,30 @@ if sb_authed is not None and not st.session_state.get("progress_restored"):
         pass
     st.session_state.progress_restored = True
 
+# ============================================================
+# ✅ Hub 진입 시 상태 초기화(제출 완료 화면/선택 잔상 방지)
+# ============================================================
+try:
+    nav = st.session_state.get("_hub_nav_token")
+    last_nav = st.session_state.get("_word_last_nav_token")
+    if nav and nav != last_nav:
+        st.session_state["_word_last_nav_token"] = nav
+        # 제출 상태/채점 화면 초기화
+        st.session_state.submitted = False
+        st.session_state.saved_this_attempt = False
+        st.session_state.stats_saved_this_attempt = False
+        st.session_state.session_stats_applied_this_attempt = False
+        # 선택 잔상 초기화(q_ 위젯 키 제거 + answers None)
+        for k in [k for k in list(st.session_state.keys()) if isinstance(k, str) and k.startswith("q_")]:
+            st.session_state.pop(k, None)
+        if isinstance(st.session_state.get("quiz"), list):
+            qlen = len(st.session_state.quiz)
+            st.session_state.answers = [None] * qlen
+except Exception:
+    pass
+
+
+
 # ✅ 복원 후에도 pos_group/available_types 재동기화
 try:
     available_types = get_available_quiz_types_for_pos(st.session_state.get("pos_group", "noun")) if sb_authed is not None else available_types
@@ -3404,14 +3434,22 @@ for idx, q in enumerate(st.session_state.quiz):
     if prev is not None and prev in q["choices"]:
         default_index = q["choices"].index(prev)
 
-    choice = st.radio(
+    # ✅ '아무것도 선택 안 된 상태'를 만들기 위해 더미 옵션을 첫 번째로 추가
+    # ✅ 시작 시 아무것도 선택되지 않도록 index=None 사용
+    default_index = None
+    if prev is not None and prev in q["choices"]:
+        default_index = list(q["choices"]).index(prev)
+
+    picked = st.radio(
         label="보기",
-        options=q["choices"],
+        options=list(q["choices"]),
         index=default_index,
         key=widget_key,
         label_visibility="collapsed",
         on_change=mark_progress_dirty,
     )
+
+    choice = picked
     st.session_state.answers[idx] = choice
 
 sync_answers_from_widgets()

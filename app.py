@@ -5,6 +5,11 @@ from pathlib import Path
 import random
 import pandas as pd
 import streamlit as st
+
+# ============================================================
+# ✅ Hub Mode Flag (home.py에서 실행 중인지)
+# ============================================================
+HUB_MODE = bool(st.session_state.get("hub_mode") or st.session_state.get("_hub_child") or st.session_state.get("_hub_common_header"))
 import unicodedata
 from supabase import create_client
 from streamlit_cookies_manager import EncryptedCookieManager
@@ -1135,6 +1140,8 @@ def nav_logout():
     clear_auth_everywhere()
 
 def render_topcard():
+    return
+
     u = st.session_state.get("user")
     if not u:
         return
@@ -1143,28 +1150,29 @@ def render_topcard():
 
     st.markdown('<div class="topcard">', unsafe_allow_html=True)
 
+    if not HUB_MODE:
     left, r_admin, r_my, r_logout = st.columns([6.0, 1.2, 2.4, 2.4], vertical_alignment="center")
 
-    with left:
-        # ✅ 왼쪽 '환영합니다/이메일' 제거 (공간만 유지)
-        st.markdown("<div style='height:40px;'></div>", unsafe_allow_html=True)
-
-    with r_admin:
-        if is_admin():
-            st.button("📊", use_container_width=True, help="관리자 대시보드",
-                      key="topcard_btn_nav_admin", on_click=nav_to, args=("admin",))
-        else:
+        with left:
+            # ✅ 왼쪽 '환영합니다/이메일' 제거 (공간만 유지)
             st.markdown("<div style='height:40px;'></div>", unsafe_allow_html=True)
 
-    with r_my:
-        st.button("📌 마이페이지", use_container_width=True, help="내 학습 기록/오답 TOP10 보기",
-                  key="topcard_btn_nav_my", on_click=nav_to, args=("my",))
+        with r_admin:
+            if is_admin():
+                st.button("📊", use_container_width=True, help="관리자 대시보드",
+                          key="topcard_btn_nav_admin", on_click=nav_to, args=("admin",))
+            else:
+                st.markdown("<div style='height:40px;'></div>", unsafe_allow_html=True)
 
-    with r_logout:
-        st.button("🚪 로그아웃", use_container_width=True, help="로그아웃",
-                  key="topcard_btn_logout", on_click=nav_logout)
+        with r_my:
+            st.button("📌 마이페이지", use_container_width=True, help="내 학습 기록/오답 TOP10 보기",
+                      key="topcard_btn_nav_my", on_click=nav_to, args=("my",))
 
-    st.markdown("</div>", unsafe_allow_html=True)
+        with r_logout:
+            st.button("🚪 로그아웃", use_container_width=True, help="로그아웃",
+                      key="topcard_btn_logout", on_click=nav_logout)
+
+        st.markdown("</div>", unsafe_allow_html=True)
 
 # ============================================================
 # ✅ 로딩: CSV 풀
@@ -1981,6 +1989,28 @@ except Exception:
 # progress 자동복원 OFF (원본 유지)
 st.session_state.progress_restored = True
 
+# ============================================================
+# ✅ Hub 진입 시 상태 초기화(제출 완료 화면/선택 잔상 방지)
+# ============================================================
+try:
+    nav = st.session_state.get("_hub_nav_token")
+    last_nav = st.session_state.get("_kanji_last_nav_token")
+    if nav and nav != last_nav:
+        st.session_state["_kanji_last_nav_token"] = nav
+        st.session_state.submitted = False
+        st.session_state.saved_this_attempt = False
+        st.session_state.stats_saved_this_attempt = False
+        st.session_state.session_stats_applied_this_attempt = False
+        for k in [k for k in list(st.session_state.keys()) if isinstance(k, str) and k.startswith("q_")]:
+            st.session_state.pop(k, None)
+        if isinstance(st.session_state.get("quiz"), list):
+            qlen = len(st.session_state.quiz)
+            st.session_state.answers = [None] * qlen
+except Exception:
+    pass
+
+
+
 if "level" not in st.session_state:
     st.session_state.level = "N5"
 
@@ -2302,14 +2332,22 @@ for idx, q in enumerate(st.session_state.quiz):
     if prev is not None and prev in q["choices"]:
         default_index = q["choices"].index(prev)
 
-    choice = st.radio(
+    # ✅ '아무것도 선택 안 된 상태'를 만들기 위해 더미 옵션을 첫 번째로 추가
+    # ✅ 시작 시 아무것도 선택되지 않도록 index=None 사용
+    default_index = None
+    if prev is not None and prev in q["choices"]:
+        default_index = list(q["choices"]).index(prev)
+
+    picked = st.radio(
         label="보기",
-        options=q["choices"],
+        options=list(q["choices"]),
         index=default_index,
         key=widget_key,
         label_visibility="collapsed",
         on_change=mark_progress_dirty,
     )
+
+    choice = picked
     st.session_state.answers[idx] = choice
 
 sync_answers_from_widgets()

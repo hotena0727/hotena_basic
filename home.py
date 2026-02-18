@@ -1,5 +1,3 @@
-
-
 # home.py
 from __future__ import annotations
 
@@ -9,13 +7,14 @@ import runpy
 import json
 import hashlib
 import random
+import uuid
 from datetime import date, datetime
 
 import streamlit as st
 import streamlit.components.v1 as components
 from supabase import create_client
 from streamlit_cookies_manager import EncryptedCookieManager
-st.write("VERSION CHECK: v17")
+
 # ============================================================
 # ✅ Page Config (Hub only)
 # ============================================================
@@ -40,6 +39,7 @@ def render_today_quote():
         </div>""",
         unsafe_allow_html=True,
     )
+
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -361,33 +361,73 @@ if "hub_page" not in st.session_state:
     st.session_state["hub_page"] = "home"
 
 def go(page: str):
+    # ✅ 페이지 전환 토큰(각 훈련 앱에서 진입 시 상태 초기화에 사용)
+    st.session_state["_hub_nav_token"] = str(uuid.uuid4())
     st.session_state["hub_page"] = page
     st.rerun()
 
-st.markdown("## 메뉴")
-b1, b2, b3 = st.columns(3)
-with b1:
-    if st.button("단어 훈련", use_container_width=True):
-        go("word")
-with b2:
-    if st.button("한자 훈련", use_container_width=True):
-        go("kanji")
-with b3:
-    if st.button("회화 훈련", use_container_width=True):
-        go("talk")
+def render_top_bar():
+    """상단은 '홈으로' + 플랜만 (요청사항: 각 훈련 페이지 메뉴 제거)."""
+    if st.session_state.get("hub_page") == "home":
+        cols = st.columns([1.2, 1.2, 0.9])
+        with cols[0]:
+            st.markdown("### 왕초보 탈출 하테나일본어")
+        with cols[1]:
+            plan = (st.session_state.get("user_plan") or "free").lower()
+            if plan == "pro":
+                st.success("✨ PRO 이용 중입니다.")
+            else:
+                st.info("FREE 이용 중입니다.")
+        with cols[2]:
+            if st.button("로그아웃", use_container_width=True):
+                cookies["access_token"] = ""
+                cookies["refresh_token"] = ""
+                cookies.save()
+                for k in ["user","access_token","refresh_token","sb_authed","user_id","user_email","user_plan","progress_all","progress_dirty"]:
+                    st.session_state.pop(k, None)
+                st.session_state["hub_page"] = "home"
+                st.rerun()
+    else:
+        cols = st.columns([1.2, 1.2])
+        with cols[0]:
+            if st.button("← 홈으로", use_container_width=True):
+                go("home")
+        with cols[1]:
+            plan = (st.session_state.get("user_plan") or "free").lower()
+            if plan == "pro":
+                st.success("✨ PRO 이용 중입니다.")
+            else:
+                st.info("FREE 이용 중입니다.")
 
-st.divider()
-top = st.columns([1,1,1])
-with top[0]:
+# ============================================================
+# ✅ Hub UI
+# ============================================================
+render_top_bar()
+
+if st.session_state["hub_page"] == "home":
+    render_today_quote()
+    st.markdown("## 메뉴")
+    b1, b2, b3 = st.columns(3)
+    with b1:
+        if st.button("단어 훈련", use_container_width=True):
+            go("word")
+    with b2:
+        if st.button("한자 훈련", use_container_width=True):
+            go("kanji")
+    with b3:
+        if st.button("회화 훈련", use_container_width=True):
+            go("talk")
+
+    st.divider()
     st.caption(f"로그인: {getattr(user, 'email', '')}")
-with top[2]:
-    if st.button("로그아웃", use_container_width=True):
-        cookies["access_token"] = ""
-        cookies["refresh_token"] = ""
-        cookies.save()
-        for k in ["user","access_token","refresh_token","sb_authed","sb_authed_token","progress_all","hub_page"]:
-            st.session_state.pop(k, None)
-        st.rerun()
+
+else:
+    # ✅ 각 훈련 페이지 상단 가이드(공통)
+    page_key = st.session_state["hub_page"]
+    render_guide(page_key)
+    st.divider()
+
+# ============================================================
 
 # ============================================================
 # ✅ Runner
@@ -397,33 +437,82 @@ def run_script(filename: str):
     if not path.exists() or not path.is_file():
         st.error(f"파일을 찾을 수 없습니다: {path}")
         st.stop()
-    runpy.run_path(str(path), run_name="__main__")
+    # ✅ 자식 앱이 허브 실행 중임을 알 수 있게 표시
+    st.session_state["_hub_child"] = filename
+    try:
+        runpy.run_path(str(path), run_name="__main__")
+    finally:
+        # 다음 렌더에서 혼선 방지
+        st.session_state.pop("_hub_child", None)
+
+def render_plan_notice():
+    plan = (st.session_state.get("user_plan") or "free").lower()
+    if plan == "pro":
+        st.success("✨ PRO 이용 중입니다.")
+    else:
+        st.info("🔒 일부 기능은 PRO에서 열립니다.")
+
+def render_guide_block(page: str):
+    with st.expander("이용 가이드", expanded=False):
+        if page == "word":
+            st.markdown("- **단어 훈련**: 한 번에 10문제씩 풀어주세요.")
+            st.markdown("- 보기 선택 후 **정답 제출** → 채점 결과 확인.")
+        elif page == "kanji":
+            st.markdown("- **한자 훈련**: N5~N3 (왕초보용).")
+            st.markdown("- 보기 선택 후 **정답 제출** → 채점 결과 확인.")
+        elif page == "talk":
+            st.markdown("- **회화 훈련**: 상황 + 상대 발화 + 보기 선택.")
+            st.markdown("- **발음 듣기(🔊)** 는 PRO에서 제공됩니다.")
+        st.markdown("- 홈으로 돌아가려면 상단 **← 홈으로** 버튼을 누르세요.")
+
+def render_mypage_block(page: str):
+    with st.expander("마이페이지", expanded=False):
+        u = st.session_state.get("user")
+        email = getattr(u, "email", "") if u else ""
+        plan = (st.session_state.get("user_plan") or "free").upper()
+        st.markdown(f"**이메일:** {email}")
+        st.markdown(f"**플랜:** {plan}")
+        prog = st.session_state.get("progress_all") or {}
+        # 모듈 키 매핑
+        key = {"word":"word", "kanji":"kanji", "talk":"talk"}.get(page, page)
+        st.markdown("**저장된 진행 기록(요약)**")
+        st.json(prog.get(key, {}))
 
 page = st.session_state.get("hub_page", "home")
 
 if page == "home":
-    st.markdown("## 왕초보 탈출 하테나일본어")
-    render_today_quote()
-    st.info("원하는 훈련을 선택하세요.")
-elif page == "word":
-    if st.button("← 홈으로", use_container_width=True):
-        go("home")
+    st.markdown("## 메뉴")
+    b1, b2, b3 = st.columns(3)
+    with b1:
+        if st.button("단어 훈련", use_container_width=True):
+            go("word")
+    with b2:
+        if st.button("한자 훈련", use_container_width=True):
+            go("kanji")
+    with b3:
+        if st.button("회화 훈련", use_container_width=True):
+            go("talk")
+
     st.divider()
-    st.session_state["hub_mode"] = True
-    st.session_state["page"] = "quiz"
-    run_script("hotena_basic.py")
-elif page == "kanji":
-    if st.button("← 홈으로", use_container_width=True):
-        go("home")
-    st.divider()
-    st.session_state["hub_mode"] = True
-    st.session_state["page"] = "quiz"
-    run_script("app.py")
-elif page == "talk":
-    if st.button("← 홈으로", use_container_width=True):
-        go("home")
-    st.divider()
-    st.session_state["hub_mode"] = True
-    run_script("talk.py")
+    st.caption(f"로그인: {getattr(user, 'email', '')}")
+
 else:
-    st.info("원하는 훈련을 선택하세요.")
+    # 허브 공통 헤더가 렌더링됨(각 훈련 스크립트는 page_config/상단메뉴를 최소화)
+    st.session_state["_hub_common_header"] = True
+
+    render_plan_notice()
+    render_guide_block(page)
+    render_mypage_block(page)
+    st.divider()
+
+    st.session_state["hub_mode"] = True
+    st.session_state["page"] = "quiz"  # 단어/한자: 바로 시험으로
+
+    if page == "word":
+        run_script("hotena_basic.py")
+    elif page == "kanji":
+        run_script("app.py")
+    elif page == "talk":
+        run_script("talk.py")
+    else:
+        st.info("원하는 훈련을 선택하세요.")
