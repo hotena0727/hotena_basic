@@ -2916,6 +2916,9 @@ except Exception:
 # ✅ Quiz Page
 # ============================================================
 def render_plan_banner():
+    # 허브(home.py)에서 공통으로 플랜 표시를 하므로, 허브 실행 중엔 여기서 또 띄우지 않음
+    if st.session_state.get('_hub_child'):
+        return
     plan = get_user_plan()
     if plan == "pro":
         st.success("✨ PRO 이용 중입니다.")

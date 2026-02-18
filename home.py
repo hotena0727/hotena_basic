@@ -366,38 +366,31 @@ def go(page: str):
     st.session_state["hub_page"] = page
     st.rerun()
 
+def _plan_label() -> str:
+    plan = (st.session_state.get("user_plan") or "free").lower()
+    return "PRO" if plan == "pro" else "FREE"
+
 def render_top_bar():
-    """상단은 '홈으로' + 플랜만 (요청사항: 각 훈련 페이지 메뉴 제거)."""
+    """상단은 '홈으로' + 플랜(공통, 동일 위치)만."""
+    plan = _plan_label()
     if st.session_state.get("hub_page") == "home":
-        cols = st.columns([1.2, 1.2, 0.9])
-        with cols[0]:
-            st.markdown("### 왕초보 탈출 하테나일본어")
-        with cols[1]:
-            plan = (st.session_state.get("user_plan") or "free").lower()
-            if plan == "pro":
-                st.success("✨ PRO 이용 중입니다.")
-            else:
-                st.info("FREE 이용 중입니다.")
-        with cols[2]:
-            if st.button("로그아웃", use_container_width=True):
-                cookies["access_token"] = ""
-                cookies["refresh_token"] = ""
-                cookies.save()
-                for k in ["user","access_token","refresh_token","sb_authed","user_id","user_email","user_plan","progress_all","progress_dirty"]:
-                    st.session_state.pop(k, None)
-                st.session_state["hub_page"] = "home"
-                st.rerun()
+        st.markdown("### 왕초보 탈출 하테나일본어")
     else:
-        cols = st.columns([1.2, 1.2])
-        with cols[0]:
-            if st.button("← 홈으로", use_container_width=True):
-                go("home")
-        with cols[1]:
-            plan = (st.session_state.get("user_plan") or "free").lower()
-            if plan == "pro":
-                st.success("✨ PRO 이용 중입니다.")
-            else:
-                st.info("FREE 이용 중입니다.")
+        if st.button("← 홈으로", use_container_width=True, key="hub_btn_home_top"):
+            go("home")
+    st.markdown(
+        f"""
+<div style="margin:6px 0 12px 0;">
+  <span style="display:inline-block;padding:6px 10px;border-radius:999px;
+               border:1px solid rgba(49,51,63,.18);
+               background:rgba(49,51,63,.04);
+               font-weight:700;font-size:13px;">
+    플랜: {plan}
+  </span>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
 
 # ============================================================
 # ✅ Hub UI
@@ -419,12 +412,6 @@ def run_script(filename: str):
         # 다음 렌더에서 혼선 방지
         st.session_state.pop("_hub_child", None)
 
-def render_plan_notice():
-    plan = (st.session_state.get("user_plan") or "free").lower()
-    if plan == "pro":
-        st.success("✨ PRO 이용 중입니다.")
-    else:
-        st.info("🔒 일부 기능은 PRO에서 열립니다.")
 
 def render_guide_block(page: str):
     with st.expander("이용 가이드", expanded=False):
@@ -439,18 +426,67 @@ def render_guide_block(page: str):
             st.markdown("- **발음 듣기(🔊)** 는 PRO에서 제공됩니다.")
         st.markdown("- 홈으로 돌아가려면 상단 **← 홈으로** 버튼을 누르세요.")
 
+def _safe_int(x, default=0):
+    try:
+        return int(x)
+    except Exception:
+        return default
+
 def render_mypage_block(page: str):
+    # 페이지별로도 보여주지만, 내용은 '전체 요약' 중심으로 깔끔하게
     with st.expander("마이페이지", expanded=False):
         u = st.session_state.get("user")
         email = getattr(u, "email", "") if u else ""
-        plan = (st.session_state.get("user_plan") or "free").upper()
+        plan = _plan_label()
         st.markdown(f"**이메일:** {email}")
         st.markdown(f"**플랜:** {plan}")
+
         prog = st.session_state.get("progress_all") or {}
-        # 모듈 키 매핑
-        key = {"word":"word", "kanji":"kanji", "talk":"talk"}.get(page, page)
-        st.markdown("**저장된 진행 기록(요약)**")
-        st.json(prog.get(key, {}))
+
+        def summarize(key: str):
+            d = prog.get(key) or {}
+            attempts = _safe_int(d.get("attempts"))
+            correct  = _safe_int(d.get("correct"))
+            wrong    = _safe_int(d.get("wrong"))
+            mastered = d.get("mastered_ids") or d.get("mastered") or []
+            wrong_ids = d.get("wrong_ids") or d.get("wrongs") or []
+            acc = (correct / attempts * 100.0) if attempts else 0.0
+            return {
+                "attempts": attempts,
+                "correct": correct,
+                "wrong": wrong,
+                "acc": acc,
+                "mastered": len(mastered) if isinstance(mastered, (list, tuple, set)) else 0,
+                "wrong_saved": len(wrong_ids) if isinstance(wrong_ids, (list, tuple, set)) else 0,
+            }
+
+        w = summarize("word")
+        k = summarize("kanji")
+        t = summarize("talk")
+
+        st.markdown("#### 학습 요약")
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.markdown("**단어**")
+            st.metric("정답률", f"{w['acc']:.0f}%")
+            st.caption(f"시도 {w['attempts']} · 정답 {w['correct']} · 오답 {w['wrong']}")
+            st.caption(f"정복 {w['mastered']} · 오답저장 {w['wrong_saved']}")
+        with c2:
+            st.markdown("**한자**")
+            st.metric("정답률", f"{k['acc']:.0f}%")
+            st.caption(f"시도 {k['attempts']} · 정답 {k['correct']} · 오답 {k['wrong']}")
+            st.caption(f"정복 {k['mastered']} · 오답저장 {k['wrong_saved']}")
+        with c3:
+            st.markdown("**회화**")
+            st.metric("정답률", f"{t['acc']:.0f}%")
+            st.caption(f"시도 {t['attempts']} · 정답 {t['correct']} · 오답 {t['wrong']}")
+            st.caption(f"정복 {t['mastered']} · 오답저장 {t['wrong_saved']}")
+
+        st.divider()
+        st.markdown("#### 상세 기록 (원하면 펼쳐보기)")
+        with st.expander("원본 progress JSON 보기", expanded=False):
+            st.json(prog)
+
 
 page = st.session_state.get("hub_page", "home")
 
@@ -474,7 +510,6 @@ else:
     # 허브 공통 헤더가 렌더링됨(각 훈련 스크립트는 page_config/상단메뉴를 최소화)
     st.session_state["_hub_common_header"] = True
 
-    render_plan_notice()
     render_guide_block(page)
     render_mypage_block(page)
     st.divider()

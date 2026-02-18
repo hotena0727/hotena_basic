@@ -472,26 +472,57 @@ with b3:
         st.rerun()
 
 # ============================================================
-# ✅ 제출 후: 정답/오답 + 정답 발음(보기 발음은 제공하지 않음)
+# ✅ 제출 후: 결과 + (문제/정답) 스크립트 + 발음 + 납득 안내
 # ============================================================
 if submitted:
     ans = str(row["answer_jp"]).strip()
-    if selected == ans:
+    ok = (selected == ans)
+
+    if ok:
         st.success("정답입니다.")
     else:
         st.error("오답입니다.")
 
+    st.divider()
+
+    # ✅ 제출 후에도 '문제(상대 발화)'를 다시 표시
+    st.markdown("#### 문제(상대 발화)")
+    if partner_jp:
+        st.write(partner_jp)
+        (components.html(
+            speak_buttons_html([("상대 발화 듣기", partner_jp)], block_id=f"p_after_{qid}_{idx}"),
+            height=40,
+        ) if IS_PRO else st.caption("🔒 발음은 PRO 플랜에서 이용할 수 있어요."))
+    else:
+        st.caption("상대 발화가 비어 있습니다. (CSV의 partner_jp 확인)")
+
+    if partner_kr:
+        st.caption(partner_kr)
+
     st.markdown("#### 정답")
     st.write(ans)
 
-    # ✅ 정답 발음만
     if ans:
-        (components.html(speak_buttons_html([("정답 듣기", ans)], block_id=f"a_{qid}_{idx}"), height=40) if IS_PRO else st.caption("🔒 발음은 PRO 플랜에서 이용할 수 있어요."))
+        (components.html(
+            speak_buttons_html([("정답 듣기", ans)], block_id=f"a_{qid}_{idx}"),
+            height=40,
+        ) if IS_PRO else st.caption("🔒 발음은 PRO 플랜에서 이용할 수 있어요."))
 
-    if str(row.get("answer_kr","")).strip():
-        st.caption(str(row.get("answer_kr","")).strip())
+    answer_kr = str(row.get("answer_kr", "")).strip()
+    if answer_kr:
+        st.caption(answer_kr)
 
-    # 힌트는 제출 후에만 보여줘도 됨
-    hint = str(row.get("hint_kr","")).strip()
+    # ✅ 납득할 만한 안내(설명)
+    hint = str(row.get("hint_kr", "")).strip()
     if hint:
         st.info(hint)
+    else:
+        sit = str(row.get("situation_kr", "")).strip()
+        if sit and answer_kr:
+            st.info(f"상황이 '{sit}'이므로, '{answer_kr}'처럼 답하는 게 가장 자연스럽습니다.")
+        elif sit:
+            st.info(f"상황이 '{sit}'이므로, 이 정답이 가장 자연스럽습니다.")
+        elif partner_kr:
+            st.info("상대의 발화 의도에 가장 자연스럽게 이어지는 반응입니다.")
+        else:
+            st.info("대화 흐름에 가장 자연스럽게 이어지는 반응입니다.")
