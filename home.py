@@ -218,6 +218,17 @@ def record_completion(mode: str, score: int, quiz_len: int):
         meta["today_sets"] = 0
 
     meta["today_sets"] = int(meta.get("today_sets") or 0) + 1
+# ✅ XP: 10문제 세트 완주 보상
+meta["xp"] = int(meta.get("xp") or 0) + 10
+# 레벨 계산(헬퍼가 아직 없을 수 있어, 로컬로 계산)
+_xp = int(meta.get("xp") or 0)
+_thresholds = [0, 30, 70, 120, 180, 260]
+_lv = 1
+for i, th in enumerate(_thresholds, start=1):
+    if _xp >= th:
+        _lv = i
+meta["level"] = min(_lv, len(_thresholds))
+
     meta["last_mode"] = mode
     meta["last_score"] = int(score)
     meta["last_quiz_len"] = int(quiz_len)
@@ -242,6 +253,58 @@ def record_completion(mode: str, score: int, quiz_len: int):
 
 
 st.session_state["hub_record_completion"] = record_completion
+
+# ============================================================
+# ✅ XP / LEVEL (DB 저장: profiles.progress._meta)
+# - child scripts can call: st.session_state["hub_award_xp"](amount, reason)
+# ============================================================
+XP_THRESHOLDS = [0, 30, 70, 120, 180, 260]  # Lv1.. (왕초보용 가벼운 곡선)
+
+def _calc_level(xp: int) -> int:
+    lv = 1
+    for i, th in enumerate(XP_THRESHOLDS, start=1):
+        if xp >= th:
+            lv = i
+    return min(lv, len(XP_THRESHOLDS))
+
+def award_xp(amount: int, reason: str = ""):
+    sb_authed = st.session_state.get("supabase")
+    u = st.session_state.get("user")
+    if not sb_authed or not u:
+        return None
+
+    prog = st.session_state.get("progress_all") or {}
+    meta = prog.get("_meta") or {}
+
+    xp = int(meta.get("xp") or 0) + int(amount)
+    meta["xp"] = max(0, xp)
+    meta["level"] = _calc_level(meta["xp"])
+    meta["updated_at"] = datetime.utcnow().isoformat() + "Z"
+
+    # history (최근 200)
+    hist = meta.get("history") or []
+    if not isinstance(hist, list):
+        hist = []
+    hist.append({
+        "ts": datetime.utcnow().isoformat() + "Z",
+        "reason": reason,
+        "xp": int(amount),
+    })
+    meta["history"] = hist[-200:]
+
+    prog["_meta"] = meta
+    st.session_state["progress_all"] = prog
+    try:
+        sb_authed.table("profiles").update({"progress": prog}).eq("id", u.id).execute()
+    except Exception:
+        pass
+
+    st.session_state["hub_xp_toast"] = {"amount": int(amount), "reason": reason, "xp": meta["xp"], "level": meta["level"]}
+    return st.session_state["hub_xp_toast"]
+
+st.session_state["hub_award_xp"] = award_xp
+
+
 
 
 def daily_message(user_id: str) -> str:
