@@ -1309,6 +1309,61 @@ def render_home_dashboard():
     streak = int(st.session_state.get("streak_count") or 0)
     badge = _badge_for_streak(streak)
 
+    # ============================================================
+    # ✅ 오늘의 추천 루틴 (V39-lite, 최소 침습)
+    # - "얼마나 해야 하지?"를 없애는 5~10분 균형 루틴
+    # - 기존 구조/페이지는 그대로 사용 (자동 연쇄 이동은 추후 단계)
+    # ============================================================
+    def _acc_from_df7(_df7: pd.DataFrame) -> float:
+        try:
+            if not isinstance(_df7, pd.DataFrame) or _df7.empty:
+                return 0.0
+            s = pd.to_numeric(_df7.get("score"), errors="coerce").fillna(0).sum()
+            q = pd.to_numeric(_df7.get("quiz_len"), errors="coerce").fillna(0).sum()
+            return float(s / q) if q > 0 else 0.0
+        except Exception:
+            return 0.0
+
+    acc = _acc_from_df7(df7)
+    # 기본: 7분(단어3/한자3/회화2)
+    w_len, k_len, t_len, minutes = 3, 3, 2, 7
+    if streak >= 7 and acc >= 0.80:
+        w_len, k_len, t_len, minutes = 4, 4, 3, 11
+    elif streak >= 3 and acc >= 0.70:
+        w_len, k_len, t_len, minutes = 4, 3, 2, 9
+    elif acc > 0 and acc < 0.55:
+        w_len, k_len, t_len, minutes = 3, 2, 2, 7
+
+    st.markdown(
+        f"""<div class="h-card" style="padding:14px 14px;margin:12px 0 10px 0;">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+    <div>
+      <div style="font-weight:900;color:var(--h-navy);font-size:14px;opacity:.95;">🔥 오늘의 추천 루틴</div>
+      <div style="margin-top:6px;font-size:13px;opacity:.85;line-height:1.5;">
+        단어 <b>{w_len}</b>문제 · 한자 <b>{k_len}</b>문제 · 회화 <b>{t_len}</b>문장
+        <span style="margin-left:6px;opacity:.7;">(약 {minutes}분)</span>
+      </div>
+    </div>
+  </div>
+</div>""",
+        unsafe_allow_html=True
+    )
+
+    c_rt1, c_rt2 = st.columns([1, 1])
+    with c_rt1:
+        if st.button("▶️ 오늘 루틴 시작", type="primary", use_container_width=True, key="hub_daily_routine_start"):
+            # 루틴 정보만 저장 (연쇄 이동은 다음 버전에서)
+            st.session_state["hub_daily_routine"] = {
+                "lens": {"word": w_len, "kanji": k_len, "talk": t_len},
+                "minutes": minutes,
+                "started_at": datetime.now().isoformat(),
+            }
+            st.session_state["_auto_new_quiz_word"] = True
+            go("word")
+    with c_rt2:
+        st.button("⏭️ 나중에", use_container_width=True, disabled=True, key="hub_daily_routine_later")
+
+
     c1, c2, c3 = st.columns(3)
     with c1:
         st.metric("오늘 완료(세트)", f"{today_sets} / 1")
