@@ -14,80 +14,6 @@ import pandas as pd
 import streamlit as st
 
 
-
-# ============================================================
-# ✅ V37 UI 2 — Common header + routing helpers
-# ============================================================
-def ht_set_view(view: str):
-    st.session_state["hub_view"] = view
-    # keep query param for deep link
-    try:
-        st.query_params["view"] = view
-    except Exception:
-        pass
-    st.rerun()
-
-def ht_sync_view_from_query():
-    try:
-        qp = st.query_params
-        v = qp.get("view", None)
-        if isinstance(v, list):
-            v = v[0] if v else None
-        if v:
-            # normalize
-            mapping = {
-                "home": "홈",
-                "word": "단어",
-                "words": "단어",
-                "kanji": "한자",
-                "talk": "회화",
-                "mypage": "마이페이지",
-                "홈": "홈",
-                "단어": "단어",
-                "한자": "한자",
-                "회화": "회화",
-                "마이페이지": "마이페이지",
-            }
-            v2 = mapping.get(str(v).strip().lower(), mapping.get(str(v).strip(), None))
-            if v2 and st.session_state.get("hub_view") != v2:
-                st.session_state["hub_view"] = v2
-    except Exception:
-        return
-
-def ht_header(title: str, show_back: bool = True):
-    plan = _plan_label()
-    left = "← 홈" if show_back else ""
-    back_html = f"<a class='ht-back' href='?view=홈'>{left}</a>" if show_back else "<span></span>"
-    st.markdown(
-        f"""
-        <div class="ht-header">
-          <div class="ht-header-left">{back_html}</div>
-          <div class="ht-header-title">{title}</div>
-          <div class="ht-header-right"><span class="ht-badge {'pro' if 'PRO' in plan else 'free'}">{plan}</span></div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-def ht_home_cards():
-    st.markdown("<div class='ht-home-wrap'>", unsafe_allow_html=True)
-    cards = [
-        ("📘 단어 훈련", "하루 10문제로 시작", "단어"),
-        ("🈶 한자 훈련", "N4~N3부터 차근차근", "한자"),
-        ("💬 회화 훈련", "말하기 1단계", "회화"),
-    ]
-    for title, sub, view in cards:
-        st.markdown(
-            f"""
-            <a class="ht-card-link" href="?view={view}">
-              <div class="ht-card-link-title">{title}</div>
-              <div class="ht-card-link-sub">{sub}</div>
-            </a>
-            """,
-            unsafe_allow_html=True,
-        )
-    st.markdown("</div>", unsafe_allow_html=True)
-
 # ============================================================
 # ✅ Last 7 days flow (mini bars)
 # ============================================================
@@ -139,9 +65,6 @@ from streamlit_cookies_manager import EncryptedCookieManager
 # ✅ Page Config (Hub only)
 # ============================================================
 st.set_page_config(page_title="왕초보 탈출 하테나일본어", layout="centered")
-from ui_theme import apply_ui_theme
-apply_ui_theme()
-
 st.session_state["_page_config_set"] = True  # children should not call set
 
 # ✅ Hub version

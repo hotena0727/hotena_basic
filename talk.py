@@ -5,8 +5,6 @@ from pathlib import Path
 
 import pandas as pd
 import streamlit as st
-from ui_theme import apply_ui_theme
-
 
 # ============================================================
 # ✅ Talk (Conversation) training - V37 style safe patch
@@ -79,23 +77,7 @@ def build_choices(df: pd.DataFrame, row: pd.Series) -> list[str]:
     return uniq
 
 def render_talk_page(user_plan: str = "free"):
-    apply_ui_theme()
-    # unified header
-    colL, colC, colR = st.columns([1.1, 2.2, 1.1], vertical_alignment="center")
-    with colL:
-        if st.button("← 홈", key="talk_back_home"):
-            st.session_state["hub_view"] = "홈"
-            try:
-                st.query_params["view"] = "홈"
-            except Exception:
-                pass
-            st.rerun()
-    with colC:
-        st.markdown("<div style='text-align:center;font-weight:900;'>회화 훈련</div>", unsafe_allow_html=True)
-    with colR:
-        plan = "PRO" if user_plan == "pro" else "FREE"
-        st.markdown(f"<div style='text-align:right;'><span class='ht-badge {'pro' if user_plan=='pro' else 'free'}'>{plan}</span></div>", unsafe_allow_html=True)
-
+    st.markdown("## 회화 훈련")
 
     df = load_talk_df()
     if df.empty:
