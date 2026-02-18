@@ -543,6 +543,9 @@ def start_quiz_state(quiz_list: list, qtype: str, clear_wrongs: bool = True):
     st.session_state.stats_saved_this_attempt = False
     st.session_state.session_stats_applied_this_attempt = False
 
+    # ✅ Hub 공통 보상(10문제 완주) 중복 방지 플래그 리셋
+    st.session_state["_hub_recorded_submit"] = False
+
     if clear_wrongs:
         st.session_state.wrong_list = []
 
@@ -1545,6 +1548,19 @@ def build_quiz(qtype: str, level: str) -> list[dict]:
     level = str(level).strip().upper()
     base_level = pool[pool["level"].astype(str).str.upper() == level].copy()
 
+    # ✅ N3는 "왕초보 탈출" 톤에 맞게 조금 더 쉬운 축으로(가능하면)
+    if level == "N3" and len(base_level) >= N:
+        try:
+            tmp = base_level.copy()
+            tmp["_rlen"] = tmp.get("reading").astype(str).str.replace(" ", "", regex=False).str.len()
+            tmp["_wlen"] = tmp.get("jp_word").astype(str).str.replace(" ", "", regex=False).str.len()
+            # reading이 너무 길거나(고급 느낌) 단어가 너무 긴 항목은 우선순위에서 제외
+            easier = tmp[(tmp["_rlen"] <= 5) & (tmp["_wlen"] <= 4)].copy()
+            if len(easier) >= N:
+                base_level = easier.drop(columns=["_rlen", "_wlen"], errors="ignore")
+        except Exception:
+            pass
+
     # 레벨 데이터가 너무 적을 때 안전장치
     if len(base_level) < N:
         st.warning(f"{level} 단어가 부족합니다. (현재 {len(base_level)}개 / 필요 {N}개)")
@@ -2412,6 +2428,16 @@ if st.session_state.submitted:
             try:
                 run_db(_save)
                 st.session_state.saved_this_attempt = True
+
+                # ✅ 10문제 완주 보상(허브 공통)
+                try:
+                    if (quiz_len == 10) and (not st.session_state.get("_hub_recorded_submit")):
+                        fn = st.session_state.get("hub_record_completion")
+                        if callable(fn):
+                            fn("kanji", score, quiz_len)
+                        st.session_state["_hub_recorded_submit"] = True
+                except Exception:
+                    pass
             except Exception as e:
                 if show_post_ui:
                     st.warning("DB 저장에 실패했습니다. (테이블/컬럼/권한/RLS 정책 확인 필요)")

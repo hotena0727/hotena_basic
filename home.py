@@ -21,6 +21,9 @@ from streamlit_cookies_manager import EncryptedCookieManager
 # ============================================================
 st.set_page_config(page_title="왕초보 탈출 하테나일본어", layout="centered")
 st.session_state["_page_config_set"] = True  # children should not call set
+
+# ✅ Hub version
+HUB_VERSION = "v23"
 # ============================================================
 # ✅ 오늘의 말 (공통)
 # ============================================================
@@ -178,6 +181,67 @@ def save_progress(sb_authed, user_id: str, progress: dict):
         sb_authed.table("profiles").update({"progress": progress}).eq("id", user_id).execute()
     except Exception:
         pass
+
+
+# ============================================================
+# ✅ 10문제 완주 보상/연속학습 (공통)
+# - child scripts can call: st.session_state["hub_record_completion"](...)
+# ============================================================
+def _kst_today() -> date:
+    # 서버 TZ와 무관하게 KST 기준으로 계산
+    return (datetime.utcnow() + timedelta(hours=9)).date()
+
+
+def record_completion(mode: str, score: int, quiz_len: int):
+    """10문제 세트 완료를 기록하고, streak/오늘 학습량을 업데이트합니다."""
+    sb_authed = st.session_state.get("supabase")
+    u = st.session_state.get("user")
+    if not sb_authed or not u:
+        return None
+
+    prog = st.session_state.get("progress_all") or {}
+    meta = prog.get("_meta") or {}
+
+    today = _kst_today().isoformat()
+    yesterday = (_kst_today() - timedelta(days=1)).isoformat()
+
+    last = str(meta.get("last_study_date") or "")
+    streak = int(meta.get("streak") or 0)
+
+    if last != today:
+        if last == yesterday:
+            streak += 1
+        else:
+            streak = 1
+        meta["last_study_date"] = today
+        meta["streak"] = streak
+        meta["today_sets"] = 0
+
+    meta["today_sets"] = int(meta.get("today_sets") or 0) + 1
+    meta["last_mode"] = mode
+    meta["last_score"] = int(score)
+    meta["last_quiz_len"] = int(quiz_len)
+    meta["updated_at"] = datetime.utcnow().isoformat() + "Z"
+
+    prog["_meta"] = meta
+    st.session_state["progress_all"] = prog
+    try:
+        sb_authed.table("profiles").update({"progress": prog}).eq("id", u.id).execute()
+    except Exception:
+        pass
+
+    # reward message for UI
+    st.session_state["hub_reward"] = {
+        "mode": mode,
+        "streak": streak,
+        "today_sets": int(meta.get("today_sets") or 0),
+        "score": int(score),
+        "quiz_len": int(quiz_len),
+    }
+    return st.session_state["hub_reward"]
+
+
+st.session_state["hub_record_completion"] = record_completion
 
 
 def daily_message(user_id: str) -> str:
@@ -540,15 +604,77 @@ def render_mypage_block(page: str):
             pass
 
         st.divider()
-        st.markdown("#### 상세 기록 (원하면 펼쳐보기)")
-        with st.expander("원본 progress JSON 보기", expanded=False):
-            st.json(prog)
+        st.markdown("#### 상세 기록")
+
+        # 최근 기록 테이블(가능하면 quiz_attempts에서)
+        try:
+            sb = st.session_state.get("supabase")
+            u2 = st.session_state.get("user")
+            uid = getattr(u2, "id", None) if u2 else None
+            if sb and uid:
+                resp2 = (
+                    sb.table("quiz_attempts")
+                      .select("created_at,score,quiz_len,level,pos_mode")
+                      .eq("user_id", uid)
+                      .order("created_at", desc=True)
+                      .limit(30)
+                      .execute()
+                )
+                rows2 = getattr(resp2, "data", None) or []
+                if rows2:
+                    df = pd.DataFrame(rows2)
+                    df["created_at"] = pd.to_datetime(df["created_at"], errors="coerce", utc=True)
+                    df = df.dropna(subset=["created_at"])
+                    df["날짜"] = df["created_at"].dt.tz_convert("Asia/Seoul").dt.strftime("%m-%d %H:%M")
+                    df["훈련"] = df.get("level").astype(str)
+                    # 단어/한자/회화 구분이 pos_mode/level에 섞여 있을 수 있어, 안전하게 가공
+                    if "pos_mode" in df.columns:
+                        df["모드"] = df["pos_mode"].astype(str)
+                    else:
+                        df["모드"] = ""
+                    df["점수"] = pd.to_numeric(df.get("score"), errors="coerce").fillna(0).astype(int)
+                    df["문항"] = pd.to_numeric(df.get("quiz_len"), errors="coerce").fillna(0).astype(int)
+                    show = df[["날짜", "훈련", "모드", "점수", "문항"]].copy()
+                    with st.expander("최근 30개 기록 보기", expanded=False):
+                        st.dataframe(show, use_container_width=True, hide_index=True)
+                else:
+                    st.caption("최근 기록이 아직 없습니다.")
+        except Exception:
+            st.caption("최근 기록을 불러오지 못했습니다.")
+
+        # 원본은 관리자 전용으로 숨김
+        if bool(st.session_state.get("is_admin")):
+            with st.expander("(관리자) 원본 progress JSON", expanded=False):
+                st.json(prog)
 
 
 page = st.session_state.get("hub_page", "home")
 
 if page == "home":
-    st.markdown("## 메뉴")
+    # ✅ 정체성 강화: 홈 메시지 + 오늘의 말 + 오늘 목표
+    st.markdown("# 왕초보 탈출 하테나일본어")
+    st.caption("오늘도 **10문제만**. 작은 루틴이 실력을 만듭니다.")
+    render_today_quote()
+
+    # ✅ 보상/연속학습 배너
+    reward = st.session_state.pop("hub_reward", None)
+    if reward:
+        st.balloons()
+        st.success(
+            f"10문제 완주! (점수 {reward['score']}/{reward['quiz_len']}) · 연속 {reward['streak']}일 · 오늘 {reward['today_sets']}세트",
+            icon="🎉",
+        )
+
+    meta = (st.session_state.get("progress_all") or {}).get("_meta") or {}
+    streak = int(meta.get("streak") or 0)
+    today_sets = int(meta.get("today_sets") or 0)
+    c1, c2 = st.columns(2)
+    with c1:
+        st.metric("연속 학습", f"{streak}일")
+    with c2:
+        st.metric("오늘 완료", f"{today_sets}세트")
+
+    st.markdown("## 훈련 선택")
     b1, b2, b3 = st.columns(3)
     with b1:
         if st.button("단어 훈련", use_container_width=True, key="hub_btn_word"):

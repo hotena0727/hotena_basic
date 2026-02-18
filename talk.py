@@ -356,6 +356,14 @@ if idx >= len(qids):
     save_progress(progress_all)
     log_attempt(sel_level, sel_tag or "all", len(qids), score, wrong_list)
 
+    # ✅ 10문제 완주 보상(허브 공통)
+    try:
+        fn = st.session_state.get("hub_record_completion")
+        if callable(fn):
+            fn("talk", score, len(qids))
+    except Exception:
+        pass
+
     c_end1, c_end2 = st.columns([1, 1])
     with c_end1:
         if st.button("새 10문 세트", use_container_width=True):
@@ -436,6 +444,19 @@ else:
 
 if partner_kr:
     st.caption(partner_kr)
+
+# ============================================================
+# ✅ 실제 말하기 모드(녹음)
+# - 채점은 하지 않지만, 말해보는 경험을 제공
+# ============================================================
+with st.expander("🎙️ 말하기 모드(녹음)", expanded=False):
+    st.caption("상대 발화를 듣고, 아래에서 직접 말해보세요. 녹음은 기기에서만 재생됩니다.")
+    try:
+        audio = st.audio_input("내 목소리 녹음하기")
+        if audio is not None:
+            st.audio(audio)
+    except Exception:
+        st.caption("현재 환경에서는 녹음 기능이 지원되지 않을 수 있어요.")
 
 st.markdown("#### 보기")
 selected = st.radio("정답을 고르세요.", choices, key="talk_choice")

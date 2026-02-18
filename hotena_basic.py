@@ -827,6 +827,9 @@ def start_quiz_state(quiz_list: list, qtype: str, clear_wrongs: bool = True):
     st.session_state.saved_this_attempt = False
     st.session_state.stats_saved_this_attempt = False
     st.session_state.session_stats_applied_this_attempt = False
+
+    # ✅ Hub 공통 보상(10문제 완주) 중복 방지 플래그 리셋
+    st.session_state["_hub_recorded_submit"] = False
     
     # ✅ 추가: 새 회차 시작 시 콤보 알림 단계 초기화
     st.session_state["combo_last_notice"] = 0
@@ -3583,6 +3586,16 @@ if st.session_state.submitted:
                     wrong_list=wrong_list,
                 ))
                 st.session_state.saved_this_attempt = True
+
+                # ✅ 10문제 완주 보상(허브 공통)
+                try:
+                    if (quiz_len == 10) and (not st.session_state.get("_hub_recorded_submit")):
+                        fn = st.session_state.get("hub_record_completion")
+                        if callable(fn):
+                            fn("word", score, quiz_len)
+                        st.session_state["_hub_recorded_submit"] = True
+                except Exception:
+                    pass
             except Exception as e:
                 if show_post_ui:
                     st.warning("DB 저장에 실패했습니다. (테이블/컬럼/권한/RLS 정책 확인 필요)")
