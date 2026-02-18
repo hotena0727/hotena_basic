@@ -1340,7 +1340,6 @@ def render_home_dashboard():
             dfu["level"] = dfu["level"].astype(str)
             modules = [("word","단어"),("kanji","한자"),("talk","회화")]
             # (replaced by render_7day_flow)
-")
         except Exception:
             pass
 
