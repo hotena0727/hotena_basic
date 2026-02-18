@@ -1142,38 +1142,6 @@ def nav_logout():
 def render_topcard():
     return
 
-    u = st.session_state.get("user")
-    if not u:
-        return
-
-    email = getattr(u, "email", None) or st.session_state.get("login_email", "")
-
-    st.markdown('<div class="topcard">', unsafe_allow_html=True)
-
-    if not HUB_MODE:
-    left, r_admin, r_my, r_logout = st.columns([6.0, 1.2, 2.4, 2.4], vertical_alignment="center")
-
-        with left:
-            # ✅ 왼쪽 '환영합니다/이메일' 제거 (공간만 유지)
-            st.markdown("<div style='height:40px;'></div>", unsafe_allow_html=True)
-
-        with r_admin:
-            if is_admin():
-                st.button("📊", use_container_width=True, help="관리자 대시보드",
-                          key="topcard_btn_nav_admin", on_click=nav_to, args=("admin",))
-            else:
-                st.markdown("<div style='height:40px;'></div>", unsafe_allow_html=True)
-
-        with r_my:
-            st.button("📌 마이페이지", use_container_width=True, help="내 학습 기록/오답 TOP10 보기",
-                      key="topcard_btn_nav_my", on_click=nav_to, args=("my",))
-
-        with r_logout:
-            st.button("🚪 로그아웃", use_container_width=True, help="로그아웃",
-                      key="topcard_btn_logout", on_click=nav_logout)
-
-        st.markdown("</div>", unsafe_allow_html=True)
-
 # ============================================================
 # ✅ 로딩: CSV 풀
 # ============================================================

@@ -1684,27 +1684,31 @@ def render_topcard():
     if not u:
         return
 
+    # ✅ In hub mode, the shared header (plan badge / home button / etc.) is rendered by home.py.
+    #    Avoid rendering this app's own top menu card to prevent duplicated UI / widget keys.
+    if HUB_MODE:
+        return
+
     st.markdown('<div class="topcard">', unsafe_allow_html=True)
-    if not HUB_MODE:
     left, r_admin, r_my, r_logout = st.columns([6.0, 1.2, 2.4, 2.4], vertical_alignment="center")
 
-        with left:
-            st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
+    with left:
+        st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
 
-        with r_admin:
-            if is_admin():
-                st.button("📊", use_container_width=True, help="관리자 대시보드",
-                          key="topcard_btn_nav_admin", on_click=nav_to, args=("admin",))
-            else:
-                st.markdown("<div style='height:40px;'></div>", unsafe_allow_html=True)
+    with r_admin:
+        if is_admin():
+            st.button("📊", use_container_width=True, help="관리자 대시보드",
+                      key="topcard_btn_nav_admin", on_click=nav_to, args=("admin",))
+        else:
+            st.markdown("<div style='height:40px;'></div>", unsafe_allow_html=True)
 
-        with r_my:
-            st.button("📌 마이페이지", use_container_width=True, help="내 학습 기록/오답 TOP10 보기",
-                      key="topcard_btn_nav_my", on_click=nav_to, args=("my",))
+    with r_my:
+        st.button("📌 마이페이지", use_container_width=True, help="내 학습 기록/오답 TOP10 보기",
+                  key="topcard_btn_nav_my", on_click=nav_to, args=("my",))
 
-        with r_logout:
-            st.button("🚪 로그아웃", use_container_width=True, help="로그아웃",
-                      key="topcard_btn_logout", on_click=nav_logout)
+    with r_logout:
+        st.button("🚪 로그아웃", use_container_width=True, help="로그아웃",
+                  key="topcard_btn_logout", on_click=nav_logout)
 
         st.markdown("</div>", unsafe_allow_html=True)
 
