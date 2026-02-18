@@ -2225,7 +2225,7 @@ st.markdown('</div>', unsafe_allow_html=True)
 cbtn1, cbtn2 = st.columns(2)
 
 with cbtn1:
-    if st.button("🔄 새 문제(랜덤 10문항)", use_container_width=True, key="btn_new_random_10"):
+    if st.button("🔄 새 문제(랜덤 10문항)", use_container_width=True, key="btn_new_random_10") or st.session_state.pop("_auto_new_quiz_kanji_once", False):
         k_now = mastery_key()
         if st.session_state.get("mastery_done", {}).get(k_now, False):
             st.session_state["_scroll_top_once"] = True

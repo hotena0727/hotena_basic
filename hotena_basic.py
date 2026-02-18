@@ -3275,7 +3275,7 @@ with cbtn1:
         use_container_width=True,
         key="btn_new_random_10",
         disabled=locked
-    ):
+    ) or st.session_state.pop("_auto_new_quiz_word_once", False):
         clear_question_widget_keys()
     
         # ✅ 새 퀴즈 시작 = 제출 카운트 플래그 리셋
