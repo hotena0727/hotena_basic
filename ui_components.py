@@ -55,3 +55,10 @@ def card(title: str, body_html: str):
         \"\"\",
         unsafe_allow_html=True,
     )
+
+
+def quick_go(view: str, **flags):
+    # optional mode flags passed to session_state
+    for k, v in flags.items():
+        st.session_state[k] = v
+    nav_to(view)

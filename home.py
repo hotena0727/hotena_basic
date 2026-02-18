@@ -16,6 +16,60 @@ import streamlit as st
 
 from ui_components import render_header, nav_to
 
+
+# ============================================================
+# ✅ Study stats helpers (safe, session_state 기반)
+# - child pages가 아래 키 중 하나라도 남겨주면 자동 집계됨
+#
+# 권장 로그 포맷(선우님 기존 코드 어디서든 기록 가능):
+#   st.session_state["attempt_log"].append({
+#       "ts": "2026-02-18T12:34:56",
+#       "mode": "word"|"kanji"|"talk",
+#       "total": 10,
+#       "correct": 7,
+#   })
+# ============================================================
+def _ensure_attempt_log():
+    if "attempt_log" not in st.session_state or not isinstance(st.session_state["attempt_log"], list):
+        st.session_state["attempt_log"] = []
+
+def _push_attempt(mode: str, total: int, correct: int):
+    _ensure_attempt_log()
+    st.session_state["attempt_log"].append({
+        "ts": datetime.datetime.now().isoformat(timespec="seconds"),
+        "mode": mode,
+        "total": int(total),
+        "correct": int(correct),
+    })
+
+def _aggregate_last_7_days():
+    _ensure_attempt_log()
+    today = datetime.date.today()
+    days = [today - datetime.timedelta(days=i) for i in range(6, -1, -1)]
+    # init
+    stat = {d.isoformat(): {"total": 0, "correct": 0} for d in days}
+
+    for a in st.session_state["attempt_log"][-500:]:  # keep it bounded
+        try:
+            ts = str(a.get("ts", ""))[:10]
+            if ts in stat:
+                stat[ts]["total"] += int(a.get("total", 0) or 0)
+                stat[ts]["correct"] += int(a.get("correct", 0) or 0)
+        except Exception:
+            continue
+
+    # streak: count backwards from today where total>0
+    streak = 0
+    for i in range(0, 365):  # hard cap
+        d = today - datetime.timedelta(days=i)
+        k = d.isoformat()
+        if k in stat and stat[k]["total"] > 0:
+            streak += 1
+        else:
+            break
+
+    return days, stat, streak
+
 # ============================================================
 # ✅ MyPage UI (V37 UI 5)
 # - 카드형 KPI + 퀵 액션 + PRO 안내
@@ -84,19 +138,71 @@ def render_mypage_ui(user_plan: str = "free"):
 
     st.markdown("<div class='ht-divider'></div>", unsafe_allow_html=True)
 
+    # ---- Last 7 days
+    days, agg, streak2 = _aggregate_last_7_days()
+    # prefer aggregated streak if larger
+    try:
+        if streak2 > streak:
+            streak = streak2
+    except Exception:
+        pass
+
+    st.markdown("<div class='ht-section-title'>지난 7일 기록</div>", unsafe_allow_html=True)
+
+    # Mini heatmap-like cards
+    labels = ["월","화","수","목","금","토","일"]
+    html_cells = ["<div class='ht-heatmap'>"]
+    for d in days:
+        k = d.isoformat()
+        total = agg[k]["total"]
+        correct = agg[k]["correct"]
+        rate = (correct / total) if total else 0
+        # bar width 0~100
+        w = int(rate * 100)
+        dow = labels[d.weekday()]
+        html_cells.append(
+            f"<div class='ht-heatcell'>"
+            f"  <div class='ht-heat-top'><span class='ht-heat-day'>{dow}</span><span class='ht-heat-date'>{d.strftime('%m/%d')}</span></div>"
+            f"  <div class='ht-heat-bar'><span style='width:{w}%'></span></div>"
+            f"  <div class='ht-heat-num'>{total}문 · 정답 {correct}</div>"
+            f"</div>"
+        )
+    html_cells.append("</div>")
+    st.markdown("".join(html_cells), unsafe_allow_html=True)
+
+    st.markdown("<div class='ht-divider'></div>", unsafe_allow_html=True)
+
     st.markdown("<div class='ht-section-title'>퀵 액션</div>", unsafe_allow_html=True)
-    c1, c2, c3 = st.columns(3)
-    with c1:
+    r1c1, r1c2, r1c3 = st.columns(3)
+    with r1c1:
         if st.button("단어 훈련", type="primary", key="mp_go_word"):
             st.session_state["hub_view"] = "단어"
             st.rerun()
-    with c2:
+    with r1c2:
         if st.button("한자 훈련", type="secondary", key="mp_go_kanji"):
             st.session_state["hub_view"] = "한자"
             st.rerun()
-    with c3:
+    with r1c3:
         if st.button("회화 훈련", type="secondary", key="mp_go_talk"):
             st.session_state["hub_view"] = "회화"
+            st.rerun()
+
+    r2c1, r2c2, r2c3 = st.columns(3)
+    with r2c1:
+        if st.button("오답노트", type="secondary", key="mp_go_wrongs"):
+            # 단어 페이지에서 오답노트 모드로 열리도록 플래그
+            st.session_state["open_wrongs"] = True
+            st.session_state["hub_view"] = "단어"
+            st.rerun()
+    with r2c2:
+        if st.button("다시풀기", type="secondary", key="mp_go_retry"):
+            st.session_state["retry_mode"] = True
+            st.session_state["hub_view"] = "단어"
+            st.rerun()
+    with r2c3:
+        if st.button("정복 초기화", type="secondary", key="mp_reset_master"):
+            st.session_state["reset_mastered_request"] = True
+            st.session_state["hub_view"] = "단어"
             st.rerun()
 
     st.markdown("<div class='ht-divider'></div>", unsafe_allow_html=True)
