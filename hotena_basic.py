@@ -2780,6 +2780,15 @@ if "page" not in st.session_state:
 if st.session_state.get("page") not in ALLOWED_PAGES:
     st.session_state.page = "home"
 
+# ============================================================
+# ✅ Hub quick-start (from home hub buttons)
+# - 허브에서 '단어 훈련' 버튼으로 들어오면 '오늘의 말' 홈 화면을 건너뛰고 바로 퀴즈로
+# ============================================================
+if st.session_state.pop("_hub_autostart_word", False):
+    st.session_state.page = "quiz"
+    # 허브 진입 시에는 새 세트를 바로 생성하도록 1회 플래그를 켭니다.
+    st.session_state["_auto_new_quiz_word_once"] = True
+
 user = st.session_state.get("user")
 user_id = getattr(user, "id", None) if user else None
 user_email = getattr(user, "email", None) if user else None

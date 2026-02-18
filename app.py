@@ -1983,6 +1983,14 @@ if "page" not in st.session_state:
 if st.session_state.get("page") not in ALLOWED_PAGES:
     st.session_state.page = "home"
 
+# ============================================================
+# ✅ Hub quick-start (from home hub buttons)
+# - 허브에서 '한자 훈련' 버튼으로 들어오면 '오늘의 말' 홈 화면을 건너뛰고 바로 퀴즈로
+# ============================================================
+if st.session_state.pop("_hub_autostart_kanji", False):
+    st.session_state.page = "quiz"
+    st.session_state["_auto_new_quiz_kanji_once"] = True
+
 user = st.session_state.user
 user_id = user.id
 user_email = getattr(user, "email", None) or st.session_state.get("login_email")
