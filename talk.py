@@ -7,22 +7,26 @@ import pandas as pd
 import streamlit as st
 
 # ============================================================
-# ✅ 회화 훈련 (V37 디자인 유지용: 최소 침습 / 1문제씩)
-# - CSV 기반: data/talk_situations.csv (없으면 talk.csv도 탐색)
-# - 보기 구성(4):
-#   1) 정답
-#   2) 의미 반대(의도 반대/이해했다 계열)
-#   3) 단계 불일치(같은 태그의 다른 정답)
-#   4) 완전 무관(다른 태그의 정답 or 고정 풀)
-# - 보기 순서: 문제당 1회 생성 → rerun에도 고정
-# - 발음: 현행 유지(추후 교체 예정) — PRO에서만 노출
+# ✅ Talk (Conversation) training - V37 style safe patch
+# - 1 question at a time (better for recording / self-check)
+# - Options: 1 correct, 1 opposite-intent, 1 mismatch-level, 1 unrelated
+# - Options are generated ONCE per question and never reshuffled on rerun
 # ============================================================
 
-CANDIDATE_CSVS = [
-    Path("data/talk_situations.csv"),
-    Path("data/talk.csv"),
-    Path("talk.csv"),
-]
+CSV_PATH = Path("talk.csv")
+
+def load_talk_df() -> pd.DataFrame:
+    df = pd.read_csv(CSV_PATH, encoding="utf-8-sig")
+    # Normalize common NaNs
+    df = df.fillna("")
+    # Expected columns (flexible): scene, prompt_jp, prompt_kr, intent_kr, answer_jp, answer_kr, tag(optional)
+    return df
+
+def pick_opposite_intent_answer(scene: str) -> str:
+    # A safe, beginner-friendly "opposite" response: understands / accepts without asking again
+    # (Opposite of "I didn't understand, please explain again")
+    # Keep short and natural.
+    return "はい、大丈夫です。"
 
 UNRELATED_POOL = [
     "明日は雨です。",
@@ -32,59 +36,34 @@ UNRELATED_POOL = [
     "すみません、トイレはどこですか。",
 ]
 
-def _find_csv() -> Path | None:
-    for p in CANDIDATE_CSVS:
-        if p.exists():
-            return p
-    return None
-
-def load_talk_df() -> pd.DataFrame:
-    path = _find_csv()
-    if not path:
-        raise FileNotFoundError("talk csv not found (data/talk_situations.csv)")
-    df = pd.read_csv(path, encoding="utf-8-sig").fillna("")
-    return df
-
-def opposite_answer(scene_tag: str) -> str:
-    # 의미 반대(예: "다시 설명해 주세요" ↔ "네, 괜찮습니다")
-    # 초보에게 안전한 반대 의도
-    return "はい、大丈夫です。"
-
 def build_choices(df: pd.DataFrame, row: pd.Series) -> list[str]:
-    correct = str(row.get("answer_jp", "")).strip()
-    tag = str(row.get("tag", "")).strip()
+    correct = (row.get("answer_jp") or "").strip()
+    scene = (row.get("scene") or "").strip()
 
-    opp = opposite_answer(tag)
+    opposite = pick_opposite_intent_answer(scene)
 
-    # 단계 불일치: 같은 tag의 다른 정답을 우선
+    # mismatch-level: pick another answer from SAME scene if possible, otherwise any other answer
+    same_scene = df[(df.get("scene","") == scene) & (df.index != row.name)]
+    pool = same_scene if len(same_scene) >= 1 else df[df.index != row.name]
     mismatch = ""
-    same_tag = df[(df.get("tag", "") == tag) & (df.index != row.name)]
-    pool = same_tag if len(same_tag) >= 1 else df[df.index != row.name]
-    for _ in range(30):
-        cand = str(pool.sample(1).iloc[0].get("answer_jp", "")).strip()
-        if cand and cand not in {correct, opp}:
+    for _ in range(20):
+        cand = (pool.sample(1).iloc[0].get("answer_jp") or "").strip()
+        if cand and cand != correct and cand != opposite:
             mismatch = cand
             break
     if not mismatch:
-        mismatch = "少々お待ちください。"
+        mismatch = "すみません、少々お待ちください。"
 
-    # 완전 무관: 다른 tag 정답 or 고정 풀
-    unrelated = ""
-    other_tag = df[(df.get("tag", "") != tag) & (df.index != row.name)]
-    if len(other_tag) >= 1:
-        for _ in range(30):
-            cand = str(other_tag.sample(1).iloc[0].get("answer_jp", "")).strip()
-            if cand and cand not in {correct, opp, mismatch}:
-                unrelated = cand
-                break
-    if not unrelated:
-        unrelated = random.choice(UNRELATED_POOL)
+    unrelated = random.choice(UNRELATED_POOL)
+    # Ensure unrelated isn't accidentally correct
+    if unrelated == correct:
+        unrelated = "コーヒーをください。"
 
-    choices = [correct, opp, mismatch, unrelated]
-    # de-dupe, pad
+    choices = [correct, opposite, mismatch, unrelated]
+    # De-dupe while preserving, then pad if needed
     uniq = []
     for c in choices:
-        c = str(c).strip()
+        c = (c or "").strip()
         if c and c not in uniq:
             uniq.append(c)
     while len(uniq) < 4:
@@ -92,6 +71,8 @@ def build_choices(df: pd.DataFrame, row: pd.Series) -> list[str]:
         if filler not in uniq:
             uniq.append(filler)
     uniq = uniq[:4]
+
+    # Shuffle ONCE (deterministic per question)
     random.shuffle(uniq)
     return uniq
 
@@ -100,57 +81,65 @@ def render_talk_page(user_plan: str = "free"):
 
     df = load_talk_df()
     if df.empty:
-        st.info("회화 데이터가 비어 있습니다.")
+        st.info("회화 데이터(talk.csv)가 비어 있습니다.")
         return
 
-    # 태그(상황) 선택
-    tags = [t for t in sorted({str(x).strip() for x in df.get("tag", "").tolist()}) if t]
-    if "talk_tag" not in st.session_state:
-        st.session_state["talk_tag"] = tags[0] if tags else ""
-    if tags:
+    # Category filter if exists
+    tag_col = None
+    for c in ["tag", "category", "mode"]:
+        if c in df.columns:
+            tag_col = c
+            break
+
+    if tag_col:
+        tags = [t for t in sorted(set([x.strip() for x in df[tag_col].fillna("").tolist() if str(x).strip()])) if t]
+        if "talk_tag" not in st.session_state:
+            st.session_state["talk_tag"] = tags[0] if tags else ""
         sel = st.selectbox("상황 선택", options=tags, index=tags.index(st.session_state["talk_tag"]) if st.session_state["talk_tag"] in tags else 0)
         st.session_state["talk_tag"] = sel
-        dfv = df[df.get("tag", "") == sel].reset_index(drop=True)
+        df_view = df[df[tag_col] == sel] if sel else df
     else:
-        dfv = df.reset_index(drop=True)
+        df_view = df
 
     if "talk_idx" not in st.session_state:
         st.session_state["talk_idx"] = 0
 
-    idx = st.session_state["talk_idx"] % len(dfv)
-    row = dfv.iloc[idx]
+    idx = st.session_state["talk_idx"] % len(df_view)
+    row = df_view.iloc[idx]
 
-    # 표시 요소
-    scene = str(row.get("tag", "일상")).strip()
-    partner_jp = str(row.get("partner_jp", "")).strip()
-    situation_kr = str(row.get("situation_kr", "")).strip()
-    hint_kr = str(row.get("hint_kr", "")).strip()
-    answer_jp = str(row.get("answer_jp", "")).strip()
-    answer_kr = str(row.get("answer_kr", "")).strip()
+    scene = (row.get("scene") or "일상").strip()
+    prompt_jp = (row.get("prompt_jp") or "").strip()
+    intent_kr = (row.get("intent_kr") or "").strip()
+    prompt_kr = (row.get("prompt_kr") or "").strip()
+    answer_jp = (row.get("answer_jp") or "").strip()
+    answer_kr = (row.get("answer_kr") or "").strip()
 
     st.markdown(f"**[상황: {scene}]**")
-    if partner_jp:
-        st.markdown(f"### {partner_jp}")
-    if situation_kr:
-        st.caption(f"👉 {situation_kr}")
+    if prompt_jp:
+        st.markdown(f"### {prompt_jp}")
+    if intent_kr:
+        st.caption(f"👉 {intent_kr}")
+    elif prompt_kr:
+        st.caption(f"👉 {prompt_kr}")
 
-    # 🔊 발음(현행 유지): PRO만 노출 (구현은 이후 교체)
+    # PRO-only pronunciation button placeholder (keeps V37 design minimal)
     if (user_plan or "free") != "free":
         with st.expander("🔊 발음 듣기", expanded=False):
-            st.write("문제:", partner_jp)
+            st.write("문제:", prompt_jp)
     else:
         st.caption("※ 발음 듣기는 PRO 플랜에서 제공됩니다.")
 
-    # 보기: 문제당 1회 생성(고정)
-    qkey = f"talk_choices_{st.session_state['talk_tag']}_{idx}_{partner_jp}"
+    qkey = f"talk_choices_{scene}_{idx}"
     if qkey not in st.session_state:
+        # Seed with stable seed per question to avoid reshuffle on rerun
         rnd_state = random.getstate()
-        random.seed(f"{st.session_state['talk_tag']}-{idx}-{partner_jp}")
-        st.session_state[qkey] = build_choices(dfv, row)
+        random.seed(f"{scene}-{idx}-{prompt_jp}")
+        st.session_state[qkey] = build_choices(df_view, row)
         random.setstate(rnd_state)
 
     choices = st.session_state[qkey]
-    pick = st.radio("보기", choices, index=None, key=f"talk_pick_{st.session_state['talk_tag']}_{idx}")
+    # radio with no default selection
+    pick = st.radio("보기", choices, index=None, key=f"talk_pick_{idx}")
 
     if st.button("정답 제출", use_container_width=True):
         if pick == answer_jp:
@@ -160,26 +149,27 @@ def render_talk_page(user_plan: str = "free"):
             st.error("오답입니다.")
             st.markdown(f"**정답:** {answer_jp}")
 
-        if hint_kr:
-            st.caption(hint_kr)
-        if answer_kr:
-            st.caption(f"정답 해석: {answer_kr}")
-
-        # 제출 후 발음(현행 유지): PRO만 노출
+        # After submit: show both pronunciations (PRO)
         if (user_plan or "free") != "free":
             st.markdown("#### 🔊 제출 후 발음")
-            c1, c2 = st.columns(2)
-            with c1:
+            col1, col2 = st.columns(2)
+            with col1:
                 st.write("문제")
-                st.write(partner_jp)
-            with c2:
+                st.write(prompt_jp)
+            with col2:
                 st.write("정답")
                 st.write(answer_jp)
 
+        if answer_kr:
+            st.caption(f"정답 해석: {answer_kr}")
+
     if st.button("다음 문제", use_container_width=True):
+        # Clear pick for next question
+        st.session_state.pop(f"talk_pick_{idx}", None)
         st.session_state["talk_idx"] += 1
         st.rerun()
 
 
 if __name__ == "__main__":
+    # In hub environment, user_plan may be injected via session_state
     render_talk_page(st.session_state.get("user_plan", "free"))

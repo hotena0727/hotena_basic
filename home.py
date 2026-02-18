@@ -14,20 +14,6 @@ import pandas as pd
 import streamlit as st
 
 
-
-import runpy
-
-def run_script(filename: str):
-    """Run a child Streamlit script (word/kanji/talk) in-process."""
-    from pathlib import Path as _Path
-    base_dir = _Path(__file__).resolve().parent
-    path = (base_dir / filename).resolve()
-    if not path.exists():
-        raise FileNotFoundError(f"Script not found: {path}")
-    st.session_state["_hub_child"] = filename
-    runpy.run_path(str(path), run_name="__main__")
-
-
 # ============================================================
 # ✅ Last 7 days flow (mini bars)
 # ============================================================
@@ -185,9 +171,6 @@ def apply_navy_theme():
       background: linear-gradient(90deg, rgba(255, 206, 230, .85), rgba(205, 235, 255, .95)) !important;
     }
 
-
-/* ✅ Login inputs: not too wide */
-div[data-testid="stForm"] input{max-width: 520px !important;}
 </style>
     """
     st.markdown(css, unsafe_allow_html=True)
@@ -358,38 +341,6 @@ def refresh_session_from_cookie_if_needed(force: bool = False) -> bool:
 
     return False
 
-
-
-
-def do_logout():
-    """Clear local session + cookies and return to hub."""
-    try:
-        # clear supabase session best-effort
-        try:
-            sb.auth.sign_out()
-        except Exception:
-            pass
-
-        # clear cookie tokens
-        try:
-            cookies["access_token"] = ""
-            cookies["refresh_token"] = ""
-            # save once (guarded in cookie lib wrapper too)
-            cookies.save()
-        except Exception:
-            pass
-
-        # clear session_state (keep minimal keys)
-        for k in list(st.session_state.keys()):
-            if k.startswith("_"):
-                continue
-            del st.session_state[k]
-        st.session_state["hub_page"] = "home"
-        st.session_state["view"] = "hub"
-    except Exception:
-        st.session_state["hub_page"] = "home"
-        st.session_state["view"] = "hub"
-    st.rerun()
 
 def get_authed_sb():
     refresh_session_from_cookie_if_needed(force=True)
@@ -757,47 +708,143 @@ def _plan_label() -> str:
     return "PRO" if plan == "pro" else "FREE"
 
 def render_top_bar():
+    """상단 고정 탭(텍스트) + 공통 플랜 표시."""
+    plan = _plan_label()
+    prev = st.session_state.get("_hub_last_view")
     view = render_top_tabs()
-    if view == "logout":
-        do_logout()
-        st.stop()
+    _on_view_changed(view, prev)
+    st.session_state["_hub_last_view"] = view
 
-    mapping = {
-        "home": "home",
-        "word": "word",
-        "kanji": "kanji",
-        "talk": "talk",
-        "mypage": "mypage",
-    }
+    # view -> hub_page mapping (internal router)
+    mapping = {"요약":"home", "단어":"word", "한자":"kanji", "회화":"talk", "마이페이지":"mypage"}
     st.session_state["hub_page"] = mapping.get(view, "home")
-def render_top_tabs():
-    # Training pages top menu
-    options = ["홈", "단어", "한자", "회화", "마이페이지", "로그아웃"]
-    label_map = {
-        "홈": "home",
-        "단어": "word",
-        "한자": "kanji",
-        "회화": "talk",
-        "마이페이지": "mypage",
-        "로그아웃": "logout",
-    }
-    cur = st.session_state.get("hub_page", "home")
-    inv = {v: k for k, v in label_map.items()}
-    cur_label = inv.get(cur, "홈")
 
-    picked = st.radio(
-        "top_tabs",
-        options,
-        index=options.index(cur_label) if cur_label in options else 0,
+    # Plan badge (subtle)
+    c1, c2 = st.columns([6, 1.6], vertical_alignment="center")
+    with c1:
+        st.markdown("""<div style='height:4px;'></div>""", unsafe_allow_html=True)
+    with c2:
+        st.markdown(
+            f"""<div style="text-align:right;margin-top:2px;">
+  <span style="display:inline-block;padding:6px 10px;border-radius:999px;
+               border:1px solid rgba(49,51,63,.14);
+               background:rgba(49,51,63,.035);
+               font-weight:700;font-size:12.5px;">
+    {plan} 플랜
+  </span>
+</div>""",
+            unsafe_allow_html=True,
+        )
+
+# ============================================================
+# ✅ Hub UI
+# ============================================================
+# render_top_bar()  # moved below (V35 fix)
+
+# ✅ Runner
+# ============================================================
+def run_script(filename: str):
+    path = (BASE_DIR / filename).resolve()
+    if not path.exists() or not path.is_file():
+        st.error(f"파일을 찾을 수 없습니다: {path}")
+        st.stop()
+    # ✅ 자식 앱이 허브 실행 중임을 알 수 있게 표시
+    st.session_state["_hub_child"] = filename
+    try:
+        runpy.run_path(str(path), run_name="__main__")
+    finally:
+        # 다음 렌더에서 혼선 방지
+        st.session_state.pop("_hub_child", None)
+
+
+
+def render_top_tabs() -> str:
+    """Top navigation tabs (text-only). Returns selected view key."""
+    # Options: Summary hub + three trainings + mypage
+    options = ["홈", "단어", "한자", "회화", "마이페이지"]
+    default = st.session_state.get("hub_view") or "홈"
+    if default not in options:
+        default = "홈"
+    # Sticky wrapper
+    st.markdown('<div class="h-tabs">', unsafe_allow_html=True)
+    view = st.radio(
+        label="",
+        options=options,
+        index=options.index(default),
         horizontal=True,
+        key="hub_view_radio",
         label_visibility="collapsed",
-        key="top_tabs_radio",
+    )
+    st.markdown("</div>", unsafe_allow_html=True)
+    st.session_state["hub_view"] = view
+    return view
+
+def _on_view_changed(new_view: str, prev_view: str | None):
+    """When user switches between major views, trigger fresh quiz for that module."""
+    if new_view == prev_view:
+        return
+    # mark for auto-new set on entry to avoid 'already submitted' screens
+    if new_view == "단어":
+        st.session_state["_auto_new_quiz_word"] = True
+        st.session_state["page"] = "quiz"
+    elif new_view == "한자":
+        st.session_state["_auto_new_quiz_kanji"] = True
+        st.session_state["page"] = "quiz"
+    elif new_view == "회화":
+        st.session_state["_hub_force_new_talk"] = True
+
+# ============================================================
+# ✅ Hub UI (Top Navigation)
+# ============================================================
+if st.session_state.get('view','hub') != 'hub':
+    render_top_bar()
+def render_guide_block(page: str):
+    with st.expander("이용 가이드", expanded=False):
+        if page == "word":
+            st.markdown("- **단어 훈련**: 한 번에 10문제씩 풀어주세요.")
+            st.markdown("- 보기 선택 후 **정답 제출** → 채점 결과 확인.")
+        elif page == "kanji":
+            st.markdown("- **한자 훈련**: N5~N3 (왕초보용).")
+            st.markdown("- 보기 선택 후 **정답 제출** → 채점 결과 확인.")
+        elif page == "talk":
+            st.markdown("- **회화 훈련**: 상황 + 상대 발화 + 보기 선택.")
+            st.markdown("- **발음 듣기(🔊)** 는 PRO에서 제공됩니다.")
+        st.markdown("- 홈으로 돌아가려면 상단 탭 메뉴을 누르세요.")
+
+def _safe_int(x, default=0):
+    try:
+        return int(x)
+    except Exception:
+        return default
+
+
+
+def _mini_kpi_card(title: str, value: str, sub: str = ""):
+    st.markdown(
+        f"""<div class="h-card" style="padding:14px 14px; margin:8px 0 12px 0;">
+        <div style="font-weight:900;color:var(--h-navy);font-size:13px;opacity:.9;">{title}</div>
+        <div style="font-weight:900;color:var(--h-navy);font-size:26px;line-height:1.1;margin-top:4px;">{value}</div>
+        {f'<div style="margin-top:4px;opacity:.75;font-size:12px;">{sub}</div>' if sub else ''}
+        </div>""",
+        unsafe_allow_html=True,
     )
 
-    view = label_map.get(picked, "home")
-    return view
-def render_guide_block(page: str):
-    return
+
+def _altair_theme_minimal():
+    return {
+        "config": {
+            "view": {"stroke": None},
+            "axis": {
+                "grid": False,
+                "labelFontSize": 11,
+                "title": None,
+                "domain": False,
+                "tickSize": 0,
+            },
+            "legend": {"labelFontSize": 11, "title": None},
+        }
+    }
+
 
 def render_today_report_card(df7: pd.DataFrame | None, compact: bool = False):
     """오늘의 학습 리포트(공통). df7는 최근 7일 attempt raw."""
@@ -1282,19 +1329,18 @@ def render_home_dashboard():
         st.session_state["_hub_quick_review"] = "today_wrongs"
         go("word")
 
-    # Recent 7 days: mini bar chart (all trainings)
+    # Recent 7 days: simple, user-friendly activity dots
     if isinstance(df7, pd.DataFrame) and df7 is not None and not df7.empty:
         try:
             dfu = df7.copy()
             dfu["date"] = pd.to_datetime(dfu["created_at"], utc=True, errors="coerce").dt.tz_convert("Asia/Seoul").dt.date
             today = pd.Timestamp.now(tz="Asia/Seoul").date()
             days = [today - timedelta(days=i) for i in range(6,-1,-1)]
-            # total attempts per day (across word/kanji/talk)
-            cnt_map = dfu.groupby("date").size().to_dict()
-            days_str = [str(d) for d in days]
-            counts = [int(cnt_map.get(d, 0)) for d in days]
-            st.markdown("#### 최근 7일 학습 흐름")
-            render_7day_flow(days_str, counts)
+            # module key: word/kanji/talk
+            dfu["level"] = dfu["level"].astype(str)
+            modules = [("word","단어"),("kanji","한자"),("talk","회화")]
+            # (replaced by render_7day_flow)
+")
         except Exception:
             pass
 
@@ -1320,13 +1366,15 @@ elif page == "word":
 elif page == "kanji":
     if st.session_state.pop("_auto_new_quiz_kanji", False):
         st.session_state["_auto_new_quiz_kanji_once"] = True
-        render_today_report_card(_get_last7_df_for_ui(), compact=True)
+    render_guide_block("kanji")
+    render_today_report_card(_get_last7_df_for_ui(), compact=True)
     run_script("app.py")
 
 elif page == "talk":
     if st.session_state.pop("_hub_force_new_talk", False):
         st.session_state["_hub_force_new_talk_once"] = True
-        render_today_report_card(_get_last7_df_for_ui(), compact=True)
+    render_guide_block("talk")
+    render_today_report_card(_get_last7_df_for_ui(), compact=True)
     run_script("talk.py")
 
 else:

@@ -239,29 +239,6 @@ def render_pattern_cards():
 .pat-sub{ opacity:.75; font-size:13px; margin-top:6px; }
 .pat-ex{ margin-top:10px; font-size:13px; line-height:1.55; }
 .pat-ex b{ font-weight:900; }
-
-/* ✅ POS/QTYPE buttons: 기본 회색 / 선택 스카이블루 (단어 훈련) */
-#pos_btn_anchor + div[data-testid="stHorizontalBlock"] div[data-testid="stBaseButton-secondary"] button{
-  background: #f2f4f8 !important;
-  border: 1px solid rgba(20,25,40,.12) !important;
-  color: #1b1f2a !important;
-}
-#pos_btn_anchor + div[data-testid="stHorizontalBlock"] div[data-testid="stBaseButton-primary"] button{
-  background: #6EC1E4 !important;
-  border: 1px solid rgba(20,25,40,.12) !important;
-  color: #ffffff !important;
-}
-#qtype_btn_anchor + div[data-testid="stHorizontalBlock"] div[data-testid="stBaseButton-secondary"] button{
-  background: #f2f4f8 !important;
-  border: 1px solid rgba(20,25,40,.12) !important;
-  color: #1b1f2a !important;
-}
-#qtype_btn_anchor + div[data-testid="stHorizontalBlock"] div[data-testid="stBaseButton-primary"] button{
-  background: #6EC1E4 !important;
-  border: 1px solid rgba(20,25,40,.12) !important;
-  color: #ffffff !important;
-}
-
 </style>
 """, unsafe_allow_html=True)
 
@@ -1608,12 +1585,9 @@ def require_login():
         st.stop()
 
 # ✅ 첫 방문 자동 노출
-# ✅ 첫 방문 자동 노출
 if not has_seen_onboarding():
-    render_onboarding_card(expanded=True)
 else:
     if st.button("📘 이용안내 다시보기", use_container_width=True):
-        render_onboarding_card(expanded=True)
 
 # ============================================================
 # ✅ 네이버톡 배너 (제출 후만)
@@ -3248,7 +3222,6 @@ if st.session_state.pos_group == "other":
 st.markdown('<div class="qtype_hint jp">✨유형을 선택하세요</div>', unsafe_allow_html=True)
 
 # ✅ 유형 버튼
-st.markdown('<div id="qtype_btn_anchor"></div>', unsafe_allow_html=True)
 type_cols = st.columns(len(available_types), gap="small")
 for i, qt in enumerate(available_types):
     with type_cols[i]:
