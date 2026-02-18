@@ -12,6 +12,50 @@ from datetime import date, datetime, timedelta
 
 import pandas as pd
 import streamlit as st
+
+
+# ============================================================
+# ✅ Last 7 days flow (mini bars)
+# ============================================================
+def render_7day_flow(days: list[str], counts: list[int]):
+    # counts: number of quizzes/attempts per day (0..n)
+    maxv = max(counts) if counts else 1
+    bars = []
+    for d, c in zip(days, counts):
+        h = 6 + int(34 * (c / maxv)) if maxv else 6
+        opacity = 0.18 + 0.65 * (c / maxv) if maxv else 0.18
+        bars.append((d, c, h, opacity))
+    html = ['<div style="display:flex;gap:8px;align-items:flex-end;padding:8px 2px 2px 2px;">']
+    for d, c, h, op in bars:
+        html.append(f'''
+  <div style="text-align:center;">
+    <div title="{d}: {c}회" style="width:16px;height:{h}px;border-radius:6px;background:rgba(30,90,255,{op});border:1px solid rgba(0,0,0,0.08);"></div>
+    <div style="font-size:10px;opacity:0.75;margin-top:4px;">{d[-2:]}</div>
+  </div>
+''')
+    html.append("</div>")
+    st.markdown("".join(html), unsafe_allow_html=True)
+
+# ============================================================
+# ✅ Plan badge (top-left, compact)
+# ============================================================
+def render_plan_badge(user_plan: str):
+    # user_plan: "free" | "pro"
+    label = "FREE" if (user_plan or "free") == "free" else "PRO"
+    st.markdown(
+        f"""
+<div style="display:flex;align-items:center;gap:8px;margin:6px 0 10px 0;">
+  <div style="padding:4px 10px;border-radius:999px;
+              border:1px solid rgba(0,0,0,0.12);
+              background:rgba(255,255,255,0.65);
+              font-weight:700;font-size:12px;letter-spacing:0.6px;">
+    {label}
+  </div>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
+
 import altair as alt
 import streamlit.components.v1 as components
 from supabase import create_client
@@ -752,8 +796,8 @@ def _on_view_changed(new_view: str, prev_view: str | None):
 # ============================================================
 # ✅ Hub UI (Top Navigation)
 # ============================================================
-render_top_bar()
-
+if st.session_state.get('view','hub') != 'hub':
+    render_top_bar()
 def render_guide_block(page: str):
     with st.expander("이용 가이드", expanded=False):
         if page == "word":
@@ -1295,16 +1339,8 @@ def render_home_dashboard():
             # module key: word/kanji/talk
             dfu["level"] = dfu["level"].astype(str)
             modules = [("word","단어"),("kanji","한자"),("talk","회화")]
-            st.markdown("### 최근 7일 학습 흐름")
-            for key, label in modules:
-                row = dfu[dfu["level"] == key]
-                dots = []
-                for d in days:
-                    cnt = int((row["date"] == d).sum())
-                    dots.append("●" if cnt > 0 else "○")
-                line = " ".join(dots)
-                st.markdown(f"**{label}**  \n{line}")
-            st.caption("● 학습함  ○ 기록 없음")
+            # (replaced by render_7day_flow)
+")
         except Exception:
             pass
 
