@@ -1,9 +1,6 @@
 from __future__ import annotations
 
-from pathlib import Path
-import time
-import traceback
-
+import os
 import streamlit as st
 from supabase import create_client
 from streamlit_cookies_manager import EncryptedCookieManager
@@ -18,238 +15,162 @@ st.set_page_config(
 )
 
 # ============================================================
-# ✅ Top padding fix (상단 잘림 방지)
+# ✅ UI Fix: hide sidebar + top padding (no sidebar, no clipping)
 # ============================================================
 st.markdown(
     """
 <style>
-.block-container{
-  padding-top: 2.2rem !important;
-  padding-bottom: 2.0rem !important;
-}
-@media (max-width: 768px){
-  .block-container{ padding-top: 2.7rem !important; }
-}
+[data-testid="stSidebar"]{display:none;}
+[data-testid="collapsedControl"]{display:none;}
+.block-container{padding-top:2.2rem !important; padding-bottom:2.0rem !important;}
+@media (max-width:768px){.block-container{padding-top:2.6rem !important;}}
 </style>
 """,
     unsafe_allow_html=True,
 )
 
 # ============================================================
-# ✅ Secrets / Clients
+# ✅ Secrets / Supabase
 # ============================================================
-SUPABASE_URL = st.secrets.get("SUPABASE_URL", "")
-SUPABASE_ANON_KEY = st.secrets.get("SUPABASE_ANON_KEY", "")
-COOKIE_PASSWORD = st.secrets.get("COOKIE_PASSWORD", "")
+SUPABASE_URL = st.secrets.get("SUPABASE_URL", os.getenv("SUPABASE_URL", ""))
+SUPABASE_ANON_KEY = st.secrets.get("SUPABASE_ANON_KEY", os.getenv("SUPABASE_ANON_KEY", ""))
+COOKIE_PASSWORD = st.secrets.get("COOKIE_PASSWORD", os.getenv("COOKIE_PASSWORD", ""))
 
-if not SUPABASE_URL or not SUPABASE_ANON_KEY or not COOKIE_PASSWORD:
-    st.error("secrets 설정이 필요합니다: SUPABASE_URL, SUPABASE_ANON_KEY, COOKIE_PASSWORD")
+if not SUPABASE_URL or not SUPABASE_ANON_KEY:
+    st.error("SUPABASE_URL / SUPABASE_ANON_KEY 가 설정되어 있지 않습니다.")
+    st.stop()
+if not COOKIE_PASSWORD:
+    st.error("COOKIE_PASSWORD 가 설정되어 있지 않습니다.")
     st.stop()
 
 sb = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
 
-cookies = EncryptedCookieManager(
-    prefix="hotena_",
-    password=COOKIE_PASSWORD,
-)
-
+# ============================================================
+# ✅ Cookies (ONE manager only)
+# ============================================================
+cookies = EncryptedCookieManager(prefix="hotena_", password=COOKIE_PASSWORD)
 if not cookies.ready():
+    st.info("잠깐만요! 곧 시작할게요🙂")
     st.stop()
 
-def _set_tokens_to_all_cookies(access_token: str, refresh_token: str):
-    for ck in (cookies_word, cookies_kanji):
-        ck["access_token"] = access_token or ""
-        ck["refresh_token"] = refresh_token or ""
-        try:
-            ck.save()
-        except Exception:
-            pass
-
-def _clear_tokens_all():
-    _set_tokens_to_all_cookies("", "")
-    for k in ["user", "access_token", "refresh_token", "login_email", "plan_cached"]:
-        if k in st.session_state:
-            del st.session_state[k]
-
 def _restore_session_from_cookies() -> bool:
-    # 이미 복원됨
-    if st.session_state.get("user") is not None and st.session_state.get("access_token"):
-        return True
-
-    at = (cookies_word.get("access_token") or "").strip()
-    rt = (cookies_word.get("refresh_token") or "").strip()
-
-    # word 쪽에 없으면 kanji 쪽에서 한 번 더
-    if not at and not rt:
-        at = (cookies_kanji.get("access_token") or "").strip()
-        rt = (cookies_kanji.get("refresh_token") or "").strip()
-
-    if not at and not rt:
+    at = (cookies.get("access_token") or "").strip()
+    rt = (cookies.get("refresh_token") or "").strip()
+    if not at:
         return False
 
-    # access_token이 있으면 우선 set_session 시도
-    try:
-        if at and rt:
-            sb.auth.set_session(at, rt)
-        elif rt and not at:
-            # refresh_token만 있다면 refresh 시도
-            refreshed = sb.auth.refresh_session(rt)
-            if refreshed and getattr(refreshed, "session", None):
-                at = refreshed.session.access_token
-                rt = refreshed.session.refresh_token
-                sb.auth.set_session(at, rt)
-
-        u = sb.auth.get_user()
-        user_obj = getattr(u, "user", None) or getattr(u, "data", None) or None
-        if user_obj is None:
-            return False
-
-        st.session_state["user"] = user_obj
-        st.session_state["access_token"] = at
+    # session_state restore
+    st.session_state["access_token"] = at
+    if rt:
         st.session_state["refresh_token"] = rt
-        email = getattr(user_obj, "email", None)
-        if email:
-            st.session_state["login_email"] = str(email).strip()
 
-        # 두 prefix에 모두 저장
-        _set_tokens_to_all_cookies(at, rt)
+    # try to get user (best effort)
+    try:
+        u = sb.auth.get_user(at).user
+        st.session_state["user"] = u
         return True
     except Exception:
         return False
 
-def require_login():
+def is_logged_in() -> bool:
+    return bool(st.session_state.get("user")) and bool(st.session_state.get("access_token"))
+
+def require_login() -> None:
+    if is_logged_in():
+        return
     if _restore_session_from_cookies():
         return
 
-    st.markdown("## 왕초보 탈출 하테나일본어")
-    st.caption("로그인은 한 번만 하면 됩니다. (단어/한자 공통)")
-    with st.container(border=True):
-        mode = st.radio("",
-                        ["login", "signup"],
-                        format_func=lambda x: "로그인" if x == "login" else "회원가입",
-                        horizontal=True)
-        email = st.text_input("이메일", key="hub_email")
-        pw = st.text_input("비밀번호", type="password", key="hub_pw")
+    # ---------------------------
+    # Login / Signup UI (hub only)
+    # ---------------------------
+    st.title("왕초보 탈출 하테나일본어")
+    st.caption("단어·한자·회화 훈련을 한 곳에서 이용합니다. 로그인은 여기서 한 번만 하면 됩니다.")
 
-        if mode == "login":
-            if st.button("로그인", type="primary", use_container_width=True):
-                try:
-                    res = sb.auth.sign_in_with_password({"email": email, "password": pw})
-                    sess = getattr(res, "session", None)
-                    user_obj = getattr(res, "user", None)
-                    if not sess or not user_obj:
-                        st.error("로그인에 실패했습니다. 이메일/비밀번호를 확인해 주세요.")
-                        st.stop()
+    mode = st.segmented_control(
+        " ",
+        options=["login", "signup"],
+        format_func=lambda x: "로그인" if x == "login" else "회원가입",
+        default="login",
+        label_visibility="collapsed",
+        key="hub_auth_mode",
+    )
 
-                    st.session_state["user"] = user_obj
-                    st.session_state["access_token"] = sess.access_token
-                    st.session_state["refresh_token"] = sess.refresh_token
-                    st.session_state["login_email"] = email.strip()
-                    _set_tokens_to_all_cookies(sess.access_token, sess.refresh_token)
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"로그인 오류: {e}")
-                    st.stop()
-        else:
-            if st.button("회원가입", type="primary", use_container_width=True):
-                try:
-                    res = sb.auth.sign_up({"email": email, "password": pw})
-                    st.success("회원가입 요청 완료! 이메일 인증이 필요한 설정이라면 메일을 확인해 주세요.")
-                except Exception as e:
-                    st.error(f"회원가입 오류: {e}")
-                    st.stop()
+    if mode == "login":
+        email = st.text_input("이메일", key="hub_login_email")
+        pw = st.text_input("비밀번호", type="password", key="hub_login_pw")
+
+        if st.button("로그인", use_container_width=True, key="hub_btn_login"):
+            if not email or not pw:
+                st.warning("이메일과 비밀번호를 입력해주세요.")
+                st.stop()
+            try:
+                res = sb.auth.sign_in_with_password({"email": email.strip(), "password": pw})
+                st.session_state["user"] = res.user
+                if res.session and res.session.access_token:
+                    st.session_state["access_token"] = res.session.access_token
+                    st.session_state["refresh_token"] = res.session.refresh_token or ""
+                    cookies["access_token"] = res.session.access_token
+                    cookies["refresh_token"] = res.session.refresh_token or ""
+                    cookies.save()
+                st.success("로그인 완료!")
+                st.rerun()
+            except Exception as e:
+                st.error(f"로그인 실패: {e}")
+
+    else:
+        email = st.text_input("이메일", key="hub_signup_email")
+        pw = st.text_input("비밀번호(8자리 이상 권장)", type="password", key="hub_signup_pw")
+        pw2 = st.text_input("비밀번호 확인", type="password", key="hub_signup_pw2")
+
+        if st.button("회원가입", use_container_width=True, key="hub_btn_signup"):
+            if not email or not pw:
+                st.warning("이메일과 비밀번호를 입력해주세요.")
+                st.stop()
+            if pw != pw2:
+                st.warning("비밀번호가 일치하지 않습니다.")
+                st.stop()
+            try:
+                sb.auth.sign_up({"email": email.strip(), "password": pw})
+                st.success("회원가입 요청 완료! 이메일 인증이 필요할 수 있어요. 인증 후 로그인해 주세요.")
+            except Exception as e:
+                st.error(f"회원가입 실패: {e}")
 
     st.stop()
 
 # ============================================================
-# ✅ Router (sidebar 없이)
+# ✅ Hub Home
 # ============================================================
-if "route" not in st.session_state:
-    st.session_state["route"] = "home"
-
-def go(route: str):
-    st.session_state["route"] = route
-    st.rerun()
-
-# 로그인 1회 통합
 require_login()
 
-# 상단 유저 표시 + 로그아웃
-u = st.session_state.get("user")
-email = getattr(u, "email", None) if u else None
-top_l, top_r = st.columns([3, 1])
-with top_l:
-    st.caption(f"✅ 로그인됨: {email}" if email else "✅ 로그인됨")
-with top_r:
-    if st.button("로그아웃", use_container_width=True):
-        try:
-            sb.auth.sign_out()
-        except Exception:
-            pass
-        _clear_tokens_all()
-        go("home")
+st.title("왕초보 탈출 하테나일본어")
+st.write("원하는 훈련을 선택해 주세요.")
 
-st.markdown("---")
+col1, col2, col3 = st.columns(3, gap="small")
 
-route = st.session_state.get("route", "home")
+with col1:
+    if st.button("📘 단어 훈련", use_container_width=True, key="hub_go_word"):
+        st.switch_page("pages/word_app.py")
 
-if route == "home":
-    st.markdown("## 메뉴 선택")
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        if st.button("단어 훈련", use_container_width=True, type="primary"):
-            # 충돌 완화: 다른 앱 키 일부 정리
-            for k in ["page", "quiz", "answers", "submitted", "wrong_list"]:
-                st.session_state.pop(k, None)
-            go("word")
-    with c2:
-        if st.button("한자 훈련", use_container_width=True, type="primary"):
-            for k in ["page", "quiz", "answers", "submitted", "wrong_list"]:
-                st.session_state.pop(k, None)
-            go("kanji")
-    with c3:
-        if st.button("회화 훈련", use_container_width=True):
-            go("talk")
+with col2:
+    if st.button("🈶 한자 훈련", use_container_width=True, key="hub_go_kanji"):
+        st.switch_page("pages/kanji_app.py")
 
-    st.caption("※ 홈은 사이드바 없이 버튼으로만 이동합니다.")
+with col3:
+    if st.button("💬 회화 훈련", use_container_width=True, key="hub_go_talk"):
+        st.switch_page("pages/talk_placeholder.py")
 
-elif route == "talk":
-    st.markdown("## 회화 훈련")
-    st.info("준비중입니다 🙂")
-    if st.button("⬅ 홈으로", use_container_width=True):
-        go("home")
+st.divider()
 
-elif route in ("word", "kanji"):
-    # 공통: 홈으로
-    if st.button("⬅ 홈으로", use_container_width=True):
-        go("home")
-
-    # --------------------------------------------------------
-    # ✅ Run selected app in isolated namespace
-    # --------------------------------------------------------
-    base = Path(__file__).parent
-    src_path = base / ("word_src.py" if route == "word" else "kanji_src.py")
+if st.button("로그아웃", use_container_width=True, key="hub_logout"):
     try:
-        code = src_path.read_text(encoding="utf-8")
-    except Exception as e:
-        st.error(f"앱 파일을 찾을 수 없습니다: {src_path} ({e})")
-        st.stop()
-
-    # pages에서 set_page_config를 다시 호출하지 않도록, main이 이미 처리함
-    # (word_src/kanji_src에서 set_page_config는 제거됨)
-
-    g = {
-        "__file__": str(src_path),
-        "__name__": "__main__",
-        "st": st,
-    }
-    try:
-        exec(compile(code, str(src_path), "exec"), g, g)
-    except Exception as e:
-        st.error("앱 실행 중 오류가 발생했습니다.")
-        st.code(traceback.format_exc())
-        st.stop()
-
-else:
-    st.session_state["route"] = "home"
+        sb.auth.sign_out()
+    except Exception:
+        pass
+    for k in ["user", "access_token", "refresh_token"]:
+        st.session_state.pop(k, None)
+    # clear cookies
+    cookies["access_token"] = ""
+    cookies["refresh_token"] = ""
+    cookies.save()
     st.rerun()
