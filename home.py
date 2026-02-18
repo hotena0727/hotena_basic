@@ -813,8 +813,8 @@ def _on_view_changed(new_view: str, prev_view: str | None):
 # ============================================================
 # ✅ Hub UI (Top Navigation)
 # ============================================================
-if st.session_state.get('hub_page','home') = 'home':
-if st.session_state.get('hub_page','home') = 'home':
+if st.session_state.get('hub_page','home') != 'home':
+if st.session_state.get('hub_page','home') != 'home':
     render_top_bar()
 def render_guide_block(page: str):
     with st.expander("이용 가이드", expanded=False):
