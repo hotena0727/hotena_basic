@@ -1585,10 +1585,13 @@ def require_login():
         st.stop()
 
 # ✅ 첫 방문 자동 노출
-if not has_seen_onboarding():
+if (not has_seen_onboarding()) or st.session_state.get('show_onboarding_again', False):
+    render_onboarding_card(expanded=True)
+    # 첫 방문인 경우: expander 내부 버튼(확인했어요)에서 mark_seen_onboarding() 처리
 else:
-    if st.button("📘 이용안내 다시보기", use_container_width=True):
-
+    if st.button('📘 이용안내 다시보기', use_container_width=True):
+        st.session_state['show_onboarding_again'] = True
+        st.rerun()
 # ============================================================
 # ✅ 네이버톡 배너 (제출 후만)
 # ============================================================
