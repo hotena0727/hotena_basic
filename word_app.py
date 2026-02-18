@@ -1,0 +1,2447 @@
+# ============================================================
+# ✅ 왕초보 탈출 호테나일본어 (단어 앱) - 전체 복붙용 단일 파일
+# - 품사 선택 + 유형 선택(발음/뜻/한→일)
+# - 로그인/회원가입(Supabase Auth) + 쿠키 세션 복원
+# - 홈/퀴즈/마이페이지/관리자 라우팅
+# - 오답노트 + 오답만 다시풀기
+# - 맞힌 단어 제외(정복) + 초기화
+# - 사운드 토글 + 테스트 재생 + 제출 후 1회 SFX
+#
+# ✅ CSV (data/.csv) 필수 컬럼(최종):
+#   level, pos, jp_word, reading, meaning, example_jp, example_kr
+#   - 문제는 jp_word(한자 포함 단어)에서 뽑음
+#
+# ✅ 이번 수정 반영:
+#   1) 발음(読み) 문제에서 "보기 모양"으로 찍기 방지:
+#      - verb: 가능한 한 '끝 2글자(히라가나 기준)' 동일 → 부족하면 '끝 1글자' 동일
+#      - verb: する 동사는 보기 4개 모두 '～する'로 통일
+#      - adj_i: 보기 전부 끝이 'い'로 통일(동일 pos 풀에서)
+#      - adj_na: pos가 동일하므로 기본적으로 모양 찍기 난이도 상승(동사처럼 suffix 적용은 X)
+#   2) 제출 후 SFX: perfect / (0.7 이상) correct / (그 외) wrong
+#   3) ✅ B안 반영:
+#      - 상단 품사 버튼: noun/verb/adj_i/adj_na/other(기타)
+#      - 기타 선택 시: 부사/조사/접속사/감탄사 체크박스(expander) + "적용(새 문제)" 버튼
+#      - 기타에서는 유형을 "뜻, 한→일" 2개만 노출 (발음 숨김)
+#   4) ✅ 필수패턴: "퀴즈"가 아니라 "카드"로(품사 그룹별) expander 제공
+# ============================================================
+
+from __future__ import annotations
+
+from pathlib import Path
+import random
+import pandas as pd
+import streamlit as st
+import unicodedata
+from supabase import create_client
+from streamlit_cookies_manager import EncryptedCookieManager
+import streamlit.components.v1 as components
+from collections import Counter
+import time
+import traceback
+import base64
+import textwrap 
+import json
+import html
+
+# ============================================================
+# ✅ Page Config + Paths
+# ============================================================
+
+def render_word_app():
+    
+    # ============================================================
+    # ✅ PWA/아이콘 - set_page_config 바로 아래
+    # ============================================================
+    
+    
+            if st.button("✅ 확인했어요 (다음부터 안 보기)", use_container_width=True):
+                mark_seen_onboarding()
+                st.rerun()
+    
+    # ============================================================
+    # ✅ Login UI
+    # ============================================================
+    def auth_box():
+        st.markdown("<div style='max-width:520px; margin:0 auto;'>", unsafe_allow_html=True)
+    
+        st.markdown(
+            '<div class="jp" style="font-weight:900; font-size:16px; margin:6px 0 6px 0;">로그인</div>',
+            unsafe_allow_html=True
+        )
+    
+        qp = st.query_params
+        came_from_email_link = any(k in qp for k in ["code", "token", "type", "access_token", "refresh_token"])
+        if came_from_email_link and not st.session_state.get("email_link_notice_shown"):
+            st.session_state.email_link_notice_shown = True
+            st.session_state.auth_mode = "login"
+            st.success("이메일 인증(또는 링크 확인)이 완료되었습니다. 이제 로그인해 주세요.")
+    
+        if "auth_mode" not in st.session_state:
+            st.session_state.auth_mode = "login"
+    
+        mode = st.radio(
+            label="",
+            options=["login", "signup"],
+            format_func=lambda x: "로그인" if x == "login" else "회원가입",
+            horizontal=True,
+            key="auth_mode_radio",
+            index=0 if st.session_state.auth_mode == "login" else 1,
+        )
+        st.session_state.auth_mode = mode
+    
+        if st.session_state.get("signup_done"):
+            st.success("회원가입 요청 완료! 이메일 인증이 필요할 수 있어요. 메일함을 확인한 뒤 로그인해 주세요.")
+            st.session_state.signup_done = False
+    
+        if mode == "login":
+            email = st.text_input("이메일", key="login_email_input")
+            pw = st.text_input("비밀번호", type="password", key="login_pw_input")
+    
+            st.caption("비밀번호는 **회원가입 때 8자리 이상**으로 설정했을 가능성이 큽니다.")
+            if pw and len(pw) < 8:
+                st.warning(f"입력하신 비밀번호가 {len(pw)}자리입니다. 회원가입 때 8자리 이상으로 설정하셨다면 더 길게 입력해 주세요.")
+    
+            if st.button("로그인", use_container_width=True, key="btn_login"):
+                if not email or not pw:
+                    st.warning("이메일과 비밀번호를 입력해주세요.")
+                    st.stop()
+    
+                try:
+                    res = sb.auth.sign_in_with_password({"email": email, "password": pw})
+                    st.session_state.user = res.user
+                    st.session_state["login_email"] = email.strip()
+    
+                    if res.session and res.session.access_token:
+                        st.session_state.access_token = res.session.access_token
+                        st.session_state.refresh_token = res.session.refresh_token
+                        cookies["access_token"] = res.session.access_token
+                        cookies["refresh_token"] = res.session.refresh_token
+                        cookies.save()
+                    else:
+                        st.warning("로그인은 되었지만 세션 토큰이 없습니다. 이메일 인증 상태를 확인해주세요.")
+                        st.session_state.access_token = None
+                        st.session_state.refresh_token = None
+    
+                    st.session_state.pop("is_admin_cached", None)
+                    st.success("로그인 완료!")
+                    st.rerun()
+    
+                except Exception:
+                    st.error("로그인 실패: 이메일/비밀번호 또는 이메일 인증 상태를 확인해주세요.")
+                    st.stop()
+    
+        else:
+            email = st.text_input("이메일", key="signup_email")
+            pw = st.text_input("비밀번호", type="password", key="signup_pw")
+    
+            pw_len = len(pw) if pw else 0
+            pw_ok = pw_len >= 8
+            email_ok = bool(email and email.strip())
+    
+            st.caption("비밀번호는 **8자리 이상**으로 설정해 주세요.")
+            if pw and not pw_ok:
+                st.warning(f"비밀번호가 너무 짧습니다. (현재 {pw_len}자) 8자리 이상으로 입력해 주세요.")
+    
+            if st.button("회원가입", use_container_width=True, disabled=not (email_ok and pw_ok), key="btn_signup"):
+                try:
+                    last = st.session_state.get("last_signup_ts", 0.0)
+                    now = time.time()
+                    if now - last < 8:
+                        st.warning("요청이 너무 빠릅니다. 잠시 후 다시 시도해주세요.")
+                        st.stop()
+                    st.session_state.last_signup_ts = now
+    
+                    sb.auth.sign_up(
+                        {
+                            "email": email,
+                            "password": pw,
+                            "options": {"email_redirect_to": APP_URL},
+                        }
+                    )
+    
+                    st.session_state.signup_done = True
+                    st.session_state.auth_mode = "login"
+                    st.session_state["login_email"] = email.strip()
+                    st.rerun()
+    
+                except Exception as e:
+                    msg = str(e).lower()
+                    if "rate limit" in msg and "email" in msg:
+                        st.session_state.auth_mode = "login"
+                        st.session_state["login_email"] = email.strip()
+                        st.session_state.signup_done = False
+                        st.warning("이메일 발송 제한에 걸렸습니다. 잠시 후 다시 시도해주세요.")
+                        st.rerun()
+    
+                    st.error("회원가입 실패(에러 확인):")
+                    st.exception(e)
+                    st.stop()
+    
+        st.markdown("</div>", unsafe_allow_html=True)
+    
+    def require_login():
+        if st.session_state.get("user") is None:
+            st.markdown(
+                """
+    <div class="jp" style="margin: 8px 0 14px 0;">
+      <div style="
+        border:1px solid rgba(120,120,120,0.18);
+        border-radius:18px;
+        padding:16px 16px;
+        background: rgba(255,255,255,0.03);
+      ">
+        <div style="font-weight:900; font-size:22px; line-height:1.15;">
+          ✨ 왕초보 탈출 호테나일본어
+        </div>
+        <div style="margin-top:6px; opacity:.85; font-size:13px; line-height:1.55;">
+          하루 10문항으로 가볍게 루틴을 만들어요.<br/>
+          정답은 저장되고, 오답은 다시 풀 수 있어요.
+        </div>
+      </div>
+    </div>
+    """,
+                unsafe_allow_html=True,
+            )
+            auth_box()
+            st.stop()
+    
+    # ✅ 첫 방문 자동 노출
+    if not has_seen_onboarding():
+        render_onboarding_card(expanded=True)
+    else:
+        if st.button("📘 이용안내 다시보기", use_container_width=True):
+            render_onboarding_card(expanded=True)
+    
+    # ============================================================
+    # ✅ 네이버톡 배너 (제출 후만)
+    # ============================================================
+    def render_naver_talk():
+        st.divider()
+        st.markdown(
+            f"""
+    <style>
+    @keyframes floaty {{
+      0% {{ transform: translateY(0); }}
+      50% {{ transform: translateY(-6px); }}
+      100% {{ transform: translateY(0); }}
+    }}
+    @keyframes ping {{
+      0% {{ transform: scale(1); opacity: 0.9; }}
+      70% {{ transform: scale(2.2); opacity: 0; }}
+      100% {{ transform: scale(2.2); opacity: 0; }}
+    }}
+    .floating-naver-talk,
+    .floating-naver-talk:visited,
+    .floating-naver-talk:hover,
+    .floating-naver-talk:active {{
+      position: fixed;
+      right: 18px;
+      bottom: 90px;
+      z-index: 99999;
+      text-decoration: none !important;
+      color: inherit !important;
+    }}
+    .floating-wrap {{
+      position: relative;
+      animation: floaty 2.2s ease-in-out infinite;
+    }}
+    .talk-btn {{
+      background: #03C75A;
+      color: #fff;
+      border: 0;
+      border-radius: 999px;
+      padding: 14px 18px;
+      font-size: 15px;
+      font-weight: 700;
+      box-shadow: 0 12px 28px rgba(0,0,0,0.22);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      line-height: 1.1;
+      text-decoration: none !important;
+    }}
+    .talk-btn:hover {{ filter: brightness(0.95); }}
+    .talk-text small {{
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      opacity: 0.95;
+      margin-top: 2px;
+    }}
+    .badge {{
+      position: absolute;
+      top: -6px;
+      right: -6px;
+      width: 12px;
+      height: 12px;
+      background: #ff3b30;
+      border-radius: 999px;
+      box-shadow: 0 6px 14px rgba(0,0,0,0.25);
+    }}
+    .badge::after {{
+      content: "";
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 12px;
+      height: 12px;
+      transform: translate(-50%, -50%);
+      border-radius: 999px;
+      background: rgba(255,59,48,0.55);
+      animation: ping 1.2s ease-out infinite;
+    }}
+    @media (max-width: 600px) {{
+      .floating-naver-talk {{ bottom: 110px; right: 14px; }}
+      .talk-btn {{ padding: 13px 16px; font-size: 14px; }}
+      .talk-text small {{ font-size: 11px; }}
+    }}
+    </style>
+    
+    <a class="floating-naver-talk" href="{NAVER_TALK_URL}" target="_blank" rel="noopener noreferrer">
+      <div class="floating-wrap">
+        <span class="badge"></span>
+        <button class="talk-btn" type="button">
+          <span>💬</span>
+          <span class="talk-text">
+            1:1 호테나쌤 상담
+            <small>수강신청 문의하기</small>
+          </span>
+        </button>
+      </div>
+    </a>
+    """,
+            unsafe_allow_html=True,
+        )
+    
+    # ============================================================
+    # ✅ Top Card (마이페이지/관리자/로그아웃)
+    # ============================================================
+    
+    def nav_to(page: str, scroll_top: bool = True):
+        st.session_state.page = page
+        if scroll_top:
+            st.session_state["_scroll_top_once"] = True
+    
+    def nav_logout():
+        clear_auth_everywhere()
+    
+    def render_topcard():
+        u = st.session_state.get("user")
+        if not u:
+            return
+    
+        st.markdown('<div class="topcard">', unsafe_allow_html=True)
+        left, r_admin, r_my, r_logout = st.columns([6.0, 1.2, 2.4, 2.4], vertical_alignment="center")
+    
+        with left:
+            st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
+    
+        with r_admin:
+            if is_admin():
+                st.button("📊", use_container_width=True, help="관리자 대시보드",
+                          key="topcard_btn_nav_admin", on_click=nav_to, args=("admin",))
+            else:
+                st.markdown("<div style='height:40px;'></div>", unsafe_allow_html=True)
+    
+        with r_my:
+            st.button("📌 마이페이지", use_container_width=True, help="내 학습 기록/오답 TOP10 보기",
+                      key="topcard_btn_nav_my", on_click=nav_to, args=("my",))
+    
+        with r_logout:
+            st.button("🚪 로그아웃", use_container_width=True, help="로그아웃",
+                      key="topcard_btn_logout", on_click=nav_logout)
+    
+        st.markdown("</div>", unsafe_allow_html=True)
+    
+    # ============================================================
+    # ✅ CSV Load Pool  (✅ CSV 최종 스펙 반영)
+    # ============================================================
+    READ_KW = dict(
+        dtype=str,
+        keep_default_na=False,
+        na_values=["nan", "NaN", "NULL", "null", "None", "none"],
+    )
+    
+    @st.cache_data(show_spinner=False)
+    def load_pool(csv_path_str: str) -> pd.DataFrame:
+        df = pd.read_csv(csv_path_str, **READ_KW)
+    
+        # ✅ CSV 최종 필수 컬럼
+        required_cols = {"level", "pos", "jp_word", "reading", "meaning", "example_jp", "example_kr"}
+        missing = required_cols - set(df.columns)
+        if missing:
+            raise ValueError(f"CSV 필수 컬럼 누락: {sorted(list(missing))}")
+    
+        def _nfkc(s):
+            return unicodedata.normalize("NFKC", str(s or "")).strip()
+    
+        df["level"] = df["level"].apply(_nfkc).str.upper().str.strip()
+        df["pos"] = df["pos"].apply(_nfkc).str.lower().str.strip()
+        df["jp_word"] = df["jp_word"].apply(_nfkc).str.strip()
+        df["reading"] = df["reading"].apply(_nfkc).str.strip()
+        df["meaning"] = df["meaning"].apply(_nfkc).str.strip()
+        df["example_jp"] = df["example_jp"].apply(_nfkc).str.strip()
+        df["example_kr"] = df["example_kr"].apply(_nfkc).str.strip()
+    
+        # 빈 줄 제거
+        df = df[
+            (df["pos"] != "") &
+            (df["jp_word"] != "") &
+            (df["reading"] != "") &
+            (df["meaning"] != "")
+        ].copy()
+    
+        return df.reset_index(drop=True)
+    
+    def ensure_pool_ready():
+        if st.session_state.get("pool_ready") and isinstance(st.session_state.get("_pool"), pd.DataFrame):
+            return
+        try:
+            pool = load_pool(str(CSV_PATH))
+        except Exception as e:
+            st.error(f"단어 데이터 로드 실패: {e}")
+            st.stop()
+    
+        if len(pool) < N:
+            st.error(f"단어가 부족합니다: pool={len(pool)} (N={N})")
+            st.stop()
+    
+        st.session_state["_pool"] = pool
+        st.session_state["pool_ready"] = True
+    
+        if is_admin():
+            with st.expander("🔎 디버그: 품사별 단어 수", expanded=False):
+                st.write(pool["pos"].value_counts(dropna=False))
+                st.write("CSV_PATH =", str(CSV_PATH))
+    
+    @st.cache_data(show_spinner=False)
+    def load_patterns(csv_path_str: str) -> dict[str, list[dict]]:
+        df = pd.read_csv(csv_path_str, **READ_KW)
+    
+        required = {
+            "pos_group", "title", "jp", "kr",
+            "ex1_jp", "ex1_kr", "ex2_jp", "ex2_kr"
+        }
+        missing = required - set(df.columns)
+        if missing:
+            raise ValueError(f"patterns CSV 필수 컬럼 누락: {sorted(list(missing))}")
+    
+        def _nfkc(s):
+            return unicodedata.normalize("NFKC", str(s or "")).strip()
+    
+        for c in df.columns:
+            df[c] = df[c].apply(_nfkc)
+    
+        df["pos_group"] = df["pos_group"].str.lower().str.strip()
+    
+        # 빈 행 제거(최소 title/jp는 있어야 카드가 의미가 있음)
+        df = df[(df["pos_group"] != "") & (df["title"] != "") & (df["jp"] != "")].copy()
+    
+        out: dict[str, list[dict]] = {}
+        for _, r in df.iterrows():
+            g = r["pos_group"]
+            item = {
+                "title": r["title"],
+                "jp": r["jp"],
+                "kr": r["kr"],
+                "ex": [
+                    (r.get("ex1_jp", ""), r.get("ex1_kr", "")),
+                    (r.get("ex2_jp", ""), r.get("ex2_kr", "")),
+                ],
+            }
+            # 예문이 비어있으면 제거
+            item["ex"] = [(a, b) for (a, b) in item["ex"] if a and b]
+    
+            out.setdefault(g, []).append(item)
+    
+        return out
+    
+    def ensure_patterns_ready():
+        if st.session_state.get("_patterns_ready") and isinstance(st.session_state.get("_patterns"), dict):
+            return
+        try:
+            pats = load_patterns(str(PATTERN_CSV_PATH))
+        except Exception as e:
+            st.error(f"필수패턴 CSV 로드 실패: {e}")
+            st.stop()
+    
+        st.session_state["_patterns"] = pats
+        st.session_state["_patterns_ready"] = True
+    
+    # ============================================================
+    # ✅ Quiz Logic
+    # ============================================================
+    def _nfkc_str(x) -> str:
+        return unicodedata.normalize("NFKC", str(x or "")).strip()
+    
+    def _has_kanji(s: str) -> bool:
+        """
+        jp_word에 '한자'가 1글자라도 포함되어 있으면 True.
+        (발음 문제에서 '히라가나만 있는 단어'를 제외하기 위한 용도)
+        """
+        s = _nfkc_str(s)
+        for ch in s:
+            code = ord(ch)
+            # CJK Unified Ideographs (일반 한자 범위)
+            if 0x4E00 <= code <= 0x9FFF:
+                return True
+            # CJK Extension A (일부 한자)
+            if 0x3400 <= code <= 0x4DBF:
+                return True
+        return False
+    
+    def _to_hira(s: str) -> str:
+        s = _nfkc_str(s)
+        out = []
+        for ch in s:
+            code = ord(ch)
+            if 0x30A1 <= code <= 0x30F6:
+                out.append(chr(code - 0x60))
+            else:
+                out.append(ch)
+        return "".join(out)
+    
+    def _uniq(xs):
+        out, seen = [], set()
+        for x in xs:
+            if x not in seen:
+                seen.add(x)
+                out.append(x)
+        return out
+    
+    def _suffix_kana(x: str, n: int) -> str:
+        s = _to_hira(_nfkc_str(x))
+        return s[-n:] if len(s) >= n else s
+    
+    def _is_suru_verb(reading: str) -> bool:
+        r = _to_hira(_nfkc_str(reading))
+        return r.endswith("する")
+    
+    def _jp_okurigana_suffix(jp_word: str) -> str:
+        """
+        jp_word 끝에서 '오쿠리가나(히라/가타카나 연속 꼬리)'를 뽑아 히라가나로 반환.
+        """
+        s = _nfkc_str(jp_word)
+        if not s:
+            return ""
+        i = len(s)
+        while i > 0:
+            ch = s[i-1]
+            code = ord(ch)
+            is_hira = (0x3040 <= code <= 0x309F)
+            is_kata = (0x30A0 <= code <= 0x30FF)
+            if is_hira or is_kata:
+                i -= 1
+            else:
+                break
+        tail = s[i:]
+        tail = _to_hira(tail)
+        return tail
+    
+    def _safe_suffix_hira(x: str, n: int) -> str:
+        xh = _to_hira(_nfkc_str(x))
+        return xh[-n:] if len(xh) >= n else xh
+    
+    def _pick_reading_wrongs(candidates: list[str], correct: str, pos: str, jp_word: str = "", k: int = 3) -> list[str]:
+        correct_nf = _nfkc_str(correct)
+        cands = _uniq([_nfkc_str(c) for c in candidates if _nfkc_str(c) and _nfkc_str(c) != correct_nf])
+        if len(cands) < k:
+            return []
+    
+        correct_h = _to_hira(correct_nf)
+    
+        okuri = _jp_okurigana_suffix(jp_word)
+        okuri = _to_hira(okuri)
+    
+        ok2 = okuri[-2:] if len(okuri) >= 2 else ""
+        ok1 = okuri[-1:] if len(okuri) >= 1 else ""
+    
+        cor2 = _safe_suffix_hira(correct_h, 2)
+        cor1 = _safe_suffix_hira(correct_h, 1)
+    
+        target2 = ok2 if ok2 else cor2
+        target1 = ok1 if ok1 else cor1
+    
+        want_suru = (target2 == "する") or correct_h.endswith("する")
+    
+        def score(c: str) -> int:
+            ch = _to_hira(c)
+            sc = 0
+            if want_suru:
+                if ch.endswith("する"):
+                    sc += 100
+                else:
+                    sc -= 50
+            if target2 and _safe_suffix_hira(ch, 2) == target2:
+                sc += 60
+            if target1 and _safe_suffix_hira(ch, 1) == target1:
+                sc += 25
+            if ch == correct_h:
+                sc -= 999
+            return sc
+    
+        ranked = sorted(cands, key=lambda x: score(x), reverse=True)
+    
+        same2 = [c for c in ranked if target2 and _safe_suffix_hira(c, 2) == target2]
+        same1 = [c for c in ranked if target1 and _safe_suffix_hira(c, 1) == target1]
+    
+        out = []
+        for c in same2:
+            if c not in out:
+                out.append(c)
+            if len(out) == k:
+                return out
+        for c in same1:
+            if c not in out:
+                out.append(c)
+            if len(out) == k:
+                return out
+        for c in ranked:
+            if c not in out:
+                out.append(c)
+            if len(out) == k:
+                return out
+    
+        return out[:k]
+    
+    def make_question(row: pd.Series, qtype: str, pool: pd.DataFrame) -> dict:
+        jp = str(row.get("jp_word", "")).strip()
+        rd = str(row.get("reading", "")).strip()
+        mn = str(row.get("meaning", "")).strip()
+        pos = str(row.get("pos", "")).strip().lower()
+        ex_jp = str(row.get("example_jp", "")).strip()
+        ex_kr = str(row.get("example_kr", "")).strip()
+    
+        # ✅ 같은 실제 pos 풀
+        pool_pos = pool[pool["pos"].astype(str).str.strip().str.lower() == pos].copy()
+    
+        if qtype == "reading":
+            prompt = f"{jp}의 발음은?"
+            correct = rd
+            candidates = (
+                pool_pos.loc[pool_pos["reading"] != correct, "reading"]
+                .dropna().drop_duplicates().tolist()
+            )
+            wrongs = _pick_reading_wrongs(candidates, correct, pos=pos, jp_word=jp, k=3)
+            if len(wrongs) < 3:
+                c2 = _uniq([str(x).strip() for x in candidates if str(x).strip()])
+                if len(c2) < 3:
+                    st.error(f"오답 후보 부족(발음): pos={pos}, 후보={len(c2)}개")
+                    st.stop()
+                wrongs = random.sample(c2, 3)
+    
+        elif qtype == "meaning":
+            prompt = f"{jp}의 뜻은?"
+            correct = mn
+            candidates = (
+                pool_pos.loc[pool_pos["meaning"] != correct, "meaning"]
+                .dropna().drop_duplicates().tolist()
+            )
+            if len(candidates) < 3:
+                st.error(f"오답 후보 부족(뜻): pos={pos}, 후보={len(candidates)}개")
+                st.stop()
+            wrongs = random.sample(candidates, 3)
+    
+        elif qtype == "kr2jp":
+            prompt = f"'{mn}'의 일본어는?"
+            correct = jp
+            candidates = (
+                pool_pos.loc[pool_pos["jp_word"] != correct, "jp_word"]
+                .dropna().astype(str).str.strip().tolist()
+            )
+            candidates = [x for x in dict.fromkeys(candidates) if x]
+            if len(candidates) < 3:
+                st.error(f"오답 후보 부족(한→일): pos={pos}, 후보={len(candidates)}개")
+                st.stop()
+            wrongs = random.sample(candidates, 3)
+    
+        else:
+            raise ValueError(f"Unknown qtype: {qtype}")
+    
+        choices = wrongs + [correct]
+        random.shuffle(choices)
+    
+        return {
+            "prompt": prompt,
+            "choices": choices,
+            "correct_text": correct,
+            "jp_word": jp,
+            "reading": rd,
+            "meaning": mn,
+            "pos": pos,
+            "qtype": qtype,
+            "example_jp": ex_jp,
+            "example_kr": ex_kr,
+        }
+    
+    def build_quiz(qtype: str, pos_group: str) -> list[dict]:
+        # ✅ 안전장치: 제한 그룹에서는 reading 강제 금지
+        pos_group = str(pos_group).strip().lower()
+        qtype = str(qtype).strip()
+        if pos_group in POS_ONLY_2TYPES and qtype == "reading":
+            qtype = "meaning"
+    
+        ensure_pool_ready()
+        ensure_mastered_words_shape()
+        ensure_excluded_wrong_words_shape()
+        ensure_mastery_banner_shape()
+        ensure_seen_words_shape()
+    
+        pool = st.session_state["_pool"]
+    
+        pos_filters = get_pos_filters()
+        base_pos = pool[pool["pos"].astype(str).str.strip().str.lower().isin(pos_filters)].copy()
+    
+        # ✅ 발음(reading) 문제: jp_word에 한자가 없는(히라가나만 등) 단어는 제외
+        if qtype == "reading":
+            base_pos = base_pos[base_pos["jp_word"].apply(_has_kanji)].copy()
+    
+        if len(base_pos) < N:
+            st.warning(f"{POS_LABEL_MAP.get(pos_group,pos_group)} 단어가 부족합니다. (현재 {len(base_pos)}개 / 필요 {N}개)")
+            return []
+    
+        k = mastery_key(qtype=qtype, pos=pos_group)
+    
+        seen = st.session_state.get("seen_words", {}).get(k, set())
+        mastered = st.session_state.get("mastered_words", {}).get(k, set())
+        excluded = st.session_state.get("excluded_wrong_words", {}).get(k, set())
+    
+        blocked = set()
+        if seen:
+            blocked |= set(seen)          # ✅ 한 번이라도 출제된 건 전부 제외
+        if mastered:
+            blocked |= set(mastered)      # (겹쳐도 무관)
+        if excluded:
+            blocked |= set(excluded)    
+    
+        def _filter_blocked(df: pd.DataFrame) -> pd.DataFrame:
+            if not blocked:
+                return df
+            keys = df["jp_word"].astype(str).str.strip()
+            return df[~keys.isin(blocked)].copy()
+    
+        base = _filter_blocked(base_pos)
+    
+        if len(base) < N:
+            st.session_state.setdefault("mastery_done", {})
+            st.session_state.mastery_done[k] = True
+            return []
+    
+        sampled = base.sample(n=N, replace=False).reset_index(drop=True)
+        return [make_question(sampled.iloc[i], qtype, pool) for i in range(N)]
+    
+    
+    # ============================================================
+    # ✅ Quiz builders for review (TOP10 / wrong retry)
+    # ✅ 반드시 Admin/My pages(마이페이지) 보다 위에 있어야 합니다.
+    # ============================================================
+    
+    def build_quiz_from_word_keys(word_keys: list[str], qtype: str, pos_group: str) -> list[dict]:
+        # ✅ 안전장치
+        pos_group = str(pos_group).strip().lower()
+        qtype = str(qtype).strip()
+        if pos_group in POS_ONLY_2TYPES and qtype == "reading":
+            qtype = "meaning"
+    
+        ensure_pool_ready()
+        pool = st.session_state["_pool"]
+    
+        keys = [str(x).strip() for x in (word_keys or []) if str(x).strip()]
+        keys = list(dict.fromkeys(keys))
+        if not keys:
+            st.warning("TOP10 단어가 비어 있어요.")
+            return []
+    
+        pos_filters = get_pos_filters()
+        df = pool[
+            (pool["pos"].astype(str).str.strip().str.lower().isin(pos_filters))
+            & (pool["jp_word"].astype(str).str.strip().isin(keys))
+        ].copy()
+    
+        if qtype == "reading":
+            df = df[df["jp_word"].apply(_has_kanji)].copy()
+    
+        if df.empty:
+            st.warning("TOP10 단어를 현재 풀(품사/기타 선택)에서 찾지 못했어요. (필터 조건 확인)")
+            return []
+    
+        df = df.sample(frac=1).reset_index(drop=True)
+        return [make_question(df.iloc[i], qtype, pool) for i in range(len(df))]
+    
+    def build_quiz_from_wrongs(wrong_list: list, qtype: str, pos_group: str) -> list[dict]:
+        # ✅ 안전장치
+        pos_group = str(pos_group).strip().lower()
+        qtype = str(qtype).strip()
+        if pos_group in POS_ONLY_2TYPES and qtype == "reading":
+            qtype = "meaning"
+    
+        ensure_pool_ready()
+        pool = st.session_state["_pool"]
+    
+        # ✅ wrong_list에서 jp_word 키 뽑기
+        wrong_words = []
+        for w in (wrong_list or []):
+            key = str(w.get("단어", "")).strip()
+            if key:
+                wrong_words.append(key)
+        wrong_words = list(dict.fromkeys(wrong_words))
+    
+        if not wrong_words:
+            st.warning("현재 오답 노트가 비어 있어요. 🙂")
+            return []
+    
+        # ✅ 현재 화면의 pos 필터(기타면 체크된 세부 품사들)
+        pos_filters = get_pos_filters()
+    
+        # ✅ pool에서 오답 단어 + 현재 pos필터로 매칭
+        retry_df = pool[
+            (pool["pos"].astype(str).str.strip().str.lower().isin(pos_filters))
+            & (pool["jp_word"].astype(str).str.strip().isin(wrong_words))
+        ].copy()
+    
+        if retry_df.empty:
+            st.error("오답 단어를 현재 풀(품사/기타 선택)에서 찾지 못했습니다. (jp_word 매칭/필터 확인)")
+            return []
+    
+        # ✅ reading이면 ‘한자 포함 jp_word’만
+        if qtype == "reading":
+            retry_df = retry_df[retry_df["jp_word"].apply(_has_kanji)].copy()
+            if retry_df.empty:
+                st.warning("오답 중 ‘한자 포함 단어’가 없어 발음 문제로는 복습할 수 없어요. (뜻/한→일로 복습 추천)")
+                return []
+    
+        retry_df = retry_df.sample(frac=1).reset_index(drop=True)
+    
+        # ✅ 오답 전체를 문제로 만들되, 최대 N개까지만 (원하면 삭제 가능)
+        if len(retry_df) > N:
+            retry_df = retry_df.head(N).copy()
+    
+        return [make_question(retry_df.iloc[i], qtype, pool) for i in range(len(retry_df))]
+    
+    # ============================================================
+    # ✅ Admin/My pages
+    # ============================================================
+    def render_admin_dashboard():
+        st.subheader("📊 관리자 대시보드")
+    
+        if not is_admin():
+            st.error("접근 권한이 없습니다.")
+            st.session_state.page = "quiz"
+            st.stop()
+    
+        if st.button("← 돌아가기", use_container_width=True, key="btn_admin_back"):
+            st.session_state.page = "quiz"
+            st.rerun()
+    
+        sb_authed_local = get_authed_sb()
+        if sb_authed_local is None:
+            st.warning("세션 토큰이 없습니다. 다시 로그인해 주세요.")
+            return
+    
+        st.caption("※ 확장 가능: 전체 기록 조회 등")
+        if st.button("최근 전체 기록 100개 보기", use_container_width=True, key="btn_admin_fetch100"):
+            try:
+                res = run_db(lambda: fetch_all_attempts_admin(sb_authed_local, limit=100))
+                if not res.data:
+                    st.info("기록이 없습니다.")
+                else:
+                    df = pd.DataFrame(res.data)
+                    df["created_at"] = to_kst_naive(df["created_at"])
+                    df["품사"] = df["level"].map(lambda x: POS_LABEL_MAP.get(str(x), str(x)))
+                    df["유형"] = df["pos_mode"].map(lambda x: quiz_label_map.get(str(x), str(x)))
+                    st.dataframe(df, use_container_width=True, hide_index=True)
+            except Exception as e:
+                st.error("조회 실패")
+                st.write(str(e))
+    
+    def render_my_dashboard():
+        st.subheader("📌 내 대시보드")
+    
+        if st.button("← 돌아가기", use_container_width=True, key="btn_my_back"):
+            st.session_state.page = "quiz"
+            st.rerun()
+    
+        u = st.session_state.get("user")
+        if not u:
+            st.warning("로그인 정보가 없습니다. 다시 로그인해 주세요.")
+            st.session_state.page = "quiz"
+            st.stop()
+    
+        user_id_local = getattr(u, "id", None)
+        if not user_id_local:
+            st.warning("유저 ID를 찾지 못했습니다. 다시 로그인해 주세요.")
+            st.session_state.page = "quiz"
+            st.stop()
+    
+        sb_authed_local = get_authed_sb()
+        if sb_authed_local is None:
+            st.warning("세션 토큰이 없습니다. 다시 로그인해 주세요.")
+            return
+    
+        with st.expander("🗑️ 전체 학습 기록 완전 초기화", expanded=False):
+            st.warning("이 작업은 되돌릴 수 없습니다.\n(최근 기록 / 오답 TOP10 / 진행중 복원까지 모두 초기화됩니다.)")
+            agree = st.checkbox("초기화에 동의합니다.", key="chk_reset_all_agree")
+            if st.button("🗑️ 지금 완전 초기화", type="primary", use_container_width=True, key="btn_reset_all_records"):
+                if not agree:
+                    st.error("초기화에 동의해 주세요.")
+                    st.stop()
+    
+                try:
+                    run_db(lambda: delete_all_learning_records(sb_authed_local, user_id_local))
+    
+                    clear_question_widget_keys()
+                    for k in [
+                        "history", "wrong_counter", "total_counter",
+                        "wrong_list", "quiz", "answers", "submitted",
+                        "saved_this_attempt", "stats_saved_this_attempt",
+                        "session_stats_applied_this_attempt",
+                        "quiz_version",
+                        "mastered_words", "mastery_banner_shown", "mastery_done",
+                        "progress_restored", "pool_ready",
+                        "excluded_wrong_words",
+                    ]:
+                        st.session_state.pop(k, None)
+    
+                    st.success("✅ 전체 학습 기록이 완전 초기화되었습니다.")
+                    st.session_state.page = "quiz"
+                    st.rerun()
+    
+                except Exception as e:
+                    st.error("초기화 실패: RLS 정책(삭제 권한) 또는 테이블/컬럼 확인이 필요합니다.")
+                    st.exception(e)
+    
+        try:
+            res = run_db(lambda: fetch_recent_attempts(sb_authed_local, user_id_local, limit=50))
+        except Exception as e:
+            st.info("기록을 불러오지 못했습니다.")
+            st.write(str(e))
+            return
+    
+        if not res.data:
+            st.info("아직 저장된 기록이 없습니다. 문제를 풀고 제출하면 기록이 쌓여요.")
+            return
+    
+        hist = pd.DataFrame(res.data).copy()
+        hist["created_at"] = to_kst_naive(hist["created_at"])
+        hist["품사"] = hist["level"].map(lambda x: POS_LABEL_MAP.get(str(x), str(x)))
+        hist["유형"] = hist["pos_mode"].map(lambda x: quiz_label_map.get(str(x), str(x)))
+        hist["정답률"] = (hist["score"] / hist["quiz_len"]).fillna(0.0)
+    
+        avg_rate = float(hist["정답률"].mean() * 100)
+        best = int(hist["score"].max())
+        last_score = int(hist.iloc[0]["score"])
+        last_total = int(hist.iloc[0]["quiz_len"])
+    
+        dashboard_html = f"""
+        <style>
+        .stat-grid{{
+          display:grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap:12px;
+          margin: 6px 0 6px 0;
+        }}
+        .stat-card{{
+          border:1px solid rgba(120,120,120,0.25);
+          border-radius:18px;
+          padding:14px 14px;
+          background: rgba(255,255,255,0.02);
+        }}
+        .stat-label{{
+          font-size:12px;
+          font-weight:800;
+          opacity:.72;
+          line-height:1.2;
+        }}
+        .stat-value{{
+          margin-top:6px;
+          font-size:22px;
+          font-weight:900;
+          line-height:1.1;
+        }}
+        .stat-sub{{
+          margin-top:6px;
+          font-size:12px;
+          opacity:.70;
+          line-height:1.2;
+        }}
+        @media (max-width: 520px){{
+          .stat-grid{{ grid-template-columns: 1fr; }}
+          .stat-value{{ font-size:24px; }}
+        }}
+        </style>
+    
+        <div class="jp">
+          <div class="stat-grid">
+            <div class="stat-card">
+              <div class="stat-label">최근 평균(최대 50회)</div>
+              <div class="stat-value">{avg_rate:.0f}%</div>
+              <div class="stat-sub">정답률 기준</div>
+            </div>
+    
+            <div class="stat-card">
+              <div class="stat-label">최고 점수</div>
+              <div class="stat-value">{best} / {last_total}</div>
+              <div class="stat-sub">최근 기록 중 최고</div>
+            </div>
+    
+            <div class="stat-card">
+              <div class="stat-label">최근 점수</div>
+              <div class="stat-value">{last_score} / {last_total}</div>
+              <div class="stat-sub">가장 최근 1회</div>
+            </div>
+          </div>
+        </div>
+        """
+        components.html(dashboard_html, height=330)
+    
+        st.markdown("### ❌ 자주 틀린 단어 TOP10 (최근 50회)")
+    
+        counter = Counter()
+        for row in (res.data or []):
+            wl = row.get("wrong_list") or []
+            if isinstance(wl, list):
+                for w in wl:
+                    word = str(w.get("단어", "")).strip()
+                    if word:
+                        counter[word] += 1
+    
+        if not counter:
+            st.caption("아직 오답 데이터가 충분하지 않습니다. 몇 번 더 풀면 TOP10이 생겨요 🙂")
+            return
+    
+        st.markdown(
+            """
+    <style>
+    .wt10-card{
+      border:1px solid rgba(120,120,120,0.25);
+      border-radius:18px;
+      padding:14px 16px;
+      margin:12px 0;
+      background: rgba(255,255,255,0.02);
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:14px;
+    }
+    .wt10-left{
+      display:flex;
+      flex-direction:column;
+      gap:6px;
+      min-width: 0;
+    }
+    .wt10-title{
+      font-size:18px;
+      font-weight:900;
+      line-height:1.15;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+    .wt10-sub{
+      font-size:13px;
+      opacity:.75;
+    }
+    .wt10-badge{
+      border:1px solid rgba(120,120,120,0.25);
+      background: rgba(255,255,255,0.03);
+      border-radius:999px;
+      padding:7px 12px;
+      font-size:13px;
+      font-weight:900;
+      white-space:nowrap;
+    }
+    </style>
+    """,
+            unsafe_allow_html=True,
+        )
+    
+        def render_wrong_top10_card(rank: int, word: str, cnt: int):
+            st.markdown(
+                f"""
+    <div class="jp">
+      <div class="wt10-card">
+        <div class="wt10-left">
+          <div class="wt10-title">#{rank} {word}</div>
+          <div class="wt10-sub">최근 50회 기준</div>
+        </div>
+        <div class="wt10-badge">오답 {cnt}회</div>
+      </div>
+    </div>
+    """,
+                unsafe_allow_html=True,
+            )
+    
+        top10 = counter.most_common(10)
+        for i, (w, cnt) in enumerate(top10, start=1):
+            render_wrong_top10_card(i, str(w), int(cnt))
+    
+        # ✅ TOP10 시험보기 버튼
+        top10_words = [str(w) for (w, _) in top10]
+    
+        st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
+        if st.button("🧪 TOP10으로 시험보기", type="primary", use_container_width=True, key="btn_top10_quiz"):
+            clear_question_widget_keys()
+    
+            quiz = build_quiz_from_word_keys(
+                word_keys=top10_words,
+                qtype=st.session_state.get("quiz_type", "meaning"),
+                pos_group=st.session_state.get("pos_group", "noun"),
+            )
+    
+            start_quiz_state(quiz, st.session_state.get("quiz_type", "meaning"), clear_wrongs=True)
+            st.session_state.page = "quiz"
+            st.session_state["_scroll_top_once"] = True
+            st.rerun()
+    
+    # ============================================================
+    # ✅ Home
+    # ============================================================
+    def reset_quiz_state_only():
+        clear_question_widget_keys()
+        for k in ["quiz", "answers", "submitted", "wrong_list",
+                  "saved_this_attempt", "stats_saved_this_attempt",
+                  "session_stats_applied_this_attempt"]:
+            st.session_state.pop(k, None)
+    
+    def go_quiz_from_home():
+        reset_quiz_state_only()
+    
+        # ✅ 콤보 알림 단계 리셋(오늘 최고 기록은 유지)
+        st.session_state["combo_last_notice"] = 0
+        
+        st.session_state.page = "quiz"
+        st.session_state["_scroll_top_once"] = True
+    
+    MODE_LABEL_MAP = {
+        "reading": "발음",
+        "meaning": "뜻",
+        "kr2jp": "한→일",
+        # 필요하면 더 추가
+    }
+    
+    def mode_label(x: str) -> str:
+        x = "" if x is None else str(x).strip().lower()
+        return MODE_LABEL_MAP.get(x, x)  # 없는 값이면 원문 유지
+    def render_home():
+        u = st.session_state.get("user")
+        email = (getattr(u, "email", None) if u else None) or st.session_state.get("login_email", "")
+    
+        # ✅ (1) 타이틀/환영
+        st.markdown(
+            f"""
+    <div class="jp headbar">
+      <div class="headtitle">✨ 왕초보 탈출 호테나일본어</div>
+      <div class="headhello">환영합니다 🙂 <span class="mail">{email}</span></div>
+    </div>
+    """,
+            unsafe_allow_html=True,
+        )
+    
+        # ✅ (2) 오늘의 학습 리포트: 홈에서만 / 타이틀 다음, 오늘의 말 위
+        try:
+            sb_authed = get_authed_sb()
+            user_id = getattr(u, "id", None) if u else None
+            if sb_authed and user_id:
+                render_today_report_db_only(sb_authed, user_id)
+        except Exception:
+            # 리포트 실패해도 홈 화면은 멈추지 않게
+            pass
+    
+        # ✅ (3) 오늘의 말
+        quotes = [
+            "오늘 10문항이면 충분해요.",
+            "루틴은 작게, 지속은 길게.",
+            "정답보다 중요한 건 ‘계속’입니다.",
+            "단어가 쌓이면 문장이 열립니다.",
+            "오늘의 한 번이 내일의 자신감이에요.",
+        ]
+        q = random.choice(quotes)
+    
+        st.markdown(
+            f"""
+    <div class="jp" style="
+      margin-top:1px;
+      border:1px solid rgba(120,120,120,0.18);
+      border-radius:18px; padding:16px; background:rgba(255,255,255,0.03);">
+      <div style="font-weight:900; font-size:14px; opacity:.75;">오늘의 말</div>
+      <div style="margin-top:6px; font-weight:900; font-size:20px; line-height:1.3;">{q}</div>
+      <div style="margin-top:10px; opacity:.80; font-size:13px; line-height:1.55;">
+        품사 하나씩만 잡아도, 말이 빨라집니다.
+      </div>
+    </div>
+    """,
+            unsafe_allow_html=True,
+        )
+    
+        st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+        st.divider()
+    
+        c1, c2, c3 = st.columns([5, 3, 3])
+        with c1:
+            st.button("▶ 오늘의 퀴즈 시작", type="primary", use_container_width=True,
+                      key="btn_home_start", on_click=go_quiz_from_home)
+                      
+        with c2:
+            st.button("📌 마이페이지", use_container_width=True,
+                      key="btn_home_my", on_click=nav_to, args=("my",))
+        with c3:
+            st.button("🚪 로그아웃", use_container_width=True,
+                      key="btn_home_logout", on_click=nav_logout)
+    
+    
+    # ============================================================
+    # ✅ 오늘의 학습 리포트 (DB only / quiz_attempts 기반)
+    #   - 로그인 유저만 표시
+    #   - 오늘 푼 문항 / 정답률 / 오늘 오답 / 연속 학습(streak)
+    #   - 가장 많이 틀린 모드(pos_mode)
+    # ============================================================
+    
+    from datetime import datetime, timedelta, timezone
+    from zoneinfo import ZoneInfo
+    from collections import Counter
+    import html
+    import streamlit as st
+    
+    KST = ZoneInfo("Asia/Seoul")
+    
+    def _parse_dt_any(x) -> datetime | None:
+        """Supabase created_at 파싱(ISO 문자열/datetime 모두 대응)."""
+        if x is None:
+            return None
+        if isinstance(x, datetime):
+            dt = x
+        else:
+            s = str(x).replace("Z", "+00:00")
+            try:
+                dt = datetime.fromisoformat(s)
+            except Exception:
+                return None
+    
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    
+    def fetch_attempts_between(supabase, user_id: str, start_utc: datetime, end_utc: datetime) -> list[dict]:
+        """기간 내 attempts 가져오기 (created_at은 보통 UTC timestamptz)."""
+        try:
+            res = (
+                supabase.table("quiz_attempts")
+                .select("created_at, quiz_len, score, wrong_count, pos_mode")
+                .eq("user_id", user_id)
+                .gte("created_at", start_utc.isoformat())
+                .lt("created_at", end_utc.isoformat())
+                .order("created_at", desc=False)
+                .execute()
+            )
+            return res.data or []
+        except Exception:
+            return []
+    
+    def _kst_day_key(dt_utc: datetime) -> str:
+        """UTC dt -> KST 날짜키(YYYY-MM-DD)."""
+        k = dt_utc.astimezone(KST)
+        return k.strftime("%Y-%m-%d")
+    
+    def build_today_report_from_rows(today_rows: list[dict], recent_rows: list[dict]) -> dict:
+        # ✅ 오늘 집계
+        today_total = 0
+        today_correct = 0
+        today_wrong = 0
+        wrong_mode_counter = Counter()
+    
+        for r in (today_rows or []):
+            qlen = int(r.get("quiz_len") or 0)
+            score = int(r.get("score") or 0)
+    
+            wc_raw = r.get("wrong_count")
+            if wc_raw is None or wc_raw == "":
+                wc = max(0, qlen - score)
+            else:
+                wc = int(wc_raw or 0)
+    
+            mode = str(r.get("pos_mode") or "-")
+    
+            today_total += qlen
+            today_correct += score
+            today_wrong += wc
+    
+            if wc > 0:
+                wrong_mode_counter[mode] += wc
+    
+        accuracy = 0
+        if today_total > 0:
+            accuracy = int(round((today_correct / today_total) * 100))
+    
+        top_wrong_mode = "-"
+        if wrong_mode_counter:
+            top_wrong_mode = wrong_mode_counter.most_common(1)[0][0]
+    
+        # ✅ 연속 학습(streak)
+        day_has = set()
+        for r in (recent_rows or []):
+            dt = _parse_dt_any(r.get("created_at"))
+            if not dt:
+                continue
+            day_has.add(_kst_day_key(dt))
+    
+        streak = 0
+        cur = datetime.now(KST).date()
+        for _ in range(90):  # 최대 90일만 체크
+            key = cur.strftime("%Y-%m-%d")
+            if key in day_has:
+                streak += 1
+                cur = cur - timedelta(days=1)
+            else:
+                break
+    
+        return {
+            "today_total": int(today_total),
+            "today_correct": int(today_correct),
+            "today_wrong": int(today_wrong),
+            "accuracy": int(accuracy),
+            "top_wrong_mode": str(top_wrong_mode),
+            "streak": int(streak),
+        }
+    
+    def render_today_report_db_only(sb_authed, user_id: str):
+        """한 방에: fetch -> build -> render (DB only)"""
+        try:
+            now_kst = datetime.now(KST)
+            start_kst = now_kst.replace(hour=0, minute=0, second=0, microsecond=0)
+            end_kst = start_kst + timedelta(days=1)
+    
+            # DB는 UTC timestamptz인 경우가 많으니 UTC로 변환해서 조회
+            start_utc = start_kst.astimezone(timezone.utc)
+            end_utc = end_kst.astimezone(timezone.utc)
+    
+            today_rows = fetch_attempts_between(sb_authed, user_id, start_utc, end_utc)
+    
+            # streak 계산용 최근 60일
+            recent_start_utc = (start_kst - timedelta(days=60)).astimezone(timezone.utc)
+            recent_rows = fetch_attempts_between(sb_authed, user_id, recent_start_utc, end_utc)
+    
+            rep = build_today_report_from_rows(today_rows, recent_rows)
+    
+            is_pro_user = is_pro()
+    
+            if not is_pro_user:
+                st.caption("🔒 상세 학습 리포트는 PRO에서 확인할 수 있어요.")
+    
+            def mask_value(val, suffix=""):
+                if is_pro_user:
+                    return f"{val}{suffix}"
+                return f"<span style='filter: blur(6px); user-select:none;'>{val}</span>{suffix}"               
+    
+    
+            total = rep["today_total"]
+            acc = rep["accuracy"]
+            wrong = rep["today_wrong"]
+            streak = rep["streak"]
+            top_mode = mode_label(rep["top_wrong_mode"])
+    
+            # ✅ 표시용 (PRO 아니면 blur 처리)
+            total_display = mask_value(total)
+            acc_display = mask_value(acc, "%")
+            wrong_display = mask_value(wrong)
+            streak_display = mask_value(streak, "일")
+    
+    
+            # 오늘 학습 없으면 조용히
+            if total <= 0:
+                st.caption("오늘의 학습 리포트: 아직 학습 기록이 없어요 🙂")
+                return
+    
+            st.markdown(
+                f"""
+    <div class="jp" style="
+      border:1px solid rgba(120,120,120,0.18);
+      border-radius:18px;
+      padding:14px 14px;
+      background: rgba(255,255,255,0.03);
+      margin: 6px 0 10px 0;
+    ">
+      <div style="font-weight:900; font-size:14px; opacity:.75;">📈 오늘의 학습 리포트</div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
+        <div style="flex:1 1 120px; min-width:120px;">
+          <div style="font-size:12px; opacity:.7; font-weight:800;">오늘 푼 문항</div>
+          <div style="font-size:22px; font-weight:900; line-height:1.1;">{mask_value(total)}</div>
+        </div>
+        <div style="flex:1 1 120px; min-width:120px;">
+          <div style="font-size:12px; opacity:.7; font-weight:800;">정답률</div>
+          <div style="font-size:22px; font-weight:900; line-height:1.1;">{mask_value(acc, "%")}</div>
+        </div>
+        <div style="flex:1 1 120px; min-width:120px;">
+          <div style="font-size:12px; opacity:.7; font-weight:800;">오늘 오답</div>
+          <div style="font-size:22px; font-weight:900; line-height:1.1;">{mask_value(wrong)}</div>
+        </div>
+        <div style="flex:1 1 160px; min-width:160px;">
+          <div style="font-size:12px; opacity:.7; font-weight:800;">연속 학습</div>
+          <div style="font-size:22px; font-weight:900; line-height:1.1;">{mask_value(streak, "일")}</div>
+        </div>
+      </div>
+      <div style="margin-top:8px; font-size:12px; opacity:.78; line-height:1.4;">
+        오늘 가장 많이 틀린 모드: <b>{html.escape(str(top_mode))}</b>
+      </div>
+    </div>
+    """,
+                unsafe_allow_html=True,
+            )
+    
+        except Exception:
+            # 리포트가 실패해도 앱이 멈추면 안 됨
+            st.caption("오늘 리포트를 불러오지 못했어요.")
+    # ============================================================
+    # ✅ App Start: refresh → login → routing
+    # ============================================================
+    ok = refresh_session_from_cookie_if_needed(force=False)
+    if not ok and (cookies.get("refresh_token") or cookies.get("access_token")):
+        clear_auth_everywhere()
+        st.caption("세션 복원에 실패해서 로그인을 다시 요청합니다.")
+    
+    require_login()
+    
+    ALLOWED_PAGES = {"home", "quiz", "my", "admin"}
+    if "page" not in st.session_state:
+        st.session_state.page = "home"
+    if st.session_state.get("page") not in ALLOWED_PAGES:
+        st.session_state.page = "home"
+    
+    user = st.session_state.get("user")
+    user_id = getattr(user, "id", None) if user else None
+    user_email = getattr(user, "email", None) if user else None
+    user_email = user_email or st.session_state.get("login_email")
+    
+    sb_authed = get_authed_sb()
+    
+    # ✅ PRO 캐시가 다른 유저에게 넘어가는 것 방지 (먼저!)
+    cached_uid = st.session_state.get("plan_cached_user_id")
+    if cached_uid != user_id:
+        st.session_state.pop("plan_cached", None)
+        st.session_state["plan_cached_user_id"] = user_id
+    
+    # ✅ 로그인 유저 + authed 클라 둘 다 있을 때만 리포트 표시
+    # if sb_authed and user_id:
+    #    render_today_report_db_only(sb_authed, user_id)
+    
+    # ✅ pos_group 기반 available_types 적용
+    try:
+        if sb_authed is not None:
+            available_types = get_available_quiz_types_for_pos(st.session_state.get("pos_group", "noun"))
+        else:
+            base_types = QUIZ_TYPES_USER
+            g_now = str(st.session_state.get("pos_group", "noun")).lower().strip()
+            available_types = [t for t in base_types if t in ("meaning", "kr2jp")] if g_now in POS_ONLY_2TYPES else base_types
+    except Exception:
+        g_now = str(st.session_state.get("pos_group", "noun")).lower().strip()
+        available_types = ["meaning", "kr2jp"] if g_now in POS_ONLY_2TYPES else QUIZ_TYPES_USER
+    
+    # ✅ 현재 선택된 유형이 pos_group에서 허용되지 않으면 meaning으로 강제
+    if st.session_state.get("quiz_type") not in available_types:
+        st.session_state.quiz_type = "meaning"
+    
+    if sb_authed is not None and not st.session_state.get("progress_restored"):
+        try:
+            restore_progress_from_db(sb_authed, user_id)
+        except Exception:
+            pass
+        st.session_state.progress_restored = True
+    
+    # ✅ 복원 후에도 pos_group/available_types 재동기화
+    try:
+        available_types = get_available_quiz_types_for_pos(st.session_state.get("pos_group", "noun")) if sb_authed is not None else available_types
+    except Exception:
+        pass
+    if st.session_state.get("quiz_type") not in available_types:
+        st.session_state.quiz_type = "meaning"
+    
+    if st.session_state.get("page") != "home":
+        u = st.session_state.get("user")
+        email = (getattr(u, "email", None) if u else None) or st.session_state.get("login_email", "")
+        st.markdown(
+            f"""
+    <div class="jp headbar">
+      <div class="headtitle">✨ 왕초보 탈출 호테나일본어</div>
+      <div class="headhello">환영합니다 🙂 <span class="mail">{email}</span></div>
+    </div>
+    """,
+            unsafe_allow_html=True,
+        )
+    
+    if sb_authed is not None:
+        ensure_profile(sb_authed, user)
+        att = mark_attendance_once(sb_authed)
+        if att:
+            st.session_state["streak_count"] = int(att.get("streak_count", 0) or 0)
+            st.session_state["did_attend_today"] = bool(att.get("did_attend", False))
+    
+    # ============================================================
+    # ✅ Routing
+    # ============================================================
+    if st.session_state.page == "home":
+        render_home()
+        st.stop()
+    
+    if st.session_state.page == "admin":
+        if not is_admin():
+            st.session_state.page = "quiz"
+            st.warning("관리자 권한이 없습니다.")
+            st.rerun()
+        render_admin_dashboard()
+        st.stop()
+    
+    if st.session_state.page == "my":
+        try:
+            render_my_dashboard()
+        except Exception:
+            st.error("마이페이지에서 예외가 발생했습니다. 아래 Traceback을 확인해 주세요.")
+            st.code(traceback.format_exc())
+        st.stop()
+    
+    # ============================================================
+    # ✅ PAYWALL CHECK (render_topcard() 보다 위에서 1번만!)
+    #   - FREE: 하루 30문항 제한, PRO: 무제한
+    # ============================================================
+    from datetime import datetime, timedelta, timezone
+    
+    KST = timezone(timedelta(hours=9))
+    FREE_LIMIT = 30
+    
+    def render_paywall(daily_solved: int):
+        st.error("🔒 오늘 무료 학습량을 모두 사용하셨어요.")
+        st.caption(f"오늘 푼 문항: {daily_solved} / {FREE_LIMIT}")
+        st.info("PRO로 업그레이드하면 오늘도 계속 풀 수 있어요.")
+        if st.button("💎 PRO 신청/문의", use_container_width=True, key="btn_paywall_go_pro"):
+            st.session_state["_scroll_top_once"] = True
+            st.markdown(f"<meta http-equiv='refresh' content='0;url={NAVER_TALK_URL}'>", unsafe_allow_html=True)
+    
+    def get_daily_solved_from_db(sb_authed_local, user_id: str) -> int:
+        """오늘(KST) 푼 문항 수 합계 (quiz_attempts.quiz_len 합산)"""
+        now = datetime.now(KST)
+        start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    
+        # created_at이 timestamptz라면, KST start를 ISO로 넣어도 대부분 정상 필터됩니다.
+        start_iso = start.isoformat()
+    
+        res = (
+            sb_authed_local.table("quiz_attempts")
+            .select("quiz_len")
+            .eq("user_id", user_id)
+            .gte("created_at", start_iso)
+            .execute()
+        )
+        rows = res.data or []
+        return int(sum(int(r.get("quiz_len") or 0) for r in rows))
+    
+    # ✅ 잠금 판단
+    is_locked = False
+    daily_solved = 0
+    
+    if not is_pro():
+        sb_authed_local = get_authed_sb()
+        if sb_authed_local is not None:
+            daily_solved = get_daily_solved_from_db(sb_authed_local, user_id)
+            is_locked = (daily_solved >= FREE_LIMIT)
+    
+    if is_locked:
+        render_paywall(daily_solved)
+        st.stop()
+    
+    # ✅ 오늘 푼 문항 수(total) 정의: 목표 UI/DEBUG에서 공통 사용
+    total = 0
+    try:
+        sb_authed_local = get_authed_sb()
+        if sb_authed_local is not None and user_id:
+            total = get_daily_solved_from_db(sb_authed_local, user_id)  # 오늘 푼 문항 수
+    except Exception:
+        total = 0
+    
+    # ============================================================
+    # ✅ Quiz Page
+    # ============================================================
+    def render_plan_banner():
+        plan = get_user_plan()
+        if plan == "pro":
+            st.success("✨ PRO 이용 중입니다.")
+            return
+    
+        st.info("🔒 일부 기능은 PRO에서 열립니다. (예: 오답만 다시풀기, 발음 버튼, 패턴카드 확장 등)")
+        if st.button("💎 PRO 신청/문의", use_container_width=True, key="btn_go_pro"):
+            st.session_state["_scroll_top_once"] = True
+            st.markdown(f"<meta http-equiv='refresh' content='0;url={NAVER_TALK_URL}'>", unsafe_allow_html=True)
+    
+    # ✅ 호출은 정의 아래에서
+    render_topcard()
+    render_plan_banner()
+    render_sound_toggle()
+    
+    streak = st.session_state.get("streak_count")
+    did_today = st.session_state.get("did_attend_today")
+    if streak is not None:
+        if did_today:
+            st.success(f"✅ 오늘 출석 완료!  (연속 {streak}일)")
+        else:
+            st.caption(f"연속 출석 {streak}일")
+        if streak >= 30:
+            st.info("🔥 30일 연속 달성!")
+        elif streak >= 7:
+            st.info("🏅 7일 연속 달성!")
+    
+    # --- (A) 기존 "오늘의 목표(루틴)" 섹션 ---
+    if "today_goal_text" not in st.session_state:
+        st.session_state.today_goal_text = "오늘은 10문항 1회 완주"
+    if "today_goal_done" not in st.session_state:
+        st.session_state.today_goal_done = False
+    
+    # ============================================================
+    # ✅ [PATCH] 🎯 오늘 목표 자동 연동 + 진행률 도표(프로그레스 바)
+    # - 목표 1회=10문항, 2회=20문항...
+    # - today_total(= total) 기준으로 자동 ✅달성/⏳진행중
+    # - ✅ “오늘 목표” 박스 안에 진행률 도표 + % 표시
+    # - ✅ 세그먼트 카드/목표 카드 톤(테두리/라운드/그림자) 통일
+    # ============================================================
+    
+    st.markdown("""
+    <style>
+    /* ✅ goal 세그먼트 전용 앵커 */
+    #goal_seg_anchor + div[data-testid="stSegmentedControl"]{
+      padding: 10px 12px;
+      border: 1px solid rgba(49,51,63,.12);
+      border-radius: 14px;
+      background: #fff;
+      box-shadow: 0 1px 0 rgba(0,0,0,.02);
+      margin-bottom: 10px;
+    }
+    #goal_seg_anchor + div[data-testid="stSegmentedControl"] [role="group"]{
+      display:flex !important;
+      width:100% !important;
+      gap: 8px !important;
+    }
+    #goal_seg_anchor + div[data-testid="stSegmentedControl"] button{
+      flex: 1 1 0 !important;
+      min-width: 0 !important;
+      text-align: center !important;
+      padding: 12px 10px !important;
+      font-size: 15px !important;
+      border-radius: 12px !important;
+      border: 1px solid rgba(49,51,63,.12) !important;
+    }
+    #goal_seg_anchor + div[data-testid="stSegmentedControl"] button[aria-pressed="true"]{
+      border: 1px solid rgba(255,0,0,.35) !important;
+      box-shadow: 0 0 0 2px rgba(255,0,0,.08) inset;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # ✅ 앵커는 segmented_control "바로 직전"에 둬야 함
+    st.markdown('<div id="goal_seg_anchor"></div>', unsafe_allow_html=True)
+    
+    
+    # ✅ 1) 목표(세션) 설정값
+    if "goal_sessions" not in st.session_state:
+        st.session_state.goal_sessions = 1  # 기본 1회(=10문항)
+    
+    target_questions = st.slider(
+        "오늘 목표",
+        min_value=10, max_value=60, step=10,
+        value=st.session_state.get("target_questions", 10),
+    )
+    st.session_state["target_questions"] = target_questions
+    
+    
+    # ✅ 2) 오늘 푼 문항수(기존 total 변수 재사용)
+    today_total = int(total)  # ← 기존 코드에서 total이 "오늘 푼 문항"이면 그대로 OK
+    
+    goal_done = today_total >= target_questions
+    goal_percent = int(min(100, (today_total / max(1, target_questions)) * 100))
+    remain = max(0, target_questions - today_total)
+    
+    goal_msg = "오늘 목표 달성! 내일도 루틴 이어가요 🔥" if goal_done else f"남은 문항: {remain}"
+    
+    
+    # ✅ 3) 자동 목표 UI (진행률 도표 포함)
+    import streamlit.components.v1 as components
+    
+    card_html = f"""
+    <div class="jp" style="
+      border:1px solid rgba(49,51,63,.12);
+      border-radius:18px;
+      padding:14px 14px;
+      background:#fff;
+      box-shadow: 0 1px 0 rgba(0,0,0,.02);
+      margin: 6px 0 10px 0;
+      font-family: inherit;
+    ">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div style="font-weight:900; font-size:14px; opacity:.80;">🎯 오늘 목표</div>
+        <div style="font-size:12px; font-weight:900; opacity:.85;">
+          {"✅ 달성" if goal_done else "⏳ 진행중"}
+        </div>
+      </div>
+    
+      <div style="margin-top:10px; display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+        <div style="font-size:13px; font-weight:800; opacity:.85;">
+          목표: <b>{target_questions}</b>문항
+        </div>
+        <div style="font-size:13px; font-weight:800; opacity:.85;">
+          진행: <b>{today_total}</b> / {target_questions}문항
+        </div>
+        <div style="font-size:13px; font-weight:900; opacity:.85;">
+          {goal_percent}%
+        </div>
+      </div>
+    
+      <div style="margin-top:10px;">
+        <div style="height:10px; border-radius:999px; background: rgba(0,0,0,0.07); overflow:hidden;">
+          <div style="height:100%; width:{goal_percent}%; background: rgba(0,0,0,0.25);"></div>
+        </div>
+    
+        <div style="margin-top:10px; font-size:12.5px; opacity:.72; font-weight:700;">
+          {goal_msg}
+        </div>
+      </div>
+    </div>
+    """
+    
+    # height는 카드 높이에 맞춰 적당히
+    components.html(card_html, height=140)
+    
+    
+    st.divider()
+    
+    # ============================================================
+    # ✅ 이하: 기존 세션 상태 초기화/shape ensure (그대로 유지)
+    # ============================================================
+    
+    if "quiz_version" not in st.session_state:
+        st.session_state.quiz_version = 0
+    if "submitted" not in st.session_state:
+        st.session_state.submitted = False
+    if "wrong_list" not in st.session_state:
+        st.session_state.wrong_list = []
+    if "saved_this_attempt" not in st.session_state:
+        st.session_state.saved_this_attempt = False
+    if "stats_saved_this_attempt" not in st.session_state:
+        st.session_state.stats_saved_this_attempt = False
+    if "session_stats_applied_this_attempt" not in st.session_state:
+        st.session_state.session_stats_applied_this_attempt = False
+    if "history" not in st.session_state:
+        st.session_state.history = []
+    if "progress_dirty" not in st.session_state:
+        st.session_state.progress_dirty = False
+    if "wrong_counter" not in st.session_state:
+        st.session_state.wrong_counter = {}
+    if "total_counter" not in st.session_state:
+        st.session_state.total_counter = {}
+    
+    ensure_mastered_words_shape()
+    ensure_excluded_wrong_words_shape()
+    ensure_mastery_banner_shape()
+    
+    
+    # ============================================================
+    # ✅ 상단 UI: 품사 버튼 → (기타 expander + 적용 버튼) → 유형 버튼 → 캡션 → divider
+    # ============================================================
+    def on_pick_pos_group(ps: str):
+        ps = str(ps).strip().lower()
+        if ps == st.session_state.pos_group:
+            return
+        st.session_state.pos_group = ps
+    
+        # ✅ 제한 그룹이면 reading 선택 상태를 자동 해제
+        if ps in POS_ONLY_2TYPES and st.session_state.quiz_type == "reading":
+            st.session_state.quiz_type = "meaning"
+    
+        clear_question_widget_keys()
+        new_quiz = build_quiz(st.session_state.quiz_type, st.session_state.pos_group)
+        start_quiz_state(new_quiz, st.session_state.quiz_type, clear_wrongs=True)
+        mark_quiz_as_seen(new_quiz, st.session_state.quiz_type, st.session_state.pos_group)
+        st.session_state["_scroll_top_once"] = True
+    
+    def on_pick_qtype(qt: str):
+        qt = str(qt).strip()
+        if qt == st.session_state.quiz_type:
+            return
+        st.session_state.quiz_type = qt
+    
+        clear_question_widget_keys()
+        new_quiz = build_quiz(st.session_state.quiz_type, st.session_state.pos_group)
+        mark_quiz_as_seen(new_quiz, st.session_state.quiz_type, st.session_state.pos_group)
+        start_quiz_state(new_quiz, st.session_state.quiz_type, clear_wrongs=True)
+        st.session_state["_scroll_top_once"] = True
+    
+    # ✅ 현재 pos_group 기준으로 유형 리스트 재계산(표시 직전에!)
+    try:
+        if sb_authed is not None:
+            available_types = get_available_quiz_types_for_pos(st.session_state.get("pos_group", "noun"))
+        else:
+            g_now = str(st.session_state.get("pos_group", "noun")).lower().strip()
+            available_types = ["meaning", "kr2jp"] if g_now in POS_ONLY_2TYPES else QUIZ_TYPES_USER
+    except Exception:
+        g_now = str(st.session_state.get("pos_group", "noun")).lower().strip()
+        available_types = ["meaning", "kr2jp"] if g_now in POS_ONLY_2TYPES else QUIZ_TYPES_USER
+    
+    # ✅ 선택된 유형이 현재 pos_group에서 허용되지 않으면 meaning으로 강제
+    if st.session_state.get("quiz_type") not in available_types:
+        st.session_state.quiz_type = "meaning"
+    
+    st.markdown('<div class="qtypewrap">', unsafe_allow_html=True)
+    
+    st.markdown('<div class="qtype_hint jp">✨품사를 선택하세요</div>', unsafe_allow_html=True)
+    
+    # ✅ 품사 그룹 버튼(5개)
+    pos_cols = st.columns(5, gap="small")
+    for i, ps in enumerate(POS_GROUP_OPTIONS):
+        with pos_cols[i]:
+            is_sel = (ps == st.session_state.pos_group)
+            st.button(
+                ("✅ " if is_sel else "") + POS_LABEL_MAP.get(ps, ps),
+                use_container_width=True,
+                type=("primary" if is_sel else "secondary"),
+                key=f"btn_posg_{ps}",
+                on_click=on_pick_pos_group,
+                args=(ps,),
+            )
+    
+    # ✅ B안: 기타 선택 시에만 세부 선택 expander + 적용 버튼
+    if st.session_state.pos_group == "other":
+        with st.expander("기타 세부 선택 (부사/조사/접속사/감탄사)", expanded=True):
+            cols = st.columns(2)
+            for j, p in enumerate(OTHER_POS_OPTIONS):
+                with cols[j % 2]:
+                    checked = (p in st.session_state.other_pos_selected)
+                    new_checked = st.checkbox(OTHER_POS_LABEL_MAP[p], value=checked, key=f"chk_other_{p}")
+                    if new_checked:
+                        st.session_state.other_pos_selected.add(p)
+                    else:
+                        st.session_state.other_pos_selected.discard(p)
+    
+            if st.button("🔄 기타 선택 적용(새 문제)", use_container_width=True, key="btn_apply_other"):
+                # ✅ 기타는 reading 불가
+                if st.session_state.quiz_type == "reading":
+                    st.session_state.quiz_type = "meaning"
+    
+                clear_question_widget_keys()
+                new_quiz = build_quiz(st.session_state.quiz_type, st.session_state.pos_group)
+                start_quiz_state(new_quiz, st.session_state.quiz_type, clear_wrongs=True)
+                st.session_state["_scroll_top_once"] = True
+                st.rerun()
+    
+    st.markdown('<div class="qtype_hint jp">✨유형을 선택하세요</div>', unsafe_allow_html=True)
+    
+    # ✅ 유형 버튼
+    type_cols = st.columns(len(available_types), gap="small")
+    for i, qt in enumerate(available_types):
+        with type_cols[i]:
+            is_sel = (qt == st.session_state.quiz_type)
+            st.button(
+                ("✅ " if is_sel else "") + quiz_label_map.get(qt, qt),
+                use_container_width=True,
+                type=("primary" if is_sel else "secondary"),
+                key=f"btn_qtype_{qt}",
+                on_click=on_pick_qtype,
+                args=(qt,),
+            )
+    
+    st.markdown("</div>", unsafe_allow_html=True)
+    
+    # ✅ 필수패턴(카드)
+    with st.expander("📌 필수패턴 (카드로 빠르게 익히기)", expanded=False):
+        if is_pro():
+            render_pattern_cards()
+        else:
+            st.caption("🔒 PRO에서 품사별 패턴 카드 전체가 열립니다.")
+            # 무료 체험: 1장만
+            render_pattern_cards()
+    
+    st.markdown('<div class="tight-divider">', unsafe_allow_html=True)
+    st.divider()
+    st.markdown("</div>", unsafe_allow_html=True)
+    
+    # ============================================================
+    # ✅ FREE 사용량 기록 (현재는 제한 OFF라 no-op)
+    # ============================================================
+    def add_free_used(n: int):
+        """FREE 제한을 다시 켤 때를 대비해 남겨둠. 현재는 아무 것도 하지 않음."""
+        return
+    
+    # ============================================================
+    # ✅ 버튼: 새 문제(랜덤10) / 맞힌 단어 제외 초기화  (복붙 버전)
+    #   - 기존 "쓸데없는 새 문제" 버튼 제거
+    #   - "🔄 새 문제(랜덤 10문항)"을 왼쪽(원래 자리)로 이동
+    # ============================================================
+    
+    def should_lock_quiz() -> bool:
+        if is_pro():
+            return False
+        return False  # FREE 제한 없앴으면 잠금 없음
+    
+    locked = should_lock_quiz()
+    
+    cbtn1, cbtn2 = st.columns(2)
+    
+    with cbtn1:
+        if st.button(
+            "🔄 새 문제(랜덤 10문항)",
+            use_container_width=True,
+            key="btn_new_random_10",
+            disabled=locked
+        ):
+            clear_question_widget_keys()
+        
+            # ✅ 새 퀴즈 시작 = 제출 카운트 플래그 리셋
+            st.session_state["_counted_today"] = False
+    
+            # ✅ 콤보 알림 단계 리셋(오늘 최고 콤보 기록은 유지)
+            st.session_state["combo_last_notice"] = 0
+        
+            new_quiz = build_quiz(st.session_state.quiz_type, st.session_state.pos_group)
+            mark_quiz_as_seen(new_quiz, st.session_state.quiz_type, st.session_state.pos_group)
+            start_quiz_state(new_quiz, st.session_state.quiz_type, clear_wrongs=True)
+            st.session_state["_scroll_top_once"] = True
+            st.rerun()
+            
+    
+    def reset_mastery_current():
+        k = mastery_key()
+        st.session_state.setdefault("seen_words", {}).setdefault(k, set()).clear()
+        st.session_state.setdefault("mastered_words", {}).setdefault(k, set()).clear()
+        st.session_state.setdefault("excluded_wrong_words", {}).setdefault(k, set()).clear()
+        st.session_state.setdefault("mastery_done", {})[k] = False
+        st.session_state.setdefault("mastery_banner_shown", {})[k] = False
+    
+        clear_question_widget_keys()
+        new_quiz = build_quiz(st.session_state.quiz_type, st.session_state.pos_group)
+        mark_quiz_as_seen(new_quiz, st.session_state.quiz_type, st.session_state.pos_group)
+        start_quiz_state(new_quiz, st.session_state.quiz_type, clear_wrongs=True)
+        st.session_state["_scroll_top_once"] = True
+        st.rerun()
+    
+    with cbtn2:
+        if st.button("맞힌 단어 제외 초기화", disabled=locked, use_container_width=True, key="btn_reset_mastery"):
+            reset_mastery_current()
+    
+    
+        # locked가 항상 False라면 이 캡션은 사실상 안 뜸(있어도 무방)
+        if locked:
+            st.caption("🔒 무료는 하루 30문항(3세트)까지입니다. PRO로 업그레이드하면 계속 풀 수 있어요.")
+    
+    k_now = mastery_key()
+    if st.session_state.get("mastery_done", {}).get(k_now, False):
+        st.success("🏆 이 품사/유형을 완전히 정복했어요!")
+    
+        
+    # ============================================================
+    # ✅ 퀴즈 생성(없으면 1회 자동 생성)
+    # ============================================================
+    
+    k_now = mastery_key()  # ✅ 먼저!
+    
+    if "quiz" not in st.session_state or not isinstance(st.session_state.quiz, list):
+        st.session_state.quiz = []
+    
+    is_mastered_done = bool(st.session_state.get("mastery_done", {}).get(k_now, False))
+    
+    if (not is_mastered_done) and len(st.session_state.quiz) == 0:
+        if is_locked:
+            render_paywall(daily_solved)
+            st.stop()
+    
+        clear_question_widget_keys()
+        new_quiz = build_quiz(st.session_state.quiz_type, st.session_state.pos_group) or []
+        start_quiz_state(new_quiz, st.session_state.quiz_type, clear_wrongs=True)
+        mark_quiz_as_seen(new_quiz, st.session_state.quiz_type, st.session_state.pos_group)
+    
+    if len(st.session_state.quiz) == 0:
+        if bool(st.session_state.get("mastery_done", {}).get(k_now, False)):
+            st.success("✅ 이 설정에서 새로 출제할 문제가 더 이상 없습니다.")
+            st.caption("👉 ‘출제 이력 초기화(다시 시작)’를 누르거나, 다른 품사·유형을 선택해 주세요.")
+            st.caption("👉 틀린 문제는 마이페이지에서 ‘틀린 문제만 다시 풀기’로 복습하세요~")
+            st.stop()
+    
+        st.info("현재는 이 설정으로 낼 문제가 없어요. 다른 품사/유형으로 바꿔서 시작해 주세요.")
+        st.stop()
+    
+    quiz_len = len(st.session_state.quiz)
+    if "answers" not in st.session_state or not isinstance(st.session_state.answers, list) or len(st.session_state.answers) != quiz_len:
+        st.session_state.answers = [None] * quiz_len
+    
+    if bool(st.session_state.get("mastery_done", {}).get(k_now, False)):
+        st.stop()
+    
+    
+    def _esc_html(x) -> str:
+        x = "" if x is None else str(x)
+        return (x.replace("&", "&amp;")
+                 .replace("<", "&lt;")
+                 .replace(">", "&gt;")
+                 .replace('"', "&quot;")
+                 .replace("'", "&#39;"))
+    
+    
+    # ============================================================
+    # ✅ 오늘 목표(Progress) - 세션 기반 (DB 없이)
+    #   - 상단(1곳)만 사용
+    #   - 하단은 SHOW_BOTTOM_GOAL=False면 절대 렌더링 안 됨
+    # ============================================================
+    
+    SHOW_BOTTOM_GOAL = False  # ✅ 하단을 완전히 숨기려면 False 유지
+    
+    def get_today_done_count() -> int:
+        return int(st.session_state.get("today_done", 0))
+    
+    def add_done_count(n: int):
+        st.session_state["today_done"] = get_today_done_count() + int(n)
+    
+    def reset_today_done():
+        st.session_state["today_done"] = 0
+    
+    def get_today_goal_default() -> int:
+        return 10
+    
+    # ✅ 누적용 상태(필요하면 유지)
+    if "counted_qids" not in st.session_state:
+        st.session_state["counted_qids"] = set()
+    if "is_graded" not in st.session_state:
+        st.session_state["is_graded"] = False
+    
+    def render_today_goal_progress():
+        st.markdown("### 🎯 오늘 목표 진행률")
+    
+        goal = int(st.session_state.get("today_goal", get_today_goal_default()))
+        done = get_today_done_count()
+    
+        ratio = 0.0 if goal <= 0 else min(max(done / goal, 0.0), 1.0)
+    
+        st.progress(ratio)
+        st.caption(f"진행: **{done} / {goal}문항** ({int(ratio*100)}%)")
+    
+        if done >= goal and goal > 0:
+            st.success("🔥 오늘 목표 달성!")
+    
+        if st.button("🔁 오늘 목표 리셋", use_container_width=True, key="btn_reset_today_goal"):
+            reset_today_done()
+            st.rerun()
+    
+        st.divider()
+    
+    # ============================================================
+    # ✅ 하단 렌더링(숨김)
+    #   - 아래 조건부 블록만 남기고, "직접 호출"은 절대 하지 마세요.
+    # ============================================================
+    
+    if SHOW_BOTTOM_GOAL:
+        render_today_goal_progress()
+    
+    
+    # ============================================================
+    # ✅ 문제 표시 (동그란 배지: ① ② ③ ... + 같은 줄)
+    # ============================================================
+    circled_nums = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳㉑㉒㉓㉔㉕㉖㉗㉘㉙㉚㉛㉜㉝㉞㉟㊱㊲㊳㊴㊵㊶㊷㊸㊹㊺㊻㊼㊽㊾㊿"
+    
+    for idx, q in enumerate(st.session_state.quiz):
+        badge = circled_nums[idx] if idx < len(circled_nums) else f"({idx+1})"
+    
+        st.markdown(
+            f"""
+    <div class="jp" style="display:flex; align-items:baseline; gap:5px; margin: 10px 0 8px 0;">
+      <div style="
+        flex:0 0 auto;
+        font-size:20px;
+        line-height:1;
+        font-weight:900;
+        transform: translateY(1px);
+      ">{badge}</div>
+    
+      <div style="
+        flex:1 1 auto;
+        font-size:18px;
+        font-weight:500;
+        line-height:1.35;
+      ">{q["prompt"]}</div>
+    </div>
+    """,
+            unsafe_allow_html=True
+        )
+    
+        if st.session_state.get("quiz_type") == "meaning":
+            tts_text = (q.get("reading") or q.get("jp_word") or "").strip()
+    
+            # ✅ PRO만 버튼 렌더링 (무료는 루프 안에서 아무것도 안 찍음)
+            if is_pro():
+                render_pronounce_button(
+                    tts_text,
+                    uid=f"{st.session_state.quiz_version}_{idx}",
+                    label="🔊 발음"
+                )
+    
+        widget_key = f"q_{st.session_state.quiz_version}_{idx}"
+    
+        prev = st.session_state.answers[idx]
+        default_index = None
+        if prev is not None and prev in q["choices"]:
+            default_index = q["choices"].index(prev)
+    
+        choice = st.radio(
+            label="보기",
+            options=q["choices"],
+            index=default_index,
+            key=widget_key,
+            label_visibility="collapsed",
+            on_change=mark_progress_dirty,
+        )
+        st.session_state.answers[idx] = choice
+    
+    sync_answers_from_widgets()
+    
+    
+    # ============================================================
+    # ✅ 제출/채점
+    # ============================================================
+    quiz_len = len(st.session_state.quiz)
+    
+    # ✅ "지금 선택된 값"을 세션에서 읽어서 all_answered 판단
+    selected_now = []
+    for idx, q in enumerate(st.session_state.quiz):
+        widget_key = f"q_{st.session_state.quiz_version}_{idx}"
+        selected_now.append(st.session_state.get(widget_key, None))
+    
+    all_answered = (quiz_len > 0) and all(a is not None for a in selected_now)
+    
+    if st.button(
+        "✅ 제출하고 채점하기",
+        disabled=not all_answered,
+        type="primary",
+        use_container_width=True,
+        key="btn_submit",
+    ):
+        st.session_state.submitted = True
+        st.session_state.session_stats_applied_this_attempt = False
+    
+        # ✅ 제출 시점에만 answers에 확정 반영
+        st.session_state.answers = selected_now
+    
+        # ✅ 중복 카운트 방지
+        if not st.session_state.get("_counted_today", False):
+            add_done_count(int(st.session_state.get("quiz_len", 10)))
+            st.session_state["_counted_today"] = True
+    
+    if not all_answered:
+        st.info("모든 문제에 답을 선택하면 제출 버튼이 활성화됩니다.")
+    
+    
+    # ============================================================
+    # ✅ 제출 후 화면
+    # ============================================================
+    if st.session_state.submitted:
+        show_post_ui = (SHOW_POST_SUBMIT_UI == "Y") or is_admin()
+    
+        ensure_mastered_words_shape()
+        ensure_excluded_wrong_words_shape()
+    
+        current_type = st.session_state.quiz_type
+        current_pos_group = st.session_state.pos_group
+        k_now = mastery_key()
+    
+        score = 0
+        wrong_list = []
+    
+        for idx, q in enumerate(st.session_state.quiz):
+            picked = st.session_state.answers[idx]
+            correct = q["correct_text"]
+            word_key = str(q.get("jp_word", "")).strip()
+    
+            if picked == correct:
+                score += 1
+                if word_key:
+                    st.session_state.mastered_words.setdefault(k_now, set()).add(word_key)
+            else:
+                wrong_list.append({
+                    "No": idx + 1,
+                    "문제": str(q.get("prompt", "")),
+                    "내 답": "" if picked is None else str(picked),
+                    "정답": str(correct),
+                    "단어": str(q.get("jp_word", "")).strip(),
+                    "읽기": str(q.get("reading", "")).strip(),
+                    "뜻": str(q.get("meaning", "")).strip(),
+                    "품사": current_pos_group,   # ✅ 그룹 저장
+                    "유형": current_type,
+                })
+    
+        st.session_state.wrong_list = wrong_list
+    
+        st.success(f"점수: {score} / {quiz_len}")
+    
+        # ✅ FREE 제한 카운트 누적 (제출 1회 = quiz_len 소비)
+        #    같은 제출 화면에서 rerun이 여러 번 나도 중복 누적되지 않도록 1회만 적용
+        if "free_limit_applied_this_attempt" not in st.session_state:
+            st.session_state.free_limit_applied_this_attempt = False
+    
+        if not st.session_state.free_limit_applied_this_attempt:
+            add_free_used(quiz_len)  # 보통 10
+            st.session_state.free_limit_applied_this_attempt = True
+    
+        ratio = score / quiz_len if quiz_len else 0
+    
+        if ratio == 1:
+            sfx("perfect")
+        elif ratio >= 0.7:
+            sfx("wrong")
+        else:
+            sfx("wrong")
+    
+        if ratio == 1:
+            st.balloons()
+            st.success("🎉 완벽해요! 전부 정답입니다.")
+        elif ratio >= 0.7:
+            st.info("👍 잘하고 있어요! 조금만 더 다듬으면 완벽해질 거예요.")
+        else:
+            st.warning("💪 괜찮아요! 틀린 문제는 성장의 재료예요. 다시 한 번 도전해봐요.")
+    
+        sb_authed_local = get_authed_sb()
+        if sb_authed_local is None:
+            if show_post_ui:
+                st.warning("DB 저장/조회용 토큰이 없습니다. 다시 로그인해 주세요.")
+        else:
+            if not st.session_state.saved_this_attempt:
+                try:
+                    run_db(lambda: save_attempt_to_db(
+                        sb_authed=sb_authed_local,
+                        user_id=user_id,
+                        user_email=user_email,
+                        pos=current_pos_group,   # ✅ 그룹 저장
+                        quiz_type=current_type,
+                        quiz_len=quiz_len,
+                        score=score,
+                        wrong_list=wrong_list,
+                    ))
+                    st.session_state.saved_this_attempt = True
+                except Exception as e:
+                    if show_post_ui:
+                        st.warning("DB 저장에 실패했습니다. (테이블/컬럼/권한/RLS 정책 확인 필요)")
+                        st.write(str(e))
+    
+            if not st.session_state.stats_saved_this_attempt:
+                try:
+                    sync_answers_from_widgets()
+                    items = build_word_results_bulk_payload(
+                        quiz=st.session_state.quiz,
+                        answers=st.session_state.answers,
+                        quiz_type=current_type,
+                        pos=current_pos_group,  # ✅ 그룹 기준
+                    )
+                    if items:
+                        run_db(lambda: sb_authed_local.rpc("record_word_results_bulk", {"p_items": items}).execute())
+                    st.session_state.stats_saved_this_attempt = True
+                except Exception as e:
+                    if show_post_ui and is_admin():
+                        st.error("❌ 단어 통계(bulk) 저장 실패 (RPC/정책 확인)")
+                        st.exception(e)
+    
+            try:
+                save_progress_to_db(sb_authed_local, user_id)
+            except Exception:
+                pass
+    
+        # ============================================================
+        # ✅ 콤보 계산 (⚠️ 반드시 제출 후에만)
+        # ============================================================
+        correct_flags = []
+        for idx, q in enumerate(st.session_state.quiz):
+            picked = st.session_state.answers[idx]
+            correct = q["correct_text"]
+            correct_flags.append(picked == correct)
+    
+        max_combo = compute_max_combo(correct_flags)
+        render_combo_celebration(max_combo)
+        render_combo_small_badge()
+    
+        # ============================================================
+        # ✅ 제출 후 화면 내부 "오답노트" 블록
+        # ============================================================
+        if st.session_state.wrong_list:
+            st.subheader("❌ 오답 노트")
+    
+        def _s(v):
+            return "" if v is None else str(v)
+    
+        def _esc(x: str) -> str:
+            x = _s(x)
+            return (x.replace("&", "&amp;")
+                     .replace("<", "&lt;")
+                     .replace(">", "&gt;")
+                     .replace('"', "&quot;")
+                     .replace("'", "&#39;"))
+    
+        STYLE = """
+    <style>
+    .wrong-card{
+      border: 1px solid rgba(120,120,120,0.25);
+      border-radius: 16px;
+      padding: 14px 14px;
+      margin-bottom: 10px;
+      background: rgba(255,255,255,0.02);
+    }
+    .wrong-top{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:12px;
+      margin-bottom: 8px;
+    }
+    .wrong-left{ min-width:0; }
+    .wrong-title{
+      font-weight: 900;
+      font-size: 15px;
+      margin-bottom: 4px;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+    .wrong-sub{
+      opacity: 0.8;
+      font-size: 12px;
+    }
+    .tag{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      padding: 5px 9px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      border: 1px solid rgba(120,120,120,0.25);
+      background: rgba(255,255,255,0.03);
+      white-space: nowrap;
+    }
+    .ans-row{
+      display:grid;
+      grid-template-columns: 72px 1fr;
+      gap:10px;
+      margin-top:6px;
+      font-size: 13px;
+    }
+    .ans-k{ opacity: 0.7; font-weight: 700; }
+    </style>
+    """
+    
+        cards = []
+        for w in st.session_state.wrong_list:
+            no = _s(w.get("No"))
+            qtext = _s(w.get("문제"))
+            picked = _s(w.get("내 답"))
+            correct = _s(w.get("정답"))
+            word = _s(w.get("단어"))
+            reading = _s(w.get("읽기"))
+            meaning = _s(w.get("뜻"))
+            mode = quiz_label_map.get(w.get("유형"), _s(w.get("유형")))
+            pos_label = POS_LABEL_MAP.get(w.get("품사"), _s(w.get("품사")))
+    
+            card_html = f"""
+    <div class="jp">
+      <div class="wrong-card">
+        <div class="wrong-top">
+          <div class="wrong-left">
+            <div class="wrong-title">Q{_esc(no)}. {_esc(word)}</div>
+            <div class="wrong-sub">{_esc(qtext)} · 품사: {_esc(pos_label)} · 유형: {_esc(mode)}</div>
+          </div>
+          <div class="tag">오답</div>
+        </div>
+    
+        <div class="ans-row"><div class="ans-k">내 답</div><div>{_esc(picked)}</div></div>
+        <div class="ans-row"><div class="ans-k">정답</div><div><b>{_esc(correct)}</b></div></div>
+        <div class="ans-row"><div class="ans-k">발음</div><div>{_esc(reading)}</div></div>
+        <div class="ans-row"><div class="ans-k">뜻</div><div>{_esc(meaning)}</div></div>
+      </div>
+    </div>
+    """
+            cards.append(card_html)
+    
+        def _render_cards(card_list: list[str], max_height: int = 650):
+            if not card_list:
+                return
+            html_block = "".join(card_list)
+            h = 190 * len(card_list) + 10
+            h = max(190, min(h, max_height))
+    
+            components.html(
+                textwrap.dedent(f"""
+    {STYLE}
+    {html_block}
+    """),
+                height=h,
+            )
+    
+        MAX_PREVIEW = 3
+        preview_cards = cards[:MAX_PREVIEW]
+        rest_cards = cards[MAX_PREVIEW:]
+    
+        _render_cards(preview_cards, max_height=650)
+    
+        if rest_cards:
+            with st.expander(f"오답 더 보기 (+{len(rest_cards)}개)", expanded=False):
+                _render_cards(rest_cards, max_height=900)
+                
+    
+    # ============================================================
+    # ✅ 제출 후 하단 액션 버튼 (오답 유무와 무관하게 항상 표시)
+    # ============================================================
+    if st.session_state.get("submitted", False):
+        st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+    
+        cA, cB = st.columns(2)
+        with cA:
+            locked = free_limit_reached()
+    
+            if locked:
+                st.caption("🔒 오늘 무료 한도(30문항)를 모두 사용했어요.")
+    
+            if st.button(
+                "✅ 다음 10문항 시작하기",
+                type="primary",
+                use_container_width=True,
+                key="btn_next_10",
+                disabled=locked
+            ):
+                if locked:
+                    st.stop()
+    
+                clear_question_widget_keys()
+    
+                st.session_state["_counted_today"] = False
+                
+                new_quiz = build_quiz(st.session_state.quiz_type, st.session_state.pos_group)
+                start_quiz_state(new_quiz, st.session_state.quiz_type, clear_wrongs=True)
+                st.session_state.free_limit_applied_this_attempt = False
+                mark_quiz_as_seen(new_quiz, st.session_state.quiz_type, st.session_state.pos_group)
+                st.session_state["_scroll_top_once"] = True
+                st.rerun()
+    
+        with cB:
+            # 오답이 있을 때만 활성화(없으면 disabled)
+            has_wrongs = bool(st.session_state.get("wrong_list"))
+            pro_only_disabled = (not is_pro()) or (not has_wrongs)
+            if st.button(
+                "❌ 틀린 문제만 다시 풀기",
+                use_container_width=True,
+                disabled=pro_only_disabled,
+                key="btn_retry_wrongs_bottom_global"
+            ):
+                clear_question_widget_keys()
+                retry_quiz = build_quiz_from_wrongs(
+                    st.session_state.wrong_list,
+                    st.session_state.quiz_type,
+                    st.session_state.pos_group
+                )
+                start_quiz_state(retry_quiz, st.session_state.quiz_type, clear_wrongs=True)
+                st.session_state["_scroll_top_once"] = True
+                st.rerun()
+    
+        show_naver_talk = (SHOW_NAVER_TALK == "N") or is_admin()
+        if show_naver_talk:
+            render_naver_talk()
+    
+    
+    
+    
+    
