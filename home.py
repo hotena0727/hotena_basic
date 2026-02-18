@@ -68,7 +68,7 @@ st.set_page_config(page_title="왕초보 탈출 하테나일본어", layout="cen
 st.session_state["_page_config_set"] = True  # children should not call set
 
 # ✅ Hub version
-HUB_VERSION = "v36"
+HUB_VERSION = "v39.1"
 
 # ============================================================
 # ✅ Navy Theme (v32)
@@ -1452,14 +1452,14 @@ elif page == "word":
 elif page == "kanji":
     if st.session_state.pop("_auto_new_quiz_kanji", False):
         st.session_state["_auto_new_quiz_kanji_once"] = True
-    render_guide_block("kanji")
+    # (v39.1) 허브에서 바로 문제로 진입: 가이드 블록 제거
     render_today_report_card(_get_last7_df_for_ui(), compact=True)
     run_script("app.py")
 
 elif page == "talk":
     if st.session_state.pop("_hub_force_new_talk", False):
         st.session_state["_hub_force_new_talk_once"] = True
-    render_guide_block("talk")
+    # (v39.1) 허브에서 바로 문제로 진입: 가이드 블록 제거
     render_today_report_card(_get_last7_df_for_ui(), compact=True)
     run_script("talk.py")
 
