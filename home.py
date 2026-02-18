@@ -273,8 +273,25 @@ def refresh_session_from_cookie_if_needed(force: bool = False) -> bool:
             st.session_state["refresh_token"] = refreshed.session.refresh_token
             cookies["access_token"] = refreshed.session.access_token
             cookies["refresh_token"] = refreshed.session.refresh_token
-            cookies.save()
-            return True
+            # ✅ CookieManager duplicate-key guard (Streamlit component key is fixed inside the lib)
+
+            #    When the script is executed twice in the same run (e.g., runpy navigation),
+
+            #    calling save() more than once can trigger StreamlitDuplicateElementKey.
+
+            if "_cookie_save_guard" not in st.session_state:
+
+                st.session_state["_cookie_save_guard"] = True
+
+                try:
+
+                    cookies.save()
+
+                except Exception:
+
+                    pass
+
+                        return True
 
     if at:
         try:
