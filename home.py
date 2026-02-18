@@ -15,6 +15,120 @@ import streamlit as st
 
 
 from ui_components import render_header, nav_to
+
+# ============================================================
+# ✅ MyPage UI (V37 UI 5)
+# - 카드형 KPI + 퀵 액션 + PRO 안내
+# ============================================================
+def _get_stat(key: str, default=0):
+    try:
+        return st.session_state.get(key, default)
+    except Exception:
+        return default
+
+def render_mypage_ui(user_plan: str = "free"):
+    # ---- KPIs (safe defaults)
+    streak = int(_get_stat("streak_days", 0) or 0)
+    today_total = int(_get_stat("today_total", 0) or 0)
+    today_correct = int(_get_stat("today_correct", 0) or 0)
+    last_score = _get_stat("last_score", None)
+
+    # If last_score stored as (score, total)
+    score_txt = "-"
+    try:
+        if isinstance(last_score, (list, tuple)) and len(last_score) == 2:
+            score_txt = f"{int(last_score[0])}/{int(last_score[1])}"
+        elif isinstance(last_score, (int, float)):
+            score_txt = str(int(last_score))
+    except Exception:
+        score_txt = "-"
+
+    # ---- UI
+    st.markdown("<div class='ht-mypage-wrap'>", unsafe_allow_html=True)
+
+    st.markdown(
+        f"""
+        <div class="ht-kpi-row">
+          <div class="ht-kpi">
+            <div class="ht-kpi-label">연속 학습</div>
+            <div class="ht-kpi-value">{streak}일</div>
+            <div class="ht-kpi-sub">오늘도 루틴 유지!</div>
+          </div>
+          <div class="ht-kpi">
+            <div class="ht-kpi-label">오늘 푼 문제</div>
+            <div class="ht-kpi-value">{today_total}문</div>
+            <div class="ht-kpi-sub">정답 {today_correct}문</div>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown(
+        f"""
+        <div class="ht-kpi-row">
+          <div class="ht-kpi">
+            <div class="ht-kpi-label">최근 점수</div>
+            <div class="ht-kpi-value">{score_txt}</div>
+            <div class="ht-kpi-sub">방금 기록 기준</div>
+          </div>
+          <div class="ht-kpi">
+            <div class="ht-kpi-label">오늘 날짜</div>
+            <div class="ht-kpi-value">{datetime.date.today().strftime('%m/%d')}</div>
+            <div class="ht-kpi-sub">10분만 해도 충분</div>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown("<div class='ht-divider'></div>", unsafe_allow_html=True)
+
+    st.markdown("<div class='ht-section-title'>퀵 액션</div>", unsafe_allow_html=True)
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        if st.button("단어 훈련", type="primary", key="mp_go_word"):
+            st.session_state["hub_view"] = "단어"
+            st.rerun()
+    with c2:
+        if st.button("한자 훈련", type="secondary", key="mp_go_kanji"):
+            st.session_state["hub_view"] = "한자"
+            st.rerun()
+    with c3:
+        if st.button("회화 훈련", type="secondary", key="mp_go_talk"):
+            st.session_state["hub_view"] = "회화"
+            st.rerun()
+
+    st.markdown("<div class='ht-divider'></div>", unsafe_allow_html=True)
+
+    # PRO CTA
+    if str(user_plan).lower() != "pro":
+        st.markdown(
+            """
+            <div class="ht-cta">
+              <div class="ht-cta-title">PRO로 더 빠르게</div>
+              <p class="ht-cta-sub">오답노트 전체 · 무제한 문제 · 기록 기능이 열립니다.</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        if st.button("PRO 안내 보기", type="primary", key="mp_pro_info"):
+            # 현재는 홈으로 보내고, 이후 PRO 안내 카드 섹션으로 확장 가능
+            st.session_state["hub_view"] = "홈"
+            st.rerun()
+    else:
+        st.markdown(
+            """
+            <div class="ht-card">
+              <div class="ht-card-title">PRO 활성화</div>
+              <p class="ht-card-sub">좋습니다. 이번 주 목표를 하나만 정해서 가볍게 밀어봅시다.</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
 # ============================================================
 # ✅ Last 7 days flow (mini bars)
 # ============================================================

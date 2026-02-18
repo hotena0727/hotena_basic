@@ -43,3 +43,15 @@ def render_header(title: str, user_plan: str = "free", show_home: bool = True, s
                 f"<div style='text-align:right;'>{_badge_html(user_plan)}</div>",
                 unsafe_allow_html=True,
             )
+
+
+def card(title: str, body_html: str):
+    st.markdown(
+        f\"\"\"
+        <div class="ht-card">
+          <div class="ht-card-title">{title}</div>
+          <div class="ht-card-sub" style="color:var(--subtext)">{body_html}</div>
+        </div>
+        \"\"\",
+        unsafe_allow_html=True,
+    )
