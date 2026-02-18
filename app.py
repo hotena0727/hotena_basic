@@ -2217,6 +2217,8 @@ def on_pick_qtype(qt: str):
   
 st.markdown('<div class="qtypewrap">', unsafe_allow_html=True)
 
+st.markdown('<div class="qtype_hint jp">✨레벨을 선택하세요</div>', unsafe_allow_html=True)
+
 # ----------------------------
 # 1) 레벨 버튼(N5~N1) 먼저
 # ----------------------------
@@ -2237,7 +2239,7 @@ for i, lv in enumerate(LEVEL_OPTIONS):
             args=(lv,),
         )
 
-st.markdown('<div class="qtype_hint jp">✨레벨을 선택하세요</div>', unsafe_allow_html=True)
+st.markdown('<div class="qtype_hint jp">✨유형을 선택하세요</div>', unsafe_allow_html=True)
 
 # ----------------------------
 # 2) 유형 버튼(발음/뜻/한→일)

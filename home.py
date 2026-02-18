@@ -65,6 +65,56 @@ from streamlit_cookies_manager import EncryptedCookieManager
 # ✅ Page Config (Hub only)
 # ============================================================
 st.set_page_config(page_title="왕초보 탈출 하테나일본어", layout="centered")
+
+
+# ============================================================
+# ✅ TOP TABS CSS
+# ============================================================
+st.markdown(
+    """
+<style>
+/* make top radio look like a pill tab bar */
+div[data-testid="stRadio"] > div[role="radiogroup"]{
+  display:flex;
+  gap:8px;
+  flex-wrap:nowrap;
+}
+div[data-testid="stRadio"] label{
+  background: rgba(2,132,199,.08);
+  border: 1px solid rgba(2,132,199,.25);
+  padding: 8px 10px;
+  border-radius: 999px;
+  cursor:pointer;
+  user-select:none;
+  font-size: 13px;
+}
+div[data-testid="stRadio"] label:has(input:checked){
+  background: rgba(2,132,199,.22);
+  border-color: rgba(2,132,199,.55);
+  font-weight: 700;
+}
+div[data-testid="stRadio"] label input{display:none;}
+</style>
+""",
+    unsafe_allow_html=True
+)
+
+
+
+# ============================================================
+# ✅ LOGIN_INPUT_CSS
+# ============================================================
+st.markdown(
+    """
+<style>
+/* Login input narrower on desktop */
+div[data-testid="stTextInput"]{max-width:520px;}
+div[data-testid="stTextInput"] input{padding:10px 12px;}
+</style>
+""",
+    unsafe_allow_html=True
+)
+
 st.session_state["_page_config_set"] = True  # children should not call set
 
 # ✅ Hub version
@@ -707,56 +757,50 @@ def _plan_label() -> str:
     plan = (st.session_state.get("user_plan") or "free").lower()
     return "PRO" if plan == "pro" else "FREE"
 
+
 def render_top_bar():
-    """상단 고정 탭(텍스트) + 공통 플랜 표시."""
-    plan = _plan_label()
-    prev = st.session_state.get("_hub_last_view")
-    view = render_top_tabs()
-    _on_view_changed(view, prev)
-    st.session_state["_hub_last_view"] = view
-
-    # view -> hub_page mapping (internal router)
-    mapping = {"요약":"home", "홈":"home", "단어":"word", "한자":"kanji", "회화":"talk", "마이페이지":"mypage"}
-    st.session_state["hub_page"] = mapping.get(view, "home")
-
-    # Plan badge (subtle)
+    # Only for training pages (not hub)
+    # Plan badge on left + top tabs on right
     c1, c2 = st.columns([1.6, 6], vertical_alignment="center")
     with c1:
-        st.markdown("""<div style='height:4px;'></div>""", unsafe_allow_html=True)
-    with c2:
+        plan = st.session_state.get("user_plan", "free")
+        label = "PRO" if plan == "pro" else "FREE"
         st.markdown(
-            f"""<div style="text-align:left;margin-top:2px;">
-  <span style="display:inline-block;padding:6px 10px;border-radius:999px;
-               border:1px solid rgba(49,51,63,.14);
-               background:rgba(49,51,63,.035);
-               font-weight:700;font-size:12.5px;">
-    {plan} 플랜
-  </span>
-</div>""",
+            f"""<div style="font-size:12px;opacity:.75;margin-top:2px;">플랜: <b>{label}</b></div>""",
             unsafe_allow_html=True,
         )
+    with c2:
+        view = render_top_tabs()
 
-# ============================================================
-# ✅ Hub UI
-# ============================================================
-# render_top_bar()  # moved below (V35 fix)
-
-# ✅ Runner
-# ============================================================
-def run_script(filename: str):
-    path = (BASE_DIR / filename).resolve()
-    if not path.exists() or not path.is_file():
-        st.error(f"파일을 찾을 수 없습니다: {path}")
-        st.stop()
-    # ✅ 자식 앱이 허브 실행 중임을 알 수 있게 표시
-    st.session_state["_hub_child"] = filename
-    try:
-        runpy.run_path(str(path), run_name="__main__")
-    finally:
-        # 다음 렌더에서 혼선 방지
-        st.session_state.pop("_hub_child", None)
-
-
+    # Route
+    if view == "홈":
+        st.session_state["view"] = "hub"
+        st.session_state["hub_page"] = "home"
+        st.rerun()
+    elif view == "단어":
+        go("word")
+    elif view == "한자":
+        go("kanji")
+    elif view == "회화":
+        go("talk")
+    elif view == "마이페이지":
+        go("mypage")
+    elif view == "로그아웃":
+        try:
+            st.session_state.pop("user", None)
+            st.session_state.pop("user_email", None)
+            st.session_state.pop("user_plan", None)
+        except Exception:
+            pass
+        try:
+            if "cookies" in globals():
+                globals()["cookies"].clear()
+                globals()["cookies"].save()
+        except Exception:
+            pass
+        st.session_state["view"] = "hub"
+        st.session_state["hub_page"] = "home"
+        st.rerun()
 
 def render_top_tabs() -> str:
     """Top navigation tabs (text-only). Returns selected view key."""

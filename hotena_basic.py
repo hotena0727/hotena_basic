@@ -3185,7 +3185,32 @@ if st.session_state.get("quiz_type") not in available_types:
 
 st.markdown('<div class="qtypewrap">', unsafe_allow_html=True)
 
+
+# ============================================================
+# ✅ POS button color: gray (default) / skyblue (selected)
+# ============================================================
+st.markdown(
+    """
+<style>
+/* Only POS group buttons (placed right after #pos_btn_anchor) */
+#pos_btn_anchor + div[data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button[kind="secondary"]{
+  background: rgba(148,163,184,.18) !important; /* gray */
+  border: 1px solid rgba(148,163,184,.35) !important;
+  color: rgba(15,23,42,.92) !important;
+}
+#pos_btn_anchor + div[data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button[kind="primary"]{
+  background: rgba(56,189,248,.35) !important; /* skyblue */
+  border: 1px solid rgba(56,189,248,.75) !important;
+  color: rgba(2,6,23,.92) !important;
+  font-weight: 700 !important;
+}
+</style>
+""",
+    unsafe_allow_html=True
+)
+
 st.markdown('<div class="qtype_hint jp">✨품사를 선택하세요</div>', unsafe_allow_html=True)
+st.markdown('<div id="pos_btn_anchor"></div>', unsafe_allow_html=True)
 
 # ✅ 품사 그룹 버튼(5개)
 pos_cols = st.columns(5, gap="small")
