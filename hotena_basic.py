@@ -32,6 +32,7 @@ import random
 import pandas as pd
 import streamlit as st
 
+import ui_shared as ui
 # ✅ Hub theme
 try:
     _fn = st.session_state.get('hub_apply_theme')
@@ -62,7 +63,11 @@ import html
 # ============================================================
 if not st.session_state.get("_page_config_set"):
     st.set_page_config(page_title="왕초보 탈출 하테나일본어", page_icon="static/icon-192.png", layout="centered")
-    st.session_state["_page_config_set"] = True
+    
+
+ui.render_top_nav()
+
+st.session_state["_page_config_set"] = True
 # ============================================================
 # ✅ PWA/아이콘 - set_page_config 바로 아래
 # ============================================================

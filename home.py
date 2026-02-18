@@ -14,6 +14,7 @@ import pandas as pd
 import streamlit as st
 
 
+import ui_shared as ui
 # ============================================================
 # ✅ Last 7 days flow (mini bars)
 # ============================================================
@@ -715,7 +716,7 @@ def _plan_label() -> str:
     plan = (st.session_state.get("user_plan") or "free").lower()
     return "PRO" if plan == "pro" else "FREE"
 
-def render_top_bar():
+def ui.render_top_nav():
     """상단 고정 탭(텍스트) + 공통 플랜 표시."""
     plan = _plan_label()
     prev = st.session_state.get("_hub_last_view")
@@ -771,7 +772,7 @@ def render_top_bar():
 # ============================================================
 # ✅ Hub UI
 # ============================================================
-# render_top_bar()  # moved below (V35 fix)
+# ui.render_top_nav()  # moved below (V35 fix)
 
 # ✅ Runner
 # ============================================================
@@ -829,7 +830,7 @@ def _on_view_changed(new_view: str, prev_view: str | None):
 # ✅ Hub UI (Top Navigation)
 # ============================================================
 if st.session_state.get('view','hub') != 'hub':
-    render_top_bar()
+    ui.render_top_nav()
 def render_guide_block(page: str):
     with st.expander("이용 가이드", expanded=False):
         if page == "word":

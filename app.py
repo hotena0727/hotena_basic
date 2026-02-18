@@ -6,6 +6,7 @@ import random
 import pandas as pd
 import streamlit as st
 
+import ui_shared as ui
 # ✅ Hub theme
 try:
     _fn = st.session_state.get('hub_apply_theme')
@@ -33,7 +34,11 @@ import textwrap
 # NOTE: page config is handled by home.py
 if not st.session_state.get("_page_config_set"):
     st.set_page_config(page_title="Hatena", layout="centered")
-    st.session_state["_page_config_set"] = True
+    
+
+ui.render_top_nav()
+
+st.session_state["_page_config_set"] = True
 # ============================================================
 # ✅ [SOUND] 사운드 유틸 (모바일 자동재생 정책 대응)
 # ============================================================

@@ -6,6 +6,10 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
+import ui_shared as ui
+
+ui.render_top_nav()
+
 # ============================================================
 # ✅ Talk (Conversation) training - V37 style safe patch
 # - 1 question at a time (better for recording / self-check)
