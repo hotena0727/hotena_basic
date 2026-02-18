@@ -33,18 +33,7 @@ import textwrap
 # NOTE: page config is handled by home.py
 if not st.session_state.get("_page_config_set"):
     st.set_page_config(page_title="Hatena", layout="centered")
-    
-
-# ============================================================
-# ✅ Hub entry: go straight to quiz (no '오늘의 말' / no start screen)
-# ============================================================
-try:
-    if st.session_state.get("_hub_child") == "app.py":
-        st.session_state["page"] = "quiz"
-except Exception:
-    pass
-
-st.session_state["_page_config_set"] = True
+    st.session_state["_page_config_set"] = True
 # ============================================================
 # ✅ [SOUND] 사운드 유틸 (모바일 자동재생 정책 대응)
 # ============================================================
@@ -2217,11 +2206,11 @@ def on_pick_qtype(qt: str):
   
 st.markdown('<div class="qtypewrap">', unsafe_allow_html=True)
 
-st.markdown('<div class="qtype_hint jp">✨레벨을 선택하세요</div>', unsafe_allow_html=True)
-
 # ----------------------------
 # 1) 레벨 버튼(N5~N1) 먼저
 # ----------------------------
+st.markdown('<div class="qtype_hint jp">✨레벨을 선택하세요</div>', unsafe_allow_html=True)
+
 level_cols = st.columns(len(LEVEL_OPTIONS), gap="small")
 for i, lv in enumerate(LEVEL_OPTIONS):
     is_selected_lv = (lv == st.session_state.level)

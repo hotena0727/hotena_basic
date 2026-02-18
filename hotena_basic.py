@@ -62,18 +62,7 @@ import html
 # ============================================================
 if not st.session_state.get("_page_config_set"):
     st.set_page_config(page_title="왕초보 탈출 하테나일본어", page_icon="static/icon-192.png", layout="centered")
-    
-
-# ============================================================
-# ✅ Hub entry: go straight to quiz (no '오늘의 말' / no start screen)
-# ============================================================
-try:
-    if st.session_state.get("_hub_child") == "hotena_basic.py":
-        st.session_state["page"] = "quiz"
-except Exception:
-    pass
-
-st.session_state["_page_config_set"] = True
+    st.session_state["_page_config_set"] = True
 # ============================================================
 # ✅ PWA/아이콘 - set_page_config 바로 아래
 # ============================================================
@@ -250,6 +239,29 @@ def render_pattern_cards():
 .pat-sub{ opacity:.75; font-size:13px; margin-top:6px; }
 .pat-ex{ margin-top:10px; font-size:13px; line-height:1.55; }
 .pat-ex b{ font-weight:900; }
+
+/* ✅ POS/QTYPE buttons: 기본 회색 / 선택 스카이블루 (단어 훈련) */
+#pos_btn_anchor + div[data-testid="stHorizontalBlock"] div[data-testid="stBaseButton-secondary"] button{
+  background: #f2f4f8 !important;
+  border: 1px solid rgba(20,25,40,.12) !important;
+  color: #1b1f2a !important;
+}
+#pos_btn_anchor + div[data-testid="stHorizontalBlock"] div[data-testid="stBaseButton-primary"] button{
+  background: #6EC1E4 !important;
+  border: 1px solid rgba(20,25,40,.12) !important;
+  color: #ffffff !important;
+}
+#qtype_btn_anchor + div[data-testid="stHorizontalBlock"] div[data-testid="stBaseButton-secondary"] button{
+  background: #f2f4f8 !important;
+  border: 1px solid rgba(20,25,40,.12) !important;
+  color: #1b1f2a !important;
+}
+#qtype_btn_anchor + div[data-testid="stHorizontalBlock"] div[data-testid="stBaseButton-primary"] button{
+  background: #6EC1E4 !important;
+  border: 1px solid rgba(20,25,40,.12) !important;
+  color: #ffffff !important;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -1594,7 +1606,15 @@ def require_login():
         )
         auth_box()
         st.stop()
-# (onboarding removed for training pages)
+
+# ✅ 첫 방문 자동 노출
+# ✅ 첫 방문 자동 노출
+if not has_seen_onboarding():
+    render_onboarding_card(expanded=True)
+else:
+    if st.button("📘 이용안내 다시보기", use_container_width=True):
+        render_onboarding_card(expanded=True)
+
 # ============================================================
 # ✅ 네이버톡 배너 (제출 후만)
 # ============================================================
@@ -3185,32 +3205,7 @@ if st.session_state.get("quiz_type") not in available_types:
 
 st.markdown('<div class="qtypewrap">', unsafe_allow_html=True)
 
-
-# ============================================================
-# ✅ POS button color: gray (default) / skyblue (selected)
-# ============================================================
-st.markdown(
-    """
-<style>
-/* Only POS group buttons (placed right after #pos_btn_anchor) */
-#pos_btn_anchor + div[data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button[kind="secondary"]{
-  background: rgba(148,163,184,.18) !important; /* gray */
-  border: 1px solid rgba(148,163,184,.35) !important;
-  color: rgba(15,23,42,.92) !important;
-}
-#pos_btn_anchor + div[data-testid="stHorizontalBlock"] div[data-testid="stButton"] > button[kind="primary"]{
-  background: rgba(56,189,248,.35) !important; /* skyblue */
-  border: 1px solid rgba(56,189,248,.75) !important;
-  color: rgba(2,6,23,.92) !important;
-  font-weight: 700 !important;
-}
-</style>
-""",
-    unsafe_allow_html=True
-)
-
 st.markdown('<div class="qtype_hint jp">✨품사를 선택하세요</div>', unsafe_allow_html=True)
-st.markdown('<div id="pos_btn_anchor"></div>', unsafe_allow_html=True)
 
 # ✅ 품사 그룹 버튼(5개)
 pos_cols = st.columns(5, gap="small")
@@ -3253,6 +3248,7 @@ if st.session_state.pos_group == "other":
 st.markdown('<div class="qtype_hint jp">✨유형을 선택하세요</div>', unsafe_allow_html=True)
 
 # ✅ 유형 버튼
+st.markdown('<div id="qtype_btn_anchor"></div>', unsafe_allow_html=True)
 type_cols = st.columns(len(available_types), gap="small")
 for i, qt in enumerate(available_types):
     with type_cols[i]:
