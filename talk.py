@@ -192,7 +192,7 @@ def render_talk(user_plan: str = "free"):
     if st.session_state[submitted_key]:
         if pick == answer_jp:
             st.success("정답입니다!")
-        log_attempt('talk', 1, 1)
+            log_attempt('talk', 1, 1)
             st.markdown("**설명:** 상대가 이해했는지 확인했기 때문에, 이해가 안 됐다면 정중하게 다시 설명을 요청하는 답이 자연스럽습니다.")
         else:
             st.error("오답입니다.")
