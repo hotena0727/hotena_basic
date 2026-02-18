@@ -23,7 +23,7 @@ st.set_page_config(page_title="왕초보 탈출 하테나일본어", layout="cen
 st.session_state["_page_config_set"] = True  # children should not call set
 
 # ✅ Hub version
-HUB_VERSION = "v23"
+HUB_VERSION = "v26"
 # ============================================================
 # ✅ 오늘의 말 (공통)
 # ============================================================
@@ -690,3 +690,160 @@ def render_mypage_block(page: str):
                     st.info("자기평가 데이터를 표시할 수 없습니다.")
 
 
+
+
+# ============================================================
+# ✅ Hub Home / Page Routing (v26)
+# ============================================================
+
+def _badge_for_streak(streak: int) -> str:
+    if streak >= 30:
+        return "👑 30일+"
+    if streak >= 14:
+        return "🏅 14일+"
+    if streak >= 7:
+        return "🔥 7일+"
+    if streak >= 3:
+        return "🔹 3일+"
+    return "🌱 시작"
+
+def get_authed_sb():
+    """Return a Supabase client with PostgREST auth set (best-effort)."""
+    token = st.session_state.get("access_token") or ""
+    if not token:
+        return None
+    try:
+        sb2 = create_client(CFG["SUPABASE_URL"], CFG["SUPABASE_ANON_KEY"])
+        # supabase-py v2 style
+        try:
+            sb2.postgrest.auth(token)
+        except Exception:
+            pass
+        return sb2
+    except Exception:
+        return None
+
+def _fetch_today_sets_and_last7():
+    """Returns (today_sets:int, last7_df:pd.DataFrame or None)"""
+    u = st.session_state.get("user")
+    uid = getattr(u, "id", None) if u else None
+    if not uid:
+        return 0, None
+    sb2 = get_authed_sb()
+    if sb2 is None:
+        return 0, None
+    # Asia/Seoul today boundaries
+    now = datetime.utcnow()
+    # store as ISO strings; let DB compare timestamps
+    since7 = (datetime.utcnow() - timedelta(days=7)).isoformat()
+    try:
+        resp = sb2.table("quiz_attempts").select("created_at,score,quiz_len,wrong_count,level,pos_mode").eq("user_id", uid).gte("created_at", since7).order("created_at", desc=True).execute()
+        rows = getattr(resp, "data", None) or []
+        if not rows:
+            return 0, pd.DataFrame([])
+        df = pd.DataFrame(rows)
+        df["created_at"] = pd.to_datetime(df["created_at"], errors="coerce", utc=True)
+        df = df.dropna(subset=["created_at"])
+        if df.empty:
+            return 0, pd.DataFrame([])
+        df["date"] = df["created_at"].dt.tz_convert("Asia/Seoul").dt.date
+        today = date.today()
+        today_sets = int((df["date"] == today).sum())
+        return today_sets, df
+    except Exception:
+        return 0, None
+
+def render_home_dashboard():
+    # Identity message + Today quote
+    st.markdown("#### 오늘도 10문제만. 그걸로 충분합니다.")
+    render_today_quote()
+
+    # Home summary cards (today goal, streak badge, last activity)
+    today_sets, df7 = _fetch_today_sets_and_last7()
+
+    # streak info best-effort (word app sets these when attendance is marked)
+    streak = int(st.session_state.get("streak_count") or 0)
+    badge = _badge_for_streak(streak)
+
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.metric("오늘 완료(세트)", f"{today_sets} / 1")
+        st.progress(min(1.0, today_sets / 1.0))
+        if today_sets >= 1 and not st.session_state.get("_goal_balloons_done"):
+            st.session_state["_goal_balloons_done"] = True
+            st.balloons()
+            st.caption("🎁 오늘 10문제 완주! (보상 시스템)")
+
+    with c2:
+        st.metric("연속 학습", f"{streak}일")
+        st.caption(badge)
+    with c3:
+        last = None
+        if isinstance(df7, pd.DataFrame) and not df7.empty:
+            last = df7.sort_values("created_at", ascending=False).iloc[0].to_dict()
+        if last:
+            mode = str(last.get("pos_mode") or "")
+            lvl  = str(last.get("level") or "")
+            score = last.get("score")
+            qlen  = last.get("quiz_len")
+            st.metric("최근 기록", f"{score}/{qlen}")
+            st.caption(f"{mode} · {lvl}")
+        else:
+            st.metric("최근 기록", "—")
+            st.caption("첫 세트를 풀면 표시됩니다.")
+
+    # Quick actions
+    st.markdown("### 훈련 선택")
+    b1, b2, b3 = st.columns(3)
+    with b1:
+        if st.button("단어 훈련", use_container_width=True, key="hub_btn_word"):
+            go("word")
+    with b2:
+        if st.button("한자 훈련", use_container_width=True, key="hub_btn_kanji"):
+            go("kanji")
+    with b3:
+        if st.button("회화 훈련", use_container_width=True, key="hub_btn_talk"):
+            go("talk")
+
+    # Wrong review button (today wrongs -> word by default)
+    if st.button("🔁 오늘 틀린 것 복습", use_container_width=True, key="hub_btn_review_wrongs"):
+        st.session_state["_hub_quick_review"] = "today_wrongs"
+        go("word")
+
+    # Level progress visualization (last 7 days attempts by level)
+    if isinstance(df7, pd.DataFrame) and df7 is not None and not df7.empty:
+        try:
+            g = df7.groupby(["pos_mode","level"], as_index=False).size()
+            g.rename(columns={"size":"sets"}, inplace=True)
+            st.markdown("### 최근 7일 레벨 진행도(세트 수)")
+            piv = g.pivot(index="level", columns="pos_mode", values="sets").fillna(0)
+            st.bar_chart(piv)
+        except Exception:
+            pass
+
+# ============================================================
+# ✅ Render by hub_page
+# ============================================================
+page = st.session_state.get("hub_page", "home")
+
+if page == "home":
+    render_home_dashboard()
+
+elif page == "word":
+    render_guide_block("word")
+    render_mypage_block("word")
+    run_script("hotena_basic.py")
+
+elif page == "kanji":
+    render_guide_block("kanji")
+    render_mypage_block("kanji")
+    run_script("app.py")
+
+elif page == "talk":
+    render_guide_block("talk")
+    render_mypage_block("talk")
+    run_script("talk.py")
+
+else:
+    st.session_state["hub_page"] = "home"
+    st.rerun()
