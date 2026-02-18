@@ -16,7 +16,12 @@ def _badge_html(user_plan: str):
     cls = "pro" if plan == "PRO" else "free"
     return f"<span class='ht-badge {cls}'>{plan}</span>"
 
-def render_header(title: str, user_plan: str = "free", show_home: bool = True, show_mypage: bool = True):
+def render_header(
+    title: str,
+    user_plan: str = "free",
+    show_home: bool = True,
+    show_mypage: bool = True,
+):
     """
     Standard header row:
       [← 홈]   [Title]   [마이페이지] [FREE/PRO badge]
@@ -29,10 +34,12 @@ def render_header(title: str, user_plan: str = "free", show_home: bool = True, s
                 nav_to("홈")
 
     with colC:
-        st.markdown(f"<div style='text-align:center;font-weight:900;'>{title}</div>", unsafe_allow_html=True)
+        st.markdown(
+            f"<div style='text-align:center;font-weight:900;'>{title}</div>",
+            unsafe_allow_html=True,
+        )
 
     with colR:
-        # Right side: MyPage button + plan badge
         r1, r2 = st.columns([1.05, 1.0], vertical_alignment="center")
         with r1:
             if show_mypage:
@@ -43,22 +50,3 @@ def render_header(title: str, user_plan: str = "free", show_home: bool = True, s
                 f"<div style='text-align:right;'>{_badge_html(user_plan)}</div>",
                 unsafe_allow_html=True,
             )
-
-
-def card(title: str, body_html: str):
-    st.markdown(
-        f\"\"\"
-        <div class="ht-card">
-          <div class="ht-card-title">{title}</div>
-          <div class="ht-card-sub" style="color:var(--subtext)">{body_html}</div>
-        </div>
-        \"\"\",
-        unsafe_allow_html=True,
-    )
-
-
-def quick_go(view: str, **flags):
-    # optional mode flags passed to session_state
-    for k, v in flags.items():
-        st.session_state[k] = v
-    nav_to(view)
