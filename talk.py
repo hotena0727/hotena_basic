@@ -242,45 +242,50 @@ if pool_df.empty:
 
 
 def tts_button(text: str, label: str, key: str):
-    """브라우저 SpeechSynthesis 기반 TTS.
-    - PRO: 실제 재생 버튼
-    - FREE: 잠금된 버튼(비활성)만 노출
+    """브라우저 SpeechSynthesis 기반 TTS 버튼.
+    - Streamlit iframe 안에서 직접 버튼을 렌더링(부모 DOM 주입 X) → 가장 안정적
+    - PRO: 클릭 시 재생
+    - FREE: 잠금된 버튼(비활성) 표시
     """
-    if not IS_PRO:
-        st.button(f"🔒 {label}", use_container_width=True, disabled=True, key=f"tts_lock_{key}")
-        return
-
-    safe = (text or "").replace("\\", "\\\\").replace("`", "").replace("\n", " ")
+    safe = (text or "").replace("\", "\\").replace("`", "").replace("
+", " ")
+    disabled = "true" if (not IS_PRO) else "false"
+    btn_text = (f"🔒 {label}" if (not IS_PRO) else label)
+    # key마다 고유한 mount id
     components.html(
         f"""
+<div style='width:100%'>
+  <button id='tts_{key}' {'disabled' if not IS_PRO else ''} 
+    style='width:100%;padding:8px 10px;border-radius:12px;border:1px solid rgba(49,51,63,.18);
+           background:{'#f6f7f9' if not IS_PRO else 'white'};cursor:{'not-allowed' if not IS_PRO else 'pointer'};
+           font-weight:800;opacity:{'0.7' if not IS_PRO else '1.0'};'>
+    {btn_text}
+  </button>
+</div>
 <script>
-(function(){{
-  const id = "btn_{key}";
-  const parentDoc = (window.parent && window.parent.document) ? window.parent.document : document;
-  if (!parentDoc.getElementById(id)) {{
-    const btn = parentDoc.createElement('button');
-    btn.id = id;
-    btn.textContent = {label!r};
-    btn.style.cssText = 'padding:8px 10px;border-radius:12px;border:1px solid rgba(49,51,63,.18);background:white;cursor:pointer;font-weight:800;width:100%;';
-    btn.onclick = () => {{
-      try {{
-        const u = new SpeechSynthesisUtterance({safe!r});
-        u.lang = 'ja-JP';
-        window.speechSynthesis.cancel();
-        window.speechSynthesis.speak(u);
-      }} catch(e) {{}}
-    }};
-    const mount = parentDoc.getElementById("mount_{key}");
-    if (mount) mount.appendChild(btn);
-  }}
+(function() {{
+  const btn = document.getElementById('tts_{key}');
+  if (!btn) return;
+  if ({disabled}) return;
+  // 동일 rerun에서 이벤트 중복 등록 방지
+  if (btn.dataset.bound === '1') return;
+  btn.dataset.bound = '1';
+  btn.addEventListener('click', () => {{
+    try {{
+      const u = new SpeechSynthesisUtterance({safe!r});
+      u.lang = 'ja-JP';
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(u);
+    }} catch(e) {{}}
+  }});
 }})();
 </script>
-<div id="mount_{key}"></div>
 """,
-        height=46,
+        height=60,
     )
 
-# ============================================================
+# ======================================
+======================
 # ✅ Build choices (문제 로딩 시 1회 셔플 후 고정)
 # ============================================================
 
