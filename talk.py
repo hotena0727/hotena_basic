@@ -1,5 +1,6 @@
-from stats import log_attempt
 from __future__ import annotations
+
+from stats import log_attempt
 
 import random
 from pathlib import Path
