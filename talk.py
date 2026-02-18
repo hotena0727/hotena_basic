@@ -28,6 +28,10 @@ USER = st.session_state["user"]
 USER_ID = USER.get("id") if isinstance(USER, dict) else None
 USER_EMAIL = USER.get("email") if isinstance(USER, dict) else None
 
+USER_PLAN = st.session_state.get("user_plan", "free")
+IS_PRO = str(USER_PLAN).lower() == "pro"
+
+
 st.title("회화 훈련 · 상황판단")
 st.caption("상황 → 상대 발화(🔊) → 쌩뚱맞은 보기 속에서 정답 선택 → 제출 후 정답(🔊)")
 
@@ -303,6 +307,10 @@ if len(pool_df) == 0:
 pool_answers = DF["answer_jp"].astype(str).fillna("").tolist()
 
 def start_new_set():
+    # cached choices clear (고정 보기용)
+    for k in list(st.session_state.keys()):
+        if k.startswith(f"{NS}_choices_"):
+            st.session_state.pop(k, None)
     # 10문 뽑기(가능한 만큼)
     n = min(QUIZ_LEN, len(pool_df))
     sample = pool_df.sample(n=n, replace=False)
@@ -384,10 +392,10 @@ if view == "wrongs":
             aj = str(r.get("answer_jp","")).strip()
             # 문제/정답 발음만
             if pj:
-                components.html(speak_buttons_html([("상대 발화", pj)], block_id=f"w_p_{r['qid']}"), height=60)
+                (components.html(speak_buttons_html([("상대 발화", pj)], block_id=f"w_p_{r['qid']}"), height=40) if IS_PRO else st.caption("🔒 발음은 PRO 플랜에서 이용할 수 있어요."))
             st.write(f"정답: {aj}")
             if aj:
-                components.html(speak_buttons_html([("정답", aj)], block_id=f"w_a_{r['qid']}"), height=60)
+                (components.html(speak_buttons_html([("정답", aj)], block_id=f"w_a_{r['qid']}"), height=40) if IS_PRO else st.caption("🔒 발음은 PRO 플랜에서 이용할 수 있어요."))
 
     if st.button("퀴즈로 돌아가기", use_container_width=True):
         st.session_state[f"{NS}_view"] = "quiz"
@@ -401,7 +409,10 @@ qid = qids[idx]
 row = DF[DF["qid"].astype(str) == str(qid)].iloc[0].to_dict()
 
 # 보기 구성(쌩뚱맞게 가리기)
-choices = build_choices(row, pool_answers)
+choices_key = f"{NS}_choices_{qid}"
+if choices_key not in st.session_state:
+    st.session_state[choices_key] = build_choices(row, pool_answers)
+choices = st.session_state[choices_key]
 
 # 상단 진행 표기: "1 / 10" (Q1 제거)
 st.markdown(f"### {idx+1} / {len(qids)}")
@@ -419,10 +430,7 @@ st.markdown("#### 상대 발화")
 if partner_jp:
     st.write(partner_jp)
     # ✅ 문제 발음(상대 발화)만 제공
-    components.html(
-        speak_buttons_html([("상대 발화 듣기", partner_jp)], block_id=f"p_{qid}_{idx}"),
-        height=60
-    )
+    (components.html(speak_buttons_html([("상대 발화 듣기", partner_jp)], block_id=f"p_{qid}_{idx}"), height=40) if IS_PRO else st.caption("🔒 발음은 PRO 플랜에서 이용할 수 있어요."))
 else:
     st.caption("상대 발화가 비어 있습니다. (CSV의 partner_jp 확인)")
 
@@ -478,10 +486,7 @@ if submitted:
 
     # ✅ 정답 발음만
     if ans:
-        components.html(
-            speak_buttons_html([("정답 듣기", ans)], block_id=f"a_{qid}_{idx}"),
-            height=60
-        )
+        (components.html(speak_buttons_html([("정답 듣기", ans)], block_id=f"a_{qid}_{idx}"), height=40) if IS_PRO else st.caption("🔒 발음은 PRO 플랜에서 이용할 수 있어요."))
 
     if str(row.get("answer_kr","")).strip():
         st.caption(str(row.get("answer_kr","")).strip())

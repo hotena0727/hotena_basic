@@ -46,12 +46,9 @@ import html
 # ============================================================
 # ✅ Page Config + Paths
 # ============================================================
-st.set_page_config(
-    page_title="왕초보탈출 하테나일본어",
-    page_icon="static/icon-192.png",   # 또는 "🟦"
-    layout="centered",
-)
-
+if not st.session_state.get("_page_config_set"):
+    st.set_page_config(page_title="왕초보 탈출 하테나일본어", page_icon="static/icon-192.png", layout="centered")
+    st.session_state["_page_config_set"] = True
 # ============================================================
 # ✅ PWA/아이콘 - set_page_config 바로 아래
 # ============================================================
@@ -2498,33 +2495,7 @@ def render_home():
     except Exception:
         # 리포트 실패해도 홈 화면은 멈추지 않게
         pass
-
-    # ✅ (3) 오늘의 말
-    quotes = [
-        "오늘 10문항이면 충분해요.",
-        "루틴은 작게, 지속은 길게.",
-        "정답보다 중요한 건 ‘계속’입니다.",
-        "단어가 쌓이면 문장이 열립니다.",
-        "오늘의 한 번이 내일의 자신감이에요.",
-    ]
-    q = random.choice(quotes)
-
-    st.markdown(
-        f"""
-<div class="jp" style="
-  margin-top:1px;
-  border:1px solid rgba(120,120,120,0.18);
-  border-radius:18px; padding:16px; background:rgba(255,255,255,0.03);">
-  <div style="font-weight:900; font-size:14px; opacity:.75;">오늘의 말</div>
-  <div style="margin-top:6px; font-weight:900; font-size:20px; line-height:1.3;">{q}</div>
-  <div style="margin-top:10px; opacity:.80; font-size:13px; line-height:1.55;">
-    품사 하나씩만 잡아도, 말이 빨라집니다.
-  </div>
-</div>
-""",
-        unsafe_allow_html=True,
-    )
-
+    # ✅ (3) 오늘의 말: 허브(home.py)에서 공통 제공
     st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
     st.divider()
 
