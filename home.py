@@ -643,7 +643,7 @@ def render_top_bar():
 # ============================================================
 # ✅ Hub UI
 # ============================================================
-render_top_bar()
+# render_top_bar()  # moved below (V35 fix)
 
 # ✅ Runner
 # ============================================================
@@ -696,6 +696,12 @@ def _on_view_changed(new_view: str, prev_view: str | None):
         st.session_state["page"] = "quiz"
     elif new_view == "회화":
         st.session_state["_hub_force_new_talk"] = True
+
+# ============================================================
+# ✅ Hub UI (Top Navigation)
+# ============================================================
+render_top_bar()
+
 def render_guide_block(page: str):
     with st.expander("이용 가이드", expanded=False):
         if page == "word":
@@ -707,7 +713,7 @@ def render_guide_block(page: str):
         elif page == "talk":
             st.markdown("- **회화 훈련**: 상황 + 상대 발화 + 보기 선택.")
             st.markdown("- **발음 듣기(🔊)** 는 PRO에서 제공됩니다.")
-        st.markdown("- 홈으로 돌아가려면 상단 **← 홈으로** 버튼을 누르세요.")
+        st.markdown("- 홈으로 돌아가려면 상단 탭 메뉴을 누르세요.")
 
 def _safe_int(x, default=0):
     try:
