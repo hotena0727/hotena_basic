@@ -8,8 +8,9 @@ import json
 import hashlib
 import random
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
+import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 from supabase import create_client
@@ -481,6 +482,62 @@ def render_mypage_block(page: str):
             st.metric("정답률", f"{t['acc']:.0f}%")
             st.caption(f"시도 {t['attempts']} · 정답 {t['correct']} · 오답 {t['wrong']}")
             st.caption(f"정복 {t['mastered']} · 오답저장 {t['wrong_saved']}")
+
+
+        # ----------------------------
+        # ✅ 최근 7일 학습(간단 그래프)
+        # - quiz_attempts 테이블이 있으면 일자별 시도/정답률을 보여줍니다.
+        # - 없거나 권한/컬럼 문제가 있으면 조용히 스킵합니다.
+        # ----------------------------
+        try:
+            sb = st.session_state.get("supabase")
+            u2 = st.session_state.get("user")
+            uid = getattr(u2, "id", None) if u2 else None
+            if sb and uid:
+                since = (datetime.utcnow() - timedelta(days=6)).replace(hour=0, minute=0, second=0, microsecond=0).isoformat() + "Z"
+                resp = (
+                    sb.table("quiz_attempts")
+                      .select("created_at,score,quiz_len,level")
+                      .eq("user_id", uid)
+                      .gte("created_at", since)
+                      .order("created_at", desc=False)
+                      .execute()
+                )
+                rows = getattr(resp, "data", None) or []
+                if rows:
+                    df7 = pd.DataFrame(rows)
+                    df7["created_at"] = pd.to_datetime(df7["created_at"], errors="coerce", utc=True)
+                    df7 = df7.dropna(subset=["created_at"])
+                    df7["date"] = df7["created_at"].dt.tz_convert("Asia/Seoul").dt.date.astype(str)
+
+                    # 숫자 안전 변환
+                    for c in ["score", "quiz_len"]:
+                        if c in df7.columns:
+                            df7[c] = pd.to_numeric(df7[c], errors="coerce").fillna(0).astype(int)
+                        else:
+                            df7[c] = 0
+
+                    g = df7.groupby("date", as_index=False).agg(
+                        quizzes=("date", "count"),
+                        correct=("score", "sum"),
+                        total=("quiz_len", "sum"),
+                    )
+                    g["acc"] = g.apply(lambda r: (r["correct"] / r["total"] * 100.0) if r["total"] else 0.0, axis=1)
+
+                    # 최근 7일 빈 날짜 채우기
+                    today = date.today()
+                    dates = [(today - timedelta(days=i)) for i in range(6, -1, -1)]
+                    base = pd.DataFrame({"date": [d.isoformat() for d in dates]})
+                    g = base.merge(g, on="date", how="left").fillna(0)
+                    g["quizzes"] = g["quizzes"].astype(int)
+                    g["acc"] = g["acc"].astype(float)
+
+                    st.markdown("#### 최근 7일")
+                    st.caption("일자별 ‘세트(퀴즈) 시도 횟수’와 ‘정답률(%)’입니다.")
+                    st.bar_chart(g.set_index("date")["quizzes"])
+                    st.line_chart(g.set_index("date")["acc"])
+        except Exception:
+            pass
 
         st.divider()
         st.markdown("#### 상세 기록 (원하면 펼쳐보기)")
