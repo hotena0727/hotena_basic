@@ -1,7 +1,5 @@
-if st.button("🔁 세션 초기화 (디버그)"):
-    st.session_state.clear()
-    st.rerun()
-    
+st.write("VERSION CHECK: v17")v
+
 # home.py
 from __future__ import annotations
 
