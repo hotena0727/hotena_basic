@@ -240,12 +240,17 @@ if pool_df.empty:
 # ✅ TTS (PRO only) - 브라우저 SpeechSynthesis
 # ============================================================
 
+
 def tts_button(text: str, label: str, key: str):
+    """브라우저 SpeechSynthesis 기반 TTS.
+    - PRO: 실제 재생 버튼
+    - FREE: 잠금된 버튼(비활성)만 노출
+    """
     if not IS_PRO:
-        st.caption("🔒 발음 듣기(🔊)는 PRO에서 제공됩니다.")
+        st.button(f"🔒 {label}", use_container_width=True, disabled=True, key=f"tts_lock_{key}")
         return
+
     safe = (text or "").replace("\\", "\\\\").replace("`", "").replace("\n", " ")
-    # 음성은 브라우저/OS 환경에 따라 달라질 수 있음
     components.html(
         f"""
 <script>
@@ -256,7 +261,7 @@ def tts_button(text: str, label: str, key: str):
     const btn = parentDoc.createElement('button');
     btn.id = id;
     btn.textContent = {label!r};
-    btn.style.cssText = 'padding:8px 10px;border-radius:10px;border:1px solid rgba(49,51,63,.18);background:white;cursor:pointer;font-weight:700;width:100%;';
+    btn.style.cssText = 'padding:8px 10px;border-radius:12px;border:1px solid rgba(49,51,63,.18);background:white;cursor:pointer;font-weight:800;width:100%;';
     btn.onclick = () => {{
       try {{
         const u = new SpeechSynthesisUtterance({safe!r});
@@ -272,7 +277,7 @@ def tts_button(text: str, label: str, key: str):
 </script>
 <div id="mount_{key}"></div>
 """,
-        height=44,
+        height=46,
     )
 
 # ============================================================
@@ -432,6 +437,20 @@ if submitted:
         st.markdown("**정답 스크립트**")
         st.write(correct)
         tts_button(correct, "🔊 정답 듣기", key=f"{qid}_answer")
+        # ✅ 말하기 녹음(선택) — 채점/인식 없이 '내 발화'만 남길 수 있게
+        try:
+            if hasattr(st, "audio_input"):
+                audio = st.audio_input("내 말 녹음(선택)", key=f"{NS}_rec_{qid}")
+                if audio is not None:
+                    st.audio(audio)
+            else:
+                st.caption("현재 Streamlit 버전에서는 즉시 녹음이 지원되지 않아, 파일 업로드로 대체됩니다.")
+                up = st.file_uploader("내 음성 파일 업로드(선택)", type=["wav","mp3","m4a"], key=f"{NS}_rec_up_{qid}")
+                if up is not None:
+                    st.audio(up)
+        except Exception:
+            pass
+
 
         # 납득 가능한 안내
         hint = str(row.get("hint_kr", "")).strip()
@@ -520,4 +539,3 @@ def finalize_set_if_ready():
 
 
 finalize_set_if_ready()
-

@@ -420,6 +420,8 @@ sb_authed = get_authed_sb()
 user = st.session_state.get("user")
 ensure_profile(sb_authed, user)
 load_profile(sb_authed, user.id)
+# ✅ 공유용 authed client key (child pages/mypage/xp)
+st.session_state["supabase"] = sb_authed
 
 # ============================================================
 # 🔔 Reminder settings (stored in profiles.progress.reminder)
