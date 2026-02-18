@@ -5,6 +5,20 @@ from pathlib import Path
 import random
 import pandas as pd
 import streamlit as st
+
+# ✅ Hub theme
+try:
+    _fn = st.session_state.get('hub_apply_theme')
+    if callable(_fn):
+        _fn()
+except Exception:
+    pass
+
+
+# ============================================================
+# ✅ Hub Mode Flag (home.py에서 실행 중인지)
+# ============================================================
+HUB_MODE = bool(st.session_state.get("hub_mode") or st.session_state.get("_hub_child") or st.session_state.get("_hub_common_header"))
 import unicodedata
 from supabase import create_client
 from streamlit_cookies_manager import EncryptedCookieManager
@@ -430,7 +444,7 @@ quiz_label_for_table = quiz_label_map.copy()
 QUIZ_TYPES_USER = ["reading", "meaning", "kr2jp"]
 QUIZ_TYPES_ADMIN = ["reading", "meaning", "kr2jp"]
 
-LEVEL_OPTIONS = ["N5", "N4", "N3", "N2", "N1"]
+LEVEL_OPTIONS = ["N5", "N4", "N3"]
 LEVEL_LABEL_MAP = {lv: lv for lv in LEVEL_OPTIONS}
 
 # ✅ 세션 기본값(가장 중요)
@@ -537,6 +551,9 @@ def start_quiz_state(quiz_list: list, qtype: str, clear_wrongs: bool = True):
     st.session_state.saved_this_attempt = False
     st.session_state.stats_saved_this_attempt = False
     st.session_state.session_stats_applied_this_attempt = False
+
+    # ✅ Hub 공통 보상(10문제 완주) 중복 방지 플래그 리셋
+    st.session_state["_hub_recorded_submit"] = False
 
     if clear_wrongs:
         st.session_state.wrong_list = []
@@ -1135,36 +1152,7 @@ def nav_logout():
     clear_auth_everywhere()
 
 def render_topcard():
-    u = st.session_state.get("user")
-    if not u:
-        return
-
-    email = getattr(u, "email", None) or st.session_state.get("login_email", "")
-
-    st.markdown('<div class="topcard">', unsafe_allow_html=True)
-
-    left, r_admin, r_my, r_logout = st.columns([6.0, 1.2, 2.4, 2.4], vertical_alignment="center")
-
-    with left:
-        # ✅ 왼쪽 '환영합니다/이메일' 제거 (공간만 유지)
-        st.markdown("<div style='height:40px;'></div>", unsafe_allow_html=True)
-
-    with r_admin:
-        if is_admin():
-            st.button("📊", use_container_width=True, help="관리자 대시보드",
-                      key="topcard_btn_nav_admin", on_click=nav_to, args=("admin",))
-        else:
-            st.markdown("<div style='height:40px;'></div>", unsafe_allow_html=True)
-
-    with r_my:
-        st.button("📌 마이페이지", use_container_width=True, help="내 학습 기록/오답 TOP10 보기",
-                  key="topcard_btn_nav_my", on_click=nav_to, args=("my",))
-
-    with r_logout:
-        st.button("🚪 로그아웃", use_container_width=True, help="로그아웃",
-                  key="topcard_btn_logout", on_click=nav_logout)
-
-    st.markdown("</div>", unsafe_allow_html=True)
+    return
 
 # ============================================================
 # ✅ 로딩: CSV 풀
@@ -1256,6 +1244,15 @@ import unicodedata
 import random
 import pandas as pd
 import streamlit as st
+
+# ✅ Hub theme
+try:
+    _fn = st.session_state.get('hub_apply_theme')
+    if callable(_fn):
+        _fn()
+except Exception:
+    pass
+
 
 def _nfkc_str(x) -> str:
     return unicodedata.normalize("NFKC", str(x or "")).strip()
@@ -1568,6 +1565,19 @@ def build_quiz(qtype: str, level: str) -> list[dict]:
     # ✅ 레벨 필터 (N5~N1)
     level = str(level).strip().upper()
     base_level = pool[pool["level"].astype(str).str.upper() == level].copy()
+
+    # ✅ N3는 "왕초보 탈출" 톤에 맞게 조금 더 쉬운 축으로(가능하면)
+    if level == "N3" and len(base_level) >= N:
+        try:
+            tmp = base_level.copy()
+            tmp["_rlen"] = tmp.get("reading").astype(str).str.replace(" ", "", regex=False).str.len()
+            tmp["_wlen"] = tmp.get("jp_word").astype(str).str.replace(" ", "", regex=False).str.len()
+            # reading이 너무 길거나(고급 느낌) 단어가 너무 긴 항목은 우선순위에서 제외
+            easier = tmp[(tmp["_rlen"] <= 5) & (tmp["_wlen"] <= 4)].copy()
+            if len(easier) >= N:
+                base_level = easier.drop(columns=["_rlen", "_wlen"], errors="ignore")
+        except Exception:
+            pass
 
     # 레벨 데이터가 너무 적을 때 안전장치
     if len(base_level) < N:
@@ -1981,6 +1991,28 @@ except Exception:
 # progress 자동복원 OFF (원본 유지)
 st.session_state.progress_restored = True
 
+# ============================================================
+# ✅ Hub 진입 시 상태 초기화(제출 완료 화면/선택 잔상 방지)
+# ============================================================
+try:
+    nav = st.session_state.get("_hub_nav_token")
+    last_nav = st.session_state.get("_kanji_last_nav_token")
+    if nav and nav != last_nav:
+        st.session_state["_kanji_last_nav_token"] = nav
+        st.session_state.submitted = False
+        st.session_state.saved_this_attempt = False
+        st.session_state.stats_saved_this_attempt = False
+        st.session_state.session_stats_applied_this_attempt = False
+        for k in [k for k in list(st.session_state.keys()) if isinstance(k, str) and k.startswith("q_")]:
+            st.session_state.pop(k, None)
+        if isinstance(st.session_state.get("quiz"), list):
+            qlen = len(st.session_state.quiz)
+            st.session_state.answers = [None] * qlen
+except Exception:
+    pass
+
+
+
 if "level" not in st.session_state:
     st.session_state.level = "N5"
 
@@ -2053,31 +2085,69 @@ if streak is not None:
     elif streak >= 7:
         st.info("🏅 7일 연속 달성! 흐름이 잡혔어요.")
 
-if "today_goal" not in st.session_state:
-    st.session_state.today_goal = "오늘은 10문항 1회 완주"
-if "today_goal_done" not in st.session_state:
-    st.session_state.today_goal_done = False
 
-with st.container():
-    st.markdown("### 🎯 오늘의 목표(루틴)")
-    c1, c2 = st.columns([7, 3])
-    with c1:
-        st.session_state.today_goal = st.text_input(
-            "목표 문장",
-            value=st.session_state.today_goal,
-            label_visibility="collapsed",
-            placeholder="예) 오늘은 10문항 2회 + 오답만 다시풀기 1회",
-        )
-    with c2:
-        st.session_state.today_goal_done = st.checkbox("달성", value=bool(st.session_state.today_goal_done))
+# ============================================================
+# ✅ 상단: 오늘의 목표 (단어 페이지 스타일)
+# ============================================================
+# hub(home.py)에서 today_total_kanji 를 세팅해 둡니다(없으면 0)
+today_total = int(st.session_state.get("today_total_kanji", 0))
 
-    if st.session_state.today_goal_done:
-        st.success("좋아요. 오늘 루틴 완료 ✅")
-    else:
-        st.caption("가볍게라도 체크하면 루틴이 끊기지 않습니다.")
+if "target_questions_kanji" not in st.session_state:
+    st.session_state["target_questions_kanji"] = 10
 
-st.divider()
+target_questions = st.slider(
+    "오늘 목표",
+    min_value=10, max_value=60, step=10,
+    value=int(st.session_state.get("target_questions_kanji", 10)),
+)
+st.session_state["target_questions_kanji"] = int(target_questions)
 
+goal_done = today_total >= target_questions
+goal_percent = int(min(100, (today_total / max(1, target_questions)) * 100))
+remain = max(0, target_questions - today_total)
+goal_msg = "오늘 목표 달성! 내일도 루틴 이어가요 🔥" if goal_done else f"남은 문항: {remain}"
+
+card_html = f"""
+<div style="
+  border:1px solid rgba(49,51,63,.12);
+  border-radius:18px;
+  padding:14px 14px;
+  background:#fff;
+  box-shadow: 0 1px 0 rgba(0,0,0,.02);
+  margin: 6px 0 10px 0;
+">
+  <div style="display:flex; justify-content:space-between; align-items:center;">
+    <div style="font-weight:900; font-size:14px; opacity:.80;">🎯 오늘 목표</div>
+    <div style="font-size:12px; font-weight:900; opacity:.85;">
+      {"✅ 달성" if goal_done else "⏳ 진행중"}
+    </div>
+  </div>
+
+  <div style="margin-top:10px; display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+    <div style="font-size:13px; font-weight:800; opacity:.85;">
+      목표: <b>{target_questions}</b>문항
+    </div>
+    <div style="font-size:13px; font-weight:800; opacity:.85;">
+      진행: <b>{today_total}</b> / {target_questions}문항
+    </div>
+    <div style="font-size:13px; font-weight:900; opacity:.85;">
+      {goal_percent}%
+    </div>
+  </div>
+
+  <div style="margin-top:10px;">
+    <div style="height:10px; border-radius:999px; background: rgba(0,0,0,0.07); overflow:hidden;">
+      <div style="height:100%; width:{goal_percent}%; background: rgba(0,0,0,0.25);"></div>
+    </div>
+
+    <div style="margin-top:10px; font-size:12.5px; opacity:.72; font-weight:700;">
+      {goal_msg}
+    </div>
+  </div>
+</div>
+"""
+
+components.html(card_html, height=150)
 # ============================================================
 # ✅ 세션 초기화
 # ============================================================
@@ -2193,7 +2263,7 @@ st.markdown('</div>', unsafe_allow_html=True)
 cbtn1, cbtn2 = st.columns(2)
 
 with cbtn1:
-    if st.button("🔄 새 문제(랜덤 10문항)", use_container_width=True, key="btn_new_random_10"):
+    if st.button("🔄 새 문제(랜덤 10문항)", use_container_width=True, key="btn_new_random_10") or st.session_state.pop("_auto_new_quiz_kanji_once", False):
         k_now = mastery_key()
         if st.session_state.get("mastery_done", {}).get(k_now, False):
             st.session_state["_scroll_top_once"] = True
@@ -2302,14 +2372,22 @@ for idx, q in enumerate(st.session_state.quiz):
     if prev is not None and prev in q["choices"]:
         default_index = q["choices"].index(prev)
 
-    choice = st.radio(
+    # ✅ '아무것도 선택 안 된 상태'를 만들기 위해 더미 옵션을 첫 번째로 추가
+    # ✅ 시작 시 아무것도 선택되지 않도록 index=None 사용
+    default_index = None
+    if prev is not None and prev in q["choices"]:
+        default_index = list(q["choices"]).index(prev)
+
+    picked = st.radio(
         label="보기",
-        options=q["choices"],
+        options=list(q["choices"]),
         index=default_index,
         key=widget_key,
         label_visibility="collapsed",
         on_change=mark_progress_dirty,
     )
+
+    choice = picked
     st.session_state.answers[idx] = choice
 
 sync_answers_from_widgets()
@@ -2406,6 +2484,16 @@ if st.session_state.submitted:
             try:
                 run_db(_save)
                 st.session_state.saved_this_attempt = True
+
+                # ✅ 10문제 완주 보상(허브 공통)
+                try:
+                    if (quiz_len == 10) and (not st.session_state.get("_hub_recorded_submit")):
+                        fn = st.session_state.get("hub_record_completion")
+                        if callable(fn):
+                            fn("kanji", score, quiz_len)
+                        st.session_state["_hub_recorded_submit"] = True
+                except Exception:
+                    pass
             except Exception as e:
                 if show_post_ui:
                     st.warning("DB 저장에 실패했습니다. (테이블/컬럼/권한/RLS 정책 확인 필요)")
