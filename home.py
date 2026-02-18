@@ -163,31 +163,85 @@ def apply_navy_theme():
     /* soften segmented/toggle visuals */
     div[data-testid="stSegmentedControl"] button{border-radius:999px !important;}
 
-    /* ✅ Top tabs: pill + active highlight (no icons) */
-    .h-tabs .stRadio [role="radiogroup"]{gap:0.5rem;}
+    /* ✅ Top nav container (sticky look) */
+    .h-topnav{
+      padding: 10px 0 8px 0;
+      margin: 0 0 10px 0;
+      border-bottom: 1px solid rgba(28,42,58,.10);
+      background: rgba(245,247,250,.86);
+      backdrop-filter: blur(10px);
+    }
+
+    /* ✅ Plan badge (left) */
+    .h-plan-badge{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      min-width: 54px;
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: .9px;
+      border: 1px solid rgba(28,42,58,.14);
+      box-shadow: 0 10px 26px rgba(0,0,0,.06);
+      user-select:none;
+    }
+    .h-plan-free{
+      background: rgba(255,255,255,.92);
+      color: rgba(28,42,58,.80);
+    }
+    .h-plan-pro{
+      background: linear-gradient(135deg, rgba(255,206,230,.95), rgba(205,235,255,.98));
+      color: rgba(28,42,58,.88);
+      border-color: rgba(255, 72, 140, .22);
+    }
+
+    /* ✅ Top tabs: pill + subtle active state */
+    .h-tabs .stRadio [role="radiogroup"]{
+      gap: .45rem;
+      flex-wrap: nowrap;
+      overflow-x: auto;
+      padding-bottom: 2px;
+      -webkit-overflow-scrolling: touch;
+    }
+    .h-tabs .stRadio [role="radiogroup"]::-webkit-scrollbar{ height: 6px; }
+    .h-tabs .stRadio [role="radiogroup"]::-webkit-scrollbar-thumb{ background: rgba(0,0,0,.10); border-radius: 999px; }
+
+    /* Hide native radio circles */
+    .h-tabs .stRadio input[type="radio"]{
+      position: absolute !important;
+      opacity: 0 !important;
+      width: 1px !important;
+      height: 1px !important;
+      pointer-events: none !important;
+    }
     .h-tabs .stRadio label{
-      padding:0.35rem 0.85rem;
-      border-radius:999px;
-      border:1px solid transparent;
-      background:transparent;
-      transition:all .12s ease;
+      padding: .40rem .90rem;
+      border-radius: 999px;
+      border: 1px solid transparent;
+      background: transparent;
+      transition: transform .08s ease, background .12s ease, border-color .12s ease, box-shadow .12s ease;
+      white-space: nowrap;
     }
     .h-tabs .stRadio label:hover{
-      background:rgba(255,255,255,.9);
-      border-color:var(--h-border);
+      background: rgba(255,255,255,.92);
+      border-color: rgba(28,42,58,.14);
+      transform: translateY(-1px);
+      box-shadow: 0 12px 24px rgba(0,0,0,.07);
     }
     .h-tabs .stRadio label:has(input:checked){
-      background:rgba(255,255,255,1);
-      border-color:var(--h-border);
-      box-shadow:0 1px 0 rgba(0,0,0,.03);
+      background: rgba(255,255,255,1);
+      border-color: rgba(255, 72, 140, .20);
+      box-shadow: 0 0 0 2px rgba(135, 206, 250, .14) inset, 0 10px 22px rgba(0,0,0,.06);
     }
     .h-tabs .stRadio label:has(input:checked) span{
-      color:var(--h-navy);
-      font-weight:900;
+      color: var(--h-navy);
+      font-weight: 900;
     }
     .h-tabs .stRadio label:not(:has(input:checked)) span{
-      color:rgba(28,42,58,.55);
-      font-weight:800;
+      color: rgba(28,42,58,.60);
+      font-weight: 800;
     }
 
     /* ✅ Segmented control: softer pastel instead of heavy navy */
@@ -857,6 +911,59 @@ def render_top_tabs() -> str:
         )
 
     st.session_state["hub_view"] = view
+
+    # ✅ Make the nav block truly sticky + attach styling class (robust across Streamlit DOM changes)
+    try:
+        components.html(
+            """
+<script>
+(function(){
+  const doc = window.parent.document;
+  const anchor = doc.getElementById("htabs_anchor");
+  if(!anchor) return;
+
+  // Find the next block that contains our radio inputs
+  let el = anchor.nextElementSibling;
+  for(let i=0;i<10 && el;i++){
+    if(el.querySelector && el.querySelector('input[type="radio"]')) break;
+    el = el.nextElementSibling;
+  }
+  if(!el || !el.querySelector) return;
+
+  // Prefer the horizontal block wrapper if present
+  let container = el;
+  // Sometimes Streamlit nests: block -> div -> radiogroup
+  // If the next sibling is just a wrapper, climb a bit to a stable parent.
+  for(let j=0;j<4 && container && container.parentElement; j++){
+    // Stop climbing if parent is the main container
+    const p = container.parentElement;
+    if(p && p.getAttribute && p.getAttribute("data-testid") === "stAppViewContainer") break;
+    // Use parent only if it still contains the anchor marker vicinity
+    if(p && p.querySelector && p.querySelector("#htabs_anchor")) container = p;
+  }
+
+  // Idempotent
+  container.classList.add("h-topnav");
+  container.classList.add("h-tabs");
+
+  // Sticky styles (inline so they win even if CSS selector misses)
+  container.style.position = "sticky";
+  container.style.top = "0px";
+  container.style.zIndex = "1000";
+  container.style.background = "rgba(245,247,250,.86)";
+  container.style.backdropFilter = "blur(10px)";
+  container.style.borderBottom = "1px solid rgba(28,42,58,.10)";
+  container.style.padding = "10px 0 8px 0";
+  container.style.margin = "0 0 10px 0";
+  container.style.boxShadow = "0 10px 26px rgba(0,0,0,.06)";
+})();
+</script>
+            """,
+            height=0,
+        )
+    except Exception:
+        pass
+
     return view
 
 
