@@ -2,9 +2,9 @@
 import streamlit as st
 
 # ============================================================
-# ✅ V37 UI Theme (Phase 2) - Common CSS
-# - Brand: Calm Blue + Minimal
-# - Apply once per page
+# ✅ V37 Common CSS (Phase 2) — Hatena Calm + Minimal
+# - "공통 CSS부터 끝내자" 기준: Hub 전체에서 1번만 주입
+# - home.py에서 apply_ui_theme() 1회 호출하면, 이후 child 렌더에도 유지됨
 # ============================================================
 
 THEME = {
@@ -20,14 +20,16 @@ THEME = {
 }
 
 def apply_ui_theme():
-    """
-    Call this once per page (right after st.set_page_config()).
-    """
+    """Inject common CSS once per session (safe to call multiple times)."""
+    if st.session_state.get("_hatena_ui_theme_applied"):
+        return
+    st.session_state["_hatena_ui_theme_applied"] = True
+
     st.markdown(
         f"""
 <style>
 /* ============================================================
-   ✅ Global layout
+   ✅ Theme variables
    ============================================================ */
 :root {{
   --primary: {THEME["PRIMARY"]};
@@ -41,6 +43,9 @@ def apply_ui_theme():
   --shadowBtn: {THEME["SHADOW_BTN"]};
 }}
 
+/* ============================================================
+   ✅ Global layout / spacing
+   ============================================================ */
 html, body, [class*="css"] {{
   color: var(--text);
 }}
@@ -61,7 +66,7 @@ html, body, [class*="css"] {{
 }}
 
 /* ============================================================
-   ✅ Hide sidebar (no sidebar UX)
+   ✅ No sidebar UX
    ============================================================ */
 section[data-testid="stSidebar"] {{
   display: none !important;
@@ -71,7 +76,7 @@ div[data-testid="collapsedControl"] {{
 }}
 
 /* ============================================================
-   ✅ Header / title spacing normalization
+   ✅ Typography
    ============================================================ */
 h1, h2, h3 {{
   letter-spacing: -0.2px;
@@ -89,7 +94,7 @@ p {{
 }}
 
 /* ============================================================
-   ✅ Buttons (Streamlit default buttons)
+   ✅ Buttons (default)
    ============================================================ */
 .stButton > button {{
   width: 100%;
@@ -100,17 +105,15 @@ p {{
   box-shadow: var(--shadowBtn) !important;
   transition: transform 0.06s ease, filter 0.12s ease;
 }}
-
 .stButton > button:hover {{
   filter: brightness(1.05);
 }}
-
 .stButton > button:active {{
   transform: translateY(1px);
 }}
 
 /* ============================================================
-   ✅ Cards (use .ht-card wrapper)
+   ✅ Cards / panels / badges (common components)
    ============================================================ */
 .ht-card {{
   background: #FFFFFF;
@@ -119,52 +122,21 @@ p {{
   padding: 18px 18px;
   box-shadow: var(--shadowSoft);
 }}
-
 .ht-card + .ht-card {{
   margin-top: 16px;
 }}
-
 .ht-card-title {{
   font-size: 1.02rem;
   font-weight: 800;
   color: var(--text);
   margin: 0 0 6px 0;
 }}
-
 .ht-card-sub {{
   font-size: 0.92rem;
   color: var(--subtext);
   margin: 0;
 }}
 
-/* ============================================================
-   ✅ Badges
-   ============================================================ */
-.ht-badge {{
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  border-radius: 999px;
-  font-size: 0.82rem;
-  font-weight: 700;
-  border: 1px solid var(--border);
-  background: #fff;
-  color: var(--text);
-}}
-
-.ht-badge.pro {{
-  border-color: rgba(58,123,213,0.35);
-  color: var(--primaryL);
-}}
-
-.ht-badge.free {{
-  color: var(--subtext);
-}}
-
-/* ============================================================
-   ✅ Panels (talk/info boxes)
-   ============================================================ */
 .ht-panel {{
   background: var(--bgSoft);
   border: 1px solid var(--border);
@@ -178,6 +150,26 @@ p {{
   margin: 14px 0;
 }}
 
+.ht-badge {{
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--text);
+}}
+.ht-badge.pro {{
+  border-color: rgba(58,123,213,0.35);
+  color: var(--primaryL);
+}}
+.ht-badge.free {{
+  color: var(--subtext);
+}}
+
 /* ============================================================
    ✅ Inputs
    ============================================================ */
@@ -189,7 +181,30 @@ div[data-baseweb="textarea"] > div {{
 }}
 
 /* ============================================================
-   ✅ Reduce noisy default decorations
+   ✅ Hub top nav pills (from home.py inline CSS → common)
+   - It targets ONLY horizontal button blocks (top tabs UX)
+   ============================================================ */
+.hub-nav-wrap {{
+  display:flex;align-items:center;gap:10px;margin:2px 0 10px 0;
+}}
+.hub-plan {{
+  padding:4px 10px;border-radius:999px;border:1px solid rgba(49,51,63,.18);
+  background:rgba(49,51,63,.04);font-weight:800;font-size:12px;letter-spacing:0.6px;
+}}
+
+/* Make buttons pill-like in horizontal blocks (tabs row) */
+div[data-testid="stHorizontalBlock"] .stButton>button{{
+  border-radius:999px !important;
+  padding:0.35rem 0.85rem !important;
+  border:1px solid rgba(49,51,63,.18) !important;
+  box-shadow:none !important;
+}}
+div[data-testid="stHorizontalBlock"] .stButton>button[kind="primary"]{{
+  border:1px solid rgba(47,95,167,.40) !important;
+}}
+
+/* ============================================================
+   ✅ Hide Streamlit chrome
    ============================================================ */
 div[data-testid="stToolbar"] {{
   visibility: hidden;
