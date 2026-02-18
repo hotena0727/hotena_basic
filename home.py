@@ -1329,18 +1329,19 @@ def render_home_dashboard():
         st.session_state["_hub_quick_review"] = "today_wrongs"
         go("word")
 
-    # Recent 7 days: simple, user-friendly activity dots
+    # Recent 7 days: mini bar chart (all trainings)
     if isinstance(df7, pd.DataFrame) and df7 is not None and not df7.empty:
         try:
             dfu = df7.copy()
             dfu["date"] = pd.to_datetime(dfu["created_at"], utc=True, errors="coerce").dt.tz_convert("Asia/Seoul").dt.date
             today = pd.Timestamp.now(tz="Asia/Seoul").date()
             days = [today - timedelta(days=i) for i in range(6,-1,-1)]
-            # module key: word/kanji/talk
-            dfu["level"] = dfu["level"].astype(str)
-            modules = [("word","단어"),("kanji","한자"),("talk","회화")]
-            # (replaced by render_7day_flow)
-")
+            # total attempts per day (across word/kanji/talk)
+            cnt_map = dfu.groupby("date").size().to_dict()
+            days_str = [str(d) for d in days]
+            counts = [int(cnt_map.get(d, 0)) for d in days]
+            st.markdown("#### 최근 7일 학습 흐름")
+            render_7day_flow(days_str, counts)
         except Exception:
             pass
 
