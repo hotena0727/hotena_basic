@@ -3877,3 +3877,9 @@ if st.session_state.get("submitted", False):
     show_naver_talk = (SHOW_NAVER_TALK == "N") or is_admin()
     if show_naver_talk:
         render_naver_talk()
+
+
+
+
+
+
