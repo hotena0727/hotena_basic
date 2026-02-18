@@ -708,73 +708,33 @@ if "hub_page" not in st.session_state:
 def go(page: str):
     # ✅ 페이지 전환 토큰(각 훈련 앱에서 진입 시 상태 초기화에 사용)
     st.session_state["_hub_nav_token"] = str(uuid.uuid4())
+    # ✅ 허브에서 바로 '문제(퀴즈)'로 진입
+    if page in ("word", "kanji"):
+        st.session_state["_hub_entry"] = page
+        st.session_state["_hub_direct_quiz"] = True
+    else:
+        st.session_state.pop("_hub_entry", None)
+        st.session_state.pop("_hub_direct_quiz", None)
     st.session_state["hub_page"] = page
     st.rerun()
+
 
 def _plan_label() -> str:
     plan = (st.session_state.get("user_plan") or "free").lower()
     return "PRO" if plan == "pro" else "FREE"
 
 def render_top_bar():
-    """상단 고정 탭(텍스트) + 공통 플랜 표시."""
-    plan = _plan_label()
+    """Top nav + router (no top nav on hub home)."""
     prev = st.session_state.get("_hub_last_view")
     view = render_top_tabs()
-    # 로그아웃
-    if view == "로그아웃":
-        try:
-            # supabase sign out (best-effort)
-            sb.auth.sign_out()
-        except Exception:
-            pass
-        # clear cookies
-        for k in ["access_token", "refresh_token"]:
-            try:
-                cookies[k] = ""
-            except Exception:
-                pass
-        try:
-            st.session_state.pop("_cookie_save_guard", None)
-            cookies.save()
-        except Exception:
-            pass
-        # clear session state
-        for k in ["user","access_token","refresh_token","profile","user_plan","hub_view","hub_view_radio","hub_page"]:
-            st.session_state.pop(k, None)
-        st.session_state["hub_page"] = "home"
-        st.session_state["hub_view"] = "홈"
-        st.rerun()
 
     _on_view_changed(view, prev)
     st.session_state["_hub_last_view"] = view
 
-    # view -> hub_page mapping (internal router)
     mapping = {"홈":"home", "단어":"word", "한자":"kanji", "회화":"talk", "마이페이지":"mypage"}
     st.session_state["hub_page"] = mapping.get(view, "home")
 
-    # Plan badge (subtle)
-    c1, c2 = st.columns([1.6, 6], vertical_alignment="center")
-    with c1:
-        st.markdown(
-            f"""<div style=\"text-align:left;margin-top:2px;\">
-  <span style=\"display:inline-block;padding:6px 10px;border-radius:999px;
-               border:1px solid rgba(49,51,63,.14);
-               background:rgba(49,51,63,.035);
-               font-weight:700;font-size:12.5px;\">
-    {plan} 플랜
-  </span>
-</div>""",
-            unsafe_allow_html=True,
-        )
-    with c2:
-        st.markdown("""<div style='height:4px;'></div>""", unsafe_allow_html=True)
-# ============================================================
-# ✅ Hub UI
-# ============================================================
-# render_top_bar()  # moved below (V35 fix)
 
-# ✅ Runner
-# ============================================================
 def run_script(filename: str):
     path = (BASE_DIR / filename).resolve()
     if not path.exists() or not path.is_file():
@@ -790,26 +750,51 @@ def run_script(filename: str):
 
 
 
-def render_top_tabs() -> str:
-    """Top navigation tabs (text-only). Returns selected view key."""
-    # Options: Summary hub + three trainings + mypage
-    options = ["홈", "단어", "한자", "회화", "마이페이지", "로그아웃"]
-    default = st.session_state.get("hub_view") or "홈"
-    if default not in options:
-        default = "홈"
-    # Sticky wrapper
-    st.markdown('<div class="h-tabs">', unsafe_allow_html=True)
-    view = st.radio(
-        label="",
-        options=options,
-        index=options.index(default),
-        horizontal=True,
-        key="hub_view_radio",
-        label_visibility="collapsed",
+def render_top_tabs():
+    """Pretty top navigation (Home/Word/Kanji/Talk/MyPage). Returns selected label."""
+    # current
+    if "hub_view" not in st.session_state:
+        st.session_state["hub_view"] = "홈"
+
+    plan = _plan_label()
+    current = st.session_state["hub_view"]
+
+    st.markdown(
+        """
+<style>
+/* Top nav pills */
+.hub-nav-wrap {display:flex;align-items:center;gap:10px;margin:2px 0 10px 0;}
+.hub-plan {padding:4px 10px;border-radius:999px;border:1px solid rgba(49,51,63,.18);
+background:rgba(49,51,63,.04);font-weight:800;font-size:12px;letter-spacing:0.6px;}
+/* Make buttons pill-like */
+div[data-testid="stHorizontalBlock"] .stButton>button{
+  border-radius:999px !important;
+  padding:0.35rem 0.85rem !important;
+  border:1px solid rgba(49,51,63,.18) !important;
+}
+div[data-testid="stHorizontalBlock"] .stButton>button[kind="primary"]{
+  border:1px solid rgba(30,90,255,.35) !important;
+}
+</style>
+""",
+        unsafe_allow_html=True,
     )
-    st.markdown("</div>", unsafe_allow_html=True)
-    st.session_state["hub_view"] = view
-    return view
+
+    labels = ["홈", "단어", "한자", "회화", "마이페이지"]
+
+    cols = st.columns([1.2, 1, 1, 1, 1, 1], vertical_alignment="center")
+    with cols[0]:
+        st.markdown(f"<div class='hub-plan'>{plan}</div>", unsafe_allow_html=True)
+
+    for i, lab in enumerate(labels, start=1):
+        with cols[i]:
+            is_active = (current == lab)
+            if st.button(lab, use_container_width=True, type=("primary" if is_active else "secondary"), key=f"topnav_{lab}"):
+                st.session_state["hub_view"] = lab
+                return lab
+
+    return current
+
 
 def _on_view_changed(new_view: str, prev_view: str | None):
     """When user switches between major views, trigger fresh quiz for that module."""
@@ -828,7 +813,8 @@ def _on_view_changed(new_view: str, prev_view: str | None):
 # ============================================================
 # ✅ Hub UI (Top Navigation)
 # ============================================================
-if st.session_state.get('view','hub') != 'hub':
+if st.session_state.get('hub_page','home') != 'home':
+if st.session_state.get('hub_page','home') != 'home':
     render_top_bar()
 def render_guide_block(page: str):
     with st.expander("이용 가이드", expanded=False):
