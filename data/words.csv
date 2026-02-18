@@ -1,0 +1,21 @@
+id,jp,answer,choices
+w1,ありがとうございます,thank you,thank you|see you|fast|expensive
+w2,すみません,excuse me,excuse me|got it|where is the station|sorry
+w3,おはよう,good morning,good morning|got it|not allowed|thank you very much
+w4,こんにちは,hello,hello|excuse me|not allowed|thank you very much
+w5,こんばんは,good evening,good evening|not allowed|delicious|let's eat
+w6,いただきます,let's eat,let's eat|good night|excuse me|one more time
+w7,ごちそうさまでした,thank you for the meal,thank you for the meal|where is the station|near|thank you very much
+w8,おいしい,delicious,delicious|near|cheap|where is the station
+w9,やすい,cheap,cheap|got it|slow|see you
+w10,たかい,expensive,expensive|slow|where is the station|fast
+w11,はやい,fast,fast|good evening|hello|good morning
+w12,おそい,slow,slow|good night|expensive|cheap
+w13,ちかい,near,near|good evening|delicious|good morning
+w14,とおい,far,far|expensive|one more time|see you
+w15,いそがしい,busy,busy|let's eat|slow|one more time
+w16,だいじょうぶ,okay,okay|welcome|sorry|not allowed
+w17,わかりました,got it,got it|let's eat|see you|good evening
+w18,もういちど,one more time,one more time|good morning|far|excuse me
+w19,てつだってください,please help,please help|good night|where is the station|okay
+w20,だめです,not allowed,not allowed|sorry|excuse me|hello
