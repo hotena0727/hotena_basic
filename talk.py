@@ -6,6 +6,64 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
+
+# ============================================================
+# ✅ Hub Routine helpers (V39)
+# - home.py(허브)에서 '오늘의 루틴'을 시작하면 hub_routine dict가 세션에 저장됩니다.
+# - 각 모듈(단어/한자/회화)은 제출 시 자동으로 다음 모듈로 넘어갑니다.
+# ============================================================
+def _hub_routine_get():
+    r = st.session_state.get("hub_routine")
+    return r if isinstance(r, dict) else None
+
+def _hub_routine_is_active(module_key: str) -> bool:
+    r = _hub_routine_get()
+    return bool(r and r.get("active") and r.get("current") == module_key)
+
+def _hub_routine_record_and_advance(module_key: str, score: int, qlen: int):
+    r = _hub_routine_get()
+    if not (r and r.get("active")):
+        return
+    # record
+    results = r.get("results") or {}
+    results[module_key] = {"score": int(score), "len": int(qlen)}
+    r["results"] = results
+
+    order = r.get("order") or ["word","kanji","talk"]
+    try:
+        idx = order.index(module_key)
+    except Exception:
+        idx = -1
+
+    if idx >= 0 and idx + 1 < len(order):
+        nxt = order[idx + 1]
+        r["current"] = nxt
+        st.session_state["hub_routine"] = r
+
+        # next page routing (허브에서 사용)
+        view_map = {"word":"단어","kanji":"한자","talk":"회화"}
+        st.session_state["hub_view"] = view_map.get(nxt, "홈")
+        st.session_state["hub_page"] = nxt
+
+        # enter fresh set on next module
+        if nxt == "word":
+            st.session_state["_auto_new_quiz_word"] = True
+        elif nxt == "kanji":
+            st.session_state["_auto_new_quiz_kanji"] = True
+        elif nxt == "talk":
+            st.session_state["_hub_force_new_talk"] = True
+
+        st.rerun()
+    else:
+        # routine done -> back to home
+        r["active"] = False
+        st.session_state["hub_routine"] = r
+        st.session_state["hub_routine_done"] = True
+        st.session_state["hub_view"] = "홈"
+        st.session_state["hub_page"] = "home"
+        st.rerun()
+
+
 # ============================================================
 # ✅ Talk (Conversation) training - V37 style safe patch
 # - 1 question at a time (better for recording / self-check)
@@ -80,6 +138,17 @@ def render_talk_page(user_plan: str = "free"):
     st.markdown("## 회화 훈련")
 
     df = load_talk_df()
+
+    # ✅ Hub routine: talk target count override
+    r = _hub_routine_get()
+    routine_target = None
+    if r and r.get('active') and r.get('current') == 'talk':
+        try:
+            routine_target = int((r.get('lens') or {}).get('talk') or 0) or None
+        except Exception:
+            routine_target = None
+        st.session_state.setdefault('talk_routine_done', 0)
+        st.session_state.setdefault('talk_routine_score', 0)
     if df.empty:
         st.info("회화 데이터(talk.csv)가 비어 있습니다.")
         return
@@ -141,6 +210,11 @@ def render_talk_page(user_plan: str = "free"):
     # radio with no default selection
     pick = st.radio("보기", choices, index=None, key=f"talk_pick_{idx}")
 
+    if routine_target is not None:
+        done = int(st.session_state.get('talk_routine_done') or 0)
+        st.caption(f"오늘 루틴: 회화 {done}/{routine_target}")
+
+
     if st.button("정답 제출", use_container_width=True):
         if pick == answer_jp:
             st.success("정답입니다!")
@@ -148,6 +222,21 @@ def render_talk_page(user_plan: str = "free"):
         else:
             st.error("오답입니다.")
             st.markdown(f"**정답:** {answer_jp}")
+
+        # ✅ Hub routine progress
+        if routine_target is not None:
+            st.session_state['talk_routine_done'] += 1
+            if pick == answer_jp:
+                st.session_state['talk_routine_score'] += 1
+            # Auto next or finish
+            if st.session_state['talk_routine_done'] >= routine_target:
+                _hub_routine_record_and_advance('talk', st.session_state['talk_routine_score'], st.session_state['talk_routine_done'])
+            else:
+                # move to next question automatically to keep pace
+                st.session_state.pop(f"talk_pick_{idx}", None)
+                st.session_state['talk_idx'] += 1
+                st.rerun()
+
 
         # After submit: show both pronunciations (PRO)
         if (user_plan or "free") != "free":

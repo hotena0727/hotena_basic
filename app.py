@@ -430,6 +430,63 @@ NAVER_TALK_URL = "https://talk.naver.com/W45141"
 APP_URL = "https://hotenaquiztestapp-5wiha4zfuvtnq4qgxdhq72.streamlit.app/"
 KST_TZ = "Asia/Seoul"
 
+# ============================================================
+# ✅ Hub Routine helpers (V39)
+# - home.py(허브)에서 '오늘의 루틴'을 시작하면 hub_routine dict가 세션에 저장됩니다.
+# - 각 모듈(단어/한자/회화)은 제출 시 자동으로 다음 모듈로 넘어갑니다.
+# ============================================================
+def _hub_routine_get():
+    r = st.session_state.get("hub_routine")
+    return r if isinstance(r, dict) else None
+
+def _hub_routine_is_active(module_key: str) -> bool:
+    r = _hub_routine_get()
+    return bool(r and r.get("active") and r.get("current") == module_key)
+
+def _hub_routine_record_and_advance(module_key: str, score: int, qlen: int):
+    r = _hub_routine_get()
+    if not (r and r.get("active")):
+        return
+    # record
+    results = r.get("results") or {}
+    results[module_key] = {"score": int(score), "len": int(qlen)}
+    r["results"] = results
+
+    order = r.get("order") or ["word","kanji","talk"]
+    try:
+        idx = order.index(module_key)
+    except Exception:
+        idx = -1
+
+    if idx >= 0 and idx + 1 < len(order):
+        nxt = order[idx + 1]
+        r["current"] = nxt
+        st.session_state["hub_routine"] = r
+
+        # next page routing (허브에서 사용)
+        view_map = {"word":"단어","kanji":"한자","talk":"회화"}
+        st.session_state["hub_view"] = view_map.get(nxt, "홈")
+        st.session_state["hub_page"] = nxt
+
+        # enter fresh set on next module
+        if nxt == "word":
+            st.session_state["_auto_new_quiz_word"] = True
+        elif nxt == "kanji":
+            st.session_state["_auto_new_quiz_kanji"] = True
+        elif nxt == "talk":
+            st.session_state["_hub_force_new_talk"] = True
+
+        st.rerun()
+    else:
+        # routine done -> back to home
+        r["active"] = False
+        st.session_state["hub_routine"] = r
+        st.session_state["hub_routine_done"] = True
+        st.session_state["hub_view"] = "홈"
+        st.session_state["hub_page"] = "home"
+        st.rerun()
+
+
 N = 10
 BASE_DIR = Path(__file__).resolve().parent
 CSV_PATH = BASE_DIR / "data" / "words_kanji.csv"
@@ -1499,8 +1556,8 @@ def build_quiz(qtype: str, level: str) -> list[dict]:
     level = str(level).strip().upper()
     base_level = pool[pool["level"].astype(str).str.upper() == level].copy()
 
-    if len(base_level) < N:
-        st.warning(f"{level} 단어가 부족합니다. (현재 {len(base_level)}개 / 필요 {N}개)")
+    if len(base_level) < QN:
+        st.warning(f"{level} 단어가 부족합니다. (현재 {len(base_level)}개 / 필요 {QN}개)")
         return []
 
     k = mastery_key(qtype=qtype)
@@ -1521,13 +1578,13 @@ def build_quiz(qtype: str, level: str) -> list[dict]:
 
     base = _filter_blocked(base_level)
 
-    if len(base) < N:
+    if len(base) < QN:
         st.session_state.setdefault("mastery_done", {})
         st.session_state.mastery_done[k] = True
         return []
 
-    sampled = base.sample(n=N, replace=False).reset_index(drop=True)
-    return [make_question(sampled.iloc[i], qtype, pool) for i in range(N)]
+    sampled = base.sample(n=QN, replace=False).reset_index(drop=True)
+    return [make_question(sampled.iloc[i], qtype, pool) for i in range(QN)]
 
 
 def build_quiz_from_wrongs(wrong_list: list, qtype: str) -> list:
@@ -1567,21 +1624,21 @@ def build_quiz(qtype: str, level: str) -> list[dict]:
     base_level = pool[pool["level"].astype(str).str.upper() == level].copy()
 
     # ✅ N3는 "왕초보 탈출" 톤에 맞게 조금 더 쉬운 축으로(가능하면)
-    if level == "N3" and len(base_level) >= N:
+    if level == "N3" and len(base_level) >= QN:
         try:
             tmp = base_level.copy()
             tmp["_rlen"] = tmp.get("reading").astype(str).str.replace(" ", "", regex=False).str.len()
             tmp["_wlen"] = tmp.get("jp_word").astype(str).str.replace(" ", "", regex=False).str.len()
             # reading이 너무 길거나(고급 느낌) 단어가 너무 긴 항목은 우선순위에서 제외
             easier = tmp[(tmp["_rlen"] <= 5) & (tmp["_wlen"] <= 4)].copy()
-            if len(easier) >= N:
+            if len(easier) >= QN:
                 base_level = easier.drop(columns=["_rlen", "_wlen"], errors="ignore")
         except Exception:
             pass
 
     # 레벨 데이터가 너무 적을 때 안전장치
-    if len(base_level) < N:
-        st.warning(f"{level} 단어가 부족합니다. (현재 {len(base_level)}개 / 필요 {N}개)")
+    if len(base_level) < QN:
+        st.warning(f"{level} 단어가 부족합니다. (현재 {len(base_level)}개 / 필요 {QN}개)")
         return []
 
     k = mastery_key(qtype=qtype)
@@ -1603,13 +1660,13 @@ def build_quiz(qtype: str, level: str) -> list[dict]:
     base = _filter_blocked(base_level)
 
     # 더 뽑을 단어가 없으면 “정복”
-    if len(base) < N:
+    if len(base) < QN:
         st.session_state.setdefault("mastery_done", {})
         st.session_state.mastery_done[k] = True
         return []
 
-    sampled = base.sample(n=N, replace=False).reset_index(drop=True)
-    return [make_question(sampled.iloc[i], qtype, pool) for i in range(N)]
+    sampled = base.sample(n=QN, replace=False).reset_index(drop=True)
+    return [make_question(sampled.iloc[i], qtype, pool) for i in range(QN)]
 
 def build_quiz_from_wrongs(wrong_list: list, qtype: str) -> list:
     ensure_pool_ready()
@@ -2446,6 +2503,11 @@ if st.session_state.submitted:
 
     quiz_len = len(st.session_state.quiz)
     st.success(f"점수: {score} / {quiz_len}")
+
+    # ✅ Hub routine auto-advance
+    if _hub_routine_is_active('kanji'):
+        _hub_routine_record_and_advance('kanji', score, quiz_len)
+
     ratio = score / quiz_len if quiz_len else 0
 
     # ✅ 점수 기반 SFX (제출 직후 1회)
@@ -2726,3 +2788,5 @@ if st.session_state.submitted:
     show_naver_talk = (SHOW_NAVER_TALK == "N") or is_admin()
     if show_naver_talk:
         render_naver_talk()
+    # ✅ Hub routine: override quiz length when running daily routine
+    QN = int(st.session_state.get('_hub_quiz_len_override') or N)

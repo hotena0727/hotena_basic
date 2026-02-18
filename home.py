@@ -1294,6 +1294,138 @@ def _get_last7_df_for_ui() -> pd.DataFrame:
 def render_mypage_page():
     # 공통 마이페이지(전체 화면)
     render_mypage_block("all", as_page=True)
+
+# ============================================================
+# ✅ Daily Routine (V39)
+# - 5~10분으로 시작 → 재미로 20분 확장
+# - 단어/한자/회화 균형 루틴 (레벨/최근 성적/연속 학습 기반)
+# ============================================================
+def _routine_compute_accuracy(df7: pd.DataFrame) -> float:
+    try:
+        if not isinstance(df7, pd.DataFrame) or df7.empty:
+            return 0.0
+        # 기대 컬럼: score, quiz_len
+        s = df7.get("score")
+        q = df7.get("quiz_len")
+        if s is None or q is None:
+            return 0.0
+        ssum = float(pd.to_numeric(s, errors="coerce").fillna(0).sum())
+        qsum = float(pd.to_numeric(q, errors="coerce").fillna(0).sum())
+        return (ssum / qsum) if qsum > 0 else 0.0
+    except Exception:
+        return 0.0
+
+def hub_make_daily_routine(plan: str, streak: int, df7: pd.DataFrame) -> dict:
+    """Return routine dict: lens for word/kanji/talk and minutes label."""
+    acc = _routine_compute_accuracy(df7)
+    # base (about 6~8 min)
+    w, k, t = 3, 3, 2
+    minutes = 7
+
+    # 성장/몰입 강화: 정확도 높고 연속이면 조금 증가 (10~12분)
+    if streak >= 7 and acc >= 0.80:
+        w, k, t = 4, 4, 3
+        minutes = 11
+    elif streak >= 3 and acc >= 0.70:
+        w, k, t = 4, 3, 2
+        minutes = 9
+    elif acc < 0.55:
+        # 부담 낮추기 (초반/슬럼프용)
+        w, k, t = 3, 2, 2
+        minutes = 7
+
+    # FREE는 루틴 자체는 동일하게 제공하되, '추가 연장'만 PRO로 연결 (완료 후 CTA)
+    return {
+        "active": False,
+        "order": ["word", "kanji", "talk"],
+        "current": "word",
+        "lens": {"word": int(w), "kanji": int(k), "talk": int(t)},
+        "minutes": int(minutes),
+        "results": {},
+    }
+
+def hub_start_routine(routine: dict):
+    if not isinstance(routine, dict):
+        return
+    routine = dict(routine)
+    routine["active"] = True
+    routine["current"] = "word"
+    routine["results"] = {}
+    st.session_state["hub_routine"] = routine
+    st.session_state["hub_routine_done"] = False
+
+    # reset talk routine counters
+    st.session_state.pop("talk_routine_done", None)
+    st.session_state.pop("talk_routine_score", None)
+
+    # go to first module
+    st.session_state["hub_view"] = "단어"
+    st.session_state["hub_page"] = "word"
+    st.session_state["_auto_new_quiz_word"] = True
+    st.session_state["page"] = "quiz"
+    st.rerun()
+
+def hub_render_routine_card(plan: str, streak: int, df7: pd.DataFrame):
+    routine = hub_make_daily_routine(plan, streak, df7)
+    lens = routine["lens"]
+    minutes = routine["minutes"]
+
+    st.markdown(
+        f"""<div class="h-card" style="padding:16px 16px;margin:10px 0 14px 0;">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+    <div>
+      <div style="font-weight:900;color:var(--h-navy);font-size:14px;opacity:.9;">🔥 오늘의 추천 루틴</div>
+      <div style="margin-top:6px;font-size:13px;opacity:.85;line-height:1.5;">
+        단어 <b>{lens['word']}</b>문제 · 한자 <b>{lens['kanji']}</b>문제 · 회화 <b>{lens['talk']}</b>문장
+        <span style="margin-left:6px;opacity:.7;">(약 {minutes}분)</span>
+      </div>
+    </div>
+  </div>
+</div>""",
+        unsafe_allow_html=True
+    )
+    c1, c2 = st.columns([1,1])
+    with c1:
+        if st.button("▶️ 오늘 루틴 시작", type="primary", use_container_width=True):
+            hub_start_routine(routine)
+    with c2:
+        st.button("⏭️ 나중에 할게요", use_container_width=True, disabled=True)
+
+def hub_render_routine_done(plan: str):
+    r = st.session_state.get("hub_routine")
+    results = (r.get("results") if isinstance(r, dict) else {}) or {}
+    w = results.get("word", {})
+    k = results.get("kanji", {})
+    t = results.get("talk", {})
+    wtxt = f"{w.get('score',0)}/{w.get('len',0)}"
+    ktxt = f"{k.get('score',0)}/{k.get('len',0)}"
+    ttxt = f"{t.get('score',0)}/{t.get('len',0)}"
+
+    st.markdown(
+        f"""<div class="h-card" style="padding:18px 16px;margin:12px 0 14px 0;">
+  <div style="font-weight:900;color:var(--h-navy);font-size:16px;">🎉 오늘 루틴 완료!</div>
+  <div style="margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;">
+    <div style="padding:10px 12px;border-radius:14px;border:1px solid rgba(49,51,63,.14);background:rgba(49,51,63,.02);">
+      <div style="font-weight:800;font-size:12px;opacity:.75;">단어</div>
+      <div style="font-weight:900;font-size:18px;">{wtxt}</div>
+    </div>
+    <div style="padding:10px 12px;border-radius:14px;border:1px solid rgba(49,51,63,.14);background:rgba(49,51,63,.02);">
+      <div style="font-weight:800;font-size:12px;opacity:.75;">한자</div>
+      <div style="font-weight:900;font-size:18px;">{ktxt}</div>
+    </div>
+    <div style="padding:10px 12px;border-radius:14px;border:1px solid rgba(49,51,63,.14);background:rgba(49,51,63,.02);">
+      <div style="font-weight:800;font-size:12px;opacity:.75;">회화</div>
+      <div style="font-weight:900;font-size:18px;">{ttxt}</div>
+    </div>
+  </div>
+  <div style="margin-top:10px;font-size:12.5px;opacity:.78;">내일도 5~10분만 이어가면, 실력이 눈에 띄게 쌓입니다.</div>
+</div>""",
+        unsafe_allow_html=True
+    )
+
+    # soft upsell
+    if (plan or "free") == "free":
+        st.info("PRO에서는 **무제한 추가 루틴**, **약점 기반 복습**, **회화 발음(🔊)** 같은 기능이 열립니다.")
 def render_home_dashboard():
     # Identity message + Today quote
     st.markdown("#### 오늘도 10문제만. 그걸로 충분합니다.")
@@ -1308,6 +1440,14 @@ def render_home_dashboard():
     # streak info best-effort (word app sets these when attendance is marked)
     streak = int(st.session_state.get("streak_count") or 0)
     badge = _badge_for_streak(streak)
+
+    # ✅ Daily routine card / completion
+    if st.session_state.get('hub_routine_done'):
+        hub_render_routine_done(plan=st.session_state.get('user_plan','free'))
+        # clear flag after showing once (user can still see results in mypage)
+        st.session_state['hub_routine_done'] = False
+    else:
+        hub_render_routine_card(plan=st.session_state.get('user_plan','free'), streak=streak, df7=df7)
 
     c1, c2, c3 = st.columns(3)
     with c1:
@@ -1392,20 +1532,15 @@ elif page == "word":
         st.session_state["_auto_new_quiz_word_once"] = True
     # (v36) 단어 페이지는 바로 훈련에 집중: 상단 가이드 블록 제거
     render_today_report_card(_get_last7_df_for_ui(), compact=True)
-    run_script("hotena_basic.py")
-
-elif page == "kanji":
-    if st.session_state.pop("_auto_new_quiz_kanji", False):
-        st.session_state["_auto_new_quiz_kanji_once"] = True
-    render_guide_block("kanji")
-    render_today_report_card(_get_last7_df_for_ui(), compact=True)
-    run_script("app.py")
-
-elif page == "talk":
-    if st.session_state.pop("_hub_force_new_talk", False):
-        st.session_state["_hub_force_new_talk_once"] = True
-    render_guide_block("talk")
-    render_today_report_card(_get_last7_df_for_ui(), compact=True)
+    # ✅ Hub routine: set per-module quiz length override
+    r = st.session_state.get('hub_routine')
+    if isinstance(r, dict) and r.get('active') and r.get('current') == 'talk':
+        try:
+            st.session_state['_hub_quiz_len_override'] = int((r.get('lens') or {}).get('talk') or 10)
+        except Exception:
+            st.session_state['_hub_quiz_len_override'] = 10
+    else:
+        st.session_state.pop('_hub_quiz_len_override', None)
     run_script("talk.py")
 
 else:
