@@ -14,6 +14,80 @@ import pandas as pd
 import streamlit as st
 
 
+
+# ============================================================
+# ✅ V37 UI 2 — Common header + routing helpers
+# ============================================================
+def ht_set_view(view: str):
+    st.session_state["hub_view"] = view
+    # keep query param for deep link
+    try:
+        st.query_params["view"] = view
+    except Exception:
+        pass
+    st.rerun()
+
+def ht_sync_view_from_query():
+    try:
+        qp = st.query_params
+        v = qp.get("view", None)
+        if isinstance(v, list):
+            v = v[0] if v else None
+        if v:
+            # normalize
+            mapping = {
+                "home": "홈",
+                "word": "단어",
+                "words": "단어",
+                "kanji": "한자",
+                "talk": "회화",
+                "mypage": "마이페이지",
+                "홈": "홈",
+                "단어": "단어",
+                "한자": "한자",
+                "회화": "회화",
+                "마이페이지": "마이페이지",
+            }
+            v2 = mapping.get(str(v).strip().lower(), mapping.get(str(v).strip(), None))
+            if v2 and st.session_state.get("hub_view") != v2:
+                st.session_state["hub_view"] = v2
+    except Exception:
+        return
+
+def ht_header(title: str, show_back: bool = True):
+    plan = _plan_label()
+    left = "← 홈" if show_back else ""
+    back_html = f"<a class='ht-back' href='?view=홈'>{left}</a>" if show_back else "<span></span>"
+    st.markdown(
+        f"""
+        <div class="ht-header">
+          <div class="ht-header-left">{back_html}</div>
+          <div class="ht-header-title">{title}</div>
+          <div class="ht-header-right"><span class="ht-badge {'pro' if 'PRO' in plan else 'free'}">{plan}</span></div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+def ht_home_cards():
+    st.markdown("<div class='ht-home-wrap'>", unsafe_allow_html=True)
+    cards = [
+        ("📘 단어 훈련", "하루 10문제로 시작", "단어"),
+        ("🈶 한자 훈련", "N4~N3부터 차근차근", "한자"),
+        ("💬 회화 훈련", "말하기 1단계", "회화"),
+    ]
+    for title, sub, view in cards:
+        st.markdown(
+            f"""
+            <a class="ht-card-link" href="?view={view}">
+              <div class="ht-card-link-title">{title}</div>
+              <div class="ht-card-link-sub">{sub}</div>
+            </a>
+            """,
+            unsafe_allow_html=True,
+        )
+    st.markdown("</div>", unsafe_allow_html=True)
+
 # ============================================================
 # ✅ Last 7 days flow (mini bars)
 # ============================================================
@@ -71,7 +145,115 @@ apply_ui_theme()
 st.session_state["_page_config_set"] = True  # children should not call set
 
 # ✅ Hub version
-HUB_VERSION = "v37"
+HUB_VERSION = "v36"
+
+# ============================================================
+# ✅ Navy Theme (v32)
+# ============================================================
+def apply_navy_theme():
+    css = """
+    <style>
+    :root{
+      --h-navy:#1C2A3A;
+      --h-navy2:#2F4F6F;
+      --h-bg:#F5F7FA;
+      --h-card:#FFFFFF;
+      --h-border:rgba(28,42,58,.12);
+      --h-green:#2E8B57;
+    }
+    html, body, [data-testid="stAppViewContainer"]{background:var(--h-bg);}
+    .block-container{padding-top:1.15rem; max-width: 980px;}
+    /* Cards */
+    .h-card{
+      background:var(--h-card);
+      border:1px solid var(--h-border);
+      border-radius:18px;
+      padding:16px 16px;
+      box-shadow:0 8px 22px rgba(0,0,0,.05);
+      margin:10px 0 16px 0;
+    }
+    .h-badge{
+      display:inline-block;
+      padding:4px 10px;
+      border-radius:999px;
+      background:rgba(28,42,58,.08);
+      color:var(--h-navy);
+      font-weight:800;
+      font-size:12px;
+    }
+    /* Buttons */
+    div.stButton>button{
+      border-radius:14px;
+      border:1px solid rgba(28,42,58,.18);
+      background:var(--h-navy);
+      color:#fff;
+      font-weight:800;
+      padding:0.55rem 0.9rem;
+    }
+    div.stButton>button:hover{background:var(--h-navy2); border-color:rgba(28,42,58,.25);}
+    div.stButton>button:disabled{opacity:.55;}
+    
+    /* Top tabs (text-only) */
+    .h-tabs{position:sticky; top:0; z-index:999; background:var(--h-bg); padding:0.15rem 0 0.35rem; margin-bottom:0.25rem;}
+    .h-tabs .stRadio [role="radiogroup"]{flex-direction:row; gap:0.75rem;}
+    .h-tabs .stRadio label{margin:0; padding:0.35rem 0.35rem;}
+    .h-tabs .stRadio div[role="radio"]{border:0 !important;}
+    .h-tabs .stRadio span{font-size:15px;}
+    /* soften segmented/toggle visuals */
+    div[data-testid="stSegmentedControl"] button{border-radius:999px !important;}
+
+    /* ✅ Top tabs: pill + active highlight (no icons) */
+    .h-tabs .stRadio [role="radiogroup"]{gap:0.5rem;}
+    .h-tabs .stRadio label{
+      padding:0.35rem 0.85rem;
+      border-radius:999px;
+      border:1px solid transparent;
+      background:transparent;
+      transition:all .12s ease;
+    }
+    .h-tabs .stRadio label:hover{
+      background:rgba(255,255,255,.9);
+      border-color:var(--h-border);
+    }
+    .h-tabs .stRadio label:has(input:checked){
+      background:rgba(255,255,255,1);
+      border-color:var(--h-border);
+      box-shadow:0 1px 0 rgba(0,0,0,.03);
+    }
+    .h-tabs .stRadio label:has(input:checked) span{
+      color:var(--h-navy);
+      font-weight:900;
+    }
+    .h-tabs .stRadio label:not(:has(input:checked)) span{
+      color:rgba(28,42,58,.55);
+      font-weight:800;
+    }
+
+    /* ✅ Segmented control: softer pastel instead of heavy navy */
+    div[data-testid="stSegmentedControl"]{
+      border-radius:16px !important;
+      padding:8px 10px !important;
+      background:rgba(255,255,255,.92) !important;
+      border:1px solid var(--h-border) !important;
+      box-shadow:0 1px 0 rgba(0,0,0,.02);
+    }
+    div[data-testid="stSegmentedControl"] button{
+      border-radius:14px !important;
+      border:1px solid rgba(28,42,58,.10) !important;
+      font-weight:800 !important;
+    }
+    div[data-testid="stSegmentedControl"] button[aria-pressed="true"]{
+      border-color: rgba(255, 72, 140, .35) !important;
+      box-shadow: 0 0 0 2px rgba(135, 206, 250, .18) inset !important;
+      background: linear-gradient(90deg, rgba(255, 206, 230, .85), rgba(205, 235, 255, .95)) !important;
+    }
+
+</style>
+    """
+    st.markdown(css, unsafe_allow_html=True)
+
+apply_navy_theme()
+st.session_state["hub_apply_theme"] = apply_navy_theme
 
 # ============================================================
 # ✅ SFX (정답/오답/완주/레벨업)
