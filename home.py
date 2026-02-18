@@ -12,6 +12,7 @@ from datetime import date, datetime, timedelta
 
 import pandas as pd
 import streamlit as st
+import altair as alt
 import streamlit.components.v1 as components
 from supabase import create_client
 from streamlit_cookies_manager import EncryptedCookieManager
@@ -663,6 +664,156 @@ def _safe_int(x, default=0):
         return default
 
 
+
+def _mini_kpi_card(title: str, value: str, sub: str = ""):
+    st.markdown(
+        f"""<div class="h-card" style="padding:14px 14px; margin:8px 0 12px 0;">
+        <div style="font-weight:900;color:var(--h-navy);font-size:13px;opacity:.9;">{title}</div>
+        <div style="font-weight:900;color:var(--h-navy);font-size:26px;line-height:1.1;margin-top:4px;">{value}</div>
+        {f'<div style="margin-top:4px;opacity:.75;font-size:12px;">{sub}</div>' if sub else ''}
+        </div>""",
+        unsafe_allow_html=True,
+    )
+
+
+def _altair_theme_minimal():
+    return {
+        "config": {
+            "view": {"stroke": None},
+            "axis": {
+                "grid": False,
+                "labelFontSize": 11,
+                "title": None,
+                "domain": False,
+                "tickSize": 0,
+            },
+            "legend": {"labelFontSize": 11, "title": None},
+        }
+    }
+
+
+def render_today_report_card(df7: pd.DataFrame | None):
+    """오늘의 학습 리포트(공통). df7는 최근 7일 attempt raw."""
+    st.markdown("### 오늘의 학습 리포트")
+
+    if df7 is None:
+        st.info("로그인 후 학습하면 리포트가 표시됩니다.")
+        return
+
+    if df7.empty:
+        st.info("오늘은 아직 기록이 없어요. 10문제만 풀면 바로 채워집니다.")
+        return
+
+    try:
+        df = df7.copy()
+        df["date"] = pd.to_datetime(df["created_at"], utc=True, errors="coerce").dt.tz_convert("Asia/Seoul").dt.date
+        today = pd.Timestamp.now(tz="Asia/Seoul").date()
+        df = df[df["date"] == today]
+
+        if df.empty:
+            st.info("오늘 기록이 아직 없어요. 10문제만 해도 충분합니다.")
+            return
+
+        df["quiz_len"] = pd.to_numeric(df.get("quiz_len"), errors="coerce").fillna(0).astype(int)
+        df["score"] = pd.to_numeric(df.get("score"), errors="coerce").fillna(0).astype(int)
+
+        def row_for(level_key: str, label: str):
+            d = df[df["level"] == level_key]
+            sets = int(len(d))
+            total = int(d["quiz_len"].sum())
+            corr = int(d["score"].sum())
+            acc = (corr / total * 100.0) if total else 0.0
+            return label, sets, acc
+
+        rows = [
+            row_for("word", "단어"),
+            row_for("kanji", "한자"),
+            row_for("talk", "회화"),
+        ]
+
+        st.markdown('<div class="h-card">', unsafe_allow_html=True)
+        for label, sets, acc in rows:
+            st.markdown(
+                f"""<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 2px;border-bottom:1px solid rgba(28,42,58,.08);">
+                    <div style="font-weight:900;color:var(--h-navy);">{label}</div>
+                    <div style="display:flex;gap:10px;align-items:baseline;">
+                      <div style="opacity:.8;font-size:12px;">{sets}세트</div>
+                      <div style="font-weight:900;color:var(--h-navy2);">{acc:.0f}%</div>
+                    </div>
+                </div>""",
+                unsafe_allow_html=True,
+            )
+        st.markdown('<div style="opacity:.75;font-size:12px;margin-top:8px;">* 오늘 기준(Asia/Seoul)으로 집계됩니다.</div></div>', unsafe_allow_html=True)
+
+    except Exception:
+        st.info("오늘의 학습 리포트를 표시할 수 없습니다.")
+
+
+def render_last7_minicharts(df7: pd.DataFrame):
+    """최근 7일 차트(엑셀 느낌 제거: 미니멀)."""
+    if df7 is None or df7.empty:
+        st.info("최근 7일 기록이 아직 없어요.")
+        return
+
+    df = df7.copy()
+    df["created_at"] = pd.to_datetime(df["created_at"], utc=True, errors="coerce")
+    df = df.dropna(subset=["created_at"])
+    if df.empty:
+        st.info("최근 7일 기록이 아직 없어요.")
+        return
+
+    df["date"] = df["created_at"].dt.tz_convert("Asia/Seoul").dt.date.astype(str)
+    df["quiz_len"] = pd.to_numeric(df.get("quiz_len"), errors="coerce").fillna(0).astype(int)
+    df["score"] = pd.to_numeric(df.get("score"), errors="coerce").fillna(0).astype(int)
+
+    g = df.groupby("date", as_index=False).agg(
+        sets=("date", "count"),
+        correct=("score", "sum"),
+        total=("quiz_len", "sum"),
+    )
+    g["acc"] = g.apply(lambda r: (r["correct"] / r["total"] * 100.0) if r["total"] else 0.0, axis=1)
+
+    today = date.today()
+    dates = [(today - timedelta(days=i)) for i in range(6, -1, -1)]
+    base = pd.DataFrame({"date": [d.isoformat() for d in dates]})
+    g = base.merge(g, on="date", how="left").fillna(0)
+    g["sets"] = g["sets"].astype(int)
+    g["acc"] = g["acc"].astype(float)
+
+    try:
+        alt.themes.enable(_altair_theme_minimal)
+    except Exception:
+        pass
+
+    st.markdown('<div class="h-card">', unsafe_allow_html=True)
+    st.markdown('<div class="h-badge">최근 7일</div>', unsafe_allow_html=True)
+
+    bar = (
+        alt.Chart(g)
+        .mark_bar(cornerRadiusTopLeft=6, cornerRadiusTopRight=6)
+        .encode(
+            x=alt.X("date:N", sort=None, axis=alt.Axis(labelAngle=0)),
+            y=alt.Y("sets:Q"),
+            tooltip=["date:N", "sets:Q"],
+        )
+        .properties(height=140)
+    )
+
+    line = (
+        alt.Chart(g)
+        .mark_line(point=alt.OverlayMarkDef(size=40))
+        .encode(
+            x=alt.X("date:N", sort=None, axis=alt.Axis(labelAngle=0)),
+            y=alt.Y("acc:Q", scale=alt.Scale(domain=[0, 100])),
+            tooltip=["date:N", alt.Tooltip("acc:Q", format=".0f")],
+        )
+        .properties(height=140)
+    )
+
+    st.altair_chart(bar, use_container_width=True)
+    st.altair_chart(line, use_container_width=True)
+    st.markdown('<div style="opacity:.75;font-size:12px;">세트 수(막대)와 정답률(선)입니다.</div></div>', unsafe_allow_html=True)
+
 def render_mypage_block(page: str):
     """
     공통 마이페이지(학습자용 대시보드)
@@ -769,9 +920,7 @@ def render_mypage_block(page: str):
                         g["quizzes"] = g["quizzes"].astype(int)
                         g["acc"] = g["acc"].astype(float)
 
-                        st.caption("일자별 ‘세트(퀴즈) 시도 횟수’와 ‘정답률(%)’입니다.")
-                        st.bar_chart(g.set_index("date")["quizzes"])
-                        st.line_chart(g.set_index("date")["acc"])
+                        render_last7_minicharts(df7)
                     else:
                         st.info("최근 7일 기록이 아직 없어요. 오늘 10문제만 해도 바로 쌓입니다.")
                 else:
@@ -805,7 +954,26 @@ def render_mypage_block(page: str):
                         dfh["문항"] = pd.to_numeric(dfh.get("quiz_len"), errors="coerce").fillna(0).astype(int)
                         dfh["오답"] = pd.to_numeric(dfh.get("wrong_count"), errors="coerce").fillna(0).astype(int)
                         show = dfh[["날짜","훈련","점수","문항","오답"]].head(30)
-                        st.dataframe(show, use_container_width=True, hide_index=True)
+
+                        # ✅ 최근 기록(사용자 친화 카드)
+                        st.markdown('<div class="h-card">', unsafe_allow_html=True)
+                        for _, r in show.head(10).iterrows():
+                            pct = (float(r["점수"]) / float(r["문항"]) * 100.0) if float(r["문항"]) else 0.0
+                            st.markdown(
+                                f"""<div style="display:flex;justify-content:space-between;gap:10px;padding:10px 2px;border-bottom:1px solid rgba(28,42,58,.08);">
+                                  <div>
+                                    <div style="font-weight:900;color:var(--h-navy);">{r['훈련']} <span style="opacity:.65;font-weight:700;font-size:12px;">{r['날짜']}</span></div>
+                                    <div style="opacity:.8;font-size:12px;margin-top:3px;">점수 {int(r['점수'])}/{int(r['문항'])} · 오답 {int(r['오답'])} · 정답률 {pct:.0f}%</div>
+                                  </div>
+                                  <div style="font-weight:900;color:var(--h-navy2);align-self:center;">{pct:.0f}%</div>
+                                </div>""",
+                                unsafe_allow_html=True,
+                            )
+                        st.markdown('</div>', unsafe_allow_html=True)
+
+                        with st.expander("상세 기록(표) 보기", expanded=False):
+                            st.dataframe(show, use_container_width=True, hide_index=True)
+
                     else:
                         st.info("아직 기록이 없어요. 첫 세트를 풀면 여기에 자동으로 쌓입니다.")
                 else:
@@ -918,6 +1086,12 @@ def _fetch_today_sets_and_last7():
     except Exception:
         return 0, None
 
+def _get_last7_df_for_ui() -> pd.DataFrame:
+    _, df7 = _fetch_today_sets_and_last7()
+    if isinstance(df7, pd.DataFrame):
+        return df7
+    return pd.DataFrame([])
+
 def render_home_dashboard():
     # Identity message + Today quote
     st.markdown("#### 오늘도 10문제만. 그걸로 충분합니다.")
@@ -964,6 +1138,9 @@ def render_home_dashboard():
             st.metric("최근 기록", "—")
             st.caption("첫 세트를 풀면 표시됩니다.")
 
+    # ✅ 오늘의 학습 리포트(공통)
+    render_today_report_card(df7 if isinstance(df7, pd.DataFrame) else pd.DataFrame([]))
+
     # Quick actions
     st.markdown("### 훈련 선택")
     b1, b2, b3 = st.columns(3)
@@ -988,8 +1165,26 @@ def render_home_dashboard():
             g = df7.groupby(["pos_mode","level"], as_index=False).size()
             g.rename(columns={"size":"sets"}, inplace=True)
             st.markdown("### 최근 7일 레벨 진행도(세트 수)")
-            piv = g.pivot(index="level", columns="pos_mode", values="sets").fillna(0)
-            st.bar_chart(piv)
+            try:
+                gg = g.copy()
+                gg["pos_mode"] = gg["pos_mode"].astype(str)
+                gg["level"] = gg["level"].astype(str)
+                alt.themes.enable(_altair_theme_minimal)
+                ch = (
+                    alt.Chart(gg)
+                    .mark_bar(cornerRadiusTopLeft=6, cornerRadiusTopRight=6)
+                    .encode(
+                        x=alt.X("level:N", sort=None),
+                        y=alt.Y("sets:Q"),
+                        color=alt.Color("pos_mode:N", legend=alt.Legend(orient="top")),
+                        tooltip=["level:N", "pos_mode:N", "sets:Q"],
+                    )
+                    .properties(height=220)
+                )
+                st.altair_chart(ch, use_container_width=True)
+            except Exception:
+                piv = g.pivot(index="level", columns="pos_mode", values="sets").fillna(0)
+                st.bar_chart(piv)
         except Exception:
             pass
 
@@ -1003,16 +1198,19 @@ if page == "home":
 
 elif page == "word":
     render_guide_block("word")
+    render_today_report_card(_get_last7_df_for_ui())
     render_mypage_block("word")
     run_script("hotena_basic.py")
 
 elif page == "kanji":
     render_guide_block("kanji")
+    render_today_report_card(_get_last7_df_for_ui())
     render_mypage_block("kanji")
     run_script("app.py")
 
 elif page == "talk":
     render_guide_block("talk")
+    render_today_report_card(_get_last7_df_for_ui())
     render_mypage_block("talk")
     run_script("talk.py")
 
