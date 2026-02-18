@@ -1,3 +1,6 @@
+from ui_theme import apply_ui_theme
+apply_ui_theme()
+
 from __future__ import annotations
 
 import random

@@ -21,6 +21,9 @@ from streamlit_cookies_manager import EncryptedCookieManager
 # ✅ Page Config (Hub only)
 # ============================================================
 st.set_page_config(page_title="왕초보 탈출 하테나일본어", layout="centered")
+
+from ui_theme import apply_ui_theme
+apply_ui_theme()
 st.session_state["_page_config_set"] = True  # children should not call set
 
 # ✅ Hub version
