@@ -8,6 +8,15 @@ import hashlib
 
 import pandas as pd
 import streamlit as st
+
+# ✅ Hub theme
+try:
+    _fn = st.session_state.get('hub_apply_theme')
+    if callable(_fn):
+        _fn()
+except Exception:
+    pass
+
 import streamlit.components.v1 as components
 from supabase import create_client
 
@@ -30,6 +39,12 @@ USER_EMAIL = getattr(u, "email", "") or ""
 
 USER_PLAN = (st.session_state.get("user_plan") or "free").lower()
 IS_PRO = USER_PLAN == "pro"
+
+# ✅ SFX helper (from hub)
+try:
+    play_sfx = st.session_state.get('hub_play_sfx')
+except Exception:
+    play_sfx = None
 
 st.title("회화 훈련 · 상황판단")
 st.caption("1문제씩: 상황 → 상대 발화(🔊/PRO) → 보기 선택 → 제출 → 정답/설명 → (선택)말하기 완료 체크")
@@ -335,6 +350,13 @@ progress = (idx + 1) / max(1, len(qids))
 st.progress(progress)
 st.caption(f"진행: {idx+1}/{len(qids)}")
 
+# 녹음(페이지 단위): 새 세트로 넘어가면 자동 초기화
+rec_done = 0
+for _q in qids:
+    if st.session_state.get(f"{NS}_rec_{_q}") is not None or st.session_state.get(f"{NS}_rec_up_{_q}") is not None:
+        rec_done += 1
+st.caption(f"녹음: {rec_done}/{len(qids)} (페이지 단위로만 보관)")
+
 # ============================================================
 # ✅ Current question
 # ============================================================
@@ -429,8 +451,16 @@ if submitted:
 
     if ok:
         st.success("정답 ✅")
+        try:
+            if callable(play_sfx): play_sfx('correct')
+        except Exception:
+            pass
     else:
         st.error("오답 ❌")
+        try:
+            if callable(play_sfx): play_sfx('wrong')
+        except Exception:
+            pass
 
     # 상대/정답 스크립트 + 발음
     with st.container(border=True):

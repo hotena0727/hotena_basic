@@ -6,6 +6,15 @@ import random
 import pandas as pd
 import streamlit as st
 
+# ✅ Hub theme
+try:
+    _fn = st.session_state.get('hub_apply_theme')
+    if callable(_fn):
+        _fn()
+except Exception:
+    pass
+
+
 # ============================================================
 # ✅ Hub Mode Flag (home.py에서 실행 중인지)
 # ============================================================
@@ -1235,6 +1244,15 @@ import unicodedata
 import random
 import pandas as pd
 import streamlit as st
+
+# ✅ Hub theme
+try:
+    _fn = st.session_state.get('hub_apply_theme')
+    if callable(_fn):
+        _fn()
+except Exception:
+    pass
+
 
 def _nfkc_str(x) -> str:
     return unicodedata.normalize("NFKC", str(x or "")).strip()

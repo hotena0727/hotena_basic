@@ -23,7 +23,107 @@ st.set_page_config(page_title="왕초보 탈출 하테나일본어", layout="cen
 st.session_state["_page_config_set"] = True  # children should not call set
 
 # ✅ Hub version
-HUB_VERSION = "v26"
+HUB_VERSION = "v32"
+
+# ============================================================
+# ✅ Navy Theme (v32)
+# ============================================================
+def apply_navy_theme():
+    css = """
+    <style>
+    :root{
+      --h-navy:#1C2A3A;
+      --h-navy2:#2F4F6F;
+      --h-bg:#F5F7FA;
+      --h-card:#FFFFFF;
+      --h-border:rgba(28,42,58,.12);
+      --h-green:#2E8B57;
+    }
+    html, body, [data-testid="stAppViewContainer"]{background:var(--h-bg);}
+    .block-container{padding-top:1.15rem; max-width: 980px;}
+    /* Cards */
+    .h-card{
+      background:var(--h-card);
+      border:1px solid var(--h-border);
+      border-radius:18px;
+      padding:16px 16px;
+      box-shadow:0 8px 22px rgba(0,0,0,.05);
+      margin:10px 0 16px 0;
+    }
+    .h-badge{
+      display:inline-block;
+      padding:4px 10px;
+      border-radius:999px;
+      background:rgba(28,42,58,.08);
+      color:var(--h-navy);
+      font-weight:800;
+      font-size:12px;
+    }
+    /* Buttons */
+    div.stButton>button{
+      border-radius:14px;
+      border:1px solid rgba(28,42,58,.18);
+      background:var(--h-navy);
+      color:#fff;
+      font-weight:800;
+      padding:0.55rem 0.9rem;
+    }
+    div.stButton>button:hover{background:var(--h-navy2); border-color:rgba(28,42,58,.25);}
+    div.stButton>button:disabled{opacity:.55;}
+    </style>
+    """
+    st.markdown(css, unsafe_allow_html=True)
+
+apply_navy_theme()
+st.session_state["hub_apply_theme"] = apply_navy_theme
+
+# ============================================================
+# ✅ SFX (정답/오답/완주/레벨업)
+# ============================================================
+import base64, io, wave, math, struct
+
+def _tone_wav(freq: float, dur: float = 0.14, vol: float = 0.35, sr: int = 22050) -> bytes:
+    n = int(sr * dur)
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as w:
+        w.setnchannels(1); w.setsampwidth(2); w.setframerate(sr)
+        for i in range(n):
+            t = i / sr
+            env = min(1.0, i / (0.02*sr)) * min(1.0, (n - i) / (0.03*sr))
+            s = math.sin(2*math.pi*freq*t) * vol * env
+            w.writeframes(struct.pack("<h", int(max(-1,min(1,s)) * 32767)))
+    return buf.getvalue()
+
+def _get_sfx_bank() -> dict:
+    bank = st.session_state.get("_hub_sfx_bank")
+    if isinstance(bank, dict):
+        return bank
+    bank = {
+        "correct": _tone_wav(660, 0.12),
+        "wrong": _tone_wav(220, 0.12),
+        "complete": _tone_wav(523.25, 0.10) + _tone_wav(659.25, 0.10) + _tone_wav(783.99, 0.12),
+        "levelup": _tone_wav(440, 0.10) + _tone_wav(554.37, 0.10) + _tone_wav(659.25, 0.14),
+    }
+    st.session_state["_hub_sfx_bank"] = bank
+    return bank
+
+def play_sfx(name: str):
+    if not st.session_state.get("sound_on", True):
+        return
+    bank = _get_sfx_bank()
+    b = bank.get(name)
+    if not b:
+        return
+    b64 = base64.b64encode(b).decode("utf-8")
+    components.html(
+        f"""<audio autoplay>
+        <source src="data:audio/wav;base64,{b64}" type="audio/wav">
+        </audio>""",
+        height=0,
+    )
+
+st.session_state["hub_play_sfx"] = play_sfx
+
 # ============================================================
 # ✅ 오늘의 말 (공통)
 # ============================================================
@@ -37,8 +137,8 @@ def render_today_quote():
     ]
     q = random.choice(quotes)
     st.markdown(
-        f"""<div style="padding:12px 14px;border:1px solid rgba(49,51,63,.12);border-radius:14px;margin:8px 0 14px 0;">
-        <div style="font-weight:900;">오늘의 말</div>
+        f"""<div class="h-card">
+        <div class="h-badge">오늘의 말</div>
         <div style="margin-top:6px;opacity:.9;">{q}</div>
         </div>""",
         unsafe_allow_html=True,
@@ -823,6 +923,9 @@ def render_home_dashboard():
     st.markdown("#### 오늘도 10문제만. 그걸로 충분합니다.")
     render_today_quote()
 
+    # Sound toggle (공통)
+    st.toggle("🔊 사운드", value=st.session_state.get("sound_on", True), key="sound_on")
+
     # Home summary cards (today goal, streak badge, last activity)
     today_sets, df7 = _fetch_today_sets_and_last7()
 
@@ -837,6 +940,10 @@ def render_home_dashboard():
         if today_sets >= 1 and not st.session_state.get("_goal_balloons_done"):
             st.session_state["_goal_balloons_done"] = True
             st.balloons()
+            try:
+                play_sfx("complete")
+            except Exception:
+                pass
             st.caption("🎁 오늘 10문제 완주! (보상 시스템)")
 
     with c2:

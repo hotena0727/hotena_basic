@@ -32,6 +32,15 @@ import random
 import pandas as pd
 import streamlit as st
 
+# ✅ Hub theme
+try:
+    _fn = st.session_state.get('hub_apply_theme')
+    if callable(_fn):
+        _fn()
+except Exception:
+    pass
+
+
 # ============================================================
 # ✅ Hub Mode Flag (home.py에서 실행 중인지)
 # ============================================================
@@ -568,6 +577,15 @@ if st.session_state.get("_scroll_top_once"):
 # ============================================================
 import os
 import streamlit as st
+
+# ✅ Hub theme
+try:
+    _fn = st.session_state.get('hub_apply_theme')
+    if callable(_fn):
+        _fn()
+except Exception:
+    pass
+
 from streamlit_cookies_manager import EncryptedCookieManager
 from supabase import create_client
 
@@ -2537,6 +2555,15 @@ from zoneinfo import ZoneInfo
 from collections import Counter
 import html
 import streamlit as st
+
+# ✅ Hub theme
+try:
+    _fn = st.session_state.get('hub_apply_theme')
+    if callable(_fn):
+        _fn()
+except Exception:
+    pass
+
 
 KST = ZoneInfo("Asia/Seoul")
 
