@@ -48,11 +48,12 @@ if not SUPABASE_URL or not SUPABASE_ANON_KEY or not COOKIE_PASSWORD:
 
 sb = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
 
-# ✅ 두 앱(단어/한자)이 각각 다른 prefix를 쓰는 경우가 있어, 둘 다에 토큰을 저장합니다.
-cookies_word = EncryptedCookieManager(prefix="hotena_beginner_", password=COOKIE_PASSWORD)
-cookies_kanji = EncryptedCookieManager(prefix="hotena_kanji_", password=COOKIE_PASSWORD)
+cookies = EncryptedCookieManager(
+    prefix="hotena_",
+    password=COOKIE_PASSWORD,
+)
 
-if not cookies_word.ready() or not cookies_kanji.ready():
+if not cookies.ready():
     st.stop()
 
 def _set_tokens_to_all_cookies(access_token: str, refresh_token: str):
