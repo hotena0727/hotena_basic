@@ -1,4 +1,4 @@
-st.write("VERSION CHECK: v17")v
+
 
 # home.py
 from __future__ import annotations
@@ -15,7 +15,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 from supabase import create_client
 from streamlit_cookies_manager import EncryptedCookieManager
-
+st.write("VERSION CHECK: v17")
 # ============================================================
 # ✅ Page Config (Hub only)
 # ============================================================
