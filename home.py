@@ -39,8 +39,6 @@ def render_today_quote():
         unsafe_allow_html=True,
     )
 
-_page_config
-
 BASE_DIR = Path(__file__).resolve().parent
 
 # ============================================================
