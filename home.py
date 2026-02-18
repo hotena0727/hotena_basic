@@ -1297,8 +1297,7 @@ def render_home_dashboard():
                     cnt = int((row["date"] == d).sum())
                     dots.append("●" if cnt > 0 else "○")
                 line = " ".join(dots)
-                st.markdown(f"**{label}**  
-{line}")
+                st.markdown(f"**{label}**  \n{line}")
             st.caption("● 학습함  ○ 기록 없음")
         except Exception:
             pass
