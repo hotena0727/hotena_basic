@@ -22,28 +22,28 @@ st.markdown(
     """
 <style>
 /* ==========================================================
-   ✅ HUB Global CSS
-   - Child scripts sometimes hide Streamlit header or change padding.
-   - We force sane defaults so the top menu & first elements are never clipped.
+   ✅ HUB Global CSS (Mobile-first polish)
+   - Keep header visible (child pages may hide)
+   - Make tap targets big enough
+   - Normalize spacing/typography for "app-like" feel
    ========================================================== */
 
-/* Header: keep visible (some pages set height:0) */
 header[data-testid="stHeader"]{
   height: auto !important;
   min-height: 3.25rem !important;
 }
 
-/* Main container top padding: avoid content being pushed under header */
+/* Container spacing */
 div[data-testid="stAppViewContainer"] .block-container{
-  /* Reduce excessive top whitespace on mobile/centered layout */
   padding-top: 0.25rem !important;
+  padding-bottom: 5.25rem !important; /* bottom breathing room for mobile */
 }
 
-/* Reduce headline default top/bottom margins a bit for tighter UI */
+/* Headlines: tighter */
 div[data-testid="stAppViewContainer"] h1,
 div[data-testid="stAppViewContainer"] h2{
   margin-top: 0.15rem !important;
-  margin-bottom: 0.6rem !important;
+  margin-bottom: 0.55rem !important;
 }
 
 /* Defensive: if a child adds negative margins / weird offsets */
@@ -52,9 +52,64 @@ div[data-testid="stAppViewContainer"]{
   margin-top: 0 !important;
 }
 
-/* ✅ tighten very top whitespace */
+/* Tighten very top whitespace */
 .block-container > div:first-child { margin-top: 0 !important; }
 
+/* Buttons: minimum tap size + readable text */
+div[data-testid="stAppViewContainer"] .stButton > button,
+div[data-testid="stAppViewContainer"] button[kind]{
+  min-height: 44px !important;
+  padding-top: 0.55rem !important;
+  padding-bottom: 0.55rem !important;
+  font-size: 16px !important;
+  border-radius: 12px !important;
+}
+
+/* Inputs: readable */
+div[data-testid="stAppViewContainer"] input,
+div[data-testid="stAppViewContainer"] textarea{
+  font-size: 16px !important; /* prevent iOS zoom */
+}
+
+/* Selectbox / multiselect */
+div[data-testid="stAppViewContainer"] div[role="combobox"]{
+  min-height: 44px !important;
+}
+
+/* Radio/checkbox label spacing: thumb friendly */
+div[data-testid="stAppViewContainer"] div[role="radiogroup"] label,
+div[data-testid="stAppViewContainer"] label[data-baseweb="checkbox"]{
+  padding: 0.35rem 0.25rem !important;
+}
+
+/* Expander: make summary easier to tap */
+div[data-testid="stExpander"] summary{
+  padding-top: 0.35rem !important;
+  padding-bottom: 0.35rem !important;
+}
+
+/* Card-like blocks (metrics/containers) slightly tighter */
+div[data-testid="stMetric"]{
+  padding: 0.15rem 0 !important;
+}
+
+/* Mobile-only tuning */
+@media (max-width: 640px){
+  div[data-testid="stAppViewContainer"] .block-container{
+    padding-left: 1.0rem !important;
+    padding-right: 1.0rem !important;
+    padding-top: 0.15rem !important;
+    padding-bottom: 6.0rem !important;
+  }
+
+  /* Slightly larger tap targets on phones */
+  div[data-testid="stAppViewContainer"] .stButton > button,
+  div[data-testid="stAppViewContainer"] button[kind]{
+    min-height: 48px !important;
+    font-size: 16px !important;
+    border-radius: 14px !important;
+  }
+}
 </style>
 """,
     unsafe_allow_html=True,
@@ -615,7 +670,7 @@ def render_floating_menu():
 /* ===== Floating Menu (Hub) ===== */
 .hub-float-wrap{
   position: fixed;
-  top: 3.25rem;
+  top: 3.1rem;
   left: 0.65rem;
   z-index: 2147483647;
   font-family: inherit;
@@ -625,7 +680,7 @@ def render_floating_menu():
   display:inline-flex;
   align-items:center;
   justify-content:center;
-  width: 44px; height: 44px;
+  width: 48px; height: 48px;
   border-radius: 12px;
   background: rgba(20,20,20,0.92);
   color: #fff;
