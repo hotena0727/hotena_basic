@@ -13,6 +13,9 @@ import streamlit.components.v1 as components
 from supabase import create_client
 from streamlit_cookies_manager import EncryptedCookieManager
 
+st.write("cookie access_token exists:", bool(cookies.get("access_token")))
+st.write("cookie refresh_token exists:", bool(cookies.get("refresh_token")))
+
 # ============================================================
 # ✅ Page Config (Hub only)
 # ============================================================
