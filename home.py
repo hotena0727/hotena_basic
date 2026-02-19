@@ -295,7 +295,7 @@ def render_plan_pill():
     txt = "✨ PRO 이용 중입니다" if plan == "pro" else "🆓 FREE 이용 중"
     st.markdown(
         f"""
-<div style="display:flex;justify-content:flex-end;margin-top:0.15rem;margin-bottom:0.2rem;">
+<div style="display:flex;justify-content:flex-start;margin-top:0.15rem;margin-bottom:0.2rem;">
   <div style="
     display:inline-flex;align-items:center;gap:.45rem;
     padding:.28rem .55rem;border-radius:999px;
@@ -308,40 +308,42 @@ def render_plan_pill():
     )
 
 def render_daily_goal_home(sb_authed, user_id: str):
+    """Home dashboard: daily goal (sets-based). 1 set == 10 questions (quiz_len)."""
     progress_all = st.session_state.get("progress_all", {}) or {}
-    goal_total = int((progress_all.get("daily_goal_total") or 30))
+
+    # ✅ 세트 목표(기본 3세트). 기존 '문항 목표'를 쓰고 있었다면, 일단 세트 목표로 전환합니다.
+    goal_sets = int((progress_all.get("daily_goal_sets") or 3))
+
     attempts = fetch_today_attempts(sb_authed, user_id)
     sm = summarize_attempts(attempts)
 
-    done = sm["total_q"]
-    pct = 0 if goal_total <= 0 else min(100, int(round(done / goal_total * 100)))
+    done_sets = int(sm.get("total_sets", 0))
+    done_q = int(sm.get("total_q", 0))
 
-    st.markdown("## 🎯 오늘의 목표")
-    st.progress(pct / 100 if goal_total > 0 else 0.0)
+    pct = 0 if goal_sets <= 0 else min(100, int(round(done_sets / goal_sets * 100)))
+
+    st.markdown("## 🎯 오늘의 목표 (세트 기준)")
+    st.progress(pct / 100 if goal_sets > 0 else 0.0)
+
     c1, c2, c3 = st.columns(3)
-    c1.metric("오늘 푼 문제", f"{done}/{goal_total}")
-    acc = 0 if sm["total_q"] <= 0 else int(round(sm["total_score"] / sm["total_q"] * 100))
+    c1.metric("오늘 완료 세트", f"{done_sets}/{goal_sets}")
+    acc = 0 if done_q <= 0 else int(round(sm.get("total_score", 0) / done_q * 100))
     c2.metric("정답률", f"{acc}%")
-    c3.metric("세트", f"{sm['total_sets']}")
+    c3.metric("문항 수", f"{done_q}문항")
 
-    # breakdown
     b1, b2, b3 = st.columns(3)
-    b1.caption(f"단어: {sm['by_kind']['word']['q']}문제 · {sm['by_kind']['word']['sets']}세트")
-    b2.caption(f"한자: {sm['by_kind']['kanji']['q']}문제 · {sm['by_kind']['kanji']['sets']}세트")
-    b3.caption(f"회화: {sm['by_kind']['talk']['q']}문제 · {sm['by_kind']['talk']['sets']}세트")
+    b1.caption(f"단어: {sm['by_kind']['word']['sets']}세트 · {sm['by_kind']['word']['q']}문항")
+    b2.caption(f"한자: {sm['by_kind']['kanji']['sets']}세트 · {sm['by_kind']['kanji']['q']}문항")
+    b3.caption(f"회화: {sm['by_kind']['talk']['sets']}세트 · {sm['by_kind']['talk']['q']}문항")
 
     with st.expander("목표 수정", expanded=False):
-        new_goal = st.number_input("하루 목표 문제 수", min_value=0, max_value=500, value=goal_total, step=5)
+        new_goal = st.number_input("하루 목표 세트 수 (1세트=10문항)", min_value=0, max_value=100, value=goal_sets, step=1)
         if st.button("저장", use_container_width=True, key="hub_daily_goal_save"):
-            progress_all["daily_goal_total"] = int(new_goal)
+            progress_all["daily_goal_sets"] = int(new_goal)
             st.session_state["progress_all"] = progress_all
             save_progress(sb_authed, user_id, progress_all)
             st.success("저장했습니다.")
-            st.rerun()
 
-# ============================================================
-# 🔔 Reminder settings UI (separate page, not inline expander)
-# ============================================================
 def render_reminder_settings(sb_authed, user):
     """Render reminder settings UI (toggle + time) and persist to profiles.progress.reminder."""
     progress_all = st.session_state.get("progress_all", {}) or {}
@@ -681,13 +683,13 @@ def render_floating_menu():
 
   <div class="hub-menu-panel">
     <div class="hub-menu-title">메뉴</div>
-    <a href="?p=home">🏠 홈</a>
-    <a href="?p=word">📘 단어</a>
-    <a href="?p=kanji">🈶 한자</a>
-    <a href="?p=talk">💬 회화</a>
-    <a href="?p=my">👤 마이페이지</a>
-    <a href="?p=reminder">🔔 알림 설정</a>
-    <a href="?action=logout">🚪 로그아웃</a>
+    <a href="?p=home" target="_self">🏠 홈</a>
+    <a href="?p=word" target="_self">📘 단어</a>
+    <a href="?p=kanji" target="_self">🈶 한자</a>
+    <a href="?p=talk" target="_self">💬 회화</a>
+    <a href="?p=my" target="_self">👤 마이페이지</a>
+    <a href="?p=reminder" target="_self">🔔 알림 설정</a>
+    <a href="?action=logout" target="_self">🚪 로그아웃</a>
     <div style="height:0.6rem"></div>
     <div style="font-size:0.85rem; opacity:0.7;">Tip: 바깥을 누르면 닫힙니다.</div>
   </div>
