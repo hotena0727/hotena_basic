@@ -1135,6 +1135,10 @@ def nav_logout():
     clear_auth_everywhere()
 
 def render_topcard():
+    # HUB에서는 상단 메뉴를 home.py가 책임집니다.
+    if st.session_state.get("HUB_MODE"):
+        return
+
     u = st.session_state.get("user")
     if not u:
         return
@@ -1967,6 +1971,10 @@ if "page" not in st.session_state:
     st.session_state.page = "home"
 if st.session_state.get("page") not in ALLOWED_PAGES:
     st.session_state.page = "home"
+
+# HUB에서 실행될 때는 홈/내부 라우팅 대신 바로 퀴즈 화면으로 진입
+if st.session_state.get("HUB_MODE"):
+    st.session_state.page = "quiz"
 
 user = st.session_state.user
 user_id = user.id
