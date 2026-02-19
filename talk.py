@@ -5,6 +5,7 @@ from pathlib import Path
 import random
 from datetime import datetime, date
 import hashlib
+import json
 
 import pandas as pd
 import streamlit as st
@@ -504,10 +505,11 @@ if submitted:
         if not st.session_state.get(_tts_once_key, False):
             st.session_state[_tts_once_key] = True
             try:
-                components.html(f"""
+                components.html((
+"""
 <script>
 (function(){
-  const text = {ans!r};
+  const text = __TEXT__;
   if(!text) return;
   const u = new SpeechSynthesisUtterance(text);
   u.lang = "ja-JP";
@@ -517,7 +519,7 @@ if submitted:
   window.speechSynthesis.speak(u);
 })();
 </script>
-""", height=0)
+""").replace("__TEXT__", json.dumps(ans or "")), height=0)
             except Exception:
                 pass
 
