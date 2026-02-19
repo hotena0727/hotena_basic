@@ -1,7 +1,4 @@
 # talk.py (SAFE STUB)
-# - This tiny stub avoids rare Streamlit Cloud parsing/encoding issues on large scripts.
-# - It simply executes talk_impl.py in the same folder.
-
 from __future__ import annotations
 from pathlib import Path
 import runpy

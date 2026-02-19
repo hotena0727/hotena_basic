@@ -21,7 +21,6 @@ def render_kanji_app():
     import base64
     import io
     import textwrap
-    theme_hotena.apply_hotena_theme()
 
     # ============================================================
     # ✅ [SOUND] 사운드 유틸 (모바일 자동재생 정책 대응)
@@ -31,6 +30,7 @@ def render_kanji_app():
         # autoplay는 막힐 수 있음. 그래도 "사용자 클릭 직후"엔 성공률이 올라감
         st.markdown(
             f"""
+    theme_hotena.apply_hotena_theme()
             <audio autoplay>
               <source src="data:{mime};base64,{b64}">
             </audio>

@@ -1,12 +1,11 @@
-import theme_hotena
-theme_hotena.apply_hotena_theme()
-
 # mypage.py
 from __future__ import annotations
 
 from pathlib import Path
 import runpy
 import streamlit as st
+from theme_hotena import apply_hotena_theme
+apply_hotena_theme()
 
 # This file intentionally reuses the existing Kanji app (app.py) My Page UI/logic
 # without duplicating code. It acts as an independent entry for the HUB.

@@ -48,7 +48,6 @@ def render_words_app():
     import textwrap 
     import json
     import html
-    theme_hotena.apply_hotena_theme()
 
     # ============================================================
     # ✅ Page Config + Paths
@@ -58,6 +57,7 @@ def render_words_app():
     # ============================================================
 
     components.html("""
+    theme_hotena.apply_hotena_theme()
     <script>
     window.addEventListener("load", async () => {
       // ✅ 부모 문서(=진짜 페이지)로 주입
@@ -3777,6 +3777,7 @@ def render_words_app():
         show_naver_talk = (SHOW_NAVER_TALK == "N") or is_admin()
         if show_naver_talk:
             render_naver_talk()
+
 
 
 
