@@ -22,8 +22,28 @@ st.set_page_config(page_title="Hatena Hub", layout="centered")
 st.markdown(
     """
 <style>
-header[data-testid="stHeader"]{ height: 3rem !important; }
-div[data-testid="stAppViewContainer"] .block-container{ padding-top: 2.2rem !important; }
+/* ==========================================================
+   ✅ HUB Global CSS
+   - Child scripts sometimes hide Streamlit header or change padding.
+   - We force sane defaults so the top menu & first elements are never clipped.
+   ========================================================== */
+
+/* Header: keep visible (some pages set height:0) */
+header[data-testid="stHeader"]{
+  height: auto !important;
+  min-height: 3.25rem !important;
+}
+
+/* Main container top padding: avoid content being pushed under header */
+div[data-testid="stAppViewContainer"] .block-container{
+  padding-top: 2.25rem !important;
+}
+
+/* Defensive: if a child adds negative margins / weird offsets */
+div[data-testid="stAppViewContainer"] .main,
+div[data-testid="stAppViewContainer"]{
+  margin-top: 0 !important;
+}
 </style>
 """,
     unsafe_allow_html=True,
