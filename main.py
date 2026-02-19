@@ -97,7 +97,7 @@ def _home_cookies():
         st.stop()
     return cookies
 
-def _restore_session_from_cookies() -> bool:
+def _restore_session_from_cookies(cookies) -> bool:
     at = (cookies.get("access_token") or "").strip()
     rt = (cookies.get("refresh_token") or "").strip()
 
@@ -107,14 +107,12 @@ def _restore_session_from_cookies() -> bool:
     try:
         res = supabase.auth.get_user(at)
         u = getattr(res, "user", None) or (res.get("user") if isinstance(res, dict) else None)
-
         if not u:
             return False
 
         st.session_state["access_token"] = at
         st.session_state["refresh_token"] = rt
         st.session_state["user"] = u
-
         return True
 
     except Exception:
@@ -134,7 +132,7 @@ def render_home():
 
     cookies = _home_cookies()
     if not st.session_state.get("is_authed"):
-        _restore_session_from_cookies()
+        _restore_session_from_cookies(cookies)
         _ensure_user_object()
 
     if not st.session_state.get("is_authed"):
