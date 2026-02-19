@@ -6,7 +6,7 @@ import os
 import runpy
 import json
 import hashlib
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 import streamlit as st
 import streamlit.components.v1 as components
@@ -223,13 +223,50 @@ REMINDER_MESSAGES = [
 ]
 st.session_state["REMINDER_MESSAGES"] = REMINDER_MESSAGES
 
+
 # ============================================================
-# ✅ UI: Login (single)
+# ✅ UI + Navigation (사이드바 없이: 홈은 버튼 3개만)
+# - 홈에서는 버튼만 노출
+# - 버튼을 누르면 (로그인 필요 시) 로그인 화면을 먼저 띄운 뒤, 성공하면 해당 훈련으로 이동
 # ============================================================
+
 refresh_session_from_cookie_if_needed(force=False)
 
+# 기본 라우트
+if "hub_page" not in st.session_state:
+    st.session_state["hub_page"] = "home"
+if "pending_page" not in st.session_state:
+    st.session_state["pending_page"] = None
+
+def go(page: str):
+    st.session_state["hub_page"] = page
+    st.rerun()
+
+def request_page(page: str):
+    st.session_state["pending_page"] = page
+    st.session_state["hub_page"] = page
+    st.rerun()
+
+# ============================================================
+# ✅ HOME: 버튼 3개만
+# ============================================================
+if st.session_state["hub_page"] == "home":
+    b1, b2, b3 = st.columns(3)
+    with b1:
+        if st.button("단어 훈련", use_container_width=True):
+            request_page("words")
+    with b2:
+        if st.button("한자 훈련", use_container_width=True):
+            request_page("kanji")
+    with b3:
+        if st.button("회화 훈련", use_container_width=True):
+            request_page("talk")
+    st.stop()
+
+# ============================================================
+# ✅ Login gate (훈련 진입 시에만)
+# ============================================================
 user = st.session_state.get("user")
-sb_authed = st.session_state.get("sb_authed")
 
 if not user:
     st.subheader("로그인")
@@ -238,6 +275,15 @@ if not user:
         pw = st.text_input("비밀번호", type="password", key="hub_pw")
         mode = st.radio("모드", ["로그인", "회원가입"], horizontal=True)
         submit = st.form_submit_button("확인", use_container_width=True)
+
+    c1, c2 = st.columns([1, 1])
+    with c1:
+        if st.button("← 홈으로", use_container_width=True, key="to_home_from_login"):
+            st.session_state["hub_page"] = "home"
+            st.session_state["pending_page"] = None
+            st.rerun()
+    with c2:
+        st.caption("※ 로그인 후 선택한 훈련으로 자동 이동합니다.")
 
     if submit:
         if not email or not pw:
@@ -265,14 +311,17 @@ if not user:
             st.code(str(e))
     st.stop()
 
-# logged in
+# ============================================================
+# ✅ Logged-in setup
+# ============================================================
 sb_authed = get_authed_sb()
 user = st.session_state.get("user")
 ensure_profile(sb_authed, user)
 load_profile(sb_authed, user.id)
 
 # ============================================================
-# 🔔 Reminder settings (stored in profiles.progress.reminder)
+# 🔔 Reminder settings (profiles.progress.reminder)
+# - 앱이 '열려 있는 동안'만 동작하는 브라우저 알림입니다.
 # ============================================================
 progress_all = st.session_state.get("progress_all", {}) or {}
 rem = progress_all.get("reminder") or {}
@@ -286,7 +335,6 @@ with st.expander("🔔 홈 알림 설정", expanded=False):
     with c2:
         time_str = st.text_input("알림 시간(HH:MM)", value=time_str, key="hub_rem_time")
     if st.button("저장", use_container_width=True, key="hub_rem_save"):
-        # basic validate
         try:
             hh, mm = [int(x) for x in time_str.split(":")]
             assert 0 <= hh <= 23 and 0 <= mm <= 59
@@ -298,15 +346,15 @@ with st.expander("🔔 홈 알림 설정", expanded=False):
         save_progress(sb_authed, user.id, progress_all)
         st.success("저장했습니다.")
 
-# Fire in-app notification when app is open
+# 브라우저 알림 예약 (다음 hh:mm)
 if enabled:
+    delay_ms = 0
     try:
         hh, mm = [int(x) for x in time_str.split(":")]
         now = datetime.now()
         target = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
         if target <= now:
-            target = target.replace(day=now.day)  # same day; if passed, schedule for next day
-            target = target + (datetime(now.year, now.month, now.day) - datetime(now.year, now.month, now.day))  # no-op
+            target = target + timedelta(days=1)
         delay_ms = max(1000, int((target - now).total_seconds() * 1000))
     except Exception:
         delay_ms = 0
@@ -333,39 +381,22 @@ if enabled:
 """, height=0)
 
 # ============================================================
-# ✅ Navigation (hub_page)
+# ✅ Top bar (간단)
 # ============================================================
-if "hub_page" not in st.session_state:
-    st.session_state["hub_page"] = "home"
-
-def go(page: str):
-    st.session_state["hub_page"] = page
-    st.rerun()
-
-st.markdown("## 메뉴")
-b1, b2, b3 = st.columns(3)
-with b1:
-    if st.button("단어 훈련", use_container_width=True):
-        go("word")
-with b2:
-    if st.button("한자 훈련", use_container_width=True):
-        go("kanji")
-with b3:
-    if st.button("회화 훈련", use_container_width=True):
-        go("talk")
-
-st.divider()
-top = st.columns([1,1,1])
+top = st.columns([2,1])
 with top[0]:
     st.caption(f"로그인: {getattr(user, 'email', '')}")
-with top[2]:
+with top[1]:
     if st.button("로그아웃", use_container_width=True):
         cookies["access_token"] = ""
         cookies["refresh_token"] = ""
         cookies.save()
-        for k in ["user","access_token","refresh_token","sb_authed","sb_authed_token","progress_all","hub_page"]:
+        for k in ["user","access_token","refresh_token","sb_authed","sb_authed_token","progress_all","hub_page","pending_page"]:
             st.session_state.pop(k, None)
+        st.session_state["hub_page"] = "home"
         st.rerun()
+
+st.divider()
 
 # ============================================================
 # ✅ Runner
@@ -379,22 +410,20 @@ def run_script(filename: str):
 
 page = st.session_state.get("hub_page", "home")
 
-if page == "home":
-    st.info("원하는 훈련을 선택하세요.")
-elif page == "word":
-    if st.button("← 홈으로", use_container_width=True):
+if page == "words":
+    if st.button("← 홈으로", use_container_width=True, key="back_words"):
         go("home")
     st.divider()
     run_script("hotena_basic.py")
 elif page == "kanji":
-    if st.button("← 홈으로", use_container_width=True):
+    if st.button("← 홈으로", use_container_width=True, key="back_kanji"):
         go("home")
     st.divider()
     run_script("app.py")
 elif page == "talk":
-    if st.button("← 홈으로", use_container_width=True):
+    if st.button("← 홈으로", use_container_width=True, key="back_talk"):
         go("home")
     st.divider()
     run_script("talk.py")
 else:
-    st.info("원하는 훈련을 선택하세요.")
+    go("home")
