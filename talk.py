@@ -553,12 +553,13 @@ if submitted:
     # - st.audio_input은 파형 UI를 제공(지원되는 Streamlit 버전일 때)
     # ============================================================
     st.markdown("#### 🎤 내 발음 녹음")
+    st.caption("말하는 동안 아래 막대가 실시간으로 움직입니다. (녹음 위젯 파형 스타일은 Streamlit 기본 UI라 그대로 유지됩니다.)")
     st.caption("정답을 소리 내어 말해보고, 녹음해 보세요. (오늘 3회 챌린지 카운트)")
 
     # ✅ 실시간 음파(바) 시각화 (녹음 중 말하면 막대가 움직입니다)
     components.html(f"""
     <div style='margin:8px 0 10px 0;'>
-      <canvas id='talk_spec_{qid}_{idx}' style='width:100%;height:140px;background:#0b0b0b;border-radius:12px;'></canvas>
+      <canvas id='talk_spec_{qid}_{idx}' style='width:100%;height:220px;background:#f3f4f6;border-radius:16px;border:1px solid rgba(0,0,0,0.08);'></canvas>
     </div>
     <script>
     (function() {{
@@ -593,7 +594,7 @@ if submitted:
             const w = canvas.getBoundingClientRect().width;
             const h = canvas.getBoundingClientRect().height;
             ctx.clearRect(0,0,w,h);
-            ctx.fillStyle = '#0b0b0b';
+            ctx.fillStyle = '#f3f4f6';
             ctx.fillRect(0,0,w,h);
 
             const bars = data.length;
@@ -602,7 +603,7 @@ if submitted:
               const v = data[i]/255;
               const bh = Math.max(2, v * h);
               // no fixed color requirement from user; use neutral light
-              ctx.fillStyle = '#e6e6e6';
+              ctx.fillStyle = '#111111';
               ctx.fillRect(i*bw, h-bh, bw*0.85, bh);
             }}
           }};
@@ -615,7 +616,7 @@ if submitted:
       start();
     }})();
     </script>
-    """, height=170)
+    """, height=260)
 
     rec_key = f"talk_rec_{qid}"
     counted_key = f"talk_rec_counted_{qid}"
