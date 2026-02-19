@@ -13,8 +13,7 @@ import streamlit.components.v1 as components
 from supabase import create_client
 from streamlit_cookies_manager import EncryptedCookieManager
 
-st.write("cookie access_token exists:", bool(cookies.get("access_token")))
-st.write("cookie refresh_token exists:", bool(cookies.get("refresh_token")))
+
 
 # ============================================================
 # ✅ Page Config (Hub only)
@@ -31,6 +30,8 @@ st.markdown(
    - Make tap targets big enough
    - Normalize spacing/typography for "app-like" feel
    ========================================================== */
+st.write("cookie access_token exists:", bool(cookies.get("access_token")))
+st.write("cookie refresh_token exists:", bool(cookies.get("refresh_token")))
 
 header[data-testid="stHeader"]{
   height: auto !important;
