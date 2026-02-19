@@ -1,7 +1,7 @@
 # home.py
 from __future__ import annotations
 
-BUILD_STAMP = 'v26 2026-02-19 15:57:44 KST (+09:00)'
+BUILD_STAMP = 'v27 2026-02-19 15:59:26 KST (+09:00)'
 
 from pathlib import Path
 import os
@@ -9,7 +9,6 @@ import runpy
 import json
 import hashlib
 import base64
-import urllib.parse
 from cryptography.fernet import Fernet
 from datetime import date, datetime, timedelta, timezone
 import streamlit as st
@@ -170,14 +169,8 @@ div[data-testid="stMetric"]{
   }
 }
 </style>
-""".replace("__HREF_HOME__", href_home)\
-        .replace("__HREF_WORD__", href_word)\
-        .replace("__HREF_KANJI__", href_kanji)\
-        .replace("__HREF_TALK__", href_talk)\
-        .replace("__HREF_MY__", href_my)\
-        .replace("__HREF_REM__", href_rem)\
-        .replace("__HREF_OUT__", href_out),
-        unsafe_allow_html=True,
+""",
+    unsafe_allow_html=True,
 )
 st.session_state["_page_config_set"] = True  # children should not call set_page_config
 
@@ -515,7 +508,7 @@ def render_home_dashboard(sb_authed, user):
     streak = calc_streak(daily_map, today=kst_today)
 
     st.markdown(
-        """
+        f"""
 <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:0.75rem;margin-top:0.2rem;margin-bottom:0.6rem;">
   <div>
     <div style="font-size:1.35rem;font-weight:800;line-height:1.2;">하테나 학습 허브</div>
@@ -947,10 +940,10 @@ def hub_logout():
 
     st.rerun()
 def render_floating_menu():
-    """
-    ✅ Mobile-friendly floating hamburger menu (no sidebar)
-    - Navigation via query params (?rt=...&at=...&p=word)
-    - We avoid inline JS (onclick) because some Streamlit deployments block it via CSP.
+    """✅ Floating hamburger menu (Hub)
+    - Uses pure HTML/CSS toggle.
+    - Navigation keeps encrypted rt/at query params (so login persists when cookies are blocked).
+    - No f-string inside CSS (avoids { } parsing issues) and no inline JS (CSP-safe).
     """
     try:
         rt_enc = st.query_params.get("rt", "")
@@ -959,7 +952,11 @@ def render_floating_menu():
         rt_enc, at_enc = "", ""
 
     def _q(s: str) -> str:
-        return urllib.parse.quote(s, safe="") if s else ""
+        try:
+            import urllib.parse
+            return urllib.parse.quote(s, safe="") if s else ""
+        except Exception:
+            return s or ""
 
     base = ""
     if rt_enc:
@@ -975,9 +972,7 @@ def render_floating_menu():
     href_rem  = "?" + base + "p=reminder"
     href_out  = "?" + base + "action=logout"
 
-    st.markdown(
-        f"""
-<style>
+    html = """<style>
 /* ===== Floating Menu (Hub) ===== */
 .hub-float-wrap{
   position: fixed;
@@ -1027,6 +1022,9 @@ def render_floating_menu():
   color: rgba(10,10,10,0.92);
   border: 1px solid rgba(0,0,0,0.06);
 }
+.hub-menu-panel a:active{
+  transform: scale(0.99);
+}
 .hub-menu-overlay{
   position: fixed;
   inset: 0;
@@ -1062,38 +1060,18 @@ def render_floating_menu():
 
   <label class="hub-menu-overlay" for="hub_menu_toggle"></label>
 </div>
-""",
-        unsafe_allow_html=True,
-    )
+"""
 
+    html = (html.replace("__HREF_HOME__", href_home)
+                .replace("__HREF_WORD__", href_word)
+                .replace("__HREF_KANJI__", href_kanji)
+                .replace("__HREF_TALK__", href_talk)
+                .replace("__HREF_MY__", href_my)
+                .replace("__HREF_REM__", href_rem)
+                .replace("__HREF_OUT__", href_out))
 
+    st.markdown(html, unsafe_allow_html=True)
 
-render_floating_menu()
-render_plan_pill()
-
-# ============================================================
-# ✅ URL navigation (for floating menu links)
-# ============================================================
-try:
-    qp = st.query_params
-    q_action = qp.get("action")
-    q_page = qp.get("p")
-except Exception:
-    q_action = None
-    q_page = None
-
-if q_action == "logout":
-    hub_logout()
-
-if q_page in {"home","word","kanji","talk","my","reminder"}:
-    if st.session_state.get("hub_page") != q_page:
-        _clear_training_ui_state()
-        st.session_state["hub_page"] = q_page
-
-# ============================================================
-# ✅ Runner
-
-# ============================================================
 def run_script(filename: str):
     path = (BASE_DIR / filename).resolve()
     if not path.exists() or not path.is_file():
