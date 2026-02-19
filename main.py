@@ -134,7 +134,7 @@ def render_home():
 
     cookies = _home_cookies()
     if not st.session_state.get("is_authed"):
-        _restore_session_from_cookies(cookies)
+        _restore_session_from_cookies()
         _ensure_user_object()
 
     if not st.session_state.get("is_authed"):
