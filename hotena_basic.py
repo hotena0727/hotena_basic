@@ -46,11 +46,12 @@ import html
 # ============================================================
 # ✅ Page Config + Paths
 # ============================================================
-st.set_page_config(
-    page_title="왕초보탈출 하테나일본어",
-    page_icon="static/icon-192.png",   # 또는 "🟦"
-    layout="centered",
-)
+if not st.session_state.get("HUB_MODE"):
+    st.set_page_config(
+        page_title="왕초보탈출 하테나일본어",
+        page_icon="static/icon-192.png",
+        layout="centered",
+    )
 
 # ============================================================
 # ✅ PWA/아이콘 - set_page_config 바로 아래
@@ -271,9 +272,932 @@ if str(st.session_state.get("pos_group", "noun")).lower().strip() in POS_ONLY_2T
 # ============================================================
 # ✅ CSS (폰트/버튼/카드/간격)
 # ============================================================
+st.markdown(
+    """
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Kosugi+Maru&family=Noto+Sans+JP:wght@400;500;700;800&display=swap" rel="stylesheet">
 
-# (HUB) Global UI CSS moved to home.py
+<style>
+:root{
+  --jp-rounded: "Noto Sans JP","Kosugi Maru","Hiragino Sans","Yu Gothic","Meiryo",sans-serif;
+}
+.jp, .jp *{
+  font-family: var(--jp-rounded) !important;
+  line-height:1.7;
+  letter-spacing:.2px;
+}
 
+/* (Hub) 상단 여백/헤더/툴바는 home.py 공통 CSS에서 제어 */
+/* 헤더 여백 */
+div[data-testid="stMarkdownContainer"] h2,
+div[data-testid="stMarkdownContainer"] h3,
+div[data-testid="stMarkdownContainer"] h4{
+  margin-top: 10px !important;
+  margin-bottom: 8px !important;
+}
+
+/* 버튼 기본 */
+div.stButton > button{
+  padding: 6px 10px !important;
+  font-size: 13px !important;
+  line-height: 1.1 !important;
+  white-space: nowrap !important;
+}
+
+/* 상단 환영바 */
+.headbar{
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:12px;
+  margin: 0px 0 12px 0;
+}
+.headtitle{
+  font-size:32px;
+  font-weight:900;
+  line-height:1.15;
+  white-space: nowrap;
+}
+.headhello{
+  font-size: 13px;
+  font-weight:700;
+  opacity:.88;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 52%;
+}
+.headhello .mail{
+  font-weight:600;
+  opacity:.75;
+  margin-left:8px;
+}
+
+@media (max-width: 480px){
+  div[data-baseweb="button-group"] button{
+    padding: 9px 12px !important;
+    font-size: 14px !important;
+  }
+  .headhello .mail{ display:none !important; }
+  .headhello{ font-size:11px; }
+  .headtitle{ font-size:22px; }
+}
+
+/* ====== 상단 선택 버튼 카드 스타일 ====== */
+.qtypewrap div.stButton > button{
+  height: 46px !important;
+  border-radius: 14px !important;
+  font-weight: 900 !important;
+  font-size: 14px !important;
+  border: 1px solid rgba(120,120,120,0.22) !important;
+  background: rgba(255,255,255,0.04) !important;
+  box-shadow: none !important;
+  transition: transform .08s ease, box-shadow .08s ease, filter .08s ease;
+}
+.qtypewrap div.stButton > button:hover{
+  transform: translateY(-1px);
+  box-shadow: 0 12px 26px rgba(0,0,0,0.12) !important;
+  filter: brightness(1.02);
+}
+
+/* 캡션 */
+.qtype_hint{
+  font-size: 15px;
+  opacity: .70;
+  margin-top: 2px;
+  margin-bottom: 10px;
+  line-height: 1.2;
+}
+
+/* divider 간격(래퍼로만) */
+.tight-divider hr{
+  margin: 6px 0 10px 0 !important;
+}
+
+/* Q번호 아래 간격 축소 */
+div[data-testid="stMarkdownContainer"] h3{
+  margin-bottom: 4px !important;
+}
+</style>
+""",
+    unsafe_allow_html=True,
+)
+
+# ============================================================
+# ✅ Scroll Top Anchor + Helpers
+# ============================================================
+st.markdown('<div id="__TOP__"></div>', unsafe_allow_html=True)
+
+def scroll_to_top(nonce: int = 0):
+    components.html(
+        f"""
+        <script>
+        (function () {{
+          const doc = window.parent.document;
+          const targets = [
+            doc.querySelector('[data-testid="stAppViewContainer"]'),
+            doc.querySelector('[data-testid="stMain"]'),
+            doc.querySelector('section.main'),
+            doc.documentElement,
+            doc.body
+          ].filter(Boolean);
+
+          const go = () => {{
+            try {{
+              const top = doc.getElementById("__TOP__");
+              if (top) top.scrollIntoView({{behavior: "auto", block: "start"}});
+              targets.forEach(t => {{
+                if (t && typeof t.scrollTo === "function") t.scrollTo({{top: 0, left: 0, behavior: "auto"}});
+                if (t) t.scrollTop = 0;
+              }});
+              window.parent.scrollTo(0, 0);
+              window.scrollTo(0, 0);
+            }} catch(e) {{}}
+          }};
+
+          go();
+          requestAnimationFrame(go);
+          setTimeout(go, 50);
+          setTimeout(go, 150);
+          setTimeout(go, 350);
+          setTimeout(go, 800);
+        }})();
+        </script>
+        <!-- nonce:{nonce} -->
+        """,
+        height=1,
+    )
+
+def render_floating_scroll_top():
+    components.html(
+        """
+<script>
+(function(){
+  const doc = window.parent.document;
+  if (doc.getElementById("__FAB_TOP__")) return;
+
+  const btn = doc.createElement("button");
+  btn.id = "__FAB_TOP__";
+  btn.textContent = "↑";
+
+  btn.style.position = "fixed";
+  btn.style.right = "14px";
+  btn.style.zIndex = "2147483647";
+  btn.style.width = "46px";
+  btn.style.height = "46px";
+  btn.style.borderRadius = "999px";
+  btn.style.border = "1px solid rgba(120,120,120,0.25)";
+  btn.style.background = "rgba(0,0,0,0.55)";
+  btn.style.color = "#fff";
+  btn.style.fontSize = "18px";
+  btn.style.fontWeight = "900";
+  btn.style.boxShadow = "0 10px 22px rgba(0,0,0,0.25)";
+  btn.style.cursor = "pointer";
+  btn.style.userSelect = "none";
+  btn.style.display = "flex";
+  btn.style.alignItems = "center";
+  btn.style.justifyContent = "center";
+  btn.style.opacity = "0";
+
+  const applyDeviceVisibility = () => {
+    try {
+      const w = window.parent.innerWidth || window.innerWidth;
+      if (w >= 801) btn.style.display = "none";
+      else btn.style.display = "flex";
+    } catch(e) {}
+  };
+
+  const goTop = () => {
+    try {
+      const top = doc.getElementById("__TOP__");
+      if (top) top.scrollIntoView({behavior:"smooth", block:"start"});
+
+      const targets = [
+        doc.querySelector('[data-testid="stAppViewContainer"]'),
+        doc.querySelector('[data-testid="stMain"]'),
+        doc.querySelector('section.main'),
+        doc.documentElement,
+        doc.body
+      ].filter(Boolean);
+
+      targets.forEach(t => {
+        if (t && typeof t.scrollTo === "function") t.scrollTo({top:0, left:0, behavior:"smooth"});
+        if (t) t.scrollTop = 0;
+      });
+
+      window.parent.scrollTo(0,0);
+      window.scrollTo(0,0);
+    } catch(e) {}
+  };
+
+  btn.addEventListener("click", goTop);
+
+  const mount = () => doc.querySelector('[data-testid="stAppViewContainer"]') || doc.body;
+
+  const BASE = 18;
+  const EXTRA = 34;
+
+  const reposition = () => {
+    try {
+      const vv = window.parent.visualViewport || window.visualViewport;
+      const innerH = window.parent.innerHeight || window.innerHeight;
+      const hiddenBottom = vv ? Math.max(0, innerH - vv.height - (vv.offsetTop || 0)) : 0;
+      btn.style.bottom = (BASE + EXTRA + hiddenBottom) + "px";
+      btn.style.opacity = "1";
+    } catch(e) {
+      btn.style.bottom = "220px";
+      btn.style.opacity = "1";
+    }
+    applyDeviceVisibility();
+  };
+
+  const tryAttach = (n=0) => {
+    const root = mount();
+    if (!root) {
+      if (n < 30) return setTimeout(() => tryAttach(n+1), 50);
+      return;
+    }
+    root.appendChild(btn);
+    reposition();
+    setTimeout(reposition, 50);
+    setTimeout(reposition, 200);
+    setTimeout(reposition, 600);
+  };
+
+  tryAttach();
+  window.parent.addEventListener("resize", reposition, {passive:true});
+
+  const vv = window.parent.visualViewport || window.visualViewport;
+  if (vv) {
+    vv.addEventListener("resize", reposition, {passive:true});
+    vv.addEventListener("scroll", reposition, {passive:true});
+  }
+})();
+</script>
+        """,
+        height=1,
+    )
+
+render_floating_scroll_top()
+
+if st.session_state.get("_scroll_top_once"):
+    st.session_state["_scroll_top_once"] = False
+    st.session_state["_scroll_top_nonce"] = st.session_state.get("_scroll_top_nonce", 0) + 1
+    scroll_to_top(nonce=st.session_state["_scroll_top_nonce"])
+
+# ============================================================
+# ✅ Cookies + Supabase (Cloud Run env + Streamlit secrets 겸용)
+# ============================================================
+import os
+import streamlit as st
+from streamlit_cookies_manager import EncryptedCookieManager
+from supabase import create_client
+
+def get_cfg(key: str) -> str:
+    # 0) Hub(home.py)에서 주입된 설정 우선
+    try:
+        cfg = st.session_state.get("cfg", {}) or {}
+        if key in cfg and cfg[key]:
+            return str(cfg[key])
+    except Exception:
+        pass
+    # 1) Cloud Run: 환경변수 우선
+    v = os.getenv(key)
+    if v:
+        return v
+    # 2) Streamlit Cloud: secrets
+    try:
+        return st.secrets[key]
+    except Exception:
+        return 
+
+COOKIE_PASSWORD = get_cfg("COOKIE_PASSWORD")
+SUPABASE_URL = get_cfg("SUPABASE_URL")
+SUPABASE_ANON_KEY = get_cfg("SUPABASE_ANON_KEY")
+
+# ✅ 필수값 체크
+missing = [k for k, v in {
+    "COOKIE_PASSWORD": COOKIE_PASSWORD,
+    "SUPABASE_URL": SUPABASE_URL,
+    "SUPABASE_ANON_KEY": SUPABASE_ANON_KEY,
+}.items() if not v]
+
+if missing:
+    st.error(f"설정값이 없습니다: {', '.join(missing)} (Cloud Run env 또는 Streamlit secrets 확인)")
+    st.stop()
+
+# ✅ cookies/supabase는 Hub(home.py)에서 1회 생성 후 공유합니다.
+cookies = st.session_state.get("cookies")
+sb = st.session_state.get("sb")
+
+if cookies is None:
+    cookies = EncryptedCookieManager(
+        prefix="hotena_beginner_",
+        password=COOKIE_PASSWORD,
+    )
+    if not cookies.ready():
+        st.info("잠깐만요! 곧 시작할게요🙂")
+        st.stop()
+    st.session_state["cookies"] = cookies
+
+if sb is None:
+    sb = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+    st.session_state["sb"] = sb
+
+# ============================================================
+# ✅ Utils: 위젯 잔상(q_...) 제거
+# ============================================================
+def clear_question_widget_keys():
+    keys_to_del = [k for k in list(st.session_state.keys()) if isinstance(k, str) and k.startswith("q_")]
+    for k in keys_to_del:
+        st.session_state.pop(k, None)
+
+        
+# ============================================================
+# ✅ FREE 관련 공통 유틸 (현재 제한 OFF 모드)
+# ============================================================
+
+def add_free_used(n: int) -> None:
+    """FREE 사용량 기록. 현재 제한 OFF라 no-op."""
+    return
+
+def free_limit_reached() -> bool:
+    """FREE 제한 체크. 현재 제한 OFF라 항상 False."""
+    return False
+
+def should_lock_quiz() -> bool:
+    """버튼 disabled 등에 쓰는 잠금 플래그."""
+    return free_limit_reached()
+
+# ============================================================
+# ✅ COMBO 시스템 (연속 정답)
+# - 제출 시 10문항 기준으로 "최대 연속 정답" 계산
+# - 5 콤보: 🔥 / 10 콤보: 🎉 Perfect Streak
+# ============================================================
+
+def ensure_combo_state():
+    if "combo_best_today" not in st.session_state:
+        st.session_state.combo_best_today = 0
+    if "combo_last_notice" not in st.session_state:
+        st.session_state.combo_last_notice = 0  # 마지막으로 띄운 콤보 단계(5/10 등)
+
+def compute_max_combo(correct_flags: list[bool]) -> int:
+    mx = 0
+    cur = 0
+    for ok in correct_flags:
+        if ok:
+            cur += 1
+            mx = max(mx, cur)
+        else:
+            cur = 0
+    return int(mx)
+
+def render_combo_celebration(max_combo: int):
+    """
+    max_combo 기준으로 축하 메시지/효과를 1회만 띄움
+    """
+    ensure_combo_state()
+
+    # 오늘 최고 기록 갱신
+    if max_combo > int(st.session_state.combo_best_today or 0):
+        st.session_state.combo_best_today = int(max_combo)
+
+    # 단계별 트리거 (중복 방지)
+    # 10은 최상위이므로 먼저 체크
+    if max_combo >= 10 and st.session_state.combo_last_notice < 10:
+        st.session_state.combo_last_notice = 10
+        st.balloons()
+        st.success("🎉 Perfect Streak! 10연속 정답!")
+        return
+
+    if max_combo >= 5 and st.session_state.combo_last_notice < 5:
+        st.session_state.combo_last_notice = 5
+        st.success("🔥 콤보! 5연속 정답!")
+        return
+
+def render_combo_small_badge():
+    """
+    (선택) 상단/결과 근처에 조용히 보여주는 배지
+    """
+    ensure_combo_state()
+    best = int(st.session_state.combo_best_today or 0)
+    if best <= 0:
+        return
+    st.caption(f"🧠 오늘 최고 콤보: {best}연속")
+
+
+# ============================================================
+# ✅ POS filters (✅ B안 핵심)
+# ============================================================
+def get_pos_filters() -> list[str]:
+    g = str(st.session_state.get("pos_group", "noun")).strip().lower()
+    if g == "other":
+        sel = st.session_state.get("other_pos_selected", set())
+        sel = [x for x in OTHER_POS_OPTIONS if x in sel]
+        return sel if sel else list(OTHER_POS_OPTIONS)
+    return [g]
+
+# ============================================================
+# ✅ Key helpers (정복/제외/배너)
+# ============================================================
+def mastery_key(qtype: str | None = None, pos: str | None = None) -> str:
+    qt = qtype or st.session_state.get("quiz_type", "meaning")
+    ps = (pos or st.session_state.get("pos_group", "noun")).lower().strip()
+    return f"{ps}__{qt}"
+
+def fetch_is_admin_from_db(sb_authed, user_id: str) -> bool:
+    try:
+        res = (
+            sb_authed.table("profiles")
+            .select("is_admin")
+            .eq("id", user_id)
+            .single()
+            .execute()
+        )
+        if res and res.data is not None:
+            return bool(res.data.get("is_admin", False))
+    except Exception:
+        return False
+    return False
+
+def is_admin() -> bool:
+    cached = st.session_state.get("is_admin_cached")
+    if cached is not None:
+        return bool(cached)
+
+    u = st.session_state.get("user")
+    if u is None:
+        st.session_state["is_admin_cached"] = False
+        return False
+
+    sb_authed_local = get_authed_sb()
+    if sb_authed_local is None:
+        st.session_state["is_admin_cached"] = False
+        return False
+
+    # ✅ 여기: fetch 함수가 없으면 False로
+    if "fetch_is_admin_from_db" not in globals():
+        st.session_state["is_admin_cached"] = False
+        return False
+
+    val = fetch_is_admin_from_db(sb_authed_local, u.id)
+    st.session_state["is_admin_cached"] = val
+    return bool(val)
+
+def ensure_mastered_words_shape():
+    if "mastered_words" not in st.session_state or not isinstance(st.session_state.mastered_words, dict):
+        st.session_state.mastered_words = {}
+    types = QUIZ_TYPES_ADMIN if is_admin() else QUIZ_TYPES_USER
+    for qt in types:
+        st.session_state.mastered_words.setdefault(mastery_key(qt), set())
+
+def ensure_excluded_wrong_words_shape():
+    if "excluded_wrong_words" not in st.session_state or not isinstance(st.session_state.excluded_wrong_words, dict):
+        st.session_state.excluded_wrong_words = {}
+    types = QUIZ_TYPES_ADMIN if is_admin() else QUIZ_TYPES_USER
+    for qt in types:
+        st.session_state.excluded_wrong_words.setdefault(mastery_key(qt), set())
+
+def ensure_seen_words_shape():
+    if "seen_words" not in st.session_state or not isinstance(st.session_state.seen_words, dict):
+        st.session_state.seen_words = {}
+    types = QUIZ_TYPES_ADMIN if is_admin() else QUIZ_TYPES_USER
+    for qt in types:
+        st.session_state.seen_words.setdefault(mastery_key(qt), set())     
+
+def ensure_mastery_banner_shape():
+    if "mastery_banner_shown" not in st.session_state or not isinstance(st.session_state.mastery_banner_shown, dict):
+        st.session_state.mastery_banner_shown = {}
+    if "mastery_done" not in st.session_state or not isinstance(st.session_state.mastery_done, dict):
+        st.session_state.mastery_done = {}
+
+    types = QUIZ_TYPES_ADMIN if is_admin() else QUIZ_TYPES_USER
+    for qt in types:
+        k = mastery_key(qt)
+        st.session_state.mastery_banner_shown.setdefault(k, False)
+        st.session_state.mastery_done.setdefault(k, False)
+
+# ============================================================
+# ✅ Answers 동기화 + Progress save helper
+# ============================================================
+def sync_answers_from_widgets():
+    qv = st.session_state.get("quiz_version", 0)
+    quiz = st.session_state.get("quiz", [])
+    if not isinstance(quiz, list):
+        return
+
+    answers = st.session_state.get("answers")
+    if not isinstance(answers, list) or len(answers) != len(quiz):
+        st.session_state.answers = [None] * len(quiz)
+
+    for idx in range(len(quiz)):
+        widget_key = f"q_{qv}_{idx}"
+        if widget_key in st.session_state:
+            st.session_state.answers[idx] = st.session_state[widget_key]
+
+def start_quiz_state(quiz_list: list, qtype: str, clear_wrongs: bool = True):
+    st.session_state.quiz_version = int(st.session_state.get("quiz_version", 0)) + 1
+    st.session_state.quiz_type = qtype
+
+    if not isinstance(quiz_list, list):
+        quiz_list = []
+
+    st.session_state.quiz = quiz_list
+    st.session_state.answers = [None] * len(quiz_list)
+
+    st.session_state.submitted = False
+    st.session_state.saved_this_attempt = False
+    st.session_state.stats_saved_this_attempt = False
+    st.session_state.session_stats_applied_this_attempt = False
+    
+    # ✅ 추가: 새 회차 시작 시 콤보 알림 단계 초기화
+    st.session_state["combo_last_notice"] = 0
+
+    # (선택) 디버그/추적용
+    # st.session_state.free_limit_applied_ts = None
+
+    if clear_wrongs:
+        st.session_state.wrong_list = []
+
+def mark_progress_dirty():
+    st.session_state.progress_dirty = True
+
+    sb_authed_local = get_authed_sb()
+    u = st.session_state.get("user")
+    if (sb_authed_local is None) or (u is None):
+        return
+
+    now = time.time()
+    last = st.session_state.get("_last_progress_save_ts", 0.0)
+    if now - last < 60.0:
+        return
+
+    try:
+        save_progress_to_db(sb_authed_local, u.id)
+        st.session_state._last_progress_save_ts = now
+        st.session_state.progress_dirty = False
+    except Exception:
+        pass
+
+def mark_quiz_as_seen(quiz_list: list[dict], qtype: str, pos_group: str):
+    ensure_seen_words_shape()
+    k = mastery_key(qtype=qtype, pos=pos_group)
+    s = st.session_state.seen_words.setdefault(k, set())
+    for q in (quiz_list or []):
+        w = str(q.get("jp_word", "")).strip()
+        if w:
+            s.add(w)
+            
+# ============================================================
+# ✅ Auth helpers (JWT refresh, sb authed)
+# ============================================================
+def is_jwt_expired_error(e: Exception) -> bool:
+    msg = str(e).lower()
+    return ("jwt expired" in msg) or ("pgrst303" in msg)
+
+def clear_auth_everywhere():
+    try:
+        cookies["access_token"] = ""
+        cookies["refresh_token"] = ""
+        cookies.save()
+    except Exception:
+        pass
+
+    for k in [
+        "user", "access_token", "refresh_token",
+        "login_email", "email_link_notice_shown",
+        "auth_mode", "signup_done", "last_signup_ts",
+        "page",
+        "quiz", "answers", "submitted", "wrong_list",
+        "quiz_version", "quiz_type",
+        "saved_this_attempt", "stats_saved_this_attempt",
+        "history", "wrong_counter", "total_counter",
+        "attendance_checked", "streak_count", "did_attend_today",
+        "is_admin_cached",
+        "session_stats_applied_this_attempt",
+        "mastered_words",
+        "progress_restored", "pool_ready",
+        "_sb_authed", "_sb_authed_token",
+        "excluded_wrong_words",
+        "mastery_banner_shown", "mastery_done",
+        "pos_group",
+        "other_pos_selected",
+        "plan_cached",
+    ]:
+        st.session_state.pop(k, None)
+
+def run_db(callable_fn):
+    try:
+        return callable_fn()
+    except Exception as e:
+        if is_jwt_expired_error(e):
+            ok = refresh_session_from_cookie_if_needed(force=True)
+            if ok:
+                st.rerun()
+            clear_auth_everywhere()
+            st.warning("세션이 만료되었습니다. 다시 로그인해 주세요.")
+            st.rerun()
+        raise
+def refresh_session_from_cookie_if_needed(force: bool = False) -> bool:
+    # 이미 세션이 있으면 OK
+    if not force and st.session_state.get("user") and st.session_state.get("access_token"):
+        return True
+
+    rt = cookies.get("refresh_token")
+    at = cookies.get("access_token")
+
+    # 1) refresh_token 우선
+    if rt:
+        refreshed = None
+        try:
+            refreshed = sb.auth.refresh_session(rt)
+        except Exception:
+            try:
+                refreshed = sb.auth.refresh_session({"refresh_token": rt})
+            except Exception:
+                refreshed = None
+
+        if refreshed and getattr(refreshed, "session", None) and getattr(refreshed.session, "access_token", None):
+            st.session_state.user = refreshed.user
+            st.session_state.access_token = refreshed.session.access_token
+            st.session_state.refresh_token = refreshed.session.refresh_token
+
+            u_email = getattr(refreshed.user, "email", None)
+            if u_email:
+                st.session_state["login_email"] = u_email.strip()
+
+            cookies["access_token"] = refreshed.session.access_token
+            cookies["refresh_token"] = refreshed.session.refresh_token
+            cookies.save()
+            return True
+
+    # 2) access_token으로 유저 조회 시도
+    if at:
+        try:
+            u = sb.auth.get_user(at)
+            user_obj = getattr(u, "user", None) or getattr(u, "data", None)
+            if user_obj:
+                st.session_state.user = user_obj
+                st.session_state.access_token = at
+                if rt:
+                    st.session_state.refresh_token = rt
+
+                u_email = getattr(user_obj, "email", None)
+                if u_email:
+                    st.session_state["login_email"] = u_email.strip()
+                return True
+        except Exception:
+            pass
+
+    return False
+
+def get_authed_sb():
+    if not st.session_state.get("access_token"):
+        refresh_session_from_cookie_if_needed(force=True)
+
+    token = st.session_state.get("access_token")
+    if not token:
+        return None
+
+    cached = st.session_state.get("_sb_authed")
+    cached_token = st.session_state.get("_sb_authed_token")
+
+    if cached is not None and cached_token == token:
+        return cached
+
+    sb2 = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+    sb2.postgrest.auth(token)
+
+    st.session_state["_sb_authed"] = sb2
+    st.session_state["_sb_authed_token"] = token
+    return sb2
+
+def to_kst_naive(x):
+    ts = pd.to_datetime(x, utc=True, errors="coerce")
+    if isinstance(ts, pd.Series):
+        return ts.dt.tz_convert(KST_TZ).dt.tz_localize(None)
+    if pd.isna(ts):
+        return ts
+    return ts.tz_convert(KST_TZ).tz_localize(None)
+
+# ============================================================
+# ✅ DB functions (기존 테이블 구조 그대로 활용)
+# ============================================================
+def delete_all_learning_records(sb_authed, user_id):
+    sb_authed.table("quiz_attempts").delete().eq("user_id", user_id).execute()
+    clear_progress_in_db(sb_authed, user_id)
+
+def ensure_profile(sb_authed, user):
+    try:
+        sb_authed.table("profiles").upsert(
+            {"id": user.id, "email": getattr(user, "email", None)},
+            on_conflict="id",
+        ).execute()
+    except Exception:
+        pass
+
+def mark_attendance_once(sb_authed):
+    if st.session_state.get("attendance_checked"):
+        return None
+    try:
+        res = sb_authed.rpc("mark_attendance_kst", {}).execute()
+        st.session_state.attendance_checked = True
+        return res.data[0] if res.data else None
+    except Exception:
+        st.session_state.attendance_checked = True
+        return None
+
+def save_attempt_to_db(sb_authed, user_id, user_email, pos, quiz_type, quiz_len, score, wrong_list):
+    payload = {
+        "user_id": user_id,
+        "user_email": user_email,
+        "level": str(pos),          # ✅ level 컬럼에 pos_group 저장
+        "pos_mode": str(quiz_type), # ✅ pos_mode 컬럼에 유형 저장
+        "quiz_len": int(quiz_len),
+        "score": int(score),
+        "wrong_count": int(len(wrong_list)),
+        "wrong_list": wrong_list,
+    }
+    sb_authed.table("quiz_attempts").insert(payload).execute()
+
+def fetch_recent_attempts(sb_authed, user_id, limit=10):
+    return (
+        sb_authed.table("quiz_attempts")
+        .select("created_at, level, pos_mode, quiz_len, score, wrong_count, wrong_list")
+        .eq("user_id", user_id)
+        .order("created_at", desc=True)
+        .limit(limit)
+        .execute()
+    )
+
+def fetch_all_attempts_admin(sb_authed, limit=500):
+    return (
+        sb_authed.table("quiz_attempts")
+        .select("created_at, user_email, level, pos_mode, quiz_len, score, wrong_count")
+        .order("created_at", desc=True)
+        .limit(limit)
+        .execute()
+    )
+
+def fetch_plan_from_db(sb_authed, user_id) -> str:
+    try:
+        res = sb_authed.table("profiles").select("plan").eq("id", user_id).single().execute()
+        if res and res.data and "plan" in res.data:
+            v = str(res.data["plan"] or "free").strip().lower()
+            return v if v in ("free", "pro") else "free"
+    except Exception:
+        pass
+    return "free"
+
+def get_user_plan() -> str:
+    cached = st.session_state.get("plan_cached")
+    if cached in ("free", "pro"):
+        return cached
+
+    u = st.session_state.get("user")
+    if u is None:
+        st.session_state["plan_cached"] = "free"
+        return "free"
+
+    sb_authed_local = get_authed_sb()
+    if sb_authed_local is None:
+        st.session_state["plan_cached"] = "free"
+        return "free"
+
+    plan = fetch_plan_from_db(sb_authed_local, u.id)
+    st.session_state["plan_cached"] = plan
+    return plan
+
+def is_pro() -> bool:
+    # ✅ 단일 기준: profiles.plan == "pro"
+    try:
+        return (get_user_plan() == "pro")
+    except Exception:
+        return False
+    
+def build_word_results_bulk_payload(quiz: list[dict], answers: list, quiz_type: str, pos: str) -> list[dict]:
+    items = []
+    for idx, q in enumerate(quiz):
+        word_key = (str(q.get("jp_word", "")).strip() or str(q.get("reading", "")).strip())
+        if not word_key:
+            continue
+        picked = answers[idx] if idx < len(answers) else None
+        is_correct = (picked == q.get("correct_text"))
+
+        items.append(
+            {
+                "word_key": word_key,
+                "level": "BEGINNER",
+                "pos": str(pos),            # ✅ pos_group 저장(통계에서는 그룹 기준)
+                "quiz_type": str(quiz_type),
+                "is_correct": bool(is_correct),
+            }
+        )
+    return items
+
+# ============================================================
+# ✅ Progress (DB 저장/복원)  (✅ pos_group + 기타 체크 저장)
+# ============================================================
+def save_progress_to_db(sb_authed, user_id: str):
+    if "quiz" not in st.session_state or "answers" not in st.session_state:
+        return
+
+    payload = {
+        "pos_group": st.session_state.get("pos_group"),
+        "other_pos_selected": list(st.session_state.get("other_pos_selected", set())),
+        "quiz_type": st.session_state.get("quiz_type"),
+        "quiz_version": int(st.session_state.get("quiz_version", 0) or 0),
+        "quiz": st.session_state.get("quiz"),
+        "answers": st.session_state.get("answers"),
+        "submitted": bool(st.session_state.get("submitted", False)),
+    }
+
+    sb_authed.table("profiles").upsert(
+        {"id": user_id, "progress": payload},
+        on_conflict="id",
+    ).execute()
+
+def clear_progress_in_db(sb_authed, user_id: str):
+    sb_authed.table("profiles").upsert(
+        {"id": user_id, "progress": None},
+        on_conflict="id",
+    ).execute()
+
+def restore_progress_from_db(sb_authed, user_id: str):
+    try:
+        res = (
+            sb_authed.table("profiles")
+            .select("progress")
+            .eq("id", user_id)
+            .single()
+            .execute()
+        )
+    except Exception:
+        return
+
+    if not res or not res.data:
+        return
+
+    progress = res.data.get("progress")
+    if not progress:
+        return
+
+    # ✅ 구버전(progress에 pos가 있던 경우)도 최대한 흡수
+    restored_group = progress.get("pos_group") or progress.get("pos") or st.session_state.get("pos_group", "noun")
+    st.session_state.pos_group = restored_group
+
+    other_sel = progress.get("other_pos_selected", None)
+    if isinstance(other_sel, list):
+        st.session_state.other_pos_selected = set([x for x in other_sel if x in OTHER_POS_OPTIONS])
+
+    st.session_state.quiz_type = progress.get("quiz_type", st.session_state.get("quiz_type", "meaning"))
+    st.session_state.quiz_version = int(progress.get("quiz_version", st.session_state.get("quiz_version", 0) or 0))
+    st.session_state.quiz = progress.get("quiz", st.session_state.get("quiz"))
+    st.session_state.answers = progress.get("answers", st.session_state.get("answers"))
+    st.session_state.submitted = bool(progress.get("submitted", st.session_state.get("submitted", False)))
+
+    if st.session_state.pos_group not in POS_GROUP_OPTIONS:
+        st.session_state.pos_group = "noun"
+    if st.session_state.quiz_type not in QUIZ_TYPES_USER:
+        st.session_state.quiz_type = "meaning"
+
+    # ✅ 제한 그룹이면 reading 복원되더라도 meaning으로 강제
+    if str(st.session_state.get("pos_group", "noun")).lower().strip() in POS_ONLY_2TYPES and st.session_state.quiz_type == "reading":
+        st.session_state.quiz_type = "meaning"
+
+    if isinstance(st.session_state.quiz, list):
+        qlen = len(st.session_state.quiz)
+        if not isinstance(st.session_state.answers, list) or len(st.session_state.answers) != qlen:
+            st.session_state.answers = [None] * qlen
+
+# ============================================================
+# ✅ Admin
+# ============================================================
+def get_available_quiz_types() -> list[str]:
+    return QUIZ_TYPES_ADMIN if is_admin() else QUIZ_TYPES_USER
+
+# ✅ (신규) pos_group에 따라 가능한 유형 필터
+def get_available_quiz_types_for_pos(pos_group: str) -> list[str]:
+    pos_group = str(pos_group).strip().lower()
+    base = get_available_quiz_types()
+    if pos_group in POS_ONLY_2TYPES:
+        return [t for t in base if t in ("meaning", "kr2jp")]
+    return base
+
+# ============================================================
+# ✅ SOUND
+# ============================================================
+def _audio_autoplay_data_uri(mime: str, b: bytes):
+    b64 = base64.b64encode(b).decode("utf-8")
+    st.markdown(
+        f"""
+        <audio autoplay>
+          <source src="data:{mime};base64,{b64}">
+        </audio>
+        """,
+        unsafe_allow_html=True
+    )
 
 def play_sound_file(path: str):
     try:

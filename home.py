@@ -18,9 +18,12 @@ from streamlit_cookies_manager import EncryptedCookieManager
 # ============================================================
 st.set_page_config(page_title="Hatena Hub", layout="centered")
 
-# ✅ CSS reset (child pages may hide Streamlit header; keep top UI from being clipped)
+# ============================================================
+# ✅ COMMON UI CSS (Hub controls global spacing/headers)
+# - Keep all pages consistent and prevent "top cut" issues
+# ============================================================
 st.markdown(
-    """
+    '''
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Kosugi+Maru&family=Noto+Sans+JP:wght@400;500;700;800&display=swap" rel="stylesheet">
@@ -30,31 +33,53 @@ st.markdown(
 }
 .jp, .jp *{
   font-family: var(--jp-rounded) !important;
-  line-height: 1.7;
-  letter-spacing: .2px;
+  line-height:1.7;
+  letter-spacing:.2px;
 }
 
-/* ✅ Global layout (avoid top clipping across all pages) */
+/* consistent top spacing */
+div[data-testid="stAppViewContainer"] .block-container{
+  padding-top: 1.0rem !important;
+}
+
+/* keep header present (avoid top being cut) */
 header[data-testid="stHeader"]{
   height: 3rem !important;
 }
-div[data-testid="stAppViewContainer"] .block-container{
-  padding-top: 2.2rem !important;
-}
 
-/* (optional) hide Streamlit toolbar to keep UI clean */
+/* optional: hide Streamlit toolbar */
 div[data-testid="stToolbar"]{
   visibility: hidden !important;
   height: 0 !important;
 }
 
 /* headings spacing */
+div[data-testid="stMarkdownContainer"] h1,
 div[data-testid="stMarkdownContainer"] h2,
 div[data-testid="stMarkdownContainer"] h3,
 div[data-testid="stMarkdownContainer"] h4{
   margin-top: 10px !important;
   margin-bottom: 8px !important;
 }
+
+/* buttons */
+div.stButton > button{
+  padding: 6px 10px !important;
+  font-size: 13px !important;
+  line-height: 1.1 !important;
+  white-space: nowrap !important;
+}
+</style>
+''',
+    unsafe_allow_html=True,
+)
+
+# ✅ CSS reset (child pages may hide Streamlit header; keep top UI from being clipped)
+st.markdown(
+    """
+<style>
+header[data-testid="stHeader"]{ height: 3rem !important; }
+div[data-testid="stAppViewContainer"] .block-container{ padding-top: 2.2rem !important; }
 </style>
 """,
     unsafe_allow_html=True,

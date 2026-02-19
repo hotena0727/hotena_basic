@@ -18,7 +18,8 @@ import textwrap
 
 # NOTE: page config is handled by home.py
 if not st.session_state.get("_page_config_set"):
-    st.set_page_config(page_title="Hatena", layout="centered")
+    if not st.session_state.get("HUB_MODE"):
+    st.set_page_config(page_title="Kanji Quiz", layout="centered")
     st.session_state["_page_config_set"] = True
 # ============================================================
 # ✅ [SOUND] 사운드 유틸 (모바일 자동재생 정책 대응)
