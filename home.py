@@ -5,6 +5,7 @@ from pathlib import Path
 import os
 import runpy
 import json
+import base64
 import hashlib
 from datetime import date, datetime, timedelta, timezone
 import streamlit as st
@@ -171,6 +172,60 @@ def _cookies_save_once_per_run():
         # 쿠키 저장 실패는 치명적이지 않으므로 조용히 무시
         pass
 
+
+# ============================================================
+# ✅ URL-based session fallback (for browsers blocking 3rd-party cookies)
+# - Some browsers block cookies set from Streamlit components (iframe).
+# - To prevent "logout on refresh", we store an ENCRYPTED refresh_token in URL query params.
+# - Token is encrypted with COOKIE_PASSWORD-derived key (Fernet).
+# - Query param keys:
+#     p  : current page (home/words/kanji/talk/mypage ...)
+#     rt : encrypted refresh_token
+# ============================================================
+from cryptography.fernet import Fernet, InvalidToken
+
+def _fernet():
+    # Derive 32-byte key from COOKIE_PASSWORD
+    digest = hashlib.sha256(CFG["COOKIE_PASSWORD"].encode("utf-8")).digest()
+    key = base64.urlsafe_b64encode(digest)
+    return Fernet(key)
+
+def _enc_token(s: str) -> str:
+    try:
+        return _fernet().encrypt(s.encode("utf-8")).decode("utf-8")
+    except Exception:
+        return ""
+
+def _dec_token(s: str) -> str | None:
+    try:
+        return _fernet().decrypt(s.encode("utf-8")).decode("utf-8")
+    except (InvalidToken, Exception):
+        return None
+
+def _qp_get(name: str) -> str | None:
+    try:
+        v = st.query_params.get(name)
+        if isinstance(v, list):
+            return v[0] if v else None
+        return v
+    except Exception:
+        return None
+
+def _qp_set(**kwargs):
+    try:
+        # Keep existing params unless overwritten
+        qp = dict(st.query_params)
+        for k, v in kwargs.items():
+            if v is None:
+                qp.pop(k, None)
+            else:
+                qp[k] = v
+        st.query_params.clear()
+        for k, v in qp.items():
+            st.query_params[k] = v
+    except Exception:
+        pass
+
 # ============================================================
 # ✅ Persistent cookie helper (30 days)
 # - We mirror tokens to browser cookies with Max-Age so users
@@ -203,6 +258,14 @@ def refresh_session_from_cookie_if_needed(force: bool = False) -> bool:
     rt = cookies.get("refresh_token")
     at = cookies.get("access_token")
 
+    # ✅ Fallback: if cookie-based restore fails (e.g., blocked), try URL param (encrypted)
+    if not rt:
+        rt_enc = _qp_get("rt")
+        if rt_enc:
+            rt_dec = _dec_token(rt_enc)
+            if rt_dec:
+                rt = rt_dec
+
     if rt:
         refreshed = None
         try:
@@ -220,6 +283,8 @@ def refresh_session_from_cookie_if_needed(force: bool = False) -> bool:
             cookies["access_token"] = refreshed.session.access_token
             cookies["refresh_token"] = refreshed.session.refresh_token
             _cookies_save_once_per_run()
+            # ✅ persist in URL (encrypted) so refresh keeps login even if cookie blocks
+            _qp_set(rt=_enc_token(refreshed.session.refresh_token))
             return True
 
     if at:
@@ -729,6 +794,7 @@ if not user:
                 cookies["access_token"] = res.session.access_token
                 cookies["refresh_token"] = res.session.refresh_token
                 _cookies_save_once_per_run()
+                _qp_set(rt=_enc_token(res.session.refresh_token))
                 st.success("로그인 완료!")
                 st.rerun()
             else:
@@ -799,6 +865,7 @@ def _clear_training_ui_state():
 def nav_to(page: str):
     _clear_training_ui_state()
     st.session_state["hub_page"] = page
+    _qp_set(p=page)
     st.rerun()
 
 
@@ -812,6 +879,9 @@ def hub_logout():
     # ✅ prevent infinite loop when URL has ?action=logout
     try:
         st.query_params.clear()
+        # also clear rt/page
+        # (some Streamlit versions ignore clear in some cases; set None defensively)
+        _qp_set(rt=None, p=None)
     except Exception:
         pass
 
@@ -950,7 +1020,7 @@ def run_script(filename: str):
     st.session_state["HUB_MODE"] = True
     runpy.run_path(str(path), run_name="__main__")
 
-page = st.session_state.get("hub_page", "home")
+page = st.session_state.get("hub_page") or (_qp_get("p") or "home")
 
 if page == "home":
     # ✅ Home Hub: dashboard view
