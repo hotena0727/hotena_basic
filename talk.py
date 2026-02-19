@@ -28,8 +28,11 @@ USER = st.session_state["user"]
 USER_ID = USER.get("id") if isinstance(USER, dict) else None
 USER_EMAIL = USER.get("email") if isinstance(USER, dict) else None
 
-st.title("회화 훈련 · 상황판단")
-st.caption("상황 → 상대 발화(🔊) → 쌩뚱맞은 보기 속에서 정답 선택 → 제출 후 정답(🔊)")
+HUB_MODE = bool(st.session_state.get("HUB_MODE", False))
+
+if not HUB_MODE:
+    st.title("회화 훈련 · 상황판단")
+    st.caption("상황 → 상대 발화(🔊) → 쌩뚱맞은 보기 속에서 정답 선택 → 제출 후 정답(🔊)")
 
 # ============================================================
 # ✅ Supabase client (hub 재사용)
