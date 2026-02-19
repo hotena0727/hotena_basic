@@ -56,14 +56,14 @@ def _hide_child_buttons():
     # Hide duplicate buttons inside child apps (they should use hub menu now)
     orig_button = st.button
 
-    HIDE_LABELS = {
+    HIDE_SUBSTR = (
         "마이페이지", "로그아웃", "로그아웃하기", "My Page", "Logout", "ログアウト", "マイページ",
         "홈", "Home"
-    }
+    )
 
     def wrapped_button(label, *args, **kwargs):
         try:
-            if isinstance(label, str) and label.strip() in HIDE_LABELS:
+            if isinstance(label, str) and any(s in label for s in HIDE_SUBSTR):
                 # Do not render
                 return False
         except Exception:

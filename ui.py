@@ -82,13 +82,12 @@ def top_menu(active: str | None = None):
         ("logout", "로그아웃"),
     ]
 
-    # We can't style an individual Streamlit button easily without keys; we keep it simple + consistent.
-    st.markdown('<div class="topnav">', unsafe_allow_html=True)
+    # Use simple columns (no extra HTML wrappers) for maximum reliability.
     cols = st.columns(len(items))
     clicked = None
     for i, (key, label) in enumerate(items):
+        disabled = (active == key)
         with cols[i]:
-            if st.button(label, key=f"topnav_{key}", use_container_width=True):
+            if st.button(label, key=f"topnav_{key}", use_container_width=True, disabled=disabled):
                 clicked = key
-    st.markdown('</div>', unsafe_allow_html=True)
     return clicked

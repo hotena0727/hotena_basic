@@ -37,25 +37,41 @@ if not cookies.ready():
 # ✅ Auth helpers
 # ============================================================
 def _restore_session_from_cookies() -> bool:
-    if not supabase:
-        return False
-
+    # Refresh-safe restore: prefer cookies; avoid hard-failing on get_user().
     at = (cookies.get("access_token") or "").strip()
     rt = (cookies.get("refresh_token") or "").strip()
-    if not at:
+    email = (cookies.get("user_email") or "").strip()
+
+    if not at and not rt:
         return False
 
-    try:
-        res = supabase.auth.get_user(at)
-        u = getattr(res, "user", None) or (res.get("user") if isinstance(res, dict) else None)
-        if not u:
-            return False
+    if at:
         st.session_state["access_token"] = at
+    if rt:
         st.session_state["refresh_token"] = rt
-        st.session_state["user"] = u
+
+    # Best-effort: set user for UI purposes (so "로그인됨" 유지).
+    if email:
+        st.session_state["user"] = {"email": email}
         return True
-    except Exception:
-        return False
+
+    # If we can, validate/fetch user — but never block login persistence if it fails.
+    if supabase and at:
+        try:
+            res = supabase.auth.get_user(at)
+            u = getattr(res, "user", None) or (res.get("user") if isinstance(res, dict) else None)
+            if u:
+                st.session_state["user"] = u
+                return True
+        except Exception:
+            pass
+
+    # Fallback: treat presence of access token as logged-in state.
+    if at:
+        st.session_state["user"] = st.session_state.get("user") or {"email": ""}
+        return True
+
+    return False
 
 def is_logged_in() -> bool:
     return bool(st.session_state.get("user")) and bool(st.session_state.get("access_token"))
@@ -77,6 +93,7 @@ def do_logout():
     try:
         cookies["access_token"] = ""
         cookies["refresh_token"] = ""
+        cookies["user_email"] = ""
         cookies.save()
     except Exception:
         pass
@@ -126,6 +143,7 @@ def render_login():
                 st.session_state["refresh_token"] = session.refresh_token
 
                 cookies["access_token"] = session.access_token
+                cookies["user_email"] = email
                 cookies["refresh_token"] = session.refresh_token
                 cookies.save()
 
