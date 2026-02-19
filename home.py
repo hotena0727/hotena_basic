@@ -924,23 +924,37 @@ def run_script(filename: str):
     if not path.exists() or not path.is_file():
         st.error(f"파일을 찾을 수 없습니다: {path}")
         st.stop()
+
+    # ✅ 페이지 이동 시 로그인(세션) 복원 시도: 함수가 있으면 호출
+    try:
+        if "refresh_session_from_cookie_if_needed" in globals():
+            refresh_session_from_cookie_if_needed(force=True)
+    except Exception:
+        pass
+
+    # ✅ Pre-compile to show SyntaxError clearly (runpy 에러가 뭉뚱그려질 때가 있음)
+    try:
+        src = path.read_text(encoding="utf-8-sig")
+        compile(src, str(path), "exec")
+    except SyntaxError as e:
+        st.error("페이지 파일 문법 오류(SyntaxError)입니다.")
+        st.write(f"파일: {e.filename}")
+        st.write(f"줄: {e.lineno}, 위치: {e.offset}")
+        if e.text:
+            st.code(e.text)
+        st.write(e.msg)
+        st.stop()
+
     # ✅ Hub mode flag so child scripts can adjust UI/CSS
     st.session_state["HUB_MODE"] = True
-    # ✅ Pre-compile to surface SyntaxError details cleanly (runpy error can be vague)
-try:
-    src = path.read_text(encoding="utf-8")
-    compile(src, str(path), "exec")
-except SyntaxError as e:
-    st.error("talk.py 문법 오류(SyntaxError)입니다. 아래 줄/내용을 확인하세요.")
-    st.write(f"파일: {e.filename}")
-    st.write(f"줄: {e.lineno}, 위치: {e.offset}")
-    if e.text:
-        st.code(e.text)
-    st.write(e.msg)
-    st.stop()
 
-runpy.run_path(str(path), run_name="__main__")
-
+    try:
+        runpy.run_path(str(path), run_name="__main__")
+    except Exception:
+        st.error("페이지 실행 중 오류가 발생했습니다.")
+        import traceback as _tb
+        st.code(_tb.format_exc())
+        st.stop()
 
 page = st.session_state.get("hub_page", "home")
 

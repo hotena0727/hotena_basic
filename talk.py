@@ -325,9 +325,8 @@ def start_new_set():
     st.session_state[f"{NS}_set_qids"] = qids
     st.session_state[f"{NS}_idx"] = 0
     st.session_state[f"{NS}_results"] = {}  # qid -> {"selected":..., "correct":bool}
-    for qid in qids:
-        st.session_state[f"talk_submitted_{qid}"] = False
-            st.session_state.pop(f"talk_choice_{qid}", None)
+    st.session_state[f"talk_submitted_{qid}"] = False
+    st.session_state.pop(f"talk_choice_{qid}", None)
 
 # 세트가 없거나, 필터가 바뀌었으면 새로 시작
 sig = f"{sel_level}|{sel_tag}|{int(exclude_mastered)}"
@@ -505,10 +504,10 @@ if submitted:
         if not st.session_state.get(_tts_once_key, False):
             st.session_state[_tts_once_key] = True
             try:
-                import json as _json
-_tts_tpl = """<script>
+                components.html(f"""
+<script>
 (function(){
-  const text = __TEXT__;
+  const text = {ans!r};
   if(!text) return;
   const u = new SpeechSynthesisUtterance(text);
   u.lang = "ja-JP";
@@ -518,8 +517,7 @@ _tts_tpl = """<script>
   window.speechSynthesis.speak(u);
 })();
 </script>
-"""
-components.html(_tts_tpl.replace("__TEXT__", _json.dumps(ans or "")), height=0)
+""", height=0)
             except Exception:
                 pass
 
