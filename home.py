@@ -1,7 +1,7 @@
 # home.py
 from __future__ import annotations
 
-BUILD_STAMP = 'v21 2026-02-19 15:41:29 KST (+09:00)'
+BUILD_STAMP = 'v22 2026-02-19 15:46:34 KST (+09:00)'
 
 from pathlib import Path
 import os
@@ -13,10 +13,8 @@ from cryptography.fernet import Fernet
 from datetime import date, datetime, timedelta, timezone
 import streamlit as st
 import streamlit.components.v1 as components
-
 # ============================================================
-# ✅ LocalStorage -> QueryParam bridge (defined early)
-# - Some builds inject calls before helper defs; keep this available.
+# ✅ LocalStorage / QueryParam persistence helpers
 # ============================================================
 def _js_bridge_localstorage_to_queryparam(ls_key: str, qp_key: str):
     try:
@@ -24,8 +22,8 @@ def _js_bridge_localstorage_to_queryparam(ls_key: str, qp_key: str):
             f"""<script>
 (function(){{
   try {{
-    const lsKey = {json.dumps(ls_key)};
-    const qpKey = {json.dumps(qp_key)};
+    const lsKey = {json.dumps("LS_KEY")};
+    const qpKey = {json.dumps("QP_KEY")};
     const url = new URL(window.location.href);
     if (!url.searchParams.get(qpKey)) {{
       const v = localStorage.getItem(lsKey);
@@ -36,7 +34,7 @@ def _js_bridge_localstorage_to_queryparam(ls_key: str, qp_key: str):
     }}
   }} catch(e) {{}}
 }})();
-</script>""",
+</script>""".replace("LS_KEY", ls_key).replace("QP_KEY", qp_key),
             height=0,
         )
     except Exception:
@@ -47,9 +45,9 @@ def _js_set_localstorage(key: str, value: str):
         components.html(
             f"""<script>
 try {{
-  localStorage.setItem({json.dumps(key)}, {json.dumps(value)});
+  localStorage.setItem({json.dumps("K")}, {json.dumps("V")});
 }} catch(e) {{}}
-</script>""",
+</script>""".replace("K", key).replace("V", value),
             height=0,
         )
     except Exception:
@@ -60,9 +58,9 @@ def _js_remove_localstorage(key: str):
         components.html(
             f"""<script>
 try {{
-  localStorage.removeItem({json.dumps(key)});
+  localStorage.removeItem({json.dumps("K")});
 }} catch(e) {{}}
-</script>""",
+</script>""".replace("K", key),
             height=0,
         )
     except Exception:
@@ -195,6 +193,12 @@ CFG = {
     "SUPABASE_URL": get_cfg("SUPABASE_URL"),
     "SUPABASE_ANON_KEY": get_cfg("SUPABASE_ANON_KEY"),
 }
+# ✅ If COOKIE_PASSWORD is not set, derive a STABLE key from SUPABASE_ANON_KEY.
+#    This prevents 'logout on refresh' caused by missing/rotating cookie password across instances.
+COOKIE_PASSWORD_FALLBACK = hashlib.sha256(CFG["SUPABASE_ANON_KEY"].encode("utf-8")).hexdigest()
+if not CFG.get("COOKIE_PASSWORD"):
+    CFG["COOKIE_PASSWORD"] = COOKIE_PASSWORD_FALLBACK
+
 st.session_state["cfg"] = CFG
 
 missing = [k for k, v in CFG.items() if not v]
@@ -205,7 +209,6 @@ if missing:
 
 # ============================================================
 # ✅ Encrypted token helpers (defined early)
-# - Used for query_params/localStorage persistence
 # ============================================================
 def _fernet():
     pw = CFG.get("COOKIE_PASSWORD", "")
@@ -261,26 +264,24 @@ if sb is None:
 # ============================================================
 
 def refresh_session_from_cookie_if_needed(force: bool = False) -> bool:
-    # Backward-compatible name, but persistence is query/localStorage-first.
     if not force and st.session_state.get("user") and st.session_state.get("access_token"):
         return True
 
-    # 1) Try from URL query params (encrypted)
-    qp = getattr(st, "query_params", None)
-    rt_enc = None
-    at_enc = None
+    # Bridge localStorage -> query params once
+    _js_bridge_localstorage_to_queryparam("hotena_rt", "rt")
+    _js_bridge_localstorage_to_queryparam("hotena_at", "at")
+
+    rt = None
+    at = None
     try:
-        if qp is not None:
-            rt_enc = qp.get("rt")
-            at_enc = qp.get("at")
+        rt_enc = st.query_params.get("rt")
+        at_enc = st.query_params.get("at")
+        rt = _dec(rt_enc) if isinstance(rt_enc, str) and rt_enc else None
+        at = _dec(at_enc) if isinstance(at_enc, str) and at_enc else None
     except Exception:
-        rt_enc = None
-        at_enc = None
+        rt = None
+        at = None
 
-    rt = _dec(rt_enc) if isinstance(rt_enc, str) and rt_enc else None
-    at = _dec(at_enc) if isinstance(at_enc, str) and at_enc else None
-
-    # 2) Fallback to EncryptedCookieManager (if available)
     if not rt:
         try:
             rt = cookies.get("refresh_token")
@@ -292,7 +293,6 @@ def refresh_session_from_cookie_if_needed(force: bool = False) -> bool:
         except Exception:
             at = None
 
-    # 3) Prefer refresh_token to obtain a fresh session
     if rt:
         refreshed = None
         try:
@@ -308,7 +308,6 @@ def refresh_session_from_cookie_if_needed(force: bool = False) -> bool:
             st.session_state["access_token"] = refreshed.session.access_token
             st.session_state["refresh_token"] = refreshed.session.refresh_token
 
-            # Store in cookies (best-effort) + query + localStorage
             try:
                 cookies["access_token"] = refreshed.session.access_token
                 cookies["refresh_token"] = refreshed.session.refresh_token
@@ -316,18 +315,16 @@ def refresh_session_from_cookie_if_needed(force: bool = False) -> bool:
             except Exception:
                 pass
 
-            # Persist encrypted refresh token (and access token optionally)
             try:
                 st.query_params["rt"] = _enc(refreshed.session.refresh_token)
                 st.query_params["at"] = _enc(refreshed.session.access_token)
+                _js_set_localstorage("hotena_rt", st.query_params.get("rt", ""))
+                _js_set_localstorage("hotena_at", st.query_params.get("at", ""))
             except Exception:
                 pass
-            _js_set_localstorage("hotena_rt", st.query_params.get("rt","") if hasattr(st,"query_params") else _enc(refreshed.session.refresh_token))
-            _js_set_localstorage("hotena_at", st.query_params.get("at","") if hasattr(st,"query_params") else _enc(refreshed.session.access_token))
 
             return True
 
-    # 4) If we only have access token, try get_user
     if at:
         try:
             u = sb.auth.get_user(at)
@@ -797,12 +794,6 @@ REMINDER_MESSAGES = [
 ]
 st.session_state["REMINDER_MESSAGES"] = REMINDER_MESSAGES
 
-
-# ✅ If component cookies are lost on refresh, localStorage can still persist.
-# Copy localStorage encrypted tokens into URL once so Python can read via st.query_params.
-_js_bridge_localstorage_to_queryparam("hotena_rt", "rt")
-_js_bridge_localstorage_to_queryparam("hotena_at", "at")
-
 # ============================================================
 # ✅ UI: Login (single)
 # ============================================================
@@ -836,17 +827,16 @@ if not user:
                 cookies["access_token"] = res.session.access_token
                 cookies["refresh_token"] = res.session.refresh_token
                 _cookies_save_once_per_run()
+
                 # ✅ persist encrypted tokens for refresh-proof login
                 try:
                     st.query_params["rt"] = _enc(res.session.refresh_token)
                     st.query_params["at"] = _enc(res.session.access_token)
-                except Exception:
-                    pass
-                try:
                     _js_set_localstorage("hotena_rt", st.query_params.get("rt",""))
                     _js_set_localstorage("hotena_at", st.query_params.get("at",""))
                 except Exception:
                     pass
+
                 st.success("로그인 완료!")
                 st.rerun()
             else:
@@ -921,15 +911,12 @@ def nav_to(page: str):
 
 
 def hub_logout():
-    # Clear cookie (best-effort)
     try:
         cookies["access_token"] = ""
         cookies["refresh_token"] = ""
         _cookies_save_once_per_run()
     except Exception:
         pass
-
-    # Clear query params + localStorage persistence
     try:
         st.query_params.clear()
     except Exception:
@@ -939,7 +926,7 @@ def hub_logout():
         _js_remove_localstorage("hotena_at")
     except Exception:
         pass
-    for k in ["user","access_token","refresh_token","sb_authed","sb_authed_token","progress_all","hub_page","HUB_MODE"]:
+for k in ["user","access_token","refresh_token","sb_authed","sb_authed_token","progress_all","hub_page","HUB_MODE"]:
         st.session_state.pop(k, None)
 
     # ✅ prevent infinite loop when URL has ?action=logout
@@ -1110,69 +1097,3 @@ elif page == "talk":
     run_script("talk.py")
 else:
     st.info("상단 메뉴에서 원하는 항목을 선택하세요.")
-# ============================================================
-# ✅ Token persistence (NO cookies dependency)
-# - Many browsers block/lose Streamlit component cookies on refresh.
-# - We persist an ENCRYPTED refresh_token in:
-#   1) URL query param (rt)
-#   2) localStorage (hotena_rt)
-# - On load, we bootstrap from query/localStorage and refresh Supabase session.
-# ============================================================
-def _fernet():
-    # COOKIE_PASSWORD must be stable across deploys
-    pw = CFG.get("COOKIE_PASSWORD","")
-    key = base64.urlsafe_b64encode(hashlib.sha256(pw.encode("utf-8")).digest())
-    return Fernet(key)
-
-def _enc(s: str) -> str:
-    return _fernet().encrypt(s.encode("utf-8")).decode("utf-8")
-
-def _dec(token: str) -> str | None:
-    try:
-        return _fernet().decrypt(token.encode("utf-8")).decode("utf-8")
-    except Exception:
-        return None
-
-def _js_set_localstorage(key: str, value: str):
-    components.html(
-        f"""<script>
-try {{
-  localStorage.setItem({json.dumps(key)}, {json.dumps(value)});
-}} catch(e) {{}}
-</script>""",
-        height=0,
-    )
-
-def _js_remove_localstorage(key: str):
-    components.html(
-        f"""<script>
-try {{
-  localStorage.removeItem({json.dumps(key)});
-}} catch(e) {{}}
-</script>""",
-        height=0,
-    )
-
-def _js_bridge_localstorage_to_queryparam(ls_key: str, qp_key: str):
-    # If URL lacks qp_key but localStorage has it, copy then reload once.
-    components.html(
-        f"""<script>
-(function(){{
-  try {{
-    const lsKey = {json.dumps(ls_key)};
-    const qpKey = {json.dumps(qp_key)};
-    const url = new URL(window.location.href);
-    if (!url.searchParams.get(qpKey)) {{
-      const v = localStorage.getItem(lsKey);
-      if (v) {{
-        url.searchParams.set(qpKey, v);
-        window.location.replace(url.toString());
-      }}
-    }}
-  }} catch(e) {{}}
-}})();
-</script>""",
-        height=0,
-    )
-
-
