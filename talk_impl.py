@@ -8,9 +8,17 @@ import hashlib
 
 import pandas as pd
 import streamlit as st
-from theme_hotena import apply_hotena_theme
 import streamlit.components.v1 as components
 from supabase import create_client
+
+# ============================================================
+# ✅ Theme (Hotena) - one-time CSS inject
+# ============================================================
+try:
+    from theme_hotena import apply_theme
+    apply_theme()
+except Exception:
+    pass
 
 # ============================================================
 # ✅ Namespace (session_state keys)
@@ -31,7 +39,6 @@ USER_EMAIL = USER.get("email") if isinstance(USER, dict) else None
 
 HUB_MODE = bool(st.session_state.get("HUB_MODE", False))
 
-apply_hotena_theme()
 if not HUB_MODE:
     st.title("회화 훈련 · 상황판단")
     st.caption("상황 → 상대 발화(🔊) → 쌩뚱맞은 보기 속에서 정답 선택 → 제출 후 정답(🔊)")
@@ -175,24 +182,6 @@ def build_choices(row: dict, pool_answers: list[str]) -> list[str]:
     random.shuffle(choices)
     return choices
 
-def _ensure_choice_cache():
-    st.session_state.setdefault("talk_choices_by_qid", {})   # qid -> [choices]
-    st.session_state.setdefault("talk_selected_by_qid", {})  # qid -> selected str
-    st.session_state.setdefault("talk_autotts_done", set())  # qid set
-
-def get_choices_for_qid(qid: str, row: dict, pool_answers: list[str]) -> list[str]:
-    _ensure_choice_cache()
-    cache = st.session_state["talk_choices_by_qid"]
-    if str(qid) in cache and isinstance(cache[str(qid)], list) and len(cache[str(qid)]) == 4:
-        return cache[str(qid)]
-    choices = get_choices_for_qid(qid, row, pool_answers)
-    cache[str(qid)] = choices
-    return choices
-
-def set_selected_for_qid(qid: str, selected: str):
-    _ensure_choice_cache()
-    st.session_state["talk_selected_by_qid"][str(qid)] = selected
-
 def speak_buttons_html(items: list[tuple[str, str]], block_id: str) -> str:
     """SpeechSynthesis 버튼 (가능하면 parent window 사용)"""
     def esc(s: str) -> str:
@@ -262,176 +251,6 @@ def speak_buttons_html(items: list[tuple[str, str]], block_id: str) -> str:
     }})();
     </script>
     """
-def auto_speak_once(text: str, block_id: str):
-    """제출 직후 정답을 1회만 자동 재생"""
-    _ensure_choice_cache()
-    done = st.session_state.get("talk_autotts_done")
-    if isinstance(done, set) and block_id in done:
-        return
-    if not isinstance(done, set):
-        done = set()
-    done.add(block_id)
-    st.session_state["talk_autotts_done"] = done
-
-    safe = str(text).replace("&","&amp;").replace("<","&lt;").replace(">","&gt;").replace('"',"&quot;")
-    components.html(
-        f"""
-<script>
-(function(){{
-  try {{
-    const txt = "{safe}";
-    if(!txt) return;
-    const u = new SpeechSynthesisUtterance(txt);
-    u.lang = "ja-JP";
-    u.rate = 1.0;
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(u);
-  }} catch(e) {{}}
-}})();
-</script>
-""",
-        height=0
-    )
-
-def render_waveform_recorder(block_id: str = "talk_rec"):
-    """브라우저에서 녹음 + 파형 + 재생 (저장 없음)"""
-    components.html(
-        f"""
-<div id="{block_id}" style="margin-top:10px;">
-  <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
-    <button id="{block_id}_rec" style="padding:10px 14px;border-radius:14px;border:1px solid rgba(0,0,0,.12);font-weight:800;">● 녹음</button>
-    <button id="{block_id}_stop" disabled style="padding:10px 14px;border-radius:14px;border:1px solid rgba(0,0,0,.12);font-weight:800;">■ 정지</button>
-    <button id="{block_id}_clear" disabled style="padding:10px 14px;border-radius:14px;border:1px solid rgba(0,0,0,.12);font-weight:800;">✕ 삭제</button>
-    <span id="{block_id}_state" style="opacity:.75;font-size:13px;">녹음해서 내 발음을 들어보세요.</span>
-  </div>
-  <canvas id="{block_id}_cv" style="width:100%;max-width:760px;height:92px;margin-top:10px;border-radius:16px;border:1px solid rgba(0,0,0,.08);background:rgba(255,255,255,.75);"></canvas>
-  <audio id="{block_id}_au" controls style="width:100%;max-width:760px;margin-top:10px;display:none;"></audio>
-</div>
-
-<script>
-(function(){{
-  const recBtn = document.getElementById("{block_id}_rec");
-  const stopBtn = document.getElementById("{block_id}_stop");
-  const clearBtn = document.getElementById("{block_id}_clear");
-  const stateEl = document.getElementById("{block_id}_state");
-  const canvas = document.getElementById("{block_id}_cv");
-  const audioEl = document.getElementById("{block_id}_au");
-  const ctx = canvas.getContext("2d");
-
-  function fitCanvas(){{
-    const rect = canvas.getBoundingClientRect();
-    canvas.width = Math.floor(rect.width * devicePixelRatio);
-    canvas.height = Math.floor(92 * devicePixelRatio);
-  }}
-  fitCanvas();
-  window.addEventListener("resize", fitCanvas);
-
-  let mediaRecorder = null;
-  let chunks = [];
-  let analyser = null;
-  let audioCtx = null;
-  let source = null;
-  let raf = null;
-
-  function drawWave(){{
-    if(!analyser) return;
-    const bufferLength = analyser.fftSize;
-    const data = new Uint8Array(bufferLength);
-    analyser.getByteTimeDomainData(data);
-
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-    // background
-    ctx.fillStyle = "rgba(255,255,255,0.0)";
-    ctx.fillRect(0,0,canvas.width,canvas.height);
-
-    ctx.lineWidth = 2 * devicePixelRatio;
-    ctx.strokeStyle = "rgba(28,47,92,.85)";
-    ctx.beginPath();
-
-    const slice = canvas.width / bufferLength;
-    let x = 0;
-    for(let i=0;i<bufferLength;i++) {{
-      const v = data[i]/128.0;
-      const y = v * canvas.height/2;
-      if(i===0) ctx.moveTo(x,y);
-      else ctx.lineTo(x,y);
-      x += slice;
-    }}
-    ctx.stroke();
-
-    // recording dot
-    ctx.fillStyle = "rgba(220,38,38,.9)";
-    ctx.beginPath();
-    ctx.arc(16*devicePixelRatio, 16*devicePixelRatio, 6*devicePixelRatio, 0, Math.PI*2);
-    ctx.fill();
-
-    raf = requestAnimationFrame(drawWave);
-  }}
-
-  async function startRec(){{
-    try {{
-      const stream = await navigator.mediaDevices.getUserMedia({{audio:true}});
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      source = audioCtx.createMediaStreamSource(stream);
-      analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 2048;
-      source.connect(analyser);
-
-      mediaRecorder = new MediaRecorder(stream);
-      chunks = [];
-      mediaRecorder.ondataavailable = e => chunks.push(e.data);
-      mediaRecorder.onstop = () => {{
-        const blob = new Blob(chunks, {{type:"audio/webm"}});
-        const url = URL.createObjectURL(blob);
-        audioEl.src = url;
-        audioEl.style.display = "block";
-        clearBtn.disabled = false;
-        stateEl.textContent = "녹음 완료! 재생해서 들어보세요.";
-        // stop wave
-        if(raf) cancelAnimationFrame(raf);
-        raf = null;
-        // close audio ctx
-        try {{ audioCtx.close(); }} catch(e) {{}}
-      }};
-      mediaRecorder.start();
-      recBtn.disabled = true;
-      stopBtn.disabled = false;
-      clearBtn.disabled = true;
-      audioEl.style.display = "none";
-      stateEl.textContent = "녹음 중… 정지 버튼을 눌러 마무리하세요.";
-      drawWave();
-    }} catch(e) {{
-      stateEl.textContent = "마이크 권한이 필요합니다.";
-    }}
-  }}
-
-  function stopRec(){{
-    try {{
-      stopBtn.disabled = true;
-      if(mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
-      recBtn.disabled = false;
-    }} catch(e) {{}}
-  }}
-
-  function clearRec(){{
-    audioEl.pause();
-    audioEl.removeAttribute("src");
-    audioEl.style.display = "none";
-    clearBtn.disabled = true;
-    stateEl.textContent = "녹음해서 내 발음을 들어보세요.";
-    ctx.clearRect(0,0,canvas.width,canvas.height);
-  }}
-
-  recBtn.addEventListener("click", startRec);
-  stopBtn.addEventListener("click", stopRec);
-  clearBtn.addEventListener("click", clearRec);
-
-}})();
-</script>
-""",
-        height=260
-    )
-
 
 def stable_daily_tip(user_id: str) -> str:
     tips = [
@@ -505,6 +324,8 @@ def start_new_set():
     st.session_state[f"{NS}_idx"] = 0
     st.session_state[f"{NS}_results"] = {}  # qid -> {"selected":..., "correct":bool}
     st.session_state[f"talk_submitted_{qid}"] = False
+    st.session_state.pop(f"talk_choice_{qid}", None)
+
 # 세트가 없거나, 필터가 바뀌었으면 새로 시작
 sig = f"{sel_level}|{sel_tag}|{int(exclude_mastered)}"
 if st.session_state.get(f"{NS}_sig") != sig or f"{NS}_set_qids" not in st.session_state:
@@ -592,7 +413,11 @@ qid = qids[idx]
 row = DF[DF["qid"].astype(str) == str(qid)].iloc[0].to_dict()
 
 # 보기 구성(쌩뚱맞게 가리기)
-choices = get_choices_for_qid(qid, row, pool_answers)
+# 보기 구성: rerun(라디오 클릭)에도 고정되도록 qid별 캐시
+_ck = f"{NS}_choices_{qid}"
+if _ck not in st.session_state:
+    st.session_state[_ck] = build_choices(row, pool_answers)
+choices = st.session_state[_ck]
 
 # 상단 진행 표기: "1 / 10" (Q1 제거)
 st.markdown(f"### {idx+1} / {len(qids)}")
@@ -622,9 +447,8 @@ if partner_kr:
 
 st.markdown("#### 보기")
 selected = st.radio("정답을 고르세요.", choices, key=f"talk_choice_{qid}")
-set_selected_for_qid(qid, selected)
 
-submitted = bool(st.session_state.get(f"talk_submitted_{qid}", False))
+submitted = st.session_state.get(f"talk_submitted_{qid}", False)
 
 b1, b2, b3 = st.columns([1, 1, 1])
 with b1:
@@ -647,6 +471,7 @@ with b2:
     if st.button("다음", use_container_width=True, disabled=not submitted, key=f"talk_next_{qid}_{idx}"):
         st.session_state[f"{NS}_idx"] = idx + 1
         st.session_state[f"talk_submitted_{qid}"] = False
+        st.session_state.pop(f"talk_choice_{qid}", None)
         st.rerun()
 
 with b3:
@@ -659,20 +484,6 @@ with b3:
 # ============================================================
 if submitted:
     ans = str(row["answer_jp"]).strip()
-
-    # ✅ 말풍선 UI (상대/내 선택/정답)
-    partner_txt = str(row.get("partner_jp","")).strip()
-    st.markdown("#### 대화")
-    st.markdown(f'<div class="hotena-bubble">{partner_txt}</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="hotena-subtle" style="margin:6px 0 2px 2px;">내 선택</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="hotena-bubble me">{selected}</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="hotena-subtle" style="margin:10px 0 2px 2px;">정답</div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="hotena-bubble answer">{ans}</div>', unsafe_allow_html=True)
-
-    # ✅ 정답 자동 TTS 1회 (제출 직후)
-    if ans:
-        auto_speak_once(ans, block_id=str(qid))
-
     if selected == ans:
         st.success("정답입니다.")
     else:
@@ -688,8 +499,172 @@ if submitted:
             height=60
         )
 
-    st.markdown("#### 내 발음 녹음(저장 안 함)")
-    render_waveform_recorder(block_id=f"talkrec_{qid}_{idx}")
+        # ✅ 제출 직후: 정답 자동 TTS 1회 (문항당 1회만)
+        _tts_once_key = f"{NS}_tts_once_{qid}"
+        if not st.session_state.get(_tts_once_key, False):
+            st.session_state[_tts_once_key] = True
+            try:
+                components.html(f"""
+<script>
+(function(){
+  const text = {ans!r};
+  if(!text) return;
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = "ja-JP";
+  u.rate = 1.0;
+  u.pitch = 1.0;
+  window.speechSynthesis.cancel();
+  window.speechSynthesis.speak(u);
+})();
+</script>
+""", height=0)
+            except Exception:
+                pass
+
+        # ✅ 파형 포함 녹음(저장 없음): 정답 확인 후 따라 말하기
+        st.markdown("#### 🎤 따라 말하기 (녹음 후 재생)")
+        try:
+            components.html("""
+<style>
+  .rec-wrap{border:1px solid rgba(49,51,63,.12); border-radius:16px; padding:12px; background:#fff;}
+  .rec-top{display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
+  .rec-btn{border:0; border-radius:999px; padding:10px 14px; cursor:pointer; font-weight:700;}
+  .rec-btn.primary{background:#1C2F5C; color:#fff;}
+  .rec-btn.danger{background:#E5484D; color:#fff;}
+  .rec-btn.ghost{background:rgba(28,47,92,.08); color:#1C2F5C;}
+  .rec-ind{display:flex; align-items:center; gap:8px; font-size:0.95rem; opacity:0.9;}
+  .dot{width:10px;height:10px;border-radius:50%; background:#E5484D; display:inline-block; animation:pulse 1.1s infinite;}
+  @keyframes pulse{0%{transform:scale(1); opacity:.45}50%{transform:scale(1.35); opacity:1}100%{transform:scale(1); opacity:.45}}
+  canvas{width:100%; height:86px; border-radius:12px; background:rgba(28,47,92,.04);}
+  audio{width:100%; margin-top:10px;}
+</style>
+
+<div class="rec-wrap">
+  <div class="rec-top">
+    <button id="recStart" class="rec-btn primary" type="button">● 녹음 시작</button>
+    <button id="recStop" class="rec-btn danger" type="button" disabled>■ 정지</button>
+    <button id="recClear" class="rec-btn ghost" type="button" disabled>↺ 삭제</button>
+    <span id="recStatus" class="rec-ind"></span>
+  </div>
+  <div style="margin-top:10px;">
+    <canvas id="wave" height="86"></canvas>
+    <audio id="play" controls></audio>
+  </div>
+</div>
+
+<script>
+(async function(){
+  const startBtn = document.getElementById("recStart");
+  const stopBtn  = document.getElementById("recStop");
+  const clearBtn = document.getElementById("recClear");
+  const statusEl = document.getElementById("recStatus");
+  const canvas = document.getElementById("wave");
+  const ctx = canvas.getContext("2d");
+  const audioEl = document.getElementById("play");
+  let mediaRecorder, chunks = [];
+  let stream, audioCtx, analyser, dataArray, rafId;
+
+  function draw(){
+    if(!analyser) return;
+    const w = canvas.width = canvas.clientWidth;
+    const h = canvas.height = 86;
+    dataArray = dataArray || new Uint8Array(analyser.fftSize);
+    analyser.getByteTimeDomainData(dataArray);
+    ctx.clearRect(0,0,w,h);
+    // background grid
+    ctx.globalAlpha = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, h/2);
+    ctx.lineTo(w, h/2);
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = "rgba(28,47,92,.12)";
+    ctx.stroke();
+
+    ctx.beginPath();
+    const slice = w / dataArray.length;
+    let x = 0;
+    for(let i=0;i<dataArray.length;i++){
+      const v = (dataArray[i] - 128) / 128.0;
+      const y = (h/2) + v * (h/2 - 6);
+      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+      x += slice;
+    }
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = "#1C2F5C";
+    ctx.stroke();
+    rafId = requestAnimationFrame(draw);
+  }
+
+  function stopDraw(){
+    if(rafId) cancelAnimationFrame(rafId);
+    rafId = null;
+  }
+
+  function setStatus(rec){
+    if(rec){
+      statusEl.innerHTML = '<span class="dot"></span> 녹음 중…';
+    }else{
+      statusEl.innerHTML = '';
+    }
+  }
+
+  startBtn.onclick = async () => {
+    try{
+      stream = await navigator.mediaDevices.getUserMedia({ audio:true });
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const source = audioCtx.createMediaStreamSource(stream);
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 2048;
+      source.connect(analyser);
+      draw();
+
+      chunks = [];
+      mediaRecorder = new MediaRecorder(stream);
+      mediaRecorder.ondataavailable = (e)=>{ if(e.data.size>0) chunks.push(e.data); };
+      mediaRecorder.onstop = ()=> {
+        const blob = new Blob(chunks, { type: "audio/webm" });
+        const url = URL.createObjectURL(blob);
+        audioEl.src = url;
+        clearBtn.disabled = false;
+      };
+      mediaRecorder.start();
+
+      startBtn.disabled = true;
+      stopBtn.disabled = false;
+      clearBtn.disabled = true;
+      setStatus(true);
+    }catch(e){
+      alert("마이크 권한을 허용해 주세요.");
+    }
+  };
+
+  stopBtn.onclick = () => {
+    try{
+      if(mediaRecorder && mediaRecorder.state !== "inactive"){
+        mediaRecorder.stop();
+      }
+      if(stream){
+        stream.getTracks().forEach(t=>t.stop());
+      }
+      if(audioCtx){ audioCtx.close(); }
+      stopDraw();
+    }catch(e){}
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
+    setStatus(false);
+  };
+
+  clearBtn.onclick = () => {
+    audioEl.removeAttribute("src");
+    audioEl.load();
+    clearBtn.disabled = true;
+  };
+})();
+</script>
+""", height=260)
+        except Exception:
+            st.caption("녹음 UI를 불러오지 못했습니다. 브라우저 권한을 확인해 주세요.")
+
 
     if str(row.get("answer_kr","")).strip():
         st.caption(str(row.get("answer_kr","")).strip())

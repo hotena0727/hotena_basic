@@ -1,8 +1,7 @@
 # talk.py (SAFE STUB)
 from __future__ import annotations
 from pathlib import Path
-import runpy
-import sys
+import runpy, sys
 
 BASE_DIR = Path(__file__).resolve().parent
 if str(BASE_DIR) not in sys.path:
