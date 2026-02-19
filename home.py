@@ -6,8 +6,7 @@ import os
 import runpy
 import json
 import hashlib
-from datetime import date, datetime
-
+from datetime import date, datetime, timedelta, timezone
 import streamlit as st
 import streamlit.components.v1 as components
 from supabase import create_client
@@ -16,14 +15,101 @@ from streamlit_cookies_manager import EncryptedCookieManager
 # ============================================================
 # ✅ Page Config (Hub only)
 # ============================================================
-st.set_page_config(page_title="Hatena Hub", layout="centered")
+st.set_page_config(page_title="Hotena Hub", layout="centered")
 
 # ✅ CSS reset (child pages may hide Streamlit header; keep top UI from being clipped)
 st.markdown(
     """
 <style>
-header[data-testid="stHeader"]{ height: 3rem !important; }
-div[data-testid="stAppViewContainer"] .block-container{ padding-top: 2.2rem !important; }
+/* ==========================================================
+   ✅ HUB Global CSS (Mobile-first polish)
+   - Keep header visible (child pages may hide)
+   - Make tap targets big enough
+   - Normalize spacing/typography for "app-like" feel
+   ========================================================== */
+
+header[data-testid="stHeader"]{
+  height: auto !important;
+  min-height: 3.25rem !important;
+}
+
+/* Container spacing */
+div[data-testid="stAppViewContainer"] .block-container{
+  padding-top: 0.25rem !important;
+  padding-bottom: 5.25rem !important; /* bottom breathing room for mobile */
+}
+
+/* Headlines: tighter */
+div[data-testid="stAppViewContainer"] h1,
+div[data-testid="stAppViewContainer"] h2{
+  margin-top: 0.15rem !important;
+  margin-bottom: 0.55rem !important;
+}
+
+/* Defensive: if a child adds negative margins / weird offsets */
+div[data-testid="stAppViewContainer"] .main,
+div[data-testid="stAppViewContainer"]{
+  margin-top: 0 !important;
+}
+
+/* Tighten very top whitespace */
+.block-container > div:first-child { margin-top: 0 !important; }
+
+/* Buttons: minimum tap size + readable text */
+div[data-testid="stAppViewContainer"] .stButton > button,
+div[data-testid="stAppViewContainer"] button[kind]{
+  min-height: 44px !important;
+  padding-top: 0.55rem !important;
+  padding-bottom: 0.55rem !important;
+  font-size: 16px !important;
+  border-radius: 12px !important;
+}
+
+/* Inputs: readable */
+div[data-testid="stAppViewContainer"] input,
+div[data-testid="stAppViewContainer"] textarea{
+  font-size: 16px !important; /* prevent iOS zoom */
+}
+
+/* Selectbox / multiselect */
+div[data-testid="stAppViewContainer"] div[role="combobox"]{
+  min-height: 44px !important;
+}
+
+/* Radio/checkbox label spacing: thumb friendly */
+div[data-testid="stAppViewContainer"] div[role="radiogroup"] label,
+div[data-testid="stAppViewContainer"] label[data-baseweb="checkbox"]{
+  padding: 0.35rem 0.25rem !important;
+}
+
+/* Expander: make summary easier to tap */
+div[data-testid="stExpander"] summary{
+  padding-top: 0.35rem !important;
+  padding-bottom: 0.35rem !important;
+}
+
+/* Card-like blocks (metrics/containers) slightly tighter */
+div[data-testid="stMetric"]{
+  padding: 0.15rem 0 !important;
+}
+
+/* Mobile-only tuning */
+@media (max-width: 640px){
+  div[data-testid="stAppViewContainer"] .block-container{
+    padding-left: 1.0rem !important;
+    padding-right: 1.0rem !important;
+    padding-top: 0.15rem !important;
+    padding-bottom: 6.0rem !important;
+  }
+
+  /* Slightly larger tap targets on phones */
+  div[data-testid="stAppViewContainer"] .stButton > button,
+  div[data-testid="stAppViewContainer"] button[kind]{
+    min-height: 48px !important;
+    font-size: 16px !important;
+    border-radius: 14px !important;
+  }
+}
 </style>
 """,
     unsafe_allow_html=True,
@@ -194,6 +280,207 @@ def daily_message(user_id: str) -> str:
     return messages[idx]
 
 
+
+# ============================================================
+# 🎯 Daily goal (Home) - aggregate across Word/Kanji/Talk via quiz_attempts
+# ============================================================
+KST = timezone(timedelta(hours=9))
+
+def _today_kst_range_utc():
+    """Return (start_utc_iso, end_utc_iso) for today's KST 00:00~24:00."""
+    today_kst = datetime.now(KST).date()
+    start_kst = datetime(today_kst.year, today_kst.month, today_kst.day, 0, 0, 0, tzinfo=KST)
+    end_kst = start_kst + timedelta(days=1)
+    start_utc = start_kst.astimezone(timezone.utc)
+    end_utc = end_kst.astimezone(timezone.utc)
+    # Supabase accepts RFC3339/ISO; keep timezone info
+    return start_utc.isoformat(), end_utc.isoformat()
+
+def _infer_kind(level: str, pos_mode: str) -> str:
+    lv = (level or "").strip().lower()
+    pm = (pos_mode or "").strip().lower()
+    if pm.endswith(":situation") or ":situation" in pm:
+        return "talk"
+    if lv in {"noun", "verb", "adj_i", "adj_na", "other", "adverb", "particle", "conjunction", "interjection"}:
+        return "word"
+    # default: kanji
+    return "kanji"
+
+def fetch_today_attempts(sb_authed, user_id: str) -> list[dict]:
+    start_utc, end_utc = _today_kst_range_utc()
+    try:
+        res = (
+            sb_authed.table("quiz_attempts")
+            .select("created_at, level, pos_mode, quiz_len, score")
+            .eq("user_id", user_id)
+            .gte("created_at", start_utc)
+            .lt("created_at", end_utc)
+            .order("created_at", desc=False)
+            .execute()
+        )
+        return res.data or []
+    except Exception:
+        return []
+
+def summarize_attempts(attempts: list[dict]) -> dict:
+    out = {
+        "total_sets": 0,
+        "total_q": 0,
+        "total_score": 0,
+        "by_kind": {
+            "word": {"sets": 0, "q": 0, "score": 0},
+            "kanji": {"sets": 0, "q": 0, "score": 0},
+            "talk": {"sets": 0, "q": 0, "score": 0},
+        },
+    }
+    for a in attempts:
+        q = int(a.get("quiz_len") or 0)
+        s = int(a.get("score") or 0)
+        kind = _infer_kind(str(a.get("level") or ""), str(a.get("pos_mode") or ""))
+        out["total_sets"] += 1
+        out["total_q"] += q
+        out["total_score"] += s
+        out["by_kind"][kind]["sets"] += 1
+        out["by_kind"][kind]["q"] += q
+        out["by_kind"][kind]["score"] += s
+    return out
+
+def render_plan_pill():
+    plan = (st.session_state.get("user_plan") or "free").lower()
+    txt = "✨ PRO 이용 중입니다" if plan == "pro" else "🆓 FREE 이용 중"
+    st.markdown(
+        f"""
+<div style="display:flex;justify-content:flex-start;margin-top:0.15rem;margin-bottom:0.2rem;">
+  <div style="
+    display:inline-flex;align-items:center;gap:.45rem;
+    padding:.28rem .55rem;border-radius:999px;
+    border:1px solid rgba(0,0,0,.10);
+    font-size:.86rem;opacity:.92;background:rgba(0,0,0,.02);
+  ">{txt}</div>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
+
+def render_daily_goal_home(sb_authed, user_id: str):
+    """Home dashboard: daily goal (sets-based). 1 set == 10 questions (quiz_len)."""
+    progress_all = st.session_state.get("progress_all", {}) or {}
+
+    # ✅ 세트 목표(기본 3세트). 기존 '문항 목표'를 쓰고 있었다면, 일단 세트 목표로 전환합니다.
+    goal_sets = int((progress_all.get("daily_goal_sets") or 3))
+
+    attempts = fetch_today_attempts(sb_authed, user_id)
+    sm = summarize_attempts(attempts)
+
+    done_sets = int(sm.get("total_sets", 0))
+    done_q = int(sm.get("total_q", 0))
+
+    pct = 0 if goal_sets <= 0 else min(100, int(round(done_sets / goal_sets * 100)))
+
+    st.markdown("## 🎯 오늘의 목표 (세트 기준)")
+    st.progress(pct / 100 if goal_sets > 0 else 0.0)
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric("오늘 완료 세트", f"{done_sets}/{goal_sets}")
+    acc = 0 if done_q <= 0 else int(round(sm.get("total_score", 0) / done_q * 100))
+    c2.metric("정답률", f"{acc}%")
+    c3.metric("문항 수", f"{done_q}문항")
+
+    b1, b2, b3 = st.columns(3)
+    b1.caption(f"단어: {sm['by_kind']['word']['sets']}세트 · {sm['by_kind']['word']['q']}문항")
+    b2.caption(f"한자: {sm['by_kind']['kanji']['sets']}세트 · {sm['by_kind']['kanji']['q']}문항")
+    b3.caption(f"회화: {sm['by_kind']['talk']['sets']}세트 · {sm['by_kind']['talk']['q']}문항")
+
+    with st.expander("목표 수정", expanded=False):
+        new_goal = st.number_input("하루 목표 세트 수 (1세트=10문항)", min_value=0, max_value=100, value=goal_sets, step=1)
+        if st.button("저장", use_container_width=True, key="hub_daily_goal_save"):
+            progress_all["daily_goal_sets"] = int(new_goal)
+            st.session_state["progress_all"] = progress_all
+            save_progress(sb_authed, user_id, progress_all)
+            st.success("저장했습니다.")
+
+def render_reminder_settings(sb_authed, user):
+    """Render reminder settings UI (toggle + time) and persist to profiles.progress.reminder."""
+    progress_all = st.session_state.get("progress_all", {}) or {}
+    rem = progress_all.get("reminder") or {}
+    enabled_default = bool(rem.get("enabled", True))
+    time_default = rem.get("time", "09:00")
+
+    st.markdown("## 🔔 홈 알림 설정")
+    c1, c2 = st.columns([1, 1])
+    with c1:
+        enabled = st.toggle("알림 사용", value=enabled_default, key="hub_rem_enabled")
+    with c2:
+        time_str = st.text_input("알림 시간(HH:MM)", value=time_default, key="hub_rem_time")
+
+    if st.button("저장", use_container_width=True, key="hub_rem_save"):
+        try:
+            hh, mm = [int(x) for x in time_str.split(":")]
+            assert 0 <= hh <= 23 and 0 <= mm <= 59
+        except Exception:
+            st.error("시간 형식이 올바르지 않습니다. 예) 09:00")
+            st.stop()
+
+        progress_all["reminder"] = {"enabled": bool(enabled), "time": f"{hh:02d}:{mm:02d}"}
+        st.session_state["progress_all"] = progress_all
+        save_progress(sb_authed, user.id, progress_all)
+        st.success("저장했습니다.")
+
+
+def fire_in_app_reminder_if_enabled(user):
+    """If reminder is enabled, schedule an in-app notification when the app is open."""
+    progress_all = st.session_state.get("progress_all", {}) or {}
+    rem = progress_all.get("reminder") or {}
+    enabled = bool(rem.get("enabled", True))
+    time_str = rem.get("time", "09:00")
+
+    if not enabled:
+        return
+
+    try:
+        hh, mm = [int(x) for x in time_str.split(":")]
+        now = datetime.now()
+        target = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
+        if target <= now:
+            # next day
+            target = target.replace(day=now.day)  # keep structure; safe fallback
+            target = target + (datetime(now.year, now.month, now.day) - datetime(now.year, now.month, now.day))
+        delay_ms = max(1000, int((target - now).total_seconds() * 1000))
+    except Exception:
+        delay_ms = 0
+
+    msg = json.dumps(daily_message(str(user.id)))
+    components.html(
+        f"""
+<script>
+  (function(){{
+    try {{
+      const delay = {delay_ms};
+      const message = {msg};
+      if (delay <= 0) return;
+      setTimeout(() => {{
+        try {{
+          if (typeof Notification !== 'undefined') {{
+            if (Notification.permission === 'granted') {{
+              new Notification('하테나일본어', {{ body: message }});
+            }}
+          }}
+          // Fallback: simple alert-like toast
+          const t = document.createElement('div');
+          t.textContent = message;
+          t.style.cssText = 'position:fixed;left:50%;bottom:16px;transform:translateX(-50%);padding:10px 14px;background:rgba(20,20,20,0.92);color:#fff;border-radius:12px;font-size:14px;z-index:2147483647;';
+          document.body.appendChild(t);
+          setTimeout(()=>t.remove(), 4500);
+        }} catch(e) {{}}
+      }}, delay);
+    }} catch(e) {{}}
+  }})();
+</script>
+""",
+        height=0,
+    )
+
+
 # ============================================================
 # 🔔 Reminder messages (혼합 50)
 # ============================================================
@@ -299,65 +586,9 @@ ensure_profile(sb_authed, user)
 load_profile(sb_authed, user.id)
 
 # ============================================================
-# 🔔 Reminder settings (stored in profiles.progress.reminder)
+# 🔔 In-app reminder (no inline UI; settings live in menu -> Reminder page)
 # ============================================================
-progress_all = st.session_state.get("progress_all", {}) or {}
-rem = progress_all.get("reminder") or {}
-enabled = bool(rem.get("enabled", True))
-time_str = rem.get("time", "09:00")
-
-with st.expander("🔔 홈 알림 설정", expanded=False):
-    c1, c2 = st.columns([1,1])
-    with c1:
-        enabled = st.toggle("알림 사용", value=enabled, key="hub_rem_enabled")
-    with c2:
-        time_str = st.text_input("알림 시간(HH:MM)", value=time_str, key="hub_rem_time")
-    if st.button("저장", use_container_width=True, key="hub_rem_save"):
-        # basic validate
-        try:
-            hh, mm = [int(x) for x in time_str.split(":")]
-            assert 0 <= hh <= 23 and 0 <= mm <= 59
-        except Exception:
-            st.error("시간 형식이 올바르지 않습니다. 예) 09:00")
-            st.stop()
-        progress_all["reminder"] = {"enabled": bool(enabled), "time": f"{hh:02d}:{mm:02d}"}
-        st.session_state["progress_all"] = progress_all
-        save_progress(sb_authed, user.id, progress_all)
-        st.success("저장했습니다.")
-
-# Fire in-app notification when app is open
-if enabled:
-    try:
-        hh, mm = [int(x) for x in time_str.split(":")]
-        now = datetime.now()
-        target = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
-        if target <= now:
-            target = target.replace(day=now.day)  # same day; if passed, schedule for next day
-            target = target + (datetime(now.year, now.month, now.day) - datetime(now.year, now.month, now.day))  # no-op
-        delay_ms = max(1000, int((target - now).total_seconds() * 1000))
-    except Exception:
-        delay_ms = 0
-
-    msg = json.dumps(daily_message(str(user.id)))
-    components.html(f"""
-<script>
-(async () => {{
-  try {{
-    if (!("Notification" in window)) return;
-    if (Notification.permission !== "granted") {{
-      await Notification.requestPermission();
-    }}
-    const delay = {delay_ms};
-    const fire = () => {{
-      if (Notification.permission === "granted") {{
-        new Notification("하테나 일본어", {{ body: {msg} }});
-      }}
-    }};
-    if (delay > 0) setTimeout(fire, delay);
-  }} catch(e) {{}}
-}})();
-</script>
-""", height=0)
+fire_in_app_reminder_if_enabled(user)
 
 # ============================================================
 # ✅ Navigation (hub_page)
@@ -369,34 +600,183 @@ def go(page: str):
     st.session_state["hub_page"] = page
     st.rerun()
 
+
+def _clear_training_ui_state():
+    """Clear only training-related UI/session keys so menu navigation always feels fresh.
+    IMPORTANT: Do NOT clear auth/progress tokens or user info.
+    """
+    prefixes = (
+        "q_",          # quiz option widgets (word/kanji)
+        "talk_",       # talk widgets
+        "talk_submit_",
+        "talk_next_",
+        "talk_to_wrongs_",
+    )
+    exact_keys = {
+        # common quiz flags
+        "submitted", "is_graded",
+        # word/kanji pools
+        "_pool", "pool_ready", "_patterns", "_patterns_ready",
+        # quiz state
+        "quiz", "answers", "history", "wrong_list",
+        "wrong_counter", "total_counter",
+        "saved_this_attempt", "stats_saved_this_attempt", "session_stats_applied_this_attempt",
+        "quiz_version",
+        # misc per-run UI helpers
+        "_scroll_top_once", "_scroll_top_nonce",
+        "excluded_wrong_words",
+        "target_questions",
+        "counted_qids",
+        "combo_last_notice",
+        "_counted_today",
+        "today_done",
+        "today_goal_done",
+    }
+
+    for k in list(st.session_state.keys()):
+        if isinstance(k, str) and (k in exact_keys or k.startswith(prefixes)):
+            st.session_state.pop(k, None)
+
+def nav_to(page: str):
+    _clear_training_ui_state()
+    st.session_state["hub_page"] = page
+    st.rerun()
+
+
 def hub_logout():
     cookies["access_token"] = ""
     cookies["refresh_token"] = ""
     _cookies_save_once_per_run()
     for k in ["user","access_token","refresh_token","sb_authed","sb_authed_token","progress_all","hub_page","HUB_MODE"]:
         st.session_state.pop(k, None)
+
+    # ✅ prevent infinite loop when URL has ?action=logout
+    try:
+        st.query_params.clear()
+    except Exception:
+        pass
+
     st.rerun()
 
-def render_top_menu():
-    # ✅ 항상 같은 상단 메뉴(사이드바 없이)
-    c1, c2, c3, c4, c5, c6 = st.columns([1,1,1,1,1,1], vertical_alignment="center")
+def render_floating_menu():
+    """
+    ✅ Mobile-friendly floating hamburger menu (no sidebar)
+    - Pure HTML/CSS toggle so it always renders.
+    - Navigation via query params (?p=word etc.)
+    """
+    st.markdown(
+        """
+<style>
+/* ===== Floating Menu (Hub) ===== */
+.hub-float-wrap{
+  position: fixed;
+  top: 3.1rem;
+  left: 0.65rem;
+  z-index: 2147483647;
+  font-family: inherit;
+}
+#hub_menu_toggle{ display:none; }
+.hub-menu-btn{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width: 48px; height: 48px;
+  border-radius: 12px;
+  background: rgba(20,20,20,0.92);
+  color: #fff;
+  font-size: 22px;
+  cursor: pointer;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.18);
+  user-select:none;
+}
+.hub-menu-panel{
+  position: fixed;
+  top: 0; left: 0;
+  height: 100vh;
+  width: min(78vw, 320px);
+  background: rgba(255,255,255,0.98);
+  backdrop-filter: blur(10px);
+  border-right: 1px solid rgba(0,0,0,0.08);
+  transform: translateX(-110%);
+  transition: transform 180ms ease;
+  z-index: 99999;
+  padding: 0.9rem 0.9rem 1.2rem;
+}
+.hub-menu-panel .hub-menu-title{
+  font-weight: 700;
+  font-size: 1.05rem;
+  margin: 0.2rem 0 0.8rem;
+}
+.hub-menu-panel a{
+  display:block;
+  padding: 0.85rem 0.85rem;
+  margin: 0.25rem 0;
+  border-radius: 12px;
+  text-decoration: none;
+  color: rgba(10,10,10,0.92);
+  border: 1px solid rgba(0,0,0,0.06);
+}
+.hub-menu-overlay{
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.35);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms ease;
+  z-index: 99998;
+}
+#hub_menu_toggle:checked ~ .hub-menu-panel{ transform: translateX(0); }
+#hub_menu_toggle:checked ~ .hub-menu-overlay{
+  opacity: 1;
+  pointer-events: auto;
+}
+</style>
 
-    with c1:
-        st.button("홈", use_container_width=True, key="hub_nav_home", on_click=go, args=("home",))
-    with c2:
-        st.button("단어", use_container_width=True, key="hub_nav_word", on_click=go, args=("word",))
-    with c3:
-        st.button("한자", use_container_width=True, key="hub_nav_kanji", on_click=go, args=("kanji",))
-    with c4:
-        st.button("회화", use_container_width=True, key="hub_nav_talk", on_click=go, args=("talk",))
-    with c5:
-        st.button("마이페이지", use_container_width=True, key="hub_nav_my", on_click=go, args=("my",))
-    with c6:
-        st.button("로그아웃", use_container_width=True, key="hub_nav_logout", on_click=hub_logout)
+<div class="hub-float-wrap">
+  <input type="checkbox" id="hub_menu_toggle" />
+  <label class="hub-menu-btn" for="hub_menu_toggle" aria-label="menu">☰</label>
 
-    st.divider()
+  <div class="hub-menu-panel">
+    <div class="hub-menu-title">메뉴</div>
+    <a href="?p=home" target="_self">🏠 홈</a>
+    <a href="?p=word" target="_self">📘 단어</a>
+    <a href="?p=kanji" target="_self">🈶 한자</a>
+    <a href="?p=talk" target="_self">💬 회화</a>
+    <a href="?p=my" target="_self">👤 마이페이지</a>
+    <a href="?p=reminder" target="_self">🔔 알림 설정</a>
+    <a href="?action=logout" target="_self">🚪 로그아웃</a>
+    <div style="height:0.6rem"></div>
+    <div style="font-size:0.85rem; opacity:0.7;">Tip: 바깥을 누르면 닫힙니다.</div>
+  </div>
 
-render_top_menu()
+  <label class="hub-menu-overlay" for="hub_menu_toggle"></label>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
+
+
+render_floating_menu()
+render_plan_pill()
+
+# ============================================================
+# ✅ URL navigation (for floating menu links)
+# ============================================================
+try:
+    qp = st.query_params
+    q_action = qp.get("action")
+    q_page = qp.get("p")
+except Exception:
+    q_action = None
+    q_page = None
+
+if q_action == "logout":
+    hub_logout()
+
+if q_page in {"home","word","kanji","talk","my","reminder"}:
+    if st.session_state.get("hub_page") != q_page:
+        _clear_training_ui_state()
+        st.session_state["hub_page"] = q_page
 
 # ============================================================
 # ✅ Runner
@@ -415,12 +795,16 @@ page = st.session_state.get("hub_page", "home")
 
 if page == "home":
     st.caption(f"로그인: {getattr(user, 'email', '')}")
-    st.info("상단 메뉴에서 원하는 항목을 선택하세요.")
+    render_daily_goal_home(sb_authed, user.id)
+    st.info("☰ 메뉴에서 단어/한자/회화 훈련을 선택하세요.")
 
 elif page == "my":
-    # ✅ 마이페이지: 완전 독립 페이지 (단어/한자/회화와 분리)
-    st.session_state["hub_target"] = "my"
+    # ✅ 독립 마이페이지: 한자(app.py) 안에 있던 대시보드를 그대로 분리한 mypage.py를 실행
     run_script("mypage.py")
+    st.stop()
+
+elif page == "reminder":
+    render_reminder_settings(sb_authed, user)
     st.stop()
 
 elif page == "word":

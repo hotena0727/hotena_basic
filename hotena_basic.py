@@ -46,32 +46,31 @@ import html
 # ============================================================
 # ✅ Page Config + Paths
 # ============================================================
-# NOTE: page config is handled by home.py when running in HUB_MODE
-if not HUB_MODE and not st.session_state.get("_page_config_set"):
-    st.set_page_config(
-        page_title="왕초보탈출 하테나일본어",
-        page_icon="static/icon-192.png",
-        layout="centered",
-    )
-    st.session_state["_page_config_set"] = True
+st.set_page_config(
+    page_title="왕초보탈출 하테나일본어",
+    page_icon="static/icon-192.png",   # 또는 "🟦"
+    layout="centered",
+)
 
 
 # ============================================================
 # ✅ [HOTFIX] Disable onboarding ("60초 이용안내") block entirely
+# - In case any legacy UI is still rendered, forcibly hide/remove it.
 # ============================================================
-if not HUB_MODE:
-    try:
-        components.html(
-            """
+try:
+    components.html(
+        """
 <script>
 (function(){
   const kill = () => {
     const needles = ["60초 이용안내", "처음 오셨나요"];
+    // expander renders as <details><summary>...</summary>...
     document.querySelectorAll("details").forEach(d => {
       const s = d.querySelector("summary");
       const t = (s ? s.innerText : d.innerText) || "";
       if (needles.some(n => t.includes(n))) { d.remove(); }
     });
+    // also remove any plain text blocks
     document.querySelectorAll("*").forEach(el => {
       if (el && el.childNodes && el.childNodes.length===1 && el.childNodes[0].nodeType===3) {
         const t = el.innerText || "";
@@ -84,17 +83,17 @@ if not HUB_MODE:
 })();
 </script>
 """,
-            height=0,
-        )
-    except Exception:
-        pass
+        height=0,
+    )
+except Exception:
+    pass
+
 
 # ============================================================
 # ✅ PWA/아이콘 - set_page_config 바로 아래
 # ============================================================
 
-if not HUB_MODE:
-    components.html"""
+components.html("""
 <script>
 window.addEventListener("load", async () => {
   // ✅ 부모 문서(=진짜 페이지)로 주입
@@ -165,7 +164,7 @@ window.addEventListener("load", async () => {
   log("UA: " + nav.userAgent);
 });
 </script>
-""", height=0)
+""", height=140)
 
 
 
@@ -2911,6 +2910,10 @@ except Exception:
 # ✅ Quiz Page
 # ============================================================
 def render_plan_banner():
+    # HUB에서는 공통 배지를 home.py에서 렌더링하므로 중복 표시하지 않음
+    if st.session_state.get("HUB_MODE", False):
+        return
+
     plan = get_user_plan()
     if plan == "pro":
         st.success("✨ PRO 이용 중입니다.")
@@ -2926,139 +2929,140 @@ render_topcard()
 render_plan_banner()
 render_sound_toggle()
 
-streak = st.session_state.get("streak_count")
-did_today = st.session_state.get("did_attend_today")
-if streak is not None:
-    if did_today:
-        st.success(f"✅ 오늘 출석 완료!  (연속 {streak}일)")
-    else:
-        st.caption(f"연속 출석 {streak}일")
-    if streak >= 30:
-        st.info("🔥 30일 연속 달성!")
-    elif streak >= 7:
-        st.info("🏅 7일 연속 달성!")
+if not st.session_state.get("HUB_MODE", False):
+    streak = st.session_state.get("streak_count")
+    did_today = st.session_state.get("did_attend_today")
+    if streak is not None:
+        if did_today:
+            st.success(f"✅ 오늘 출석 완료!  (연속 {streak}일)")
+        else:
+            st.caption(f"연속 출석 {streak}일")
+        if streak >= 30:
+            st.info("🔥 30일 연속 달성!")
+        elif streak >= 7:
+            st.info("🏅 7일 연속 달성!")
 
-# --- (A) 기존 "오늘의 목표(루틴)" 섹션 ---
-if "today_goal_text" not in st.session_state:
-    st.session_state.today_goal_text = "오늘은 10문항 1회 완주"
-if "today_goal_done" not in st.session_state:
-    st.session_state.today_goal_done = False
+    # --- (A) 기존 "오늘의 목표(루틴)" 섹션 ---
+    if "today_goal_text" not in st.session_state:
+        st.session_state.today_goal_text = "오늘은 10문항 1회 완주"
+    if "today_goal_done" not in st.session_state:
+        st.session_state.today_goal_done = False
 
-# ============================================================
-# ✅ [PATCH] 🎯 오늘 목표 자동 연동 + 진행률 도표(프로그레스 바)
-# - 목표 1회=10문항, 2회=20문항...
-# - today_total(= total) 기준으로 자동 ✅달성/⏳진행중
-# - ✅ “오늘 목표” 박스 안에 진행률 도표 + % 표시
-# - ✅ 세그먼트 카드/목표 카드 톤(테두리/라운드/그림자) 통일
-# ============================================================
+    # ============================================================
+    # ✅ [PATCH] 🎯 오늘 목표 자동 연동 + 진행률 도표(프로그레스 바)
+    # - 목표 1회=10문항, 2회=20문항...
+    # - today_total(= total) 기준으로 자동 ✅달성/⏳진행중
+    # - ✅ “오늘 목표” 박스 안에 진행률 도표 + % 표시
+    # - ✅ 세그먼트 카드/목표 카드 톤(테두리/라운드/그림자) 통일
+    # ============================================================
 
-st.markdown("""
-<style>
-/* ✅ goal 세그먼트 전용 앵커 */
-#goal_seg_anchor + div[data-testid="stSegmentedControl"]{
-  padding: 10px 12px;
-  border: 1px solid rgba(49,51,63,.12);
-  border-radius: 14px;
-  background: #fff;
-  box-shadow: 0 1px 0 rgba(0,0,0,.02);
-  margin-bottom: 10px;
-}
-#goal_seg_anchor + div[data-testid="stSegmentedControl"] [role="group"]{
-  display:flex !important;
-  width:100% !important;
-  gap: 8px !important;
-}
-#goal_seg_anchor + div[data-testid="stSegmentedControl"] button{
-  flex: 1 1 0 !important;
-  min-width: 0 !important;
-  text-align: center !important;
-  padding: 12px 10px !important;
-  font-size: 15px !important;
-  border-radius: 12px !important;
-  border: 1px solid rgba(49,51,63,.12) !important;
-}
-#goal_seg_anchor + div[data-testid="stSegmentedControl"] button[aria-pressed="true"]{
-  border: 1px solid rgba(255,0,0,.35) !important;
-  box-shadow: 0 0 0 2px rgba(255,0,0,.08) inset;
-}
-</style>
-""", unsafe_allow_html=True)
+    st.markdown("""
+    <style>
+    /* ✅ goal 세그먼트 전용 앵커 */
+    #goal_seg_anchor + div[data-testid="stSegmentedControl"]{
+      padding: 10px 12px;
+      border: 1px solid rgba(49,51,63,.12);
+      border-radius: 14px;
+      background: #fff;
+      box-shadow: 0 1px 0 rgba(0,0,0,.02);
+      margin-bottom: 10px;
+    }
+    #goal_seg_anchor + div[data-testid="stSegmentedControl"] [role="group"]{
+      display:flex !important;
+      width:100% !important;
+      gap: 8px !important;
+    }
+    #goal_seg_anchor + div[data-testid="stSegmentedControl"] button{
+      flex: 1 1 0 !important;
+      min-width: 0 !important;
+      text-align: center !important;
+      padding: 12px 10px !important;
+      font-size: 15px !important;
+      border-radius: 12px !important;
+      border: 1px solid rgba(49,51,63,.12) !important;
+    }
+    #goal_seg_anchor + div[data-testid="stSegmentedControl"] button[aria-pressed="true"]{
+      border: 1px solid rgba(255,0,0,.35) !important;
+      box-shadow: 0 0 0 2px rgba(255,0,0,.08) inset;
+    }
+    </style>
+    """, unsafe_allow_html=True)
 
-# ✅ 앵커는 segmented_control "바로 직전"에 둬야 함
-st.markdown('<div id="goal_seg_anchor"></div>', unsafe_allow_html=True)
-
-
-# ✅ 1) 목표(세션) 설정값
-if "goal_sessions" not in st.session_state:
-    st.session_state.goal_sessions = 1  # 기본 1회(=10문항)
-
-target_questions = st.slider(
-    "오늘 목표",
-    min_value=10, max_value=60, step=10,
-    value=st.session_state.get("target_questions", 10),
-)
-st.session_state["target_questions"] = target_questions
+    # ✅ 앵커는 segmented_control "바로 직전"에 둬야 함
+    st.markdown('<div id="goal_seg_anchor"></div>', unsafe_allow_html=True)
 
 
-# ✅ 2) 오늘 푼 문항수(기존 total 변수 재사용)
-today_total = int(total)  # ← 기존 코드에서 total이 "오늘 푼 문항"이면 그대로 OK
+    # ✅ 1) 목표(세션) 설정값
+    if "goal_sessions" not in st.session_state:
+        st.session_state.goal_sessions = 1  # 기본 1회(=10문항)
 
-goal_done = today_total >= target_questions
-goal_percent = int(min(100, (today_total / max(1, target_questions)) * 100))
-remain = max(0, target_questions - today_total)
+    target_questions = st.slider(
+        "오늘 목표",
+        min_value=10, max_value=60, step=10,
+        value=st.session_state.get("target_questions", 10),
+    )
+    st.session_state["target_questions"] = target_questions
 
-goal_msg = "오늘 목표 달성! 내일도 루틴 이어가요 🔥" if goal_done else f"남은 문항: {remain}"
+
+    # ✅ 2) 오늘 푼 문항수(기존 total 변수 재사용)
+    today_total = int(total)  # ← 기존 코드에서 total이 "오늘 푼 문항"이면 그대로 OK
+
+    goal_done = today_total >= target_questions
+    goal_percent = int(min(100, (today_total / max(1, target_questions)) * 100))
+    remain = max(0, target_questions - today_total)
+
+    goal_msg = "오늘 목표 달성! 내일도 루틴 이어가요 🔥" if goal_done else f"남은 문항: {remain}"
 
 
-# ✅ 3) 자동 목표 UI (진행률 도표 포함)
-import streamlit.components.v1 as components
+    # ✅ 3) 자동 목표 UI (진행률 도표 포함)
+    import streamlit.components.v1 as components
 
-card_html = f"""
-<div class="jp" style="
-  border:1px solid rgba(49,51,63,.12);
-  border-radius:18px;
-  padding:14px 14px;
-  background:#fff;
-  box-shadow: 0 1px 0 rgba(0,0,0,.02);
-  margin: 6px 0 10px 0;
-  font-family: inherit;
-">
-  <div style="display:flex; justify-content:space-between; align-items:center;">
-    <div style="font-weight:900; font-size:14px; opacity:.80;">🎯 오늘 목표</div>
-    <div style="font-size:12px; font-weight:900; opacity:.85;">
-      {"✅ 달성" if goal_done else "⏳ 진행중"}
+    card_html = f"""
+    <div class="jp" style="
+      border:1px solid rgba(49,51,63,.12);
+      border-radius:18px;
+      padding:14px 14px;
+      background:#fff;
+      box-shadow: 0 1px 0 rgba(0,0,0,.02);
+      margin: 6px 0 10px 0;
+      font-family: inherit;
+    ">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div style="font-weight:900; font-size:14px; opacity:.80;">🎯 오늘 목표</div>
+        <div style="font-size:12px; font-weight:900; opacity:.85;">
+          {"✅ 달성" if goal_done else "⏳ 진행중"}
+        </div>
+      </div>
+
+      <div style="margin-top:10px; display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+        <div style="font-size:13px; font-weight:800; opacity:.85;">
+          목표: <b>{target_questions}</b>문항
+        </div>
+        <div style="font-size:13px; font-weight:800; opacity:.85;">
+          진행: <b>{today_total}</b> / {target_questions}문항
+        </div>
+        <div style="font-size:13px; font-weight:900; opacity:.85;">
+          {goal_percent}%
+        </div>
+      </div>
+
+      <div style="margin-top:10px;">
+        <div style="height:10px; border-radius:999px; background: rgba(0,0,0,0.07); overflow:hidden;">
+          <div style="height:100%; width:{goal_percent}%; background: rgba(0,0,0,0.25);"></div>
+        </div>
+
+        <div style="margin-top:10px; font-size:12.5px; opacity:.72; font-weight:700;">
+          {goal_msg}
+        </div>
+      </div>
     </div>
-  </div>
+    """
 
-  <div style="margin-top:10px; display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
-    <div style="font-size:13px; font-weight:800; opacity:.85;">
-      목표: <b>{target_questions}</b>문항
-    </div>
-    <div style="font-size:13px; font-weight:800; opacity:.85;">
-      진행: <b>{today_total}</b> / {target_questions}문항
-    </div>
-    <div style="font-size:13px; font-weight:900; opacity:.85;">
-      {goal_percent}%
-    </div>
-  </div>
-
-  <div style="margin-top:10px;">
-    <div style="height:10px; border-radius:999px; background: rgba(0,0,0,0.07); overflow:hidden;">
-      <div style="height:100%; width:{goal_percent}%; background: rgba(0,0,0,0.25);"></div>
-    </div>
-
-    <div style="margin-top:10px; font-size:12.5px; opacity:.72; font-weight:700;">
-      {goal_msg}
-    </div>
-  </div>
-</div>
-"""
-
-# height는 카드 높이에 맞춰 적당히
-components.html(card_html, height=140)
+    # height는 카드 높이에 맞춰 적당히
+    components.html(card_html, height=140)
 
 
-st.divider()
+    st.divider()
 
 # ============================================================
 # ✅ 이하: 기존 세션 상태 초기화/shape ensure (그대로 유지)
@@ -3791,7 +3795,6 @@ if st.session_state.get("submitted", False):
     show_naver_talk = (SHOW_NAVER_TALK == "N") or is_admin()
     if show_naver_talk:
         render_naver_talk()
-
 
 
 
