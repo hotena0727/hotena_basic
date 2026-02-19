@@ -36,12 +36,9 @@ if "user" not in st.session_state:
     st.stop()
 
 USER = st.session_state["user"]
-def _user_field(obj, key: str):
-    if isinstance(obj, dict):
-        return obj.get(key)
-    return getattr(obj, key, None)
-USER_ID = _user_field(USER, "id")
-USER_EMAIL = _user_field(USER, "email")
+USER_ID = USER.get("id") if isinstance(USER, dict) else None
+USER_EMAIL = USER.get("email") if isinstance(USER, dict) else None
+
 HUB_MODE = bool(st.session_state.get("HUB_MODE", False))
 
 if not HUB_MODE:
@@ -328,10 +325,9 @@ def start_new_set():
     st.session_state[f"{NS}_set_qids"] = qids
     st.session_state[f"{NS}_idx"] = 0
     st.session_state[f"{NS}_results"] = {}  # qid -> {"selected":..., "correct":bool}
-    # ✅ 각 qid별 UI 상태 초기화(제출 여부/선택지)
-    for _qid in qids:
-        st.session_state[f"talk_submitted_{_qid}"] = False
-        st.session_state.pop(f"talk_choice_{_qid}", None)
+    st.session_state[f"talk_submitted_{qid}"] = False
+    st.session_state.pop(f"talk_choice_{qid}", None)
+
 # 세트가 없거나, 필터가 바뀌었으면 새로 시작
 sig = f"{sel_level}|{sel_tag}|{int(exclude_mastered)}"
 if st.session_state.get(f"{NS}_sig") != sig or f"{NS}_set_qids" not in st.session_state:
@@ -508,10 +504,10 @@ if submitted:
         if not st.session_state.get(_tts_once_key, False):
             st.session_state[_tts_once_key] = True
             try:
-                components.html(f"""
-<script>
+                import json as _json
+                _tpl = """<script>
 (function(){
-  const text = {ans!r};
+  const text = __TEXT__;
   if(!text) return;
   const u = new SpeechSynthesisUtterance(text);
   u.lang = "ja-JP";
@@ -521,7 +517,11 @@ if submitted:
   window.speechSynthesis.speak(u);
 })();
 </script>
-""", height=0)
+"""
+                _js = _tpl.replace("__TEXT__", _json.dumps(ans or ""))
+                components.html(_js, height=0)
+            except Exception:
+                pass
             except Exception:
                 pass
 
