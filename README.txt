@@ -1,2 +1,12 @@
-V37 홈 디자인 유지 + 상단 공통 메뉴(홈/단어/한자/회화/마이페이지) 추가 + 단어/한자 원본 스크립트 연결.
-실행: streamlit run home.py
+# Hatena Hub (단어/한자/회화)
+
+실행:
+  streamlit run home.py
+
+필수 secrets/env:
+  SUPABASE_URL
+  SUPABASE_ANON_KEY
+  COOKIE_PASSWORD
+
+회화 CSV:
+  data/talk_situations.csv

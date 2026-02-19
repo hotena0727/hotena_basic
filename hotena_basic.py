@@ -31,20 +31,6 @@ from pathlib import Path
 import random
 import pandas as pd
 import streamlit as st
-
-# ✅ Hub theme
-try:
-    _fn = st.session_state.get('hub_apply_theme')
-    if callable(_fn):
-        _fn()
-except Exception:
-    pass
-
-
-# ============================================================
-# ✅ Hub Mode Flag (home.py에서 실행 중인지)
-# ============================================================
-HUB_MODE = bool(st.session_state.get("hub_mode") or st.session_state.get("_hub_child") or st.session_state.get("_hub_common_header"))
 import unicodedata
 from supabase import create_client
 from streamlit_cookies_manager import EncryptedCookieManager
@@ -60,9 +46,12 @@ import html
 # ============================================================
 # ✅ Page Config + Paths
 # ============================================================
-if not st.session_state.get("_page_config_set"):
-    st.set_page_config(page_title="왕초보 탈출 하테나일본어", page_icon="static/icon-192.png", layout="centered")
-    st.session_state["_page_config_set"] = True
+st.set_page_config(
+    page_title="왕초보탈출 하테나일본어",
+    page_icon="static/icon-192.png",   # 또는 "🟦"
+    layout="centered",
+)
+
 # ============================================================
 # ✅ PWA/아이콘 - set_page_config 바로 아래
 # ============================================================
@@ -577,15 +566,6 @@ if st.session_state.get("_scroll_top_once"):
 # ============================================================
 import os
 import streamlit as st
-
-# ✅ Hub theme
-try:
-    _fn = st.session_state.get('hub_apply_theme')
-    if callable(_fn):
-        _fn()
-except Exception:
-    pass
-
 from streamlit_cookies_manager import EncryptedCookieManager
 from supabase import create_client
 
@@ -845,9 +825,6 @@ def start_quiz_state(quiz_list: list, qtype: str, clear_wrongs: bool = True):
     st.session_state.saved_this_attempt = False
     st.session_state.stats_saved_this_attempt = False
     st.session_state.session_stats_applied_this_attempt = False
-
-    # ✅ Hub 공통 보상(10문제 완주) 중복 방지 플래그 리셋
-    st.session_state["_hub_recorded_submit"] = False
     
     # ✅ 추가: 새 회차 시작 시 콤보 알림 단계 초기화
     st.session_state["combo_last_notice"] = 0
@@ -1394,12 +1371,7 @@ def render_pronounce_button(text: str, uid: str, label: str = "🔊 발음"):
         height=43,
     )
 # ============================================================
-# ✅ Onboarding (v36: 단어 페이지에서는 미노출)
-# ============================================================
-
-def render_onboarding_card(expanded=True):
-    return
-
+# ✅ Onboarding (첫 방문 이용안내)
 # ============================================================
 
 ONBOARDING_COOKIE_KEY = "onboarding_seen_v1"
@@ -1585,13 +1557,12 @@ def require_login():
         st.stop()
 
 # ✅ 첫 방문 자동 노출
-if (not has_seen_onboarding()) or st.session_state.get('show_onboarding_again', False):
+if not has_seen_onboarding():
     render_onboarding_card(expanded=True)
-    # 첫 방문인 경우: expander 내부 버튼(확인했어요)에서 mark_seen_onboarding() 처리
 else:
-    if st.button('📘 이용안내 다시보기', use_container_width=True):
-        st.session_state['show_onboarding_again'] = True
-        st.rerun()
+    if st.button("📘 이용안내 다시보기", use_container_width=True):
+        render_onboarding_card(expanded=True)
+
 # ============================================================
 # ✅ 네이버톡 배너 (제출 후만)
 # ============================================================
@@ -1711,11 +1682,6 @@ def render_topcard():
     if not u:
         return
 
-    # ✅ In hub mode, the shared header (plan badge / home button / etc.) is rendered by home.py.
-    #    Avoid rendering this app's own top menu card to prevent duplicated UI / widget keys.
-    if HUB_MODE:
-        return
-
     st.markdown('<div class="topcard">', unsafe_allow_html=True)
     left, r_admin, r_my, r_logout = st.columns([6.0, 1.2, 2.4, 2.4], vertical_alignment="center")
 
@@ -1737,7 +1703,7 @@ def render_topcard():
         st.button("🚪 로그아웃", use_container_width=True, help="로그아웃",
                   key="topcard_btn_logout", on_click=nav_logout)
 
-        st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
 # ============================================================
 # ✅ CSV Load Pool  (✅ CSV 최종 스펙 반영)
@@ -2532,7 +2498,33 @@ def render_home():
     except Exception:
         # 리포트 실패해도 홈 화면은 멈추지 않게
         pass
-    # ✅ (3) 오늘의 말: 허브(home.py)에서 공통 제공
+
+    # ✅ (3) 오늘의 말
+    quotes = [
+        "오늘 10문항이면 충분해요.",
+        "루틴은 작게, 지속은 길게.",
+        "정답보다 중요한 건 ‘계속’입니다.",
+        "단어가 쌓이면 문장이 열립니다.",
+        "오늘의 한 번이 내일의 자신감이에요.",
+    ]
+    q = random.choice(quotes)
+
+    st.markdown(
+        f"""
+<div class="jp" style="
+  margin-top:1px;
+  border:1px solid rgba(120,120,120,0.18);
+  border-radius:18px; padding:16px; background:rgba(255,255,255,0.03);">
+  <div style="font-weight:900; font-size:14px; opacity:.75;">오늘의 말</div>
+  <div style="margin-top:6px; font-weight:900; font-size:20px; line-height:1.3;">{q}</div>
+  <div style="margin-top:10px; opacity:.80; font-size:13px; line-height:1.55;">
+    품사 하나씩만 잡아도, 말이 빨라집니다.
+  </div>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
+
     st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
     st.divider()
 
@@ -2561,15 +2553,6 @@ from zoneinfo import ZoneInfo
 from collections import Counter
 import html
 import streamlit as st
-
-# ✅ Hub theme
-try:
-    _fn = st.session_state.get('hub_apply_theme')
-    if callable(_fn):
-        _fn()
-except Exception:
-    pass
-
 
 KST = ZoneInfo("Asia/Seoul")
 
@@ -2815,30 +2798,6 @@ if sb_authed is not None and not st.session_state.get("progress_restored"):
         pass
     st.session_state.progress_restored = True
 
-# ============================================================
-# ✅ Hub 진입 시 상태 초기화(제출 완료 화면/선택 잔상 방지)
-# ============================================================
-try:
-    nav = st.session_state.get("_hub_nav_token")
-    last_nav = st.session_state.get("_word_last_nav_token")
-    if nav and nav != last_nav:
-        st.session_state["_word_last_nav_token"] = nav
-        # 제출 상태/채점 화면 초기화
-        st.session_state.submitted = False
-        st.session_state.saved_this_attempt = False
-        st.session_state.stats_saved_this_attempt = False
-        st.session_state.session_stats_applied_this_attempt = False
-        # 선택 잔상 초기화(q_ 위젯 키 제거 + answers None)
-        for k in [k for k in list(st.session_state.keys()) if isinstance(k, str) and k.startswith("q_")]:
-            st.session_state.pop(k, None)
-        if isinstance(st.session_state.get("quiz"), list):
-            qlen = len(st.session_state.quiz)
-            st.session_state.answers = [None] * qlen
-except Exception:
-    pass
-
-
-
 # ✅ 복원 후에도 pos_group/available_types 재동기화
 try:
     available_types = get_available_quiz_types_for_pos(st.session_state.get("pos_group", "noun")) if sb_authed is not None else available_types
@@ -2952,9 +2911,6 @@ except Exception:
 # ✅ Quiz Page
 # ============================================================
 def render_plan_banner():
-    # 허브(home.py)에서 공통으로 플랜 표시를 하므로, 허브 실행 중엔 여기서 또 띄우지 않음
-    if st.session_state.get('_hub_child'):
-        return
     plan = get_user_plan()
     if plan == "pro":
         st.success("✨ PRO 이용 중입니다.")
@@ -3281,7 +3237,7 @@ with cbtn1:
         use_container_width=True,
         key="btn_new_random_10",
         disabled=locked
-    ) or st.session_state.pop("_auto_new_quiz_word_once", False):
+    ):
         clear_question_widget_keys()
     
         # ✅ 새 퀴즈 시작 = 제출 카운트 플래그 리셋
@@ -3477,22 +3433,14 @@ for idx, q in enumerate(st.session_state.quiz):
     if prev is not None and prev in q["choices"]:
         default_index = q["choices"].index(prev)
 
-    # ✅ '아무것도 선택 안 된 상태'를 만들기 위해 더미 옵션을 첫 번째로 추가
-    # ✅ 시작 시 아무것도 선택되지 않도록 index=None 사용
-    default_index = None
-    if prev is not None and prev in q["choices"]:
-        default_index = list(q["choices"]).index(prev)
-
-    picked = st.radio(
+    choice = st.radio(
         label="보기",
-        options=list(q["choices"]),
+        options=q["choices"],
         index=default_index,
         key=widget_key,
         label_visibility="collapsed",
         on_change=mark_progress_dirty,
     )
-
-    choice = picked
     st.session_state.answers[idx] = choice
 
 sync_answers_from_widgets()
@@ -3619,16 +3567,6 @@ if st.session_state.submitted:
                     wrong_list=wrong_list,
                 ))
                 st.session_state.saved_this_attempt = True
-
-                # ✅ 10문제 완주 보상(허브 공통)
-                try:
-                    if (quiz_len == 10) and (not st.session_state.get("_hub_recorded_submit")):
-                        fn = st.session_state.get("hub_record_completion")
-                        if callable(fn):
-                            fn("word", score, quiz_len)
-                        st.session_state["_hub_recorded_submit"] = True
-                except Exception:
-                    pass
             except Exception as e:
                 if show_post_ui:
                     st.warning("DB 저장에 실패했습니다. (테이블/컬럼/권한/RLS 정책 확인 필요)")
