@@ -108,14 +108,14 @@ def render_mypage():
     sets_series = [by_day[d]["sets"] for d in days]
 
     st.markdown("### 📅 최근 7일 학습(세트)")
-      chart_df = pd.DataFrame({
-        "날짜": days,
-        "세트": sets_series
-    })
+    chart_df = pd.DataFrame({
+    "날짜": days,
+     "세트": sets_series
+ })
 
-    chart_df = chart_df.set_index("날짜")
+chart_df = chart_df.set_index("날짜")
 
-    st.bar_chart(chart_df)
+ st.bar_chart(chart_df)
 
     # Recent 20 attempts table (compact)
     st.markdown("### 🧾 최근 20개 기록")
