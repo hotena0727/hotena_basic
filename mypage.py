@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone, date
 from collections import defaultdict
-
+import pandas as pd
 import streamlit as st
 
 # NOTE:
@@ -108,7 +108,14 @@ def render_mypage():
     sets_series = [by_day[d]["sets"] for d in days]
 
     st.markdown("### 📅 최근 7일 학습(세트)")
-    st.bar_chart({"세트": sets_series}, x=days)
+      chart_df = pd.DataFrame({
+        "날짜": days,
+        "세트": sets_series
+    })
+
+    chart_df = chart_df.set_index("날짜")
+
+    st.bar_chart(chart_df)
 
     # Recent 20 attempts table (compact)
     st.markdown("### 🧾 최근 20개 기록")
