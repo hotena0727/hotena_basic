@@ -322,6 +322,143 @@ def fetch_today_attempts(sb_authed, user_id: str) -> list[dict]:
     except Exception:
         return []
 
+
+def fetch_recent_attempts(sb_authed, user_id: str, limit: int = 500) -> list[dict]:
+    """Fetch recent attempts for dashboard analytics (capped for speed)."""
+    try:
+        res = (
+            sb_authed.table("quiz_attempts")
+            .select("created_at, quiz_len, score, level, pos_mode")
+            .eq("user_id", str(user_id))
+            .order("created_at", desc=True)
+            .limit(int(limit))
+            .execute()
+        )
+        return res.data or []
+    except Exception:
+        return []
+
+
+def _kst_date_from_created_at(created_at: str) -> date | None:
+    """Parse created_at (ISO) into KST date."""
+    if not created_at:
+        return None
+    try:
+        dt = datetime.fromisoformat(str(created_at).replace("Z", "+00:00"))
+        kst = timezone(timedelta(hours=9))
+        return dt.astimezone(kst).date()
+    except Exception:
+        return None
+
+
+def build_daily_sets_map(attempts: list[dict]) -> dict[date, int]:
+    """Return {date: sets} map (1 attempt == 1 set)."""
+    m: dict[date, int] = {}
+    for a in attempts:
+        d = _kst_date_from_created_at(str(a.get("created_at") or ""))
+        if not d:
+            continue
+        m[d] = m.get(d, 0) + 1
+    return m
+
+
+def calc_streak(daily_sets: dict[date, int], today: date | None = None) -> int:
+    """Consecutive days streak where sets >= 1 (including today)."""
+    today = today or datetime.now(timezone(timedelta(hours=9))).date()
+    streak = 0
+    cur = today
+    while daily_sets.get(cur, 0) >= 1:
+        streak += 1
+        cur = cur - timedelta(days=1)
+        if streak > 3650:
+            break
+    return streak
+
+
+def render_home_dashboard(sb_authed, user):
+    """Home Hub dashboard (game-like + mobile-friendly)."""
+    attempts_recent = fetch_recent_attempts(sb_authed, user.id, limit=500)
+    sm_recent = summarize_attempts(attempts_recent)
+
+    attempts_today = fetch_today_attempts(sb_authed, user.id)
+    sm_today = summarize_attempts(attempts_today)
+
+    daily_map = build_daily_sets_map(attempts_recent)
+    kst_today = datetime.now(timezone(timedelta(hours=9))).date()
+    streak = calc_streak(daily_map, today=kst_today)
+
+    st.markdown(
+        f"""
+<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:0.75rem;margin-top:0.2rem;margin-bottom:0.6rem;">
+  <div>
+    <div style="font-size:1.35rem;font-weight:800;line-height:1.2;">하테나 학습 허브</div>
+    <div style="opacity:0.72;font-size:0.95rem; margin-top:0.15rem;">오늘도 1세트만 더 해볼까요?</div>
+  </div>
+  <div style="text-align:right;">
+    <div style="display:inline-flex;align-items:center;gap:.35rem;padding:.22rem .55rem;border-radius:999px;border:1px solid rgba(0,0,0,.10);background:rgba(0,0,0,.02);font-size:.92rem;">
+      🔥 <b>{streak}</b>일 연속
+    </div>
+  </div>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
+
+    # Daily goal block (sets-based)
+    render_daily_goal_home(sb_authed, user.id)
+
+    st.markdown("---")
+
+    st.markdown("## 📊 이번 주 학습")
+    days = [kst_today - timedelta(days=i) for i in range(6, -1, -1)]
+    sets = [int(daily_map.get(d, 0)) for d in days]
+    try:
+        import pandas as pd
+
+        chart_df = pd.DataFrame({"날짜": [d.strftime("%m/%d") for d in days], "세트": sets}).set_index("날짜")
+        st.bar_chart(chart_df)
+    except Exception:
+        st.caption("그래프를 표시할 수 없습니다.")
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric("오늘 세트", f"{sm_today['total_sets']}세트")
+    acc_today = 0
+    if sm_today["total_q"] > 0:
+        acc_today = int(round(sm_today["total_score"] / sm_today["total_q"] * 100))
+    c2.metric("오늘 정답률", f"{acc_today}%")
+    c3.metric("최근 500회 누적", f"{sm_recent['total_sets']}세트")
+
+    st.markdown("---")
+
+    st.markdown("## 🚀 훈련 바로가기")
+
+    def _card(href: str, title: str, subtitle: str, foot: str):
+        st.markdown(
+            f"""
+<a href="{href}" target="_self" style="text-decoration:none;">
+  <div style="border:1px solid rgba(0,0,0,.10);border-radius:18px;padding:0.9rem 0.95rem;margin:0.55rem 0;background:rgba(0,0,0,.015);">
+    <div style="font-weight:800;font-size:1.05rem;">{title}</div>
+    <div style="opacity:0.72;margin-top:0.18rem;">{subtitle}</div>
+    <div style="opacity:0.75;font-size:0.9rem;margin-top:0.55rem;">{foot}</div>
+  </div>
+</a>
+""",
+            unsafe_allow_html=True,
+        )
+
+    t_word = sm_today["by_kind"]["word"]["sets"]
+    t_kanji = sm_today["by_kind"]["kanji"]["sets"]
+    t_talk = sm_today["by_kind"]["talk"]["sets"]
+    r_word = sm_recent["by_kind"]["word"]["sets"]
+    r_kanji = sm_recent["by_kind"]["kanji"]["sets"]
+    r_talk = sm_recent["by_kind"]["talk"]["sets"]
+
+    _card("?p=word", "📘 단어 훈련", f"오늘 {t_word}세트 완료", f"누적(최근 500회): {r_word}세트")
+    _card("?p=kanji", "🈶 한자 훈련", f"오늘 {t_kanji}세트 완료", f"누적(최근 500회): {r_kanji}세트")
+    _card("?p=talk", "💬 회화 훈련", f"오늘 {t_talk}세트 완료", f"누적(최근 500회): {r_talk}세트")
+
+    st.caption("※ 누적 수치는 최근 기록(최대 500회) 기준으로 빠르게 표시됩니다.")
+
 def summarize_attempts(attempts: list[dict]) -> dict:
     out = {
         "total_sets": 0,
@@ -794,8 +931,8 @@ def run_script(filename: str):
 page = st.session_state.get("hub_page", "home")
 
 if page == "home":
-    st.caption(f"로그인: {getattr(user, 'email', '')}")
-    render_daily_goal_home(sb_authed, user.id)
+    # ✅ Home Hub: dashboard view
+    render_home_dashboard(sb_authed, user)
     st.info("☰ 메뉴에서 단어/한자/회화 훈련을 선택하세요.")
 
 elif page == "my":
