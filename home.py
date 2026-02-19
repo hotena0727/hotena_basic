@@ -421,18 +421,20 @@ elif page == "my":
     # ✅ 마이페이지는 "한자 훈련(app.py)"에 있던 대시보드 UI/기능을 그대로 재사용합니다.
     # - HUB 상단 메뉴는 home.py가 담당
     # - app.py의 render_my_dashboard() 디자인/기능을 그대로 보여줌
+    # ✅ app.py 내부의 마이페이지 UI로 바로 진입시키기 위해 타겟 지정
+    st.session_state["hub_target"] = "my"
     st.session_state["page"] = "my"
     run_script(Path(__file__).parent / "app.py")
     st.stop()
 
 elif page == "word":
-    st.session_state["HUB_MODE"] = True
+    st.session_state["hub_target"] = "word"
     run_script("hotena_basic.py")
 elif page == "kanji":
-    st.session_state["HUB_MODE"] = True
+    st.session_state["hub_target"] = "kanji"
     run_script("app.py")
 elif page == "talk":
-    st.session_state["HUB_MODE"] = True
+    st.session_state["hub_target"] = "talk"
     run_script("talk.py")
 else:
     st.info("상단 메뉴에서 원하는 항목을 선택하세요.")
