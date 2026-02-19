@@ -37,13 +37,13 @@ header[data-testid="stHeader"]{
 /* Main container top padding: avoid content being pushed under header */
 div[data-testid="stAppViewContainer"] .block-container{
   /* Reduce excessive top whitespace on mobile/centered layout */
-  padding-top: 1.0rem !important;
+  padding-top: 0.25rem !important;
 }
 
 /* Reduce headline default top/bottom margins a bit for tighter UI */
 div[data-testid="stAppViewContainer"] h1,
 div[data-testid="stAppViewContainer"] h2{
-  margin-top: 0.4rem !important;
+  margin-top: 0.15rem !important;
   margin-bottom: 0.6rem !important;
 }
 
@@ -52,6 +52,10 @@ div[data-testid="stAppViewContainer"] .main,
 div[data-testid="stAppViewContainer"]{
   margin-top: 0 !important;
 }
+
+/* ✅ tighten very top whitespace */
+.block-container > div:first-child { margin-top: 0 !important; }
+
 </style>
 """,
     unsafe_allow_html=True,
