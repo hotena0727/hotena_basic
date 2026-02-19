@@ -1,19 +1,20 @@
 # home.py
 from __future__ import annotations
 
+BUILD_STAMP = 'v19 2026-02-19 15:36:53 KST (+09:00)'
+
 from pathlib import Path
 import os
 import runpy
 import json
-import base64
 import hashlib
+import base64
+from cryptography.fernet import Fernet
 from datetime import date, datetime, timedelta, timezone
 import streamlit as st
 import streamlit.components.v1 as components
 from supabase import create_client
 from streamlit_cookies_manager import EncryptedCookieManager
-
-
 
 # ============================================================
 # ✅ Page Config (Hub only)
@@ -145,8 +146,6 @@ if missing:
     st.error(f"설정값이 없습니다: {', '.join(missing)} (Cloud Run env 또는 Streamlit secrets 확인)")
     st.stop()
 
-COOKIE_PREFIX = "hotena_beginner_"
-
 # ============================================================
 # ✅ Cookies (MUST be created only once per app run)
 # ============================================================
@@ -157,10 +156,6 @@ if cookies is None:
         st.info("잠깐만요! 곧 시작할게요🙂")
         st.stop()
     st.session_state["cookies"] = cookies
-
-st.write("cookie access_token exists:", bool(cookies.get("access_token")))
-st.write("cookie refresh_token exists:", bool(cookies.get("refresh_token")))
-
 
 # ✅ 쿠키 컴포넌트는 같은 run에서 같은 key로 두 번 렌더링되면
 #    StreamlitDuplicateElementKey가 발생할 수 있습니다.
@@ -178,74 +173,6 @@ def _cookies_save_once_per_run():
         # 쿠키 저장 실패는 치명적이지 않으므로 조용히 무시
         pass
 
-
-# ============================================================
-# ✅ URL-based session fallback (for browsers blocking 3rd-party cookies)
-# - Some browsers block cookies set from Streamlit components (iframe).
-# - To prevent "logout on refresh", we store an ENCRYPTED refresh_token in URL query params.
-# - Token is encrypted with COOKIE_PASSWORD-derived key (Fernet).
-# - Query param keys:
-#     p  : current page (home/words/kanji/talk/mypage ...)
-#     rt : encrypted refresh_token
-# ============================================================
-from cryptography.fernet import Fernet, InvalidToken
-
-def _fernet():
-    # Derive 32-byte key from COOKIE_PASSWORD
-    digest = hashlib.sha256(CFG["COOKIE_PASSWORD"].encode("utf-8")).digest()
-    key = base64.urlsafe_b64encode(digest)
-    return Fernet(key)
-
-def _enc_token(s: str) -> str:
-    try:
-        return _fernet().encrypt(s.encode("utf-8")).decode("utf-8")
-    except Exception:
-        return ""
-
-def _dec_token(s: str) -> str | None:
-    try:
-        return _fernet().decrypt(s.encode("utf-8")).decode("utf-8")
-    except (InvalidToken, Exception):
-        return None
-
-def _qp_get(name: str) -> str | None:
-    try:
-        v = st.query_params.get(name)
-        if isinstance(v, list):
-            return v[0] if v else None
-        return v
-    except Exception:
-        return None
-
-def _qp_set(**kwargs):
-    try:
-        # Keep existing params unless overwritten
-        qp = dict(st.query_params)
-        for k, v in kwargs.items():
-            if v is None:
-                qp.pop(k, None)
-            else:
-                qp[k] = v
-        st.query_params.clear()
-        for k, v in qp.items():
-            st.query_params[k] = v
-    except Exception:
-        pass
-
-# ============================================================
-# ✅ Persistent cookie helper (30 days)
-# - We mirror tokens to browser cookies with Max-Age so users
-#   don't feel "로그인 반복" after closing the browser.
-# - Cookie name follows: COOKIE_PREFIX + key
-# ============================================================
-
-# ============================================================
-# ✅ IMPORTANT: Cookie persistence
-# - We rely on EncryptedCookieManager only.
-# - DO NOT write plain tokens to the same cookie names via JS.
-#   Overwriting encrypted cookies makes decryption fail on rerun, causing 'logout on refresh'.
-# ============================================================
-
 # ============================================================
 # ✅ Supabase client (anon)
 # ============================================================
@@ -257,21 +184,40 @@ if sb is None:
 # ============================================================
 # ✅ Auth helpers (restore from cookies + authed client)
 # ============================================================
+
 def refresh_session_from_cookie_if_needed(force: bool = False) -> bool:
+    # Backward-compatible name, but persistence is query/localStorage-first.
     if not force and st.session_state.get("user") and st.session_state.get("access_token"):
         return True
 
-    rt = cookies.get("refresh_token")
-    at = cookies.get("access_token")
+    # 1) Try from URL query params (encrypted)
+    qp = getattr(st, "query_params", None)
+    rt_enc = None
+    at_enc = None
+    try:
+        if qp is not None:
+            rt_enc = qp.get("rt")
+            at_enc = qp.get("at")
+    except Exception:
+        rt_enc = None
+        at_enc = None
 
-    # ✅ Fallback: if cookie-based restore fails (e.g., blocked), try URL param (encrypted)
+    rt = _dec(rt_enc) if isinstance(rt_enc, str) and rt_enc else None
+    at = _dec(at_enc) if isinstance(at_enc, str) and at_enc else None
+
+    # 2) Fallback to EncryptedCookieManager (if available)
     if not rt:
-        rt_enc = _qp_get("rt")
-        if rt_enc:
-            rt_dec = _dec_token(rt_enc)
-            if rt_dec:
-                rt = rt_dec
+        try:
+            rt = cookies.get("refresh_token")
+        except Exception:
+            rt = None
+    if not at:
+        try:
+            at = cookies.get("access_token")
+        except Exception:
+            at = None
 
+    # 3) Prefer refresh_token to obtain a fresh session
     if rt:
         refreshed = None
         try:
@@ -286,13 +232,27 @@ def refresh_session_from_cookie_if_needed(force: bool = False) -> bool:
             st.session_state["user"] = refreshed.user
             st.session_state["access_token"] = refreshed.session.access_token
             st.session_state["refresh_token"] = refreshed.session.refresh_token
-            cookies["access_token"] = refreshed.session.access_token
-            cookies["refresh_token"] = refreshed.session.refresh_token
-            _cookies_save_once_per_run()
-            # ✅ persist in URL (encrypted) so refresh keeps login even if cookie blocks
-            _qp_set(rt=_enc_token(refreshed.session.refresh_token))
+
+            # Store in cookies (best-effort) + query + localStorage
+            try:
+                cookies["access_token"] = refreshed.session.access_token
+                cookies["refresh_token"] = refreshed.session.refresh_token
+                _cookies_save_once_per_run()
+            except Exception:
+                pass
+
+            # Persist encrypted refresh token (and access token optionally)
+            try:
+                st.query_params["rt"] = _enc(refreshed.session.refresh_token)
+                st.query_params["at"] = _enc(refreshed.session.access_token)
+            except Exception:
+                pass
+            _js_set_localstorage("hotena_rt", st.query_params.get("rt","") if hasattr(st,"query_params") else _enc(refreshed.session.refresh_token))
+            _js_set_localstorage("hotena_at", st.query_params.get("at","") if hasattr(st,"query_params") else _enc(refreshed.session.access_token))
+
             return True
 
+    # 4) If we only have access token, try get_user
     if at:
         try:
             u = sb.auth.get_user(at)
@@ -307,6 +267,7 @@ def refresh_session_from_cookie_if_needed(force: bool = False) -> bool:
             pass
 
     return False
+
 
 
 def get_authed_sb():
@@ -761,19 +722,19 @@ REMINDER_MESSAGES = [
 ]
 st.session_state["REMINDER_MESSAGES"] = REMINDER_MESSAGES
 
+
+# ✅ If component cookies are lost on refresh, localStorage can still persist.
+# Copy localStorage encrypted tokens into URL once so Python can read via st.query_params.
+_js_bridge_localstorage_to_queryparam("hotena_rt", "rt")
+_js_bridge_localstorage_to_queryparam("hotena_at", "at")
+
 # ============================================================
 # ✅ UI: Login (single)
 # ============================================================
 refresh_session_from_cookie_if_needed(force=False)
 
 user = st.session_state.get("user")
-# ✅ Hub mode flag: child pages disable their own login UI
-st.session_state["_hub_mode"] = True
-st.session_state["_hub_authed_ready"] = bool(st.session_state.get("user"))
-
 sb_authed = st.session_state.get("sb_authed")
-# ✅ if authed client exists, mark ready
-st.session_state["_hub_authed_ready"] = bool(user and sb_authed)
 
 if not user:
     st.subheader("로그인")
@@ -800,7 +761,17 @@ if not user:
                 cookies["access_token"] = res.session.access_token
                 cookies["refresh_token"] = res.session.refresh_token
                 _cookies_save_once_per_run()
-                _qp_set(rt=_enc_token(res.session.refresh_token))
+                # ✅ persist encrypted tokens for refresh-proof login
+                try:
+                    st.query_params["rt"] = _enc(res.session.refresh_token)
+                    st.query_params["at"] = _enc(res.session.access_token)
+                except Exception:
+                    pass
+                try:
+                    _js_set_localstorage("hotena_rt", st.query_params.get("rt",""))
+                    _js_set_localstorage("hotena_at", st.query_params.get("at",""))
+                except Exception:
+                    pass
                 st.success("로그인 완료!")
                 st.rerun()
             else:
@@ -871,23 +842,34 @@ def _clear_training_ui_state():
 def nav_to(page: str):
     _clear_training_ui_state()
     st.session_state["hub_page"] = page
-    _qp_set(p=page)
     st.rerun()
 
 
 def hub_logout():
-    cookies["access_token"] = ""
-    cookies["refresh_token"] = ""
-    _cookies_save_once_per_run()
+    # Clear cookie (best-effort)
+    try:
+        cookies["access_token"] = ""
+        cookies["refresh_token"] = ""
+        _cookies_save_once_per_run()
+    except Exception:
+        pass
+
+    # Clear query params + localStorage persistence
+    try:
+        st.query_params.clear()
+    except Exception:
+        pass
+    try:
+        _js_remove_localstorage("hotena_rt")
+        _js_remove_localstorage("hotena_at")
+    except Exception:
+        pass
     for k in ["user","access_token","refresh_token","sb_authed","sb_authed_token","progress_all","hub_page","HUB_MODE"]:
         st.session_state.pop(k, None)
 
     # ✅ prevent infinite loop when URL has ?action=logout
     try:
         st.query_params.clear()
-        # also clear rt/page
-        # (some Streamlit versions ignore clear in some cases; set None defensively)
-        _qp_set(rt=None, p=None)
     except Exception:
         pass
 
@@ -1026,7 +1008,7 @@ def run_script(filename: str):
     st.session_state["HUB_MODE"] = True
     runpy.run_path(str(path), run_name="__main__")
 
-page = st.session_state.get("hub_page") or (_qp_get("p") or "home")
+page = st.session_state.get("hub_page", "home")
 
 if page == "home":
     # ✅ Home Hub: dashboard view
@@ -1053,3 +1035,69 @@ elif page == "talk":
     run_script("talk.py")
 else:
     st.info("상단 메뉴에서 원하는 항목을 선택하세요.")
+# ============================================================
+# ✅ Token persistence (NO cookies dependency)
+# - Many browsers block/lose Streamlit component cookies on refresh.
+# - We persist an ENCRYPTED refresh_token in:
+#   1) URL query param (rt)
+#   2) localStorage (hotena_rt)
+# - On load, we bootstrap from query/localStorage and refresh Supabase session.
+# ============================================================
+def _fernet():
+    # COOKIE_PASSWORD must be stable across deploys
+    pw = CFG.get("COOKIE_PASSWORD","")
+    key = base64.urlsafe_b64encode(hashlib.sha256(pw.encode("utf-8")).digest())
+    return Fernet(key)
+
+def _enc(s: str) -> str:
+    return _fernet().encrypt(s.encode("utf-8")).decode("utf-8")
+
+def _dec(token: str) -> str | None:
+    try:
+        return _fernet().decrypt(token.encode("utf-8")).decode("utf-8")
+    except Exception:
+        return None
+
+def _js_set_localstorage(key: str, value: str):
+    components.html(
+        f"""<script>
+try {{
+  localStorage.setItem({json.dumps(key)}, {json.dumps(value)});
+}} catch(e) {{}}
+</script>""",
+        height=0,
+    )
+
+def _js_remove_localstorage(key: str):
+    components.html(
+        f"""<script>
+try {{
+  localStorage.removeItem({json.dumps(key)});
+}} catch(e) {{}}
+</script>""",
+        height=0,
+    )
+
+def _js_bridge_localstorage_to_queryparam(ls_key: str, qp_key: str):
+    # If URL lacks qp_key but localStorage has it, copy then reload once.
+    components.html(
+        f"""<script>
+(function(){{
+  try {{
+    const lsKey = {json.dumps(ls_key)};
+    const qpKey = {json.dumps(qp_key)};
+    const url = new URL(window.location.href);
+    if (!url.searchParams.get(qpKey)) {{
+      const v = localStorage.getItem(lsKey);
+      if (v) {{
+        url.searchParams.set(qpKey, v);
+        window.location.replace(url.toString());
+      }}
+    }}
+  }} catch(e) {{}}
+}})();
+</script>""",
+        height=0,
+    )
+
+
