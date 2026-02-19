@@ -315,7 +315,12 @@ def start_new_set():
     st.session_state[f"{NS}_idx"] = 0
     st.session_state[f"{NS}_results"] = {}  # qid -> {"selected":..., "correct":bool}
     st.session_state["talk_submitted"] = False
-    st.session_state.pop("talk_choice", None)
+    # ✅ 이전 문제의 보기/선택/녹음 키 정리
+    for k in list(st.session_state.keys()):
+        if str(k).startswith(f"{NS}_choices_") or str(k).startswith(f"{NS}_choice_") or str(k).startswith(f"{NS}_rec_"):
+            st.session_state.pop(k, None)
+    
+        # (qid별 key를 쓰므로 별도 pop 불필요)
 
 # 세트가 없거나, 필터가 바뀌었으면 새로 시작
 sig = f"{sel_level}|{sel_tag}|{int(exclude_mastered)}"
@@ -404,11 +409,13 @@ qid = qids[idx]
 row = DF[DF["qid"].astype(str) == str(qid)].iloc[0].to_dict()
 
 # 보기 구성(쌩뚱맞게 가리기)
-# 보기 구성 (✅ 한 문제당 1회만 생성해서 고정: 선택 시 보기 순서가 바뀌지 않게)
-choices_key = f"{NS}_choices_{qid}"
-if choices_key not in st.session_state:
-    st.session_state[choices_key] = build_choices(row, pool_answers)
-choices = st.session_state[choices_key]
+# 보기 구성(✅ 문제당 1회만 생성해 고정: 선택해도 보기 순서가 바뀌지 않게)
+_choices_key = f"{NS}_choices_{qid}"
+if _choices_key not in st.session_state:
+    st.session_state[_choices_key] = build_choices(row, pool_answers)
+choices = st.session_state[_choices_key]
+
+
 # 상단 진행 표기: "1 / 10" (Q1 제거)
 st.markdown(f"### {idx+1} / {len(qids)}")
 
@@ -436,8 +443,7 @@ if partner_kr:
     st.caption(partner_kr)
 
 st.markdown("#### 보기")
-choice_key = f"{NS}_choice_{qid}"
-selected = st.radio("정답을 고르세요.", choices, key=choice_key)
+selected = st.radio("정답을 고르세요.", choices, key=f"{NS}_choice_{qid}")
 
 submitted = st.session_state.get("talk_submitted", False)
 
@@ -462,10 +468,11 @@ with b2:
     if st.button("다음", use_container_width=True, disabled=not submitted, key=f"talk_next_{qid}_{idx}"):
         st.session_state[f"{NS}_idx"] = idx + 1
         st.session_state["talk_submitted"] = False
-        # ✅ 다음 문제로 이동: 선택/보기/녹음 상태 초기화
-        st.session_state.pop(choice_key, None)
-        st.session_state.pop(choices_key, None)
-        st.session_state.pop(f"{NS}_rec_{qid}", None)
+        # ✅ 현재 문제의 보기/선택/녹음 상태 정리
+        st.session_state.pop(f"{NS}_choices_{qid}", None)
+        st.session_state.pop(f"{NS}_choice_{qid}", None)
+        st.session_state.pop(f"{NS}_rec_{qid}_{idx}", None)
+        # (qid별 key를 쓰므로 별도 pop 불필요)
         st.rerun()
 
 with b3:
@@ -500,3 +507,79 @@ if submitted:
     hint = str(row.get("hint_kr","")).strip()
     if hint:
         st.info(hint)
+
+# ============================================================
+# ✅ 제출 후: 내 발음 녹음 (파형 UI) 
+# - Streamlit >= 1.32: st.audio_input 사용 (권장)
+# - 구버전/미지원 환경: HTML MediaRecorder + 간단 파형(저장은 브라우저 내)
+# ============================================================
+st.markdown('#### 내 발음 녹음')
+if hasattr(st, 'audio_input'):
+    rec = st.audio_input('마이크로 녹음하세요 (파형 표시)', key=f"{NS}_rec_{qid}_{idx}")
+    if rec is not None:
+        try:
+            audio_bytes = rec.getvalue()
+        except Exception:
+            audio_bytes = None
+        if audio_bytes:
+            st.success('녹음이 저장되었습니다.')
+            st.audio(audio_bytes, format='audio/wav')
+else:
+    # ✅ CSP-safe: inline JS 최소화(버튼 클릭 기반).
+    components.html("""
+<div style='margin-top:6px;'>
+  <div style='font-size:0.9rem; opacity:0.75; margin-bottom:6px;'>
+    (현재 Streamlit 버전에서 st.audio_input이 없어 브라우저 녹음 모드로 표시됩니다.)
+  </div>
+  <button id='recBtn' style='padding:8px 12px;border-radius:999px;border:1px solid #ddd;background:white;cursor:pointer;'>🎤 녹음 시작</button>
+  <button id='stopBtn' disabled style='padding:8px 12px;border-radius:999px;border:1px solid #ddd;background:#f7f7f7;cursor:pointer;margin-left:6px;'>⏹ 정지</button>
+  <a id='dl' style='margin-left:10px; display:none;'>⬇️ 다운로드</a>
+  <canvas id='wv' width='520' height='80' style='display:block;margin-top:10px;width:100%;max-width:520px;background:#111;border-radius:10px;'></canvas>
+</div>
+<script>
+let mediaRecorder; let chunks=[]; let audioCtx, analyser, dataArray, srcNode; let rafId;
+const recBtn=document.getElementById('recBtn');
+const stopBtn=document.getElementById('stopBtn');
+const dl=document.getElementById('dl');
+const canvas=document.getElementById('wv'); const ctx=canvas.getContext('2d');
+function draw(){
+  if(!analyser){ return; }
+  analyser.getByteTimeDomainData(dataArray);
+  ctx.fillStyle='#111'; ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.lineWidth=2; ctx.strokeStyle='#00ff99'; ctx.beginPath();
+  const slice=canvas.width/dataArray.length; let x=0;
+  for(let i=0;i<dataArray.length;i++){
+    const v=dataArray[i]/128.0; const y=v*canvas.height/2;
+    if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    x+=slice;
+  }
+  ctx.stroke();
+  rafId=requestAnimationFrame(draw);
+}
+recBtn.onclick=async()=>{
+  dl.style.display='none'; dl.removeAttribute('href'); dl.removeAttribute('download');
+  const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+  audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+  analyser=audioCtx.createAnalyser(); analyser.fftSize=1024;
+  dataArray=new Uint8Array(analyser.fftSize);
+  srcNode=audioCtx.createMediaStreamSource(stream); srcNode.connect(analyser);
+  mediaRecorder=new MediaRecorder(stream);
+  chunks=[];
+  mediaRecorder.ondataavailable=e=>{ if(e.data.size>0) chunks.push(e.data); };
+  mediaRecorder.onstop=()=>{
+    const blob=new Blob(chunks,{type:'audio/webm'});
+    const url=URL.createObjectURL(blob);
+    dl.href=url; dl.download='talk_pronunciation.webm'; dl.style.display='inline-block'; dl.textContent='⬇️ 녹음 다운로드';
+  };
+  mediaRecorder.start();
+  recBtn.disabled=true; stopBtn.disabled=false; stopBtn.style.background='white';
+  draw();
+};
+stopBtn.onclick=()=>{
+  if(mediaRecorder && mediaRecorder.state!=='inactive'){ mediaRecorder.stop(); }
+  if(rafId) cancelAnimationFrame(rafId);
+  recBtn.disabled=false; stopBtn.disabled=true; stopBtn.style.background='#f7f7f7';
+};
+</script>
+""", height=190)
+
