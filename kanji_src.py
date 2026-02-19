@@ -16,7 +16,7 @@ import base64
 import io
 import textwrap
 
-# (removed) st.set_page_config handled by main.py
+st.set_page_config(page_title="Kanji Quiz", layout="centered")
 # ============================================================
 # ✅ [SOUND] 사운드 유틸 (모바일 자동재생 정책 대응)
 # ============================================================
@@ -379,7 +379,7 @@ if st.session_state.get("_scroll_top_once"):
 # ✅ Cookies
 # ============================================================
 cookies = EncryptedCookieManager(
-    prefix="hotena_kanji_",
+    prefix="hatena_kanji_",
     password=st.secrets["COOKIE_PASSWORD"],
 )
 if not cookies.ready():
