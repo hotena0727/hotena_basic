@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import traceback
 import streamlit as st
 from supabase import create_client
@@ -43,7 +42,6 @@ def _restore_session_from_cookies() -> bool:
 
     at = (cookies.get("access_token") or "").strip()
     rt = (cookies.get("refresh_token") or "").strip()
-
     if not at:
         return False
 
@@ -52,7 +50,6 @@ def _restore_session_from_cookies() -> bool:
         u = getattr(res, "user", None) or (res.get("user") if isinstance(res, dict) else None)
         if not u:
             return False
-
         st.session_state["access_token"] = at
         st.session_state["refresh_token"] = rt
         st.session_state["user"] = u
@@ -67,6 +64,30 @@ def require_login():
     if is_logged_in():
         return
     _restore_session_from_cookies()
+
+def do_logout():
+    # Optional: attempt supabase sign out (won't break if fails)
+    try:
+        if supabase and st.session_state.get("access_token"):
+            supabase.auth.sign_out()
+    except Exception:
+        pass
+
+    # Clear cookies
+    try:
+        cookies["access_token"] = ""
+        cookies["refresh_token"] = ""
+        cookies.save()
+    except Exception:
+        pass
+
+    # Clear session
+    for k in ["user", "access_token", "refresh_token", "page", "entry_target", "entry_target_word", "entry_target_kanji"]:
+        if k in st.session_state:
+            del st.session_state[k]
+
+    st.session_state["page"] = "home"
+    st.rerun()
 
 def render_login():
     ui.hub_header()
@@ -116,7 +137,7 @@ def render_login():
     else:
         if st.button("회원가입하기", use_container_width=True):
             try:
-                res = supabase.auth.sign_up({"email": email, "password": pw})
+                supabase.auth.sign_up({"email": email, "password": pw})
                 st.success("회원가입 요청이 처리되었습니다. 이메일 인증이 필요한 경우 메일을 확인해주세요.")
             except Exception as e:
                 st.error(f"회원가입 오류: {e}")
@@ -124,13 +145,11 @@ def render_login():
 def render_home():
     ui.hub_header()
 
-    # (optional) show login status small
     if is_logged_in():
         u = st.session_state.get("user")
         email = getattr(u, "email", None) or (u.get("email") if isinstance(u, dict) else "")
         st.caption(f"로그인됨: {email}")
 
-    # Main actions (V1)
     if st.button("📘 단어 훈련", use_container_width=True):
         st.session_state["page"] = "word"
         st.session_state["entry_target"] = "quiz"
@@ -146,11 +165,47 @@ def render_home():
         st.rerun()
 
 def render_talk():
+    # Training pages share common menu
+    clicked = ui.top_menu(active="talk")
+    if clicked:
+        handle_menu(clicked)
+        return
+
     ui.slim_header("회화 훈련", "준비중")
     st.info("회화 기능은 준비 중입니다.")
 
+def render_mypage():
+    clicked = ui.top_menu(active="mypage")
+    if clicked:
+        handle_menu(clicked)
+        return
+
+    ui.slim_header("마이페이지")
+    st.info("마이페이지는 준비 중입니다.")
+    st.caption("여기에 학습 기록, 오답노트 요약, 구독 상태 등을 붙일 수 있습니다.")
+
+def handle_menu(clicked: str):
+    if clicked == "logout":
+        do_logout()
+    elif clicked == "home":
+        st.session_state["page"] = "home"
+        st.rerun()
+    elif clicked == "word":
+        st.session_state["page"] = "word"
+        st.session_state["entry_target"] = "quiz"
+        st.rerun()
+    elif clicked == "kanji":
+        st.session_state["page"] = "kanji"
+        st.session_state["entry_target"] = "quiz"
+        st.rerun()
+    elif clicked == "talk":
+        st.session_state["page"] = "talk"
+        st.rerun()
+    elif clicked == "mypage":
+        st.session_state["page"] = "mypage"
+        st.rerun()
+
 def _run_child(entry: str, which: str):
-    # Router runs wrappers that execute the original apps safely
     if which == "word":
         import word_app
         word_app.run(entry=entry)
@@ -160,14 +215,21 @@ def _run_child(entry: str, which: str):
 
 def render_router():
     page = st.session_state.get("page", "home")
+
     if page == "home":
         render_home()
         return
 
     if not is_logged_in():
-        # If user navigates directly, force login
+        # direct access guard
         st.session_state["page"] = "home"
         st.rerun()
+
+    # Common menu on all training pages
+    clicked = ui.top_menu(active=page)
+    if clicked:
+        handle_menu(clicked)
+        return
 
     entry = st.session_state.get("entry_target", "quiz")
 
@@ -183,6 +245,10 @@ def render_router():
 
     if page == "talk":
         render_talk()
+        return
+
+    if page == "mypage":
+        render_mypage()
         return
 
     st.session_state["page"] = "home"
