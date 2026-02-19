@@ -315,14 +315,14 @@ if len(df2) < 4:
 
 st.info(stable_daily_tip(str(USER_ID or "guest")))
 
-# ✅ Daily pronunciation challenge banner
-render_daily_pron_banner(talk)
 
 
 # ============================================================
 # ✅ 세트(10문) 상태
 # ============================================================
 progress_all, talk = ensure_progress()
+render_daily_pron_banner(talk)
+
 mastered_ids = set(talk.get("mastered_ids", []) or [])
 wrong_ids = set(talk.get("wrong_ids", []) or [])
 
