@@ -926,7 +926,21 @@ def run_script(filename: str):
         st.stop()
     # ✅ Hub mode flag so child scripts can adjust UI/CSS
     st.session_state["HUB_MODE"] = True
-    runpy.run_path(str(path), run_name="__main__")
+    # ✅ Pre-compile to surface SyntaxError details cleanly (runpy error can be vague)
+try:
+    src = path.read_text(encoding="utf-8")
+    compile(src, str(path), "exec")
+except SyntaxError as e:
+    st.error("talk.py 문법 오류(SyntaxError)입니다. 아래 줄/내용을 확인하세요.")
+    st.write(f"파일: {e.filename}")
+    st.write(f"줄: {e.lineno}, 위치: {e.offset}")
+    if e.text:
+        st.code(e.text)
+    st.write(e.msg)
+    st.stop()
+
+runpy.run_path(str(path), run_name="__main__")
+
 
 page = st.session_state.get("hub_page", "home")
 
