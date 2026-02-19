@@ -404,8 +404,11 @@ qid = qids[idx]
 row = DF[DF["qid"].astype(str) == str(qid)].iloc[0].to_dict()
 
 # 보기 구성(쌩뚱맞게 가리기)
-choices = build_choices(row, pool_answers)
-
+# 보기 구성 (✅ 한 문제당 1회만 생성해서 고정: 선택 시 보기 순서가 바뀌지 않게)
+choices_key = f"{NS}_choices_{qid}"
+if choices_key not in st.session_state:
+    st.session_state[choices_key] = build_choices(row, pool_answers)
+choices = st.session_state[choices_key]
 # 상단 진행 표기: "1 / 10" (Q1 제거)
 st.markdown(f"### {idx+1} / {len(qids)}")
 
@@ -433,7 +436,8 @@ if partner_kr:
     st.caption(partner_kr)
 
 st.markdown("#### 보기")
-selected = st.radio("정답을 고르세요.", choices, key="talk_choice")
+choice_key = f"{NS}_choice_{qid}"
+selected = st.radio("정답을 고르세요.", choices, key=choice_key)
 
 submitted = st.session_state.get("talk_submitted", False)
 
@@ -458,7 +462,10 @@ with b2:
     if st.button("다음", use_container_width=True, disabled=not submitted, key=f"talk_next_{qid}_{idx}"):
         st.session_state[f"{NS}_idx"] = idx + 1
         st.session_state["talk_submitted"] = False
-        st.session_state.pop("talk_choice", None)
+        # ✅ 다음 문제로 이동: 선택/보기/녹음 상태 초기화
+        st.session_state.pop(choice_key, None)
+        st.session_state.pop(choices_key, None)
+        st.session_state.pop(f"{NS}_rec_{qid}", None)
         st.rerun()
 
 with b3:
