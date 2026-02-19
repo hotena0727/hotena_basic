@@ -1,7 +1,7 @@
 # home.py
 from __future__ import annotations
 
-BUILD_STAMP = 'v19 2026-02-19 15:36:53 KST (+09:00)'
+BUILD_STAMP = 'v20 2026-02-19 15:39:42 KST (+09:00)'
 
 from pathlib import Path
 import os
@@ -13,6 +13,62 @@ from cryptography.fernet import Fernet
 from datetime import date, datetime, timedelta, timezone
 import streamlit as st
 import streamlit.components.v1 as components
+
+# ============================================================
+# ✅ LocalStorage -> QueryParam bridge (defined early)
+# - Some builds inject calls before helper defs; keep this available.
+# ============================================================
+def _js_bridge_localstorage_to_queryparam(ls_key: str, qp_key: str):
+    try:
+        components.html(
+            f"""<script>
+(function(){{
+  try {{
+    const lsKey = {json.dumps(ls_key)};
+    const qpKey = {json.dumps(qp_key)};
+    const url = new URL(window.location.href);
+    if (!url.searchParams.get(qpKey)) {{
+      const v = localStorage.getItem(lsKey);
+      if (v) {{
+        url.searchParams.set(qpKey, v);
+        window.location.replace(url.toString());
+      }}
+    }}
+  }} catch(e) {{}}
+}})();
+</script>""",
+            height=0,
+        )
+    except Exception:
+        pass
+
+def _js_set_localstorage(key: str, value: str):
+    try:
+        components.html(
+            f"""<script>
+try {{
+  localStorage.setItem({json.dumps(key)}, {json.dumps(value)});
+}} catch(e) {{}}
+</script>""",
+            height=0,
+        )
+    except Exception:
+        pass
+
+def _js_remove_localstorage(key: str):
+    try:
+        components.html(
+            f"""<script>
+try {{
+  localStorage.removeItem({json.dumps(key)});
+}} catch(e) {{}}
+</script>""",
+            height=0,
+        )
+    except Exception:
+        pass
+
+
 from supabase import create_client
 from streamlit_cookies_manager import EncryptedCookieManager
 
