@@ -1,10 +1,12 @@
-Hotena - Full Build (baseline: hotena_hub_v14_talk_recording_design_A)
+Hotena Full Build (MONOLITHIC talk.py)
 
-Included fixes:
-- Talk page: SAFE STUB (talk.py) + talk_impl.py to avoid Streamlit Cloud _get_code_from_file errors.
-- Talk choices fixed: choices cached per qid so options do not reshuffle on every click.
-- Talk: Auto TTS once after submit + waveform recorder (no server storage).
-- Theme: theme_hotena.py injected lightly into home/words/kanji/mypage (does not modify floating menu).
+Fixes:
+- theme_hotena.py provides apply_hotena_theme() + apply_theme() alias to prevent crashes.
+- Talk page:
+  * options(choices) cached per qid -> no reshuffle when clicking.
+  * auto TTS once after submit.
+  * waveform recorder (no server storage).
+- Theme injected safely into home/words/kanji/mypage/talk (does not touch floating menu logic).
 
 Deploy:
 - Main file: home.py

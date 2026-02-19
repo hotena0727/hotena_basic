@@ -1,7 +1,8 @@
 from __future__ import annotations
 import streamlit as st
 
-def apply_theme():
+def apply_hotena_theme():
+    """Backwards-compatible theme injector."""
     if st.session_state.get("_hotena_theme_applied"):
         return
     st.session_state["_hotena_theme_applied"] = True
@@ -15,14 +16,17 @@ def apply_theme():
   --hotena-btn-h: 48px;
 }
 
+/* Buttons / link buttons */
 div[data-testid="stButton"] > button, a[data-testid="stLinkButton"]{
   min-height: var(--hotena-btn-h) !important;
   border-radius: 999px !important;
-  font-weight: 700 !important;
+  font-weight: 800 !important;
 }
 
+/* Tighten top padding slightly for mobile */
 .block-container{ padding-top: 0.8rem !important; }
 
+/* Utility classes */
 .hotena-card{
   border: 1px solid var(--hotena-border);
   border-radius: var(--hotena-radius);
@@ -40,9 +44,13 @@ div[data-testid="stButton"] > button, a[data-testid="stLinkButton"]{
   border: 1px solid var(--hotena-border);
   background: var(--hotena-navy-weak);
   color: var(--hotena-navy);
-  font-weight: 800;
+  font-weight: 900;
   font-size: 0.95rem;
 }
 </style>""",
         unsafe_allow_html=True
     )
+
+def apply_theme():
+    # Alias for previously used name
+    return apply_hotena_theme()

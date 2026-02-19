@@ -10,8 +10,8 @@ import streamlit as st
 # ✅ Theme (Hotena) - one-time CSS inject
 # ============================================================
 try:
-    from theme_hotena import apply_theme
-    apply_theme()
+    import theme_hotena
+    theme_hotena.apply_hotena_theme()
 except Exception:
     pass
 

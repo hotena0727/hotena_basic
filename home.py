@@ -8,17 +8,6 @@ import json
 import hashlib
 from datetime import date, datetime, timedelta, timezone
 import streamlit as st
-
-# ============================================================
-# ✅ Theme (Hotena) - one-time CSS inject
-# ============================================================
-try:
-    from theme_hotena import apply_theme
-    apply_theme()
-except Exception:
-    pass
-
-
 import streamlit.components.v1 as components
 from supabase import create_client
 from streamlit_cookies_manager import EncryptedCookieManager
