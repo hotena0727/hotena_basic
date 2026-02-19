@@ -5,17 +5,6 @@ from datetime import datetime, timedelta, timezone, date
 from collections import defaultdict
 
 import streamlit as st
-
-# ============================================================
-# ✅ Theme (Hotena) - one-time CSS inject
-# ============================================================
-try:
-    import theme_hotena
-    theme_hotena.apply_hotena_theme()
-except Exception:
-    pass
-
-
 import pandas as pd
 
 # NOTE:

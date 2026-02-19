@@ -8,17 +8,6 @@ import hashlib
 
 import pandas as pd
 import streamlit as st
-
-# ============================================================
-# ✅ Theme (Hotena) - one-time CSS inject
-# ============================================================
-try:
-    import theme_hotena
-    theme_hotena.apply_hotena_theme()
-except Exception:
-    pass
-
-
 import streamlit.components.v1 as components
 from supabase import create_client
 
@@ -325,8 +314,8 @@ def start_new_set():
     st.session_state[f"{NS}_set_qids"] = qids
     st.session_state[f"{NS}_idx"] = 0
     st.session_state[f"{NS}_results"] = {}  # qid -> {"selected":..., "correct":bool}
-    st.session_state[f"talk_submitted_{qid}"] = False
-    st.session_state.pop(f"talk_choice_{qid}", None)
+    st.session_state["talk_submitted"] = False
+    st.session_state.pop("talk_choice", None)
 
 # 세트가 없거나, 필터가 바뀌었으면 새로 시작
 sig = f"{sel_level}|{sel_tag}|{int(exclude_mastered)}"
@@ -415,11 +404,8 @@ qid = qids[idx]
 row = DF[DF["qid"].astype(str) == str(qid)].iloc[0].to_dict()
 
 # 보기 구성(쌩뚱맞게 가리기)
-# 보기 구성: rerun(라디오 클릭)에도 고정되도록 qid별 캐시
-_ck = f"{NS}_choices_{qid}"
-if _ck not in st.session_state:
-    st.session_state[_ck] = build_choices(row, pool_answers)
-choices = st.session_state[_ck]
+choices = build_choices(row, pool_answers)
+
 # 상단 진행 표기: "1 / 10" (Q1 제거)
 st.markdown(f"### {idx+1} / {len(qids)}")
 
@@ -447,14 +433,14 @@ if partner_kr:
     st.caption(partner_kr)
 
 st.markdown("#### 보기")
-selected = st.radio("정답을 고르세요.", choices, key=f"talk_choice_{qid}")
+selected = st.radio("정답을 고르세요.", choices, key="talk_choice")
 
-submitted = st.session_state.get(f"talk_submitted_{qid}", False)
+submitted = st.session_state.get("talk_submitted", False)
 
 b1, b2, b3 = st.columns([1, 1, 1])
 with b1:
     if st.button("제출", use_container_width=True, key=f"talk_submit_{qid}_{idx}"):
-        st.session_state[f"talk_submitted_{qid}"] = True
+        st.session_state["talk_submitted"] = True
         submitted = True
 
         ans = str(row["answer_jp"]).strip()
@@ -471,8 +457,8 @@ with b2:
     # 제출 후에만 다음 활성화(기존 유지)
     if st.button("다음", use_container_width=True, disabled=not submitted, key=f"talk_next_{qid}_{idx}"):
         st.session_state[f"{NS}_idx"] = idx + 1
-        st.session_state[f"talk_submitted_{qid}"] = False
-        st.session_state.pop(f"talk_choice_{qid}", None)
+        st.session_state["talk_submitted"] = False
+        st.session_state.pop("talk_choice", None)
         st.rerun()
 
 with b3:
@@ -499,172 +485,6 @@ if submitted:
             speak_buttons_html([("정답 듣기", ans)], block_id=f"a_{qid}_{idx}"),
             height=60
         )
-        # ✅ 제출 직후: 정답 자동 TTS 1회 (문항당 1회만)
-        _tts_once_key = f"{NS}_tts_once_{qid}"
-        if not st.session_state.get(_tts_once_key, False):
-            st.session_state[_tts_once_key] = True
-            try:
-                import json as _json
-_tts_js = """<script>
-(function(){
-  const text = __TEXT__;
-  if(!text) return;
-  const u = new SpeechSynthesisUtterance(text);
-  u.lang = "ja-JP";
-  u.rate = 1.0;
-  u.pitch = 1.0;
-  window.speechSynthesis.cancel();
-  window.speechSynthesis.speak(u);
-})();
-</script>
-"""
-components.html(_tts_js.replace("__TEXT__", _json.dumps(ans or "")), height=0)
-            except Exception:
-                pass
-
-        # ✅ 파형 포함 녹음(저장 없음): 정답 확인 후 따라 말하기
-        st.markdown("#### 🎤 따라 말하기 (녹음 후 재생)")
-        try:
-            components.html("""
-<style>
-  .rec-wrap{border:1px solid rgba(49,51,63,.12); border-radius:16px; padding:12px; background:#fff;}
-  .rec-top{display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
-  .rec-btn{border:0; border-radius:999px; padding:10px 14px; cursor:pointer; font-weight:800;}
-  .rec-btn.primary{background:#1C2F5C; color:#fff;}
-  .rec-btn.danger{background:#E5484D; color:#fff;}
-  .rec-btn.ghost{background:rgba(28,47,92,.08); color:#1C2F5C;}
-  .rec-ind{display:flex; align-items:center; gap:8px; font-size:0.95rem; opacity:0.9;}
-  .dot{width:10px;height:10px;border-radius:50%; background:#E5484D; display:inline-block; animation:pulse 1.1s infinite;}
-  @keyframes pulse{0%{transform:scale(1); opacity:.45}50%{transform:scale(1.35); opacity:1}100%{transform:scale(1); opacity:.45}}
-  canvas{width:100%; height:86px; border-radius:12px; background:rgba(28,47,92,.04);}
-  audio{width:100%; margin-top:10px;}
-</style>
-
-<div class="rec-wrap">
-  <div class="rec-top">
-    <button id="recStart" class="rec-btn primary" type="button">● 녹음 시작</button>
-    <button id="recStop" class="rec-btn danger" type="button" disabled>■ 정지</button>
-    <button id="recClear" class="rec-btn ghost" type="button" disabled>↺ 삭제</button>
-    <span id="recStatus" class="rec-ind"></span>
-  </div>
-  <div style="margin-top:10px;">
-    <canvas id="wave" height="86"></canvas>
-    <audio id="play" controls></audio>
-  </div>
-</div>
-
-<script>
-(async function(){
-  const startBtn = document.getElementById("recStart");
-  const stopBtn  = document.getElementById("recStop");
-  const clearBtn = document.getElementById("recClear");
-  const statusEl = document.getElementById("recStatus");
-  const canvas = document.getElementById("wave");
-  const ctx = canvas.getContext("2d");
-  const audioEl = document.getElementById("play");
-  let mediaRecorder, chunks = [];
-  let stream, audioCtx, analyser, dataArray, rafId;
-
-  function draw(){
-    if(!analyser) return;
-    const w = canvas.width = canvas.clientWidth;
-    const h = canvas.height = 86;
-    dataArray = dataArray || new Uint8Array(analyser.fftSize);
-    analyser.getByteTimeDomainData(dataArray);
-    ctx.clearRect(0,0,w,h);
-
-    ctx.beginPath();
-    ctx.moveTo(0, h/2);
-    ctx.lineTo(w, h/2);
-    ctx.lineWidth = 1;
-    ctx.strokeStyle = "rgba(28,47,92,.12)";
-    ctx.stroke();
-
-    ctx.beginPath();
-    const slice = w / dataArray.length;
-    let x = 0;
-    for(let i=0;i<dataArray.length;i++){
-      const v = (dataArray[i] - 128) / 128.0;
-      const y = (h/2) + v * (h/2 - 6);
-      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
-      x += slice;
-    }
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = "#1C2F5C";
-    ctx.stroke();
-    rafId = requestAnimationFrame(draw);
-  }
-
-  function stopDraw(){
-    if(rafId) cancelAnimationFrame(rafId);
-    rafId = null;
-  }
-
-  function setStatus(rec){
-    if(rec){
-      statusEl.innerHTML = '<span class="dot"></span> 녹음 중…';
-    }else{
-      statusEl.innerHTML = '';
-    }
-  }
-
-  startBtn.onclick = async () => {
-    try{
-      stream = await navigator.mediaDevices.getUserMedia({ audio:true });
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      const source = audioCtx.createMediaStreamSource(stream);
-      analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 2048;
-      source.connect(analyser);
-      draw();
-
-      chunks = [];
-      mediaRecorder = new MediaRecorder(stream);
-      mediaRecorder.ondataavailable = (e)=>{ if(e.data.size>0) chunks.push(e.data); };
-      mediaRecorder.onstop = ()=> {
-        const blob = new Blob(chunks, { type: "audio/webm" });
-        const url = URL.createObjectURL(blob);
-        audioEl.src = url;
-        clearBtn.disabled = false;
-      };
-      mediaRecorder.start();
-
-      startBtn.disabled = true;
-      stopBtn.disabled = false;
-      clearBtn.disabled = true;
-      setStatus(true);
-    }catch(e){
-      alert("마이크 권한을 허용해 주세요.");
-    }
-  };
-
-  stopBtn.onclick = () => {
-    try{
-      if(mediaRecorder && mediaRecorder.state !== "inactive"){
-        mediaRecorder.stop();
-      }
-      if(stream){
-        stream.getTracks().forEach(t=>t.stop());
-      }
-      if(audioCtx){ audioCtx.close(); }
-      stopDraw();
-    }catch(e){}
-    startBtn.disabled = false;
-    stopBtn.disabled = true;
-    setStatus(false);
-  };
-
-  clearBtn.onclick = () => {
-    audioEl.removeAttribute("src");
-    audioEl.load();
-    clearBtn.disabled = true;
-  };
-})();
-</script>
-""", height=260)
-        except Exception:
-            st.caption("녹음 UI를 불러오지 못했습니다. 브라우저 권한을 확인해 주세요.")
-
 
     if str(row.get("answer_kr","")).strip():
         st.caption(str(row.get("answer_kr","")).strip())
