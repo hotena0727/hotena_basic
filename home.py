@@ -1,7 +1,7 @@
 # home.py
 from __future__ import annotations
 
-BUILD_STAMP = 'v22 2026-02-19 15:46:34 KST (+09:00)'
+BUILD_STAMP = 'v23 2026-02-19 15:48:27 KST (+09:00)'
 
 from pathlib import Path
 import os
@@ -911,32 +911,34 @@ def nav_to(page: str):
 
 
 def hub_logout():
+    # ✅ clear cookie/local persistence + session state
     try:
         cookies["access_token"] = ""
         cookies["refresh_token"] = ""
         _cookies_save_once_per_run()
     except Exception:
         pass
+
+    # clear query params (e.g., rt/at/p)
     try:
         st.query_params.clear()
     except Exception:
         pass
+
+    # clear localStorage persistence
     try:
         _js_remove_localstorage("hotena_rt")
         _js_remove_localstorage("hotena_at")
     except Exception:
         pass
-for k in ["user","access_token","refresh_token","sb_authed","sb_authed_token","progress_all","hub_page","HUB_MODE"]:
+
+    for k in [
+        "user","access_token","refresh_token","sb_authed","sb_authed_token",
+        "progress_all","hub_page","HUB_MODE"
+    ]:
         st.session_state.pop(k, None)
 
-    # ✅ prevent infinite loop when URL has ?action=logout
-    try:
-        st.query_params.clear()
-    except Exception:
-        pass
-
     st.rerun()
-
 def render_floating_menu():
     """
     ✅ Mobile-friendly floating hamburger menu (no sidebar)
