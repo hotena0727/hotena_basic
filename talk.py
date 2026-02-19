@@ -362,6 +362,33 @@ def start_new_set():
     st.session_state["talk_submitted"] = False
     st.session_state.pop("talk_choice", None)
 
+
+def start_wrong_set(wrong_qids: list[str]):
+    """오답 qid만으로 새 세트를 시작합니다."""
+    if not wrong_qids:
+        start_new_set()
+        return
+
+    # qids 정리(중복 제거 + 순서 유지)
+    seen = set()
+    qids = []
+    for q in wrong_qids:
+        s = str(q)
+        if s not in seen:
+            seen.add(s)
+            qids.append(s)
+
+    st.session_state[f"{NS}_set_qids"] = qids
+    st.session_state[f"{NS}_idx"] = 0
+    st.session_state[f"{NS}_results"] = {}
+    st.session_state["talk_submitted"] = False
+    st.session_state.pop("talk_choice", None)
+
+    # 문항별 캐시 정리
+    for k in list(st.session_state.keys()):
+        if str(k).startswith("talk_choices_") or str(k).startswith("talk_rec_counted_"):
+            st.session_state.pop(k, None)
+
 # 세트가 없거나, 필터가 바뀌었으면 새로 시작
 sig = f"{sel_level}|{sel_tag}|{int(exclude_mastered)}"
 if st.session_state.get(f"{NS}_sig") != sig or f"{NS}_set_qids" not in st.session_state:
@@ -373,53 +400,43 @@ idx = st.session_state[f"{NS}_idx"]
 idx = max(0, min(idx, len(qids)))  # safety
 
 # 세트 종료 처리
+
 if idx >= len(qids):
-    # 결과 집계
     results = st.session_state.get(f"{NS}_results", {}) or {}
-    score = sum(1 for r in results.values() if r.get("correct"))
-    wrong_list = [qid for qid, r in results.items() if not r.get("correct")]
+    total = len(qids)
+    correct_n = sum(1 for q in qids if results.get(str(q), {}).get("correct") is True)
+    wrong_qids = [str(q) for q in qids if results.get(str(q), {}).get("correct") is False]
 
-    st.success(f"세트 완료! {score} / {len(qids)}")
-    # ✅ 이번 세트 녹음 모아보기(세션 내 임시 저장): 페이지를 떠나기 전 확인용
-    stash_key = f"talk_rec_stash_{st.session_state.get('talk_set_id','set')}"
-    stash = st.session_state.get(stash_key, {}) or {}
-    if stash:
-        with st.expander(f"🎧 이번 세트 녹음 {len(stash)}개 모아듣기", expanded=False):
-            st.caption("이 목록은 DB/Storage에 저장되지 않습니다. 새로고침/새 세트를 시작하면 사라집니다.")
-            # qids 순서대로 보여주기
-            for qid_show in qids:
-                b = stash.get(str(qid_show))
-                if b:
-                    st.markdown(f"**QID {qid_show}**")
-                    st.audio(b)
+    st.markdown("## 🎉 오늘 세트 완료")
+    st.markdown(f"### 점수: **{correct_n} / {total}**")
+
+    if wrong_qids:
+        st.markdown("### ❌ 오답")
+        with st.expander(f"오답 {len(wrong_qids)}개 보기", expanded=False):
+            for n, q in enumerate(wrong_qids, 1):
+                row = pool_df[pool_df["qid"].astype(str) == str(q)]
+                st.markdown(f"**{n}. QID {q}**")
+                if len(row) > 0:
+                    r0 = row.iloc[0]
+                    partner = str(r0.get("partner_jp","")).strip()
+                    ans = str(r0.get("answer_jp","")).strip()
+                    if partner:
+                        st.write(f"상대: {partner}")
+                    if ans:
+                        st.write(f"정답: {ans}")
     else:
-        st.caption("이번 세트에서 저장된 녹음이 없습니다. (녹음 후 자동으로 모아듣기 리스트에 들어갑니다.)")
+        st.success("전부 정답입니다! 👏")
 
-    if wrong_list:
-        st.caption(f"오답: {', '.join(wrong_list[:20])}{'…' if len(wrong_list)>20 else ''}")
-
-    # progress 반영
-    talk["attempts"] = int(talk.get("attempts", 0)) + len(qids)
-    talk["correct"] = int(talk.get("correct", 0)) + score
-    # 맞힌 문제는 mastered에 추가
-    newly_mastered = [qid for qid, r in results.items() if r.get("correct")]
-    talk["mastered_ids"] = list(dict.fromkeys((talk.get("mastered_ids", []) or []) + newly_mastered))
-    # 틀린 문제는 wrong_ids에 추가
-    talk["wrong_ids"] = list(dict.fromkeys((talk.get("wrong_ids", []) or []) + wrong_list))
-    talk["last_set"] = {"qids": qids, "results": results, "finished_at": datetime.utcnow().isoformat()}
-    progress_all["talk"] = talk
-    save_progress(progress_all)
-    log_attempt(sel_level, sel_tag or "all", len(qids), score, wrong_list)
-
-    c_end1, c_end2 = st.columns([1, 1])
-    with c_end1:
-        if st.button("새 10문 세트", use_container_width=True):
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("🔁 오답만 다시 풀기", disabled=(len(wrong_qids)==0), use_container_width=True):
+            start_wrong_set(wrong_qids)
+            st.rerun()
+    with c2:
+        if st.button("🆕 새 세트 시작", use_container_width=True):
             start_new_set()
             st.rerun()
-    with c_end2:
-        if st.button("오답노트 보기", use_container_width=True):
-            st.session_state[f"{NS}_view"] = "wrongs"
-            st.rerun()
+
     st.stop()
 
 # ============================================================
