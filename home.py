@@ -21,9 +21,40 @@ st.set_page_config(page_title="Hatena Hub", layout="centered")
 # ✅ CSS reset (child pages may hide Streamlit header; keep top UI from being clipped)
 st.markdown(
     """
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Kosugi+Maru&family=Noto+Sans+JP:wght@400;500;700;800&display=swap" rel="stylesheet">
 <style>
-header[data-testid="stHeader"]{ height: 3rem !important; }
-div[data-testid="stAppViewContainer"] .block-container{ padding-top: 2.2rem !important; }
+:root{
+  --jp-rounded: "Noto Sans JP","Kosugi Maru","Hiragino Sans","Yu Gothic","Meiryo",sans-serif;
+}
+.jp, .jp *{
+  font-family: var(--jp-rounded) !important;
+  line-height: 1.7;
+  letter-spacing: .2px;
+}
+
+/* ✅ Global layout (avoid top clipping across all pages) */
+header[data-testid="stHeader"]{
+  height: 3rem !important;
+}
+div[data-testid="stAppViewContainer"] .block-container{
+  padding-top: 2.2rem !important;
+}
+
+/* (optional) hide Streamlit toolbar to keep UI clean */
+div[data-testid="stToolbar"]{
+  visibility: hidden !important;
+  height: 0 !important;
+}
+
+/* headings spacing */
+div[data-testid="stMarkdownContainer"] h2,
+div[data-testid="stMarkdownContainer"] h3,
+div[data-testid="stMarkdownContainer"] h4{
+  margin-top: 10px !important;
+  margin-bottom: 8px !important;
+}
 </style>
 """,
     unsafe_allow_html=True,
