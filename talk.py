@@ -571,7 +571,6 @@ if submitted:
     # - 녹음 파일은 저장하지 않음(페이지 휘발)
     # - '녹음 완료'를 감지할 수 없어, 카운트는 "발음 1회 기록" 버튼으로 처리(가볍고 확실)
     # ============================================================
-    st.markdown("#### 🎤 내 발음 녹음")
     st.markdown('<div class="talk-rec-card">'+ '<div style="font-weight:700;font-size:15px;margin-bottom:2px;">발음 녹음</div>'+ '<div class="talk-rec-sub">녹음하면서 반응을 확인하고, 녹음 후 파형에서 바로 탐색/재생하세요.</div>', unsafe_allow_html=True)
 
     # ✅ 비주얼 효과(삭막함 제거): 말하면 반응하는 레벨미터 + 녹음중 느낌(펄스/이퀄라이저)
@@ -588,11 +587,11 @@ if submitted:
       .talk-vu-bar{{height:14px;width:2%;background:linear-gradient(90deg,#111,#444);border-radius:999px;}}
     </style>
 
-    <div class="talk-vu-wrap">
+    <div class="talk-vu-wrap" style="margin:0 0 6px 0;">
       <div class="talk-vu-head">
         <div class="talk-vu-left">
           <div class="talk-pulse-dot" title="녹음 준비/마이크 입력"></div>
-          <div>말하면 반응합니다.</div>
+          <div>REC</div>
         </div>
         <div class="talk-eq" aria-hidden="true">
           <span id="eq1_{qid}_{idx}"></span><span id="eq2_{qid}_{idx}"></span><span id="eq3_{qid}_{idx}"></span><span id="eq4_{qid}_{idx}"></span>
@@ -652,7 +651,7 @@ if submitted:
       start();
     }})();
     </script>
-    """, height=110)
+    """, height=78)
 
 
     # ✅ 기본 녹음기(파형 포함)
