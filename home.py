@@ -924,8 +924,25 @@ def run_script(filename: str):
     if not path.exists() or not path.is_file():
         st.error(f"파일을 찾을 수 없습니다: {path}")
         st.stop()
+
+    # ✅ 메뉴 이동(전체 리로드/새 세션)에서도 자동 로그인 복원
+    try:
+        refresh_session_from_cookie_if_needed(force=True)
+    except Exception:
+        pass
+
+    # talk.py 호환: talk는 st.session_state["supabase"]를 먼저 찾습니다.
+    if "supabase" not in st.session_state and st.session_state.get("sb") is not None:
+        st.session_state["supabase"] = st.session_state["sb"]
+
+    # 그래도 로그인 정보가 없다면, 홈 로그인 화면으로 되돌립니다.
+    if st.session_state.get("user") is None:
+        st.warning("세션이 만료되었습니다. 다시 로그인해 주세요.")
+        st.stop()
+
     # ✅ Hub mode flag so child scripts can adjust UI/CSS
     st.session_state["HUB_MODE"] = True
+
     runpy.run_path(str(path), run_name="__main__")
 
 page = st.session_state.get("hub_page", "home")
