@@ -1,7 +1,7 @@
 # home.py
 from __future__ import annotations
 
-BUILD_STAMP = 'v23 2026-02-19 15:48:27 KST (+09:00)'
+BUILD_STAMP = 'v24 2026-02-19 15:52:46 KST (+09:00)'
 
 from pathlib import Path
 import os
@@ -1019,13 +1019,13 @@ def render_floating_menu():
 
   <div class="hub-menu-panel">
     <div class="hub-menu-title">메뉴</div>
-    <a href="?p=home" target="_self">🏠 홈</a>
-    <a href="?p=word" target="_self">📘 단어</a>
-    <a href="?p=kanji" target="_self">🈶 한자</a>
-    <a href="?p=talk" target="_self">💬 회화</a>
-    <a href="?p=my" target="_self">👤 마이페이지</a>
-    <a href="?p=reminder" target="_self">🔔 알림 설정</a>
-    <a href="?action=logout" target="_self">🚪 로그아웃</a>
+    <a href="#" target="_self" onclick="(()=>{const u=new URL(window.location.href);u.searchParams.set('p','home');u.searchParams.delete('action');window.location.href=u.toString();})();return false;">🏠 홈</a>
+    <a href="#" target="_self" onclick="(()=>{const u=new URL(window.location.href);u.searchParams.set('p','word');u.searchParams.delete('action');window.location.href=u.toString();})();return false;">📘 단어</a>
+    <a href="#" target="_self" onclick="(()=>{const u=new URL(window.location.href);u.searchParams.set('p','kanji');u.searchParams.delete('action');window.location.href=u.toString();})();return false;">🈶 한자</a>
+    <a href="#" target="_self" onclick="(()=>{const u=new URL(window.location.href);u.searchParams.set('p','talk');u.searchParams.delete('action');window.location.href=u.toString();})();return false;">💬 회화</a>
+    <a href="#" target="_self" onclick="(()=>{const u=new URL(window.location.href);u.searchParams.set('p','my');u.searchParams.delete('action');window.location.href=u.toString();})();return false;">👤 마이페이지</a>
+    <a href="#" target="_self" onclick="(()=>{const u=new URL(window.location.href);u.searchParams.set('p','reminder');u.searchParams.delete('action');window.location.href=u.toString();})();return false;">🔔 알림 설정</a>
+    <a href="#" target="_self" onclick="(()=>{const u=new URL(window.location.href);u.searchParams.set('action','logout');u.searchParams.delete('p');window.location.href=u.toString();})();return false;">🚪 로그아웃</a>
     <div style="height:0.6rem"></div>
     <div style="font-size:0.85rem; opacity:0.7;">Tip: 바깥을 누르면 닫힙니다.</div>
   </div>
