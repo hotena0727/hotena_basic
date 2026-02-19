@@ -440,21 +440,34 @@ def hub_logout():
     st.rerun()
 
 def render_top_menu():
-    # ✅ 항상 같은 상단 메뉴(사이드바 없이)
-    c1, c2, c3, c4, c5, c6 = st.columns([1,1,1,1,1,1], vertical_alignment="center")
+    # ✅ Mobile-friendly hamburger menu (no sidebar)
+    left, mid, right = st.columns([0.16, 0.68, 0.16], vertical_alignment="center")
 
-    with c1:
-        st.button("홈", use_container_width=True, key="hub_nav_home", on_click=nav_to, args=("home",))
-    with c2:
-        st.button("단어", use_container_width=True, key="hub_nav_word", on_click=nav_to, args=("word",))
-    with c3:
-        st.button("한자", use_container_width=True, key="hub_nav_kanji", on_click=nav_to, args=("kanji",))
-    with c4:
-        st.button("회화", use_container_width=True, key="hub_nav_talk", on_click=nav_to, args=("talk",))
-    with c5:
-        st.button("마이페이지", use_container_width=True, key="hub_nav_my", on_click=nav_to, args=("my",))
-    with c6:
-        st.button("로그아웃", use_container_width=True, key="hub_nav_logout", on_click=hub_logout)
+    def _menu_items(prefix: str):
+        st.button("홈", use_container_width=True, key=f"{prefix}_home", on_click=nav_to, args=("home",))
+        st.button("단어", use_container_width=True, key=f"{prefix}_word", on_click=nav_to, args=("word",))
+        st.button("한자", use_container_width=True, key=f"{prefix}_kanji", on_click=nav_to, args=("kanji",))
+        st.button("회화", use_container_width=True, key=f"{prefix}_talk", on_click=nav_to, args=("talk",))
+        st.button("마이페이지", use_container_width=True, key=f"{prefix}_my", on_click=nav_to, args=("my",))
+        st.button("로그아웃", use_container_width=True, key=f"{prefix}_logout", on_click=hub_logout)
+
+    with left:
+        # Streamlit version에 따라 popover가 없을 수 있어 fallback(expander) 제공
+        if hasattr(st, "popover"):
+            with st.popover("☰", use_container_width=True):
+                _menu_items("hub_pop")
+        else:
+            with st.expander("☰ 메뉴", expanded=False):
+                _menu_items("hub_exp")
+
+    with mid:
+        st.markdown(
+            "<div style='text-align:center; font-weight:700; font-size:1.0rem; line-height:1.2;'>하테나</div>",
+            unsafe_allow_html=True,
+        )
+
+    with right:
+        st.markdown("&nbsp;", unsafe_allow_html=True)
 
     st.divider()
 
