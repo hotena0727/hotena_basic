@@ -549,17 +549,187 @@ if submitted:
     if hint:
         st.info(hint)
     # ============================================================
+    # ✅ 발음 녹음 (단일 박스 / 실시간 막대 / 재생+탐색)
+    # - 녹음 파일은 저장하지 않습니다(페이지 단위 휘발).
+    # - 오늘 발음 3회 카운트는 '발음 1회 기록' 버튼으로 가볍게 반영(DB 부담 최소).
+    # ============================================================
+    st.markdown("#### 🎤 내 발음 녹음")
+    st.caption("녹음 버튼을 누르면 같은 박스 안에서 막대(높낮이)가 실시간으로 움직이고, 종료 후 바로 탐색/재생할 수 있습니다.")
+
+    # ✅ 단일 박스 커스텀 레코더 (Streamlit 기본 녹음기 사용 X)
+    components.html(f"""
+    <div style="
+        border:1px solid rgba(0,0,0,0.08);
+        background:#ffffff;
+        border-radius:16px;
+        padding:14px 14px 12px 14px;
+        box-shadow:0 6px 18px rgba(0,0,0,0.04);
+        ">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+        <div style="font-weight:700;font-size:15px;">발음 녹음기</div>
+        <div id="talk_rec_stat_{qid}_{idx}" style="font-size:12px;opacity:0.75;">대기 중</div>
+      </div>
+
+      <div style="margin-top:10px;">
+        <canvas id="talk_bar_{qid}_{idx}" style="width:100%;height:220px;background:#f5f6f8;border-radius:14px;border:1px solid rgba(0,0,0,0.06);"></canvas>
+      </div>
+
+      <div style="display:flex;gap:10px;margin-top:12px;">
+        <button id="talk_btn_start_{qid}_{idx}" style="flex:1;padding:10px 12px;border-radius:999px;border:1px solid rgba(0,0,0,0.10);background:#ffffff;cursor:pointer;font-weight:700;">
+          🎙 녹음 시작
+        </button>
+        <button id="talk_btn_stop_{qid}_{idx}" disabled style="flex:1;padding:10px 12px;border-radius:999px;border:1px solid rgba(0,0,0,0.10);background:#f1f3f5;cursor:pointer;font-weight:700;">
+          ⏹ 정지
+        </button>
+      </div>
+
+      <div style="margin-top:12px;">
+        <audio id="talk_audio_{qid}_{idx}" controls style="width:100%; display:none;"></audio>
+        <div id="talk_audio_hint_{qid}_{idx}" style="font-size:12px;opacity:0.75;">녹음 후 여기에서 바로 탐색/재생할 수 있습니다.</div>
+      </div>
+
+      <textarea id="talk_b64_{qid}_{idx}" style="display:none;"></textarea>
+    </div>
+
+    <script>
+    (function(){{
+      const qid = "{qid}";
+      const idx = "{idx}";
+      const canvas = document.getElementById(`talk_bar_${{qid}}_${{idx}}`);
+      const ctx = canvas.getContext("2d");
+      const stat = document.getElementById(`talk_rec_stat_${{qid}}_${{idx}}`);
+      const btnStart = document.getElementById(`talk_btn_start_${{qid}}_${{idx}}`);
+      const btnStop  = document.getElementById(`talk_btn_stop_${{qid}}_${{idx}}`);
+      const audioEl  = document.getElementById(`talk_audio_${{qid}}_${{idx}}`);
+      const audioHint= document.getElementById(`talk_audio_hint_${{qid}}_${{idx}}`);
+      const b64El    = document.getElementById(`talk_b64_${{qid}}_${{idx}}`);
+
+      // HiDPI
+      function resize() {{
+        const rect = canvas.getBoundingClientRect();
+        canvas.width  = Math.floor(rect.width * devicePixelRatio);
+        canvas.height = Math.floor(rect.height * devicePixelRatio);
+        ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
+      }}
+      resize();
+      window.addEventListener('resize', resize);
+
+      let audioCtx, analyser, data, raf, stream, recorder, chunks = [];
+
+      function drawBars() {{
+        if (!analyser) return;
+        raf = requestAnimationFrame(drawBars);
+        analyser.getByteFrequencyData(data);
+
+        const w = canvas.getBoundingClientRect().width;
+        const h = canvas.getBoundingClientRect().height;
+
+        // bg
+        ctx.clearRect(0,0,w,h);
+        ctx.fillStyle = "#f5f6f8";
+        ctx.fillRect(0,0,w,h);
+
+        const bars = data.length;
+        const bw = w / bars;
+        for (let i=0;i<bars;i++) {{
+          const v = data[i] / 255;
+          const bh = Math.max(2, v * h);
+          ctx.fillStyle = "#111111";
+          ctx.fillRect(i*bw, h-bh, bw*0.82, bh);
+        }}
+      }}
+
+      async function start() {{
+        try {{
+          stream = await navigator.mediaDevices.getUserMedia({{audio:true}});
+          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          analyser = audioCtx.createAnalyser();
+          analyser.fftSize = 256;
+          const src = audioCtx.createMediaStreamSource(stream);
+          src.connect(analyser);
+          data = new Uint8Array(analyser.frequencyBinCount);
+
+          chunks = [];
+          recorder = new MediaRecorder(stream);
+          recorder.ondataavailable = (e) => {{ if (e.data && e.data.size>0) chunks.push(e.data); }};
+          recorder.onstop = async () => {{
+            // stop bars
+            if (raf) cancelAnimationFrame(raf);
+
+            // build blob
+            const blob = new Blob(chunks, {{ type: recorder.mimeType || "audio/webm" }});
+            const url = URL.createObjectURL(blob);
+
+            audioEl.src = url;
+            audioEl.style.display = "block";
+            audioHint.style.display = "none";
+
+            stat.textContent = "녹음 완료";
+
+            // also store base64 in hidden textarea (optional future use)
+            try {{
+              const ab = await blob.arrayBuffer();
+              const bytes = new Uint8Array(ab);
+              let bin = "";
+              const chunk = 0x8000;
+              for (let i=0;i<bytes.length;i+=chunk) {{
+                bin += String.fromCharCode.apply(null, bytes.subarray(i, i+chunk));
+              }}
+              b64El.value = btoa(bin);
+            }} catch(e) {{}}
+          }};
+
+          recorder.start();
+          stat.textContent = "녹음 중… 말하면 막대가 움직입니다";
+          btnStart.disabled = true;
+          btnStop.disabled = false;
+          btnStop.style.background = "#ffffff";
+
+          drawBars();
+        }} catch(e) {{
+          stat.textContent = "마이크 권한이 필요합니다";
+        }}
+      }}
+
+      function stop() {{
+        try {{
+          if (recorder && recorder.state !== "inactive") recorder.stop();
+        }} catch(e) {{}}
+        try {{
+          if (stream) stream.getTracks().forEach(t=>t.stop());
+        }} catch(e) {{}}
+        btnStart.disabled = false;
+        btnStop.disabled = true;
+        btnStop.style.background = "#f1f3f5";
+      }}
+
+      btnStart.addEventListener("click", start);
+      btnStop.addEventListener("click", stop);
+    }})();
+    </script>
+    """, height=520)
+
+    # ✅ 오늘 발음 3회 카운트(DB 부담 최소): 녹음 완료 후, 아래 버튼 1회 눌러 기록
+    counted_key = f"talk_rec_counted_{qid}"
+    if st.button("✅ 발음 1회 기록하기", key=f"talk_rec_mark_{qid}_{idx}"):
+        if not st.session_state.get(counted_key, False):
+            new_cnt = inc_daily_pron_count(progress_all, talk, inc=1)
+            st.session_state[counted_key] = True
+            st.success(f"기록 완료! (오늘 {new_cnt} / {DAILY_PRON_TARGET})")
+        else:
+            st.info("이 문항은 이미 1회 기록되었습니다. 다음 문항에서 다시 기록해 주세요.")
+
+    # ============================================================
     # ✅ 발음 녹음 (제출 후) + 오늘 발음 3회 카운트
     # - st.audio_input은 파형 UI를 제공(지원되는 Streamlit 버전일 때)
     # ============================================================
     st.markdown("#### 🎤 내 발음 녹음")
-    st.caption("말하는 동안 아래 막대가 실시간으로 움직입니다. (녹음 위젯 파형 스타일은 Streamlit 기본 UI라 그대로 유지됩니다.)")
     st.caption("정답을 소리 내어 말해보고, 녹음해 보세요. (오늘 3회 챌린지 카운트)")
 
     # ✅ 실시간 음파(바) 시각화 (녹음 중 말하면 막대가 움직입니다)
     components.html(f"""
     <div style='margin:8px 0 10px 0;'>
-      <canvas id='talk_spec_{qid}_{idx}' style='width:100%;height:220px;background:#f3f4f6;border-radius:16px;border:1px solid rgba(0,0,0,0.08);'></canvas>
+      <canvas id='talk_spec_{qid}_{idx}' style='width:100%;height:140px;background:#0b0b0b;border-radius:12px;'></canvas>
     </div>
     <script>
     (function() {{
@@ -594,7 +764,7 @@ if submitted:
             const w = canvas.getBoundingClientRect().width;
             const h = canvas.getBoundingClientRect().height;
             ctx.clearRect(0,0,w,h);
-            ctx.fillStyle = '#f3f4f6';
+            ctx.fillStyle = '#0b0b0b';
             ctx.fillRect(0,0,w,h);
 
             const bars = data.length;
@@ -603,7 +773,7 @@ if submitted:
               const v = data[i]/255;
               const bh = Math.max(2, v * h);
               // no fixed color requirement from user; use neutral light
-              ctx.fillStyle = '#111111';
+              ctx.fillStyle = '#e6e6e6';
               ctx.fillRect(i*bw, h-bh, bw*0.85, bh);
             }}
           }};
@@ -616,7 +786,7 @@ if submitted:
       start();
     }})();
     </script>
-    """, height=260)
+    """, height=170)
 
     rec_key = f"talk_rec_{qid}"
     counted_key = f"talk_rec_counted_{qid}"
