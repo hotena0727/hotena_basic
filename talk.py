@@ -253,6 +253,151 @@ def stable_daily_tip(user_id: str) -> str:
     idx = int(hashlib.sha256(seed).hexdigest()[:8], 16) % len(tips)
     return tips[idx]
 
+
+
+def recording_practice_html(block_id: str) -> str:
+    """제출 후 '내 발음 녹음/재생' (저장 없음, 페이지 단위)"""
+    html = """
+    <div id="rec___ID__" style="border:1px solid rgba(49,51,63,.12);border-radius:16px;padding:14px 14px 10px;background:rgba(255,255,255,.9);">
+      <div style="font-weight:700;margin-bottom:8px;">🎤 내 발음 연습 (녹음 → 들어보기)</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;">
+        <button id="start___ID__" type="button" style="padding:10px 12px;border-radius:10px;border:1px solid rgba(49,51,63,.18);background:#fff;cursor:pointer;">녹음 시작</button>
+        <button id="stop___ID__" type="button" disabled style="padding:10px 12px;border-radius:10px;border:1px solid rgba(49,51,63,.18);background:#fff;cursor:pointer;opacity:.55;">정지</button>
+        <button id="clear___ID__" type="button" disabled style="padding:10px 12px;border-radius:10px;border:1px solid rgba(49,51,63,.18);background:#fff;cursor:pointer;opacity:.55;">삭제</button>
+        <span id="status___ID__" style="opacity:.75;font-size:0.95rem;">마이크 권한을 허용해 주세요.</span>
+      </div>
+      <audio id="audio___ID__" controls style="width:100%;"></audio>
+      <div style="margin-top:8px;font-size:0.85rem;opacity:.7;">※ 녹음은 저장되지 않고, 이 페이지에서만 재생됩니다.</div>
+    </div>
+
+    <script>
+    (function(){
+      const root = document.getElementById("rec___ID__");
+      if(!root) return;
+
+      const startBtn = document.getElementById("start___ID__");
+      const stopBtn  = document.getElementById("stop___ID__");
+      const clearBtn = document.getElementById("clear___ID__");
+      const statusEl = document.getElementById("status___ID__");
+      const audioEl  = document.getElementById("audio___ID__");
+
+      let mediaRecorder = null;
+      let chunks = [];
+      let currentUrl = null;
+      let stream = null;
+
+      const setEnabled = (btn, on) => {
+        btn.disabled = !on;
+        btn.style.opacity = on ? "1" : ".55";
+      };
+
+      const cleanupUrl = () => {
+        if(currentUrl){
+          try { URL.revokeObjectURL(currentUrl); } catch(e){}
+          currentUrl = null;
+        }
+        audioEl.removeAttribute("src");
+        audioEl.load();
+      };
+
+      const stopStream = () => {
+        if(stream){
+          try { stream.getTracks().forEach(t => t.stop()); } catch(e){}
+          stream = null;
+        }
+      };
+
+      if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+        statusEl.textContent = "이 브라우저는 마이크 녹음을 지원하지 않습니다.";
+        setEnabled(startBtn, false);
+        return;
+      }
+      if(typeof MediaRecorder === "undefined"){
+        statusEl.textContent = "이 브라우저는 MediaRecorder를 지원하지 않습니다.";
+        setEnabled(startBtn, false);
+        return;
+      }
+
+      statusEl.textContent = "준비됨";
+
+      startBtn.addEventListener("click", async () => {
+        try{
+          cleanupUrl();
+          statusEl.textContent = "마이크 연결 중…";
+          stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+          const options = {};
+          const preferred = ["audio/webm;codecs=opus","audio/webm","audio/mp4"];
+          for(const mt of preferred){
+            if(MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(mt)){
+              options.mimeType = mt; break;
+            }
+          }
+
+          chunks = [];
+          mediaRecorder = new MediaRecorder(stream, options);
+
+          mediaRecorder.ondataavailable = (e) => {
+            if(e.data && e.data.size > 0) chunks.push(e.data);
+          };
+
+          mediaRecorder.onstop = () => {
+            try{
+              const blob = new Blob(chunks, { type: (chunks[0] && chunks[0].type) ? chunks[0].type : "audio/webm" });
+              currentUrl = URL.createObjectURL(blob);
+              audioEl.src = currentUrl;
+              audioEl.load();
+              statusEl.textContent = "녹음 완료 — 들어보세요.";
+              setEnabled(clearBtn, true);
+            }catch(err){
+              statusEl.textContent = "녹음 처리 중 오류가 발생했습니다.";
+            }finally{
+              setEnabled(startBtn, true);
+              setEnabled(stopBtn, false);
+              stopStream();
+            }
+          };
+
+          mediaRecorder.start();
+          statusEl.textContent = "녹음 중…";
+          setEnabled(startBtn, false);
+          setEnabled(stopBtn, true);
+          setEnabled(clearBtn, false);
+        }catch(err){
+          statusEl.textContent = "마이크 권한이 필요합니다.";
+          setEnabled(startBtn, true);
+          setEnabled(stopBtn, false);
+          setEnabled(clearBtn, false);
+          stopStream();
+        }
+      });
+
+      stopBtn.addEventListener("click", () => {
+        try{
+          if(mediaRecorder && mediaRecorder.state !== "inactive"){
+            mediaRecorder.stop();
+          }
+          statusEl.textContent = "정지 중…";
+          setEnabled(stopBtn, false);
+        }catch(e){
+          statusEl.textContent = "정지 실패";
+          setEnabled(startBtn, true);
+          setEnabled(stopBtn, false);
+          stopStream();
+        }
+      });
+
+      clearBtn.addEventListener("click", () => {
+        cleanupUrl();
+        chunks = [];
+        statusEl.textContent = "삭제됨";
+        setEnabled(clearBtn, false);
+      });
+    })();
+    </script>
+    """
+    return html.replace("___ID__", str(block_id))
+
 # ============================================================
 # ✅ 필터 UI (레벨/상황 태그)
 # ============================================================
@@ -493,3 +638,6 @@ if submitted:
     hint = str(row.get("hint_kr","")).strip()
     if hint:
         st.info(hint)
+
+    # ✅ 제출 후: 내 발음 녹음/재생(페이지 단위, 저장 없음)
+    components.html(recording_practice_html(block_id=f"{qid}_{idx}"), height=260)
