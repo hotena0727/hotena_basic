@@ -31,7 +31,7 @@ st.markdown(
 /* Header: keep visible (some pages set height:0) */
 header[data-testid="stHeader"]{
   height: auto !important;
-  min-height: 3.25rem !important;
+  min-height: 1.25rem !important;
 }
 
 /* Main container top padding: avoid content being pushed under header */
