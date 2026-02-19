@@ -4,6 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 import os
 import runpy
+import traceback
 import json
 import hashlib
 from datetime import date, datetime, timedelta, timezone
@@ -918,7 +919,6 @@ if q_page in {"home","word","kanji","talk","my","reminder"}:
 # ============================================================
 # ✅ Runner
 
-# ============================================================
 def run_script(filename: str):
     path = (BASE_DIR / filename).resolve()
     if not path.exists() or not path.is_file():
@@ -926,6 +926,17 @@ def run_script(filename: str):
         st.stop()
     # ✅ Hub mode flag so child scripts can adjust UI/CSS
     st.session_state["HUB_MODE"] = True
+    # ✅ 로그인/세션을 페이지 실행 직전에 한번 더 복원(페이지 이동 시 재로그인 방지)
+    try:
+        refresh_session_from_cookie_if_needed(force=True)
+    except Exception:
+        pass
+    try:
+        runpy.run_path(str(path), run_name="__main__")
+    except Exception:
+        st.error("페이지 로딩 중 오류가 발생했습니다.")
+        st.code(traceback.format_exc())
+        st.stop()
     runpy.run_path(str(path), run_name="__main__")
 
 page = st.session_state.get("hub_page", "home")
