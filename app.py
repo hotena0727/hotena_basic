@@ -2003,14 +2003,23 @@ st.session_state.progress_restored = True
 if "level" not in st.session_state:
     st.session_state.level = "N5"
 
-# title
+# title (home 제외: 페이지별로 제목 다르게)
 if st.session_state.get("page") != "home":
     u = st.session_state.get("user")
     email = (getattr(u, "email", None) if u else None) or st.session_state.get("login_email", "")
+
+    _p = st.session_state.get("page")
+    if _p == "my":
+        _title = "👤 마이페이지"
+    elif _p == "admin":
+        _title = "🛠 관리자"
+    else:
+        _title = "✨ 한자 퀴즈"
+
     st.markdown(
         f"""
 <div class="jp headbar">
-  <div class="headtitle">✨ 한자 퀴즈</div>
+  <div class="headtitle">{_title}</div>
   <div class="headhello">환영합니다 🙂 <span class="mail">{email}</span></div>
 </div>
 """,
