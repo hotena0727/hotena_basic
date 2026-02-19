@@ -159,6 +159,10 @@ if cookies is None:
 #    따라서 '이번 run에서 save는 1번만' 보장합니다.
 st.session_state["_cookie_save_lock"] = False
 
+# ✅ 첫 로드에서 쿠키 기반 자동 로그인 복원(메뉴 링크는 전체 리로드이므로 필수)
+refresh_session_from_cookie_if_needed(force=True)
+
+
 def _cookies_save_once_per_run():
     if st.session_state.get("_cookie_save_lock"):
         return
@@ -184,8 +188,17 @@ def refresh_session_from_cookie_if_needed(force: bool = False) -> bool:
     if not force and st.session_state.get("user") and st.session_state.get("access_token"):
         return True
 
-    rt = cookies.get("refresh_token")
-    at = cookies.get("access_token")
+    def _norm_token(v):
+        # cookies가 dict/json 형태로 저장된 적이 있으면 복원
+        try:
+            if isinstance(v, str) and v.strip().startswith("{") and v.strip().endswith("}"):
+                return json.loads(v)
+        except Exception:
+            pass
+        return v
+
+    rt = _norm_token(cookies.get("refresh_token"))
+    at = _norm_token(cookies.get("access_token"))
 
     if rt:
         refreshed = None
@@ -925,24 +938,18 @@ def run_script(filename: str):
         st.error(f"파일을 찾을 수 없습니다: {path}")
         st.stop()
 
-    # ✅ 메뉴 이동(전체 리로드/새 세션)에서도 자동 로그인 복원
-    try:
-        refresh_session_from_cookie_if_needed(force=True)
-    except Exception:
-        pass
+    # ✅ 메뉴 클릭(전체 리로드)에서도 쿠키 → 세션 복원 보장
+    refresh_session_from_cookie_if_needed(force=True)
 
-    # talk.py 호환: talk는 st.session_state["supabase"]를 먼저 찾습니다.
+    # talk.py/app.py 호환: supabase client 공유
     if "supabase" not in st.session_state and st.session_state.get("sb") is not None:
         st.session_state["supabase"] = st.session_state["sb"]
 
-    # 그래도 로그인 정보가 없다면, 홈 로그인 화면으로 되돌립니다.
-    if st.session_state.get("user") is None:
+    if "user" not in st.session_state or not st.session_state.get("user"):
         st.warning("세션이 만료되었습니다. 다시 로그인해 주세요.")
         st.stop()
 
-    # ✅ Hub mode flag so child scripts can adjust UI/CSS
     st.session_state["HUB_MODE"] = True
-
     runpy.run_path(str(path), run_name="__main__")
 
 page = st.session_state.get("hub_page", "home")

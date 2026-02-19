@@ -10,6 +10,33 @@ import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
 from supabase import create_client
+import base64
+import io
+import wave
+import numpy as np
+import matplotlib.pyplot as plt
+
+def render_waveform(wav_bytes: bytes, title: str = "녹음 파형"):
+    try:
+        with wave.open(io.BytesIO(wav_bytes), "rb") as wf:
+            n = wf.getnframes()
+            fr = wf.getframerate()
+            ch = wf.getnchannels()
+            data = wf.readframes(n)
+        # 16-bit PCM 가정
+        sig = np.frombuffer(data, dtype=np.int16)
+        if ch > 1:
+            sig = sig[::ch]
+        t = np.linspace(0, len(sig)/fr, num=len(sig))
+        fig = plt.figure()
+        plt.plot(t, sig)
+        plt.title(title)
+        plt.xlabel("time (s)")
+        plt.ylabel("amp")
+        st.pyplot(fig, clear_figure=True)
+    except Exception:
+        pass
+
 
 # ============================================================
 # ✅ Namespace (session_state keys)
@@ -173,6 +200,16 @@ def build_choices(row: dict, pool_answers: list[str]) -> list[str]:
     random.shuffle(choices)
     return choices
 
+def get_cached_choices(qid: str, row: dict, pool_answers: list[str]) -> list[str]:
+    key = f"{NS}_choices_{qid}"
+    cached = st.session_state.get(key)
+    if isinstance(cached, list) and len(cached) == 4:
+        return cached
+    choices = get_cached_choices(qid, row, pool_answers)
+    st.session_state[key] = choices
+    return choices
+
+
 def speak_buttons_html(items: list[tuple[str, str]], block_id: str) -> str:
     """SpeechSynthesis 버튼 (가능하면 parent window 사용)"""
     def esc(s: str) -> str:
@@ -314,6 +351,14 @@ def start_new_set():
     st.session_state[f"{NS}_set_qids"] = qids
     st.session_state[f"{NS}_idx"] = 0
     st.session_state[f"{NS}_results"] = {}  # qid -> {"selected":..., "correct":bool}
+    # ✅ 보기 순서 고정(선택할 때마다 랜덤 재로딩 방지)
+    for k in list(st.session_state.keys()):
+        if isinstance(k, str) and k.startswith(f"{NS}_choices_"):
+            st.session_state.pop(k, None)
+    # 미리 보기 생성
+    for _qid in qids:
+        _row = DF.loc[DF["qid"].astype(str) == str(_qid)].iloc[0].to_dict()
+        st.session_state[f"{NS}_choices_{_qid}"] = build_choices(_row, pool_answers)
     st.session_state["talk_submitted"] = False
     st.session_state.pop("talk_choice", None)
 
@@ -404,7 +449,7 @@ qid = qids[idx]
 row = DF[DF["qid"].astype(str) == str(qid)].iloc[0].to_dict()
 
 # 보기 구성(쌩뚱맞게 가리기)
-choices = build_choices(row, pool_answers)
+choices = get_cached_choices(qid, row, pool_answers)
 
 # 상단 진행 표기: "1 / 10" (Q1 제거)
 st.markdown(f"### {idx+1} / {len(qids)}")
@@ -441,6 +486,16 @@ b1, b2, b3 = st.columns([1, 1, 1])
 with b1:
     if st.button("제출", use_container_width=True, key=f"talk_submit_{qid}_{idx}"):
         st.session_state["talk_submitted"] = True
+
+# ✅ 제출 시 녹음/파형 표시
+if audio_blob is not None:
+    try:
+        wav_bytes = audio_blob.getvalue() if hasattr(audio_blob, 'getvalue') else bytes(audio_blob)
+        st.audio(wav_bytes, format='audio/wav')
+        render_waveform(wav_bytes, title='내 녹음 파형')
+    except Exception:
+        pass
+
         submitted = True
 
         ans = str(row["answer_jp"]).strip()
