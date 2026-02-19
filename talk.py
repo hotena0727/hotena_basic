@@ -504,10 +504,10 @@ if submitted:
         if not st.session_state.get(_tts_once_key, False):
             st.session_state[_tts_once_key] = True
             try:
-                components.html(f"""
-<script>
+                import json as _json
+_tts_js = """<script>
 (function(){
-  const text = {ans!r};
+  const text = __TEXT__;
   if(!text) return;
   const u = new SpeechSynthesisUtterance(text);
   u.lang = "ja-JP";
@@ -517,7 +517,8 @@ if submitted:
   window.speechSynthesis.speak(u);
 })();
 </script>
-""", height=0)
+"""
+components.html(_tts_js.replace("__TEXT__", _json.dumps(ans or "")), height=0)
             except Exception:
                 pass
 
