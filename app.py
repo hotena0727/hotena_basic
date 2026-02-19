@@ -12,12 +12,6 @@ import streamlit.components.v1 as components
 from collections import Counter
 import time
 import traceback
-from gate_util import (
-    free_gate_blocked,
-    show_free_block_ui,
-    show_free_done_ui,
-    count_today_sets_by_category,
-)
 import base64
 import io
 import textwrap
@@ -1998,11 +1992,6 @@ user_id = user.id
 user_email = getattr(user, "email", None) or st.session_state.get("login_email")
 sb_authed = get_authed_sb()
 
-# HUB 요금제 판별 (home.py에서 st.session_state.user_plan 세팅)
-def is_pro_hub() -> bool:
-    return str(st.session_state.get("user_plan", "free")).lower() == "pro"
-
-
 try:
     available_types = get_available_quiz_types() if sb_authed is not None else QUIZ_TYPES_USER
 except Exception:
@@ -2062,15 +2051,13 @@ if st.session_state.page == "admin":
     render_admin_dashboard()
     st.stop()
 
-
-# ============================================================
-# ✅ FREE 게이트: 오늘 한자 훈련 무료 1세트 소진 시, paywall 화면만 표시
-# ============================================================
-if (st.session_state.get("page") == "quiz") and (not is_pro_hub()):
-    if sb_authed is not None and free_gate_blocked(sb_authed, user_id, "kanji"):
-        show_free_block_ui(sb_authed, user_id, "kanji")
-        st.stop()
-
+if st.session_state.page == "my":
+    try:
+        render_my_dashboard()
+    except Exception:
+        st.error("마이페이지에서 예외가 발생했습니다. 아래 Traceback을 확인해 주세요.")
+        st.code(traceback.format_exc())
+    st.stop()
 
 # quiz page
 render_topcard()
@@ -2447,19 +2434,6 @@ if st.session_state.submitted:
             try:
                 run_db(_save)
                 st.session_state.saved_this_attempt = True
-                # ✅ FREE 완료 시: 남은 훈련 안내 UI (1일 1세트 기준)
-                if (not is_pro_hub()) and (sb_authed_local is not None):
-                    try:
-                        counts = count_today_sets_by_category(sb_authed_local, user_id)
-                        if counts.get("kanji", 0) >= 1 and not st.session_state.get("_kanji_free_done_ui_shown", False):
-                            if counts.get("kanji", 0) == 1:
-                                show_free_done_ui(sb_authed_local, user_id, "kanji")
-                            st.session_state["_kanji_free_done_ui_shown"] = True
-                    except Exception:
-                        pass
-
-
-
             except Exception as e:
                 if show_post_ui:
                     st.warning("DB 저장에 실패했습니다. (테이블/컬럼/권한/RLS 정책 확인 필요)")
