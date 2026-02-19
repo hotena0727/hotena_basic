@@ -1909,11 +1909,14 @@ def go_quiz_from_home():
 def render_home():
     u = st.session_state.get("user")
     email = (getattr(u, "email", None) if u else None) or st.session_state.get("login_email", "")
+    # HUB 마이페이지에서는 제목을 "마이페이지"로 표시
+    page_title = "👤 마이페이지" if st.session_state.get("page") == "my" else "✨하테나일본어 한자정복"
+
 
     st.markdown(
         f"""
 <div class="jp headbar">
-  <div class="headtitle">✨하테나일본어 한자정복</div>
+  <div class="headtitle">{page_title}</div>
   <div class="headhello">환영합니다 🙂 <span class="mail">{email}</span></div>
 </div>
 """,
