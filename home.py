@@ -1,7 +1,7 @@
 # home.py
 from __future__ import annotations
 
-BUILD_STAMP = 'v24 2026-02-19 15:52:46 KST (+09:00)'
+BUILD_STAMP = 'v25 2026-02-19 15:55:53 KST (+09:00)'
 
 from pathlib import Path
 import os
@@ -9,6 +9,7 @@ import runpy
 import json
 import hashlib
 import base64
+import urllib.parse
 from cryptography.fernet import Fernet
 from datetime import date, datetime, timedelta, timezone
 import streamlit as st
@@ -942,11 +943,34 @@ def hub_logout():
 def render_floating_menu():
     """
     ✅ Mobile-friendly floating hamburger menu (no sidebar)
-    - Pure HTML/CSS toggle so it always renders.
-    - Navigation via query params (?p=word etc.)
+    - Navigation via query params (?rt=...&at=...&p=word)
+    - We avoid inline JS (onclick) because some Streamlit deployments block it via CSP.
     """
+    try:
+        rt_enc = st.query_params.get("rt", "")
+        at_enc = st.query_params.get("at", "")
+    except Exception:
+        rt_enc, at_enc = "", ""
+
+    def _q(s: str) -> str:
+        return urllib.parse.quote(s, safe="") if s else ""
+
+    base = ""
+    if rt_enc:
+        base += "rt=" + _q(rt_enc) + "&"
+    if at_enc:
+        base += "at=" + _q(at_enc) + "&"
+
+    href_home = "?" + base + "p=home"
+    href_word = "?" + base + "p=word"
+    href_kanji = "?" + base + "p=kanji"
+    href_talk = "?" + base + "p=talk"
+    href_my   = "?" + base + "p=my"
+    href_rem  = "?" + base + "p=reminder"
+    href_out  = "?" + base + "action=logout"
+
     st.markdown(
-        """
+        f"""
 <style>
 /* ===== Floating Menu (Hub) ===== */
 .hub-float-wrap{
@@ -1019,13 +1043,13 @@ def render_floating_menu():
 
   <div class="hub-menu-panel">
     <div class="hub-menu-title">메뉴</div>
-    <a href="#" target="_self" onclick="(()=>{const u=new URL(window.location.href);u.searchParams.set('p','home');u.searchParams.delete('action');window.location.href=u.toString();})();return false;">🏠 홈</a>
-    <a href="#" target="_self" onclick="(()=>{const u=new URL(window.location.href);u.searchParams.set('p','word');u.searchParams.delete('action');window.location.href=u.toString();})();return false;">📘 단어</a>
-    <a href="#" target="_self" onclick="(()=>{const u=new URL(window.location.href);u.searchParams.set('p','kanji');u.searchParams.delete('action');window.location.href=u.toString();})();return false;">🈶 한자</a>
-    <a href="#" target="_self" onclick="(()=>{const u=new URL(window.location.href);u.searchParams.set('p','talk');u.searchParams.delete('action');window.location.href=u.toString();})();return false;">💬 회화</a>
-    <a href="#" target="_self" onclick="(()=>{const u=new URL(window.location.href);u.searchParams.set('p','my');u.searchParams.delete('action');window.location.href=u.toString();})();return false;">👤 마이페이지</a>
-    <a href="#" target="_self" onclick="(()=>{const u=new URL(window.location.href);u.searchParams.set('p','reminder');u.searchParams.delete('action');window.location.href=u.toString();})();return false;">🔔 알림 설정</a>
-    <a href="#" target="_self" onclick="(()=>{const u=new URL(window.location.href);u.searchParams.set('action','logout');u.searchParams.delete('p');window.location.href=u.toString();})();return false;">🚪 로그아웃</a>
+    <a href="{href_home}" target="_self">🏠 홈</a>
+    <a href="{href_word}" target="_self">📘 단어</a>
+    <a href="{href_kanji}" target="_self">🈶 한자</a>
+    <a href="{href_talk}" target="_self">💬 회화</a>
+    <a href="{href_my}" target="_self">👤 마이페이지</a>
+    <a href="{href_rem}" target="_self">🔔 알림 설정</a>
+    <a href="{href_out}" target="_self">🚪 로그아웃</a>
     <div style="height:0.6rem"></div>
     <div style="font-size:0.85rem; opacity:0.7;">Tip: 바깥을 누르면 닫힙니다.</div>
   </div>
@@ -1035,6 +1059,7 @@ def render_floating_menu():
 """,
         unsafe_allow_html=True,
     )
+
 
 
 render_floating_menu()
