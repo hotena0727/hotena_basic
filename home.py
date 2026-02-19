@@ -439,6 +439,142 @@ def hub_logout():
         st.session_state.pop(k, None)
     st.rerun()
 
+# ============================================================
+# ✅ Floating menu routing via query params
+# - We keep Streamlit UI minimal on mobile.
+# - Menu links set ?page=... or ?action=logout, then we sync into session_state.
+# ============================================================
+
+def _get_query_params():
+    # streamlit>=1.30: st.query_params (dict-like)
+    try:
+        qp = st.query_params
+        # ensure normal dict access
+        return dict(qp)
+    except Exception:
+        try:
+            return st.experimental_get_query_params()
+        except Exception:
+            return {}
+
+def _clear_query_params():
+    try:
+        st.query_params.clear()
+        return
+    except Exception:
+        pass
+    try:
+        st.experimental_set_query_params()
+    except Exception:
+        pass
+
+def apply_query_routing():
+    qp = _get_query_params()
+    page_param = qp.get("page")
+    action = qp.get("action")
+    # st.experimental_get_query_params returns list values
+    if isinstance(page_param, list):
+        page_param = page_param[0] if page_param else None
+    if isinstance(action, list):
+        action = action[0] if action else None
+
+    if action == "logout":
+        _clear_query_params()
+        hub_logout()
+        return
+
+    if page_param in {"home","word","kanji","talk","my"}:
+        st.session_state["hub_page"] = page_param
+        _clear_query_params()
+
+def render_floating_menu():
+    # Small fixed button + dropdown panel (pure HTML/JS). Navigation via query params.
+    components.html(
+        """
+<style>
+/* Floating hamburger */
+#hotena-fab {
+  position: fixed;
+  top: 12px;
+  left: 12px;
+  z-index: 99999;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  border: 1px solid rgba(0,0,0,0.15);
+  background: rgba(255,255,255,0.92);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+}
+
+#hotena-menu {
+  position: fixed;
+  top: 62px;
+  left: 12px;
+  z-index: 99999;
+  width: 220px;
+  border-radius: 16px;
+  border: 1px solid rgba(0,0,0,0.12);
+  background: rgba(255,255,255,0.96);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 12px 30px rgba(0,0,0,0.18);
+  padding: 10px;
+  display: none;
+}
+
+#hotena-menu a{
+  display:block;
+  padding: 10px 12px;
+  border-radius: 12px;
+  text-decoration:none;
+  color: rgba(0,0,0,0.85);
+  font-size: 15px;
+}
+#hotena-menu a:hover{
+  background: rgba(0,0,0,0.06);
+}
+#hotena-menu .sep{
+  height: 1px;
+  background: rgba(0,0,0,0.10);
+  margin: 8px 2px;
+}
+
+/* Give the app a little breathing room so content doesn't hide under the fab */
+.block-container { padding-top: 3.25rem; }
+</style>
+
+<button id="hotena-fab" aria-label="menu">☰</button>
+<div id="hotena-menu" role="menu" aria-label="Hotena menu">
+  <a href="?page=home">홈</a>
+  <a href="?page=word">단어</a>
+  <a href="?page=kanji">한자</a>
+  <a href="?page=talk">회화</a>
+  <a href="?page=my">마이페이지</a>
+  <div class="sep"></div>
+  <a href="?action=logout">로그아웃</a>
+</div>
+
+<script>
+(function(){
+  const fab = document.getElementById("hotena-fab");
+  const menu = document.getElementById("hotena-menu");
+  const toggle = () => {
+    menu.style.display = (menu.style.display === "block") ? "none" : "block";
+  };
+  fab.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); toggle(); });
+  document.addEventListener("click", () => { menu.style.display = "none"; });
+})();
+</script>
+""",
+        height=0,
+    )
+
 def render_top_menu():
     # ✅ Mobile-friendly hamburger menu (no sidebar)
     left, mid, right = st.columns([0.16, 0.68, 0.16], vertical_alignment="center")
@@ -470,9 +606,8 @@ def render_top_menu():
         st.markdown("&nbsp;", unsafe_allow_html=True)
 
     st.divider()
-
-render_top_menu()
-
+apply_query_routing()
+render_floating_menu()
 # ============================================================
 # ✅ Runner
 
