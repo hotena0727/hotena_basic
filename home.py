@@ -431,183 +431,140 @@ def nav_to(page: str):
     st.session_state["hub_page"] = page
     st.rerun()
 
+
 def hub_logout():
     cookies["access_token"] = ""
     cookies["refresh_token"] = ""
     _cookies_save_once_per_run()
     for k in ["user","access_token","refresh_token","sb_authed","sb_authed_token","progress_all","hub_page","HUB_MODE"]:
         st.session_state.pop(k, None)
-    st.rerun()
 
-# ============================================================
-# ✅ Floating menu routing via query params
-# - We keep Streamlit UI minimal on mobile.
-# - Menu links set ?page=... or ?action=logout, then we sync into session_state.
-# ============================================================
-
-def _get_query_params():
-    # streamlit>=1.30: st.query_params (dict-like)
-    try:
-        qp = st.query_params
-        # ensure normal dict access
-        return dict(qp)
-    except Exception:
-        try:
-            return st.experimental_get_query_params()
-        except Exception:
-            return {}
-
-def _clear_query_params():
+    # ✅ prevent infinite loop when URL has ?action=logout
     try:
         st.query_params.clear()
-        return
-    except Exception:
-        pass
-    try:
-        st.experimental_set_query_params()
     except Exception:
         pass
 
-def apply_query_routing():
-    qp = _get_query_params()
-    page_param = qp.get("page")
-    action = qp.get("action")
-    # st.experimental_get_query_params returns list values
-    if isinstance(page_param, list):
-        page_param = page_param[0] if page_param else None
-    if isinstance(action, list):
-        action = action[0] if action else None
-
-    if action == "logout":
-        _clear_query_params()
-        hub_logout()
-        return
-
-    if page_param in {"home","word","kanji","talk","my"}:
-        st.session_state["hub_page"] = page_param
-        _clear_query_params()
+    st.rerun()
 
 def render_floating_menu():
-    # Small fixed button + dropdown panel (pure HTML/JS). Navigation via query params.
-    components.html(
+    """
+    ✅ Mobile-friendly floating hamburger menu (no sidebar)
+    - Pure HTML/CSS toggle so it always renders.
+    - Navigation via query params (?p=word etc.)
+    """
+    st.markdown(
         """
 <style>
-/* Floating hamburger */
-#hotena-fab {
+/* ===== Floating Menu (Hub) ===== */
+.hub-float-wrap{
   position: fixed;
-  top: 12px;
-  left: 12px;
-  z-index: 99999;
-  width: 44px;
-  height: 44px;
+  top: 0.65rem;
+  left: 0.65rem;
+  z-index: 100000;
+  font-family: inherit;
+}
+#hub_menu_toggle{ display:none; }
+.hub-menu-btn{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width: 44px; height: 44px;
   border-radius: 12px;
-  border: 1px solid rgba(0,0,0,0.15);
-  background: rgba(255,255,255,0.92);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  background: rgba(20,20,20,0.92);
+  color: #fff;
+  font-size: 22px;
   cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 20px;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.18);
+  user-select:none;
 }
-
-#hotena-menu {
+.hub-menu-panel{
   position: fixed;
-  top: 62px;
-  left: 12px;
+  top: 0; left: 0;
+  height: 100vh;
+  width: min(78vw, 320px);
+  background: rgba(255,255,255,0.98);
+  backdrop-filter: blur(10px);
+  border-right: 1px solid rgba(0,0,0,0.08);
+  transform: translateX(-110%);
+  transition: transform 180ms ease;
   z-index: 99999;
-  width: 220px;
-  border-radius: 16px;
-  border: 1px solid rgba(0,0,0,0.12);
-  background: rgba(255,255,255,0.96);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  box-shadow: 0 12px 30px rgba(0,0,0,0.18);
-  padding: 10px;
-  display: none;
+  padding: 0.9rem 0.9rem 1.2rem;
 }
-
-#hotena-menu a{
+.hub-menu-panel .hub-menu-title{
+  font-weight: 700;
+  font-size: 1.05rem;
+  margin: 0.2rem 0 0.8rem;
+}
+.hub-menu-panel a{
   display:block;
-  padding: 10px 12px;
+  padding: 0.85rem 0.85rem;
+  margin: 0.25rem 0;
   border-radius: 12px;
-  text-decoration:none;
-  color: rgba(0,0,0,0.85);
-  font-size: 15px;
+  text-decoration: none;
+  color: rgba(10,10,10,0.92);
+  border: 1px solid rgba(0,0,0,0.06);
 }
-#hotena-menu a:hover{
-  background: rgba(0,0,0,0.06);
+.hub-menu-overlay{
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.35);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 180ms ease;
+  z-index: 99998;
 }
-#hotena-menu .sep{
-  height: 1px;
-  background: rgba(0,0,0,0.10);
-  margin: 8px 2px;
+#hub_menu_toggle:checked ~ .hub-menu-panel{ transform: translateX(0); }
+#hub_menu_toggle:checked ~ .hub-menu-overlay{
+  opacity: 1;
+  pointer-events: auto;
 }
-
-/* Give the app a little breathing room so content doesn't hide under the fab */
-.block-container { padding-top: 3.25rem; }
 </style>
 
-<button id="hotena-fab" aria-label="menu">☰</button>
-<div id="hotena-menu" role="menu" aria-label="Hotena menu">
-  <a href="?page=home">홈</a>
-  <a href="?page=word">단어</a>
-  <a href="?page=kanji">한자</a>
-  <a href="?page=talk">회화</a>
-  <a href="?page=my">마이페이지</a>
-  <div class="sep"></div>
-  <a href="?action=logout">로그아웃</a>
-</div>
+<div class="hub-float-wrap">
+  <input type="checkbox" id="hub_menu_toggle" />
+  <label class="hub-menu-btn" for="hub_menu_toggle" aria-label="menu">☰</label>
 
-<script>
-(function(){
-  const fab = document.getElementById("hotena-fab");
-  const menu = document.getElementById("hotena-menu");
-  const toggle = () => {
-    menu.style.display = (menu.style.display === "block") ? "none" : "block";
-  };
-  fab.addEventListener("click", (e) => { e.preventDefault(); e.stopPropagation(); toggle(); });
-  document.addEventListener("click", () => { menu.style.display = "none"; });
-})();
-</script>
+  <div class="hub-menu-panel">
+    <div class="hub-menu-title">메뉴</div>
+    <a href="?p=home">🏠 홈</a>
+    <a href="?p=word">📘 단어</a>
+    <a href="?p=kanji">🈶 한자</a>
+    <a href="?p=talk">💬 회화</a>
+    <a href="?p=my">👤 마이페이지</a>
+    <a href="?action=logout">🚪 로그아웃</a>
+    <div style="height:0.6rem"></div>
+    <div style="font-size:0.85rem; opacity:0.7;">Tip: 바깥을 누르면 닫힙니다.</div>
+  </div>
+
+  <label class="hub-menu-overlay" for="hub_menu_toggle"></label>
+</div>
 """,
-        height=0,
+        unsafe_allow_html=True,
     )
 
-def render_top_menu():
-    # ✅ Mobile-friendly hamburger menu (no sidebar)
-    left, mid, right = st.columns([0.16, 0.68, 0.16], vertical_alignment="center")
 
-    def _menu_items(prefix: str):
-        st.button("홈", use_container_width=True, key=f"{prefix}_home", on_click=nav_to, args=("home",))
-        st.button("단어", use_container_width=True, key=f"{prefix}_word", on_click=nav_to, args=("word",))
-        st.button("한자", use_container_width=True, key=f"{prefix}_kanji", on_click=nav_to, args=("kanji",))
-        st.button("회화", use_container_width=True, key=f"{prefix}_talk", on_click=nav_to, args=("talk",))
-        st.button("마이페이지", use_container_width=True, key=f"{prefix}_my", on_click=nav_to, args=("my",))
-        st.button("로그아웃", use_container_width=True, key=f"{prefix}_logout", on_click=hub_logout)
-
-    with left:
-        # Streamlit version에 따라 popover가 없을 수 있어 fallback(expander) 제공
-        if hasattr(st, "popover"):
-            with st.popover("☰", use_container_width=True):
-                _menu_items("hub_pop")
-        else:
-            with st.expander("☰ 메뉴", expanded=False):
-                _menu_items("hub_exp")
-
-    with mid:
-        st.markdown(
-            "<div style='text-align:center; font-weight:700; font-size:1.0rem; line-height:1.2;'>하테나</div>",
-            unsafe_allow_html=True,
-        )
-
-    with right:
-        st.markdown("&nbsp;", unsafe_allow_html=True)
-
-    st.divider()
-apply_query_routing()
 render_floating_menu()
+
+# ============================================================
+# ✅ URL navigation (for floating menu links)
+# ============================================================
+try:
+    qp = st.query_params
+    q_action = qp.get("action")
+    q_page = qp.get("p")
+except Exception:
+    q_action = None
+    q_page = None
+
+if q_action == "logout":
+    hub_logout()
+
+if q_page in {"home","word","kanji","talk","my"}:
+    if st.session_state.get("hub_page") != q_page:
+        _clear_training_ui_state()
+        st.session_state["hub_page"] = q_page
+
 # ============================================================
 # ✅ Runner
 
