@@ -459,9 +459,9 @@ def render_floating_menu():
 /* ===== Floating Menu (Hub) ===== */
 .hub-float-wrap{
   position: fixed;
-  top: 0.65rem;
+  top: 3.25rem;
   left: 0.65rem;
-  z-index: 100000;
+  z-index: 2147483647;
   font-family: inherit;
 }
 #hub_menu_toggle{ display:none; }
