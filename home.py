@@ -67,6 +67,22 @@ if cookies is None:
         st.stop()
     st.session_state["cookies"] = cookies
 
+# ✅ 쿠키 컴포넌트는 같은 run에서 같은 key로 두 번 렌더링되면
+#    StreamlitDuplicateElementKey가 발생할 수 있습니다.
+#    (특히 cookies.save()를 한 run 안에서 여러 번 호출할 때)
+#    따라서 '이번 run에서 save는 1번만' 보장합니다.
+st.session_state["_cookie_save_lock"] = False
+
+def _cookies_save_once_per_run():
+    if st.session_state.get("_cookie_save_lock"):
+        return
+    st.session_state["_cookie_save_lock"] = True
+    try:
+        cookies.save()
+    except Exception:
+        # 쿠키 저장 실패는 치명적이지 않으므로 조용히 무시
+        pass
+
 # ============================================================
 # ✅ Supabase client (anon)
 # ============================================================
@@ -101,7 +117,7 @@ def refresh_session_from_cookie_if_needed(force: bool = False) -> bool:
             st.session_state["refresh_token"] = refreshed.session.refresh_token
             cookies["access_token"] = refreshed.session.access_token
             cookies["refresh_token"] = refreshed.session.refresh_token
-            cookies.save()
+            _cookies_save_once_per_run()
             return True
 
     if at:
@@ -266,7 +282,7 @@ if not user:
                 st.session_state["refresh_token"] = res.session.refresh_token
                 cookies["access_token"] = res.session.access_token
                 cookies["refresh_token"] = res.session.refresh_token
-                cookies.save()
+                _cookies_save_once_per_run()
                 st.success("로그인 완료!")
                 st.rerun()
             else:
@@ -353,20 +369,10 @@ def go(page: str):
     st.session_state["hub_page"] = page
     st.rerun()
 
-# ============================================================
-# ✅ Navigation (hub_page)
-# ============================================================
-if "hub_page" not in st.session_state:
-    st.session_state["hub_page"] = "home"
-
-def go(page: str):
-    st.session_state["hub_page"] = page
-    st.rerun()
-
 def hub_logout():
     cookies["access_token"] = ""
     cookies["refresh_token"] = ""
-    cookies.save()
+    _cookies_save_once_per_run()
     for k in ["user","access_token","refresh_token","sb_authed","sb_authed_token","progress_all","hub_page","HUB_MODE"]:
         st.session_state.pop(k, None)
     st.rerun()
