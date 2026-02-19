@@ -30,8 +30,6 @@ st.markdown(
    - Make tap targets big enough
    - Normalize spacing/typography for "app-like" feel
    ========================================================== */
-st.write("cookie access_token exists:", bool(cookies.get("access_token")))
-st.write("cookie refresh_token exists:", bool(cookies.get("refresh_token")))
 
 header[data-testid="stHeader"]{
   height: auto !important;
@@ -159,6 +157,10 @@ if cookies is None:
         st.info("잠깐만요! 곧 시작할게요🙂")
         st.stop()
     st.session_state["cookies"] = cookies
+
+st.write("cookie access_token exists:", bool(cookies.get("access_token")))
+st.write("cookie refresh_token exists:", bool(cookies.get("refresh_token")))
+
 
 # ✅ 쿠키 컴포넌트는 같은 run에서 같은 key로 두 번 렌더링되면
 #    StreamlitDuplicateElementKey가 발생할 수 있습니다.
