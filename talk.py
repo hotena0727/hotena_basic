@@ -254,149 +254,268 @@ def stable_daily_tip(user_id: str) -> str:
     return tips[idx]
 
 
+def autoplay_tts_once(ans: str, key_id: str):
+    """Auto-play TTS once per question (SpeechSynthesis, client-side)."""
+    if not ans:
+        return
+    ss_key = f"{NS}_tts_auto_{key_id}"
+    if st.session_state.get(ss_key):
+        return
+    st.session_state[ss_key] = True
 
-def recording_practice_html(block_id: str) -> str:
-    """제출 후 '내 발음 녹음/재생' (저장 없음, 페이지 단위)"""
-    html = """
-    <div id="rec___ID__" style="border:1px solid rgba(49,51,63,.12);border-radius:16px;padding:14px 14px 10px;background:rgba(255,255,255,.9);">
-      <div style="font-weight:700;margin-bottom:8px;">🎤 내 발음 연습 (녹음 → 들어보기)</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px;">
-        <button id="start___ID__" type="button" style="padding:10px 12px;border-radius:10px;border:1px solid rgba(49,51,63,.18);background:#fff;cursor:pointer;">녹음 시작</button>
-        <button id="stop___ID__" type="button" disabled style="padding:10px 12px;border-radius:10px;border:1px solid rgba(49,51,63,.18);background:#fff;cursor:pointer;opacity:.55;">정지</button>
-        <button id="clear___ID__" type="button" disabled style="padding:10px 12px;border-radius:10px;border:1px solid rgba(49,51,63,.18);background:#fff;cursor:pointer;opacity:.55;">삭제</button>
-        <span id="status___ID__" style="opacity:.75;font-size:0.95rem;">마이크 권한을 허용해 주세요.</span>
-      </div>
-      <audio id="audio___ID__" controls style="width:100%;"></audio>
-      <div style="margin-top:8px;font-size:0.85rem;opacity:.7;">※ 녹음은 저장되지 않고, 이 페이지에서만 재생됩니다.</div>
-    </div>
+    def esc(s: str) -> str:
+        return (
+            str(s)
+            .replace("&", "&amp;")
+            .replace("<", "&lt;")
+            .replace(">", "&gt;")
+            .replace('"', "&quot;")
+        )
 
-    <script>
-    (function(){
-      const root = document.getElementById("rec___ID__");
-      if(!root) return;
+    components.html(
+        f"""
+<script>
+(function() {{
+  const win = (window.parent && window.parent.speechSynthesis) ? window.parent : window;
+  function pickJaVoice() {{
+    const voices = win.speechSynthesis.getVoices ? win.speechSynthesis.getVoices() : [];
+    const ja = voices.filter(v => (v.lang || "").toLowerCase().startsWith("ja"));
+    return ja.length ? ja[0] : null;
+  }}
+  function speak(text) {{
+    try {{
+      if (!text) return;
+      const u = new win.SpeechSynthesisUtterance(text);
+      u.lang = "ja-JP";
+      const v = pickJaVoice();
+      if (v) u.voice = v;
+      win.speechSynthesis.cancel();
+      win.speechSynthesis.speak(u);
+    }} catch(e) {{}}
+  }}
+  const text = "{esc(ans)}";
+  // voices may load async on iOS; retry a couple times
+  setTimeout(() => speak(text), 50);
+  setTimeout(() => speak(text), 450);
+}})();
+</script>
+""",
+        height=0,
+    )
 
-      const startBtn = document.getElementById("start___ID__");
-      const stopBtn  = document.getElementById("stop___ID__");
-      const clearBtn = document.getElementById("clear___ID__");
-      const statusEl = document.getElementById("status___ID__");
-      const audioEl  = document.getElementById("audio___ID__");
 
-      let mediaRecorder = null;
-      let chunks = [];
-      let currentUrl = null;
-      let stream = null;
+def waveform_recorder_html(block_id: str) -> str:
+    """Waveform recorder (no server upload). Returns HTML string."""
+    return f"""
+<style>
+  #wr_{block_id} {{
+    border: 1px solid rgba(0,0,0,.10);
+    border-radius: 18px;
+    padding: 12px 12px;
+    background: rgba(255,255,255,.78);
+    box-shadow: 0 6px 16px rgba(0,0,0,.06);
+  }}
+  #wr_{block_id} .row {{
+    display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+  }}
+  #wr_{block_id} .btn {{
+    border: 1px solid rgba(0,0,0,.12);
+    background: white;
+    padding: 10px 12px;
+    border-radius: 999px;
+    font-weight: 800;
+    cursor: pointer;
+    min-height: 46px;
+  }}
+  #wr_{block_id} .btn.primary {{
+    border-color: rgba(28,47,92,.20);
+    background: rgba(28,47,92,.06);
+  }}
+  #wr_{block_id} .dot {{
+    width:10px; height:10px; border-radius:999px;
+    background: rgba(220, 20, 60, .25);
+    box-shadow: 0 0 0 rgba(220, 20, 60, .0);
+    display:none;
+  }}
+  #wr_{block_id}.rec .dot {{
+    display:inline-block;
+    background: rgba(220, 20, 60, .85);
+    animation: wr_pulse_{block_id} 1.1s infinite;
+  }}
+  @keyframes wr_pulse_{block_id} {{
+    0% {{ box-shadow: 0 0 0 0 rgba(220,20,60,.35); }}
+    70% {{ box-shadow: 0 0 0 10px rgba(220,20,60,0); }}
+    100% {{ box-shadow: 0 0 0 0 rgba(220,20,60,0); }}
+  }}
+  #wr_{block_id} canvas {{
+    width: 100%;
+    height: 88px;
+    border-radius: 14px;
+    background: rgba(0,0,0,.04);
+    display:block;
+    margin-top: 10px;
+  }}
+  #wr_{block_id} audio {{
+    width: 100%;
+    margin-top: 10px;
+  }}
+  #wr_{block_id} .hint {{
+    opacity:.75; font-size:.9rem; margin-top:6px;
+  }}
+</style>
 
-      const setEnabled = (btn, on) => {
-        btn.disabled = !on;
-        btn.style.opacity = on ? "1" : ".55";
-      };
+<div id="wr_{block_id}">
+  <div class="row">
+    <span class="dot" aria-hidden="true"></span>
+    <button class="btn primary" type="button" id="wr_start_{block_id}">🎙️ 녹음 시작</button>
+    <button class="btn" type="button" id="wr_stop_{block_id}" disabled>⏹️ 정지</button>
+    <button class="btn" type="button" id="wr_clear_{block_id}" disabled>🗑️ 삭제</button>
+  </div>
+  <canvas id="wr_canvas_{block_id}"></canvas>
+  <audio id="wr_audio_{block_id}" controls></audio>
+  <div class="hint">정답을 들은 뒤, 바로 따라 말해보세요. (저장되지 않습니다)</div>
+</div>
 
-      const cleanupUrl = () => {
-        if(currentUrl){
-          try { URL.revokeObjectURL(currentUrl); } catch(e){}
-          currentUrl = null;
-        }
-        audioEl.removeAttribute("src");
-        audioEl.load();
-      };
+<script>
+(function() {{
+  const root = document.getElementById("wr_{block_id}");
+  const btnStart = document.getElementById("wr_start_{block_id}");
+  const btnStop  = document.getElementById("wr_stop_{block_id}");
+  const btnClear = document.getElementById("wr_clear_{block_id}");
+  const canvas   = document.getElementById("wr_canvas_{block_id}");
+  const audioEl  = document.getElementById("wr_audio_{block_id}");
+  const ctx      = canvas.getContext("2d");
 
-      const stopStream = () => {
-        if(stream){
-          try { stream.getTracks().forEach(t => t.stop()); } catch(e){}
-          stream = null;
-        }
-      };
+  let stream = null;
+  let mediaRecorder = null;
+  let chunks = [];
+  let rafId = null;
+  let audioCtx = null;
+  let analyser = null;
+  let dataArray = null;
+  let sourceNode = null;
 
-      if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
-        statusEl.textContent = "이 브라우저는 마이크 녹음을 지원하지 않습니다.";
-        setEnabled(startBtn, false);
-        return;
-      }
-      if(typeof MediaRecorder === "undefined"){
-        statusEl.textContent = "이 브라우저는 MediaRecorder를 지원하지 않습니다.";
-        setEnabled(startBtn, false);
-        return;
-      }
+  function resizeCanvas() {{
+    const rect = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.floor(rect.width * dpr);
+    canvas.height = Math.floor(rect.height * dpr);
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+  }}
+  resizeCanvas();
+  window.addEventListener("resize", resizeCanvas);
 
-      statusEl.textContent = "준비됨";
+  function draw() {{
+    if (!analyser) return;
+    analyser.getByteTimeDomainData(dataArray);
 
-      startBtn.addEventListener("click", async () => {
-        try{
-          cleanupUrl();
-          statusEl.textContent = "마이크 연결 중…";
-          stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const w = canvas.clientWidth;
+    const h = canvas.clientHeight;
+    ctx.clearRect(0,0,w,h);
 
-          const options = {};
-          const preferred = ["audio/webm;codecs=opus","audio/webm","audio/mp4"];
-          for(const mt of preferred){
-            if(MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(mt)){
-              options.mimeType = mt; break;
-            }
-          }
+    // bg
+    ctx.fillStyle = "rgba(0,0,0,0.00)";
+    ctx.fillRect(0,0,w,h);
 
-          chunks = [];
-          mediaRecorder = new MediaRecorder(stream, options);
+    // waveform
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = "rgba(28,47,92,.85)";
+    ctx.beginPath();
+    const slice = w / dataArray.length;
+    let x = 0;
+    for (let i=0;i<dataArray.length;i++) {{
+      const v = dataArray[i] / 128.0;
+      const y = v * h/2;
+      if (i===0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+      x += slice;
+    }}
+    ctx.lineTo(w, h/2);
+    ctx.stroke();
 
-          mediaRecorder.ondataavailable = (e) => {
-            if(e.data && e.data.size > 0) chunks.push(e.data);
-          };
+    rafId = requestAnimationFrame(draw);
+  }}
 
-          mediaRecorder.onstop = () => {
-            try{
-              const blob = new Blob(chunks, { type: (chunks[0] && chunks[0].type) ? chunks[0].type : "audio/webm" });
-              currentUrl = URL.createObjectURL(blob);
-              audioEl.src = currentUrl;
-              audioEl.load();
-              statusEl.textContent = "녹음 완료 — 들어보세요.";
-              setEnabled(clearBtn, true);
-            }catch(err){
-              statusEl.textContent = "녹음 처리 중 오류가 발생했습니다.";
-            }finally{
-              setEnabled(startBtn, true);
-              setEnabled(stopBtn, false);
-              stopStream();
-            }
-          };
+  async function start() {{
+    try {{
+      chunks = [];
+      audioEl.src = "";
+      btnStart.disabled = true;
+      btnStop.disabled = false;
+      btnClear.disabled = true;
+      root.classList.add("rec");
 
-          mediaRecorder.start();
-          statusEl.textContent = "녹음 중…";
-          setEnabled(startBtn, false);
-          setEnabled(stopBtn, true);
-          setEnabled(clearBtn, false);
-        }catch(err){
-          statusEl.textContent = "마이크 권한이 필요합니다.";
-          setEnabled(startBtn, true);
-          setEnabled(stopBtn, false);
-          setEnabled(clearBtn, false);
-          stopStream();
-        }
-      });
+      stream = await navigator.mediaDevices.getUserMedia({{ audio: true }});
 
-      stopBtn.addEventListener("click", () => {
-        try{
-          if(mediaRecorder && mediaRecorder.state !== "inactive"){
-            mediaRecorder.stop();
-          }
-          statusEl.textContent = "정지 중…";
-          setEnabled(stopBtn, false);
-        }catch(e){
-          statusEl.textContent = "정지 실패";
-          setEnabled(startBtn, true);
-          setEnabled(stopBtn, false);
-          stopStream();
-        }
-      });
+      mediaRecorder = new MediaRecorder(stream);
+      mediaRecorder.ondataavailable = (e) => {{
+        if (e.data && e.data.size > 0) chunks.push(e.data);
+      }};
+      mediaRecorder.onstop = () => {{
+        const blob = new Blob(chunks, {{ type: "audio/webm" }});
+        const url = URL.createObjectURL(blob);
+        audioEl.src = url;
+        btnClear.disabled = false;
+      }};
+      mediaRecorder.start();
 
-      clearBtn.addEventListener("click", () => {
-        cleanupUrl();
-        chunks = [];
-        statusEl.textContent = "삭제됨";
-        setEnabled(clearBtn, false);
-      });
-    })();
-    </script>
-    """
-    return html.replace("___ID__", str(block_id))
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 2048;
+      dataArray = new Uint8Array(analyser.fftSize);
+
+      sourceNode = audioCtx.createMediaStreamSource(stream);
+      sourceNode.connect(analyser);
+
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(draw);
+    }} catch(e) {{
+      console.error(e);
+      btnStart.disabled = false;
+      btnStop.disabled = true;
+      root.classList.remove("rec");
+      alert("마이크 권한을 허용해 주세요.");
+    }}
+  }}
+
+  function stop() {{
+    try {{
+      btnStop.disabled = true;
+      btnStart.disabled = false;
+      root.classList.remove("rec");
+
+      if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
+      if (stream) {{
+        stream.getTracks().forEach(t => t.stop());
+        stream = null;
+      }}
+      if (audioCtx) {{
+        audioCtx.close();
+        audioCtx = null;
+      }}
+      analyser = null;
+      dataArray = null;
+      if (rafId) cancelAnimationFrame(rafId);
+      rafId = null;
+    }} catch(e) {{ console.error(e); }}
+  }}
+
+  function clearAll() {{
+    stop();
+    chunks = [];
+    audioEl.src = "";
+    btnClear.disabled = true;
+    // clear canvas
+    const w = canvas.clientWidth, h = canvas.clientHeight;
+    ctx.clearRect(0,0,w,h);
+  }}
+
+  btnStart.addEventListener("click", start);
+  btnStop.addEventListener("click", stop);
+  btnClear.addEventListener("click", clearAll);
+}})();
+</script>
+"""
 
 # ============================================================
 # ✅ 필터 UI (레벨/상황 태그)
@@ -616,28 +735,41 @@ with b3:
 # ============================================================
 if submitted:
     ans = str(row["answer_jp"]).strip()
-    if selected == ans:
+
+    # ✅ Auto TTS 1회 (제출 직후)
+    autoplay_tts_once(ans, key_id=f"{qid}_{idx}")
+
+    ok = (selected == ans)
+    if ok:
         st.success("정답입니다.")
     else:
         st.error("오답입니다.")
 
-    st.markdown("#### 정답")
-    st.write(ans)
+    # ✅ 말풍선 UI (문제 → 내 답 → 정답)
+    st.markdown(
+        f"""
+<div class="bubble left"><small>상대</small>{html.escape(str(row.get("partner_jp","")).strip())}</div>
+<div class="bubble right"><small>내 답</small>{html.escape(str(selected).strip())}</div>
+<div class="bubble left answer"><small>정답</small>{html.escape(ans)}</div>
+""",
+        unsafe_allow_html=True,
+    )
 
-    # ✅ 정답 발음만
+    # ✅ 정답 듣기(수동) + 발음 연습(녹음/재생, 저장 없음)
     if ans:
         components.html(
             speak_buttons_html([("정답 듣기", ans)], block_id=f"a_{qid}_{idx}"),
             height=60
         )
+        components.html(
+            waveform_recorder_html(block_id=f"{qid}_{idx}"),
+            height=260,
+        )
 
     if str(row.get("answer_kr","")).strip():
         st.caption(str(row.get("answer_kr","")).strip())
 
-    # 힌트는 제출 후에만 보여줘도 됨
+
     hint = str(row.get("hint_kr","")).strip()
     if hint:
         st.info(hint)
-
-    # ✅ 제출 후: 내 발음 녹음/재생(페이지 단위, 저장 없음)
-    components.html(recording_practice_html(block_id=f"{qid}_{idx}"), height=260)
