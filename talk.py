@@ -352,9 +352,40 @@ if idx >= len(qids):
     # 틀린 문제는 wrong_ids에 추가
     talk["wrong_ids"] = list(dict.fromkeys((talk.get("wrong_ids", []) or []) + wrong_list))
     talk["last_set"] = {"qids": qids, "results": results, "finished_at": datetime.utcnow().isoformat()}
+    # ✅ 말하기 자기평가 히스토리(마이페이지 요약용)
+    try:
+        hist = talk.get("self_eval_history") or []
+        now_iso = datetime.utcnow().isoformat()
+        for _qid, _r in (results or {}).items():
+            _sev = (_r or {}).get("self_eval") or {}
+            if not _sev:
+                continue
+            hist.append({
+                "ts": now_iso,
+                "qid": str(_qid),
+                "pron": int(_sev.get("pron", 0) or 0),
+                "inton": int(_sev.get("intonation", 0) or 0),
+                "speed": int(_sev.get("speed", 0) or 0),
+                "conf": int(_sev.get("confidence", 0) or 0),
+            })
+        # 너무 커지지 않게 최근 500개만 유지
+        if len(hist) > 500:
+            hist = hist[-500:]
+        talk["self_eval_history"] = hist
+    except Exception:
+        pass
+
     progress_all["talk"] = talk
     save_progress(progress_all)
     log_attempt(sel_level, sel_tag or "all", len(qids), score, wrong_list)
+
+    # ✅ 10문제 완주 보상(허브 공통)
+    try:
+        fn = st.session_state.get("hub_record_completion")
+        if callable(fn):
+            fn("talk", score, len(qids))
+    except Exception:
+        pass
 
     c_end1, c_end2 = st.columns([1, 1])
     with c_end1:
@@ -437,6 +468,28 @@ else:
 if partner_kr:
     st.caption(partner_kr)
 
+# ============================================================
+# ✅ 실제 말하기 모드(녹음)
+# - 채점은 하지 않지만, 말해보는 경험을 제공
+# ============================================================
+with st.expander("🎙️ 말하기 모드(녹음)", expanded=False):
+    st.caption("상대 발화를 듣고, 아래에서 직접 말해보세요. 녹음은 기기에서만 재생됩니다.")
+    try:
+        audio = st.audio_input("내 목소리 녹음하기")
+        if audio is not None:
+            st.audio(audio)
+    except Exception:
+        st.caption("현재 환경에서는 녹음 기능이 지원되지 않을 수 있어요.")
+
+with st.expander("🎯 자기평가(말하기 체크)", expanded=False):
+    st.caption("채점이 아니라 ‘스스로 점검’용입니다. 10문 세트가 끝나면 마이페이지 요약에 반영돼요.")
+    sev_pron = st.slider("발음(정확도)", 1, 5, 3, key=f"{NS}_sev_pron_{qid}")
+    sev_int  = st.slider("억양(자연스러움)", 1, 5, 3, key=f"{NS}_sev_int_{qid}")
+    sev_spd  = st.slider("속도(적절함)", 1, 5, 3, key=f"{NS}_sev_spd_{qid}")
+    sev_conf = st.slider("자신감", 1, 5, 3, key=f"{NS}_sev_conf_{qid}")
+    sev_goal = st.text_input("다음 목표(한 줄)", value="", placeholder="예) 끝을 올리지 않고 차분하게 말하기", key=f"{NS}_sev_goal_{qid}")
+
+
 st.markdown("#### 보기")
 selected = st.radio("정답을 고르세요.", choices, key="talk_choice")
 
@@ -451,8 +504,17 @@ with b1:
         ans = str(row["answer_jp"]).strip()
         ok = (selected == ans)
 
+        # ✅ 자기평가(말하기) 저장
+        sev = {
+            "pron": int(st.session_state.get(f"{NS}_sev_pron_{qid}", 3)),
+            "intonation": int(st.session_state.get(f"{NS}_sev_int_{qid}", 3)),
+            "speed": int(st.session_state.get(f"{NS}_sev_spd_{qid}", 3)),
+            "confidence": int(st.session_state.get(f"{NS}_sev_conf_{qid}", 3)),
+            "goal": str(st.session_state.get(f"{NS}_sev_goal_{qid}", "")).strip(),
+        }
+
         results = st.session_state.get(f"{NS}_results", {}) or {}
-        results[str(qid)] = {"selected": selected, "correct": bool(ok)}
+        results[str(qid)] = {"selected": selected, "correct": bool(ok), "self_eval": sev}
         st.session_state[f"{NS}_results"] = results
 
         st.rerun()
@@ -472,26 +534,76 @@ with b3:
         st.rerun()
 
 # ============================================================
-# ✅ 제출 후: 정답/오답 + 정답 발음(보기 발음은 제공하지 않음)
+# ✅ 제출 후: 결과 + (문제/정답) 스크립트 + 발음 + 납득 안내
 # ============================================================
 if submitted:
     ans = str(row["answer_jp"]).strip()
-    if selected == ans:
+    ok = (selected == ans)
+
+    if ok:
         st.success("정답입니다.")
     else:
         st.error("오답입니다.")
 
+    st.divider()
+
+    # ✅ 제출 후에도 '문제(상대 발화)'를 다시 표시
+    st.markdown("#### 문제(상대 발화)")
+    if partner_jp:
+        st.write(partner_jp)
+        (components.html(
+            speak_buttons_html([("상대 발화 듣기", partner_jp)], block_id=f"p_after_{qid}_{idx}"),
+            height=40,
+        ) if IS_PRO else st.caption("🔒 발음은 PRO 플랜에서 이용할 수 있어요."))
+    else:
+        st.caption("상대 발화가 비어 있습니다. (CSV의 partner_jp 확인)")
+
+    if partner_kr:
+        st.caption(partner_kr)
+
     st.markdown("#### 정답")
     st.write(ans)
 
-    # ✅ 정답 발음만
     if ans:
-        (components.html(speak_buttons_html([("정답 듣기", ans)], block_id=f"a_{qid}_{idx}"), height=40) if IS_PRO else st.caption("🔒 발음은 PRO 플랜에서 이용할 수 있어요."))
+        (components.html(
+            speak_buttons_html([("정답 듣기", ans)], block_id=f"a_{qid}_{idx}"),
+            height=40,
+        ) if IS_PRO else st.caption("🔒 발음은 PRO 플랜에서 이용할 수 있어요."))
 
-    if str(row.get("answer_kr","")).strip():
-        st.caption(str(row.get("answer_kr","")).strip())
+    answer_kr = str(row.get("answer_kr", "")).strip()
+    if answer_kr:
+        st.caption(answer_kr)
 
-    # 힌트는 제출 후에만 보여줘도 됨
-    hint = str(row.get("hint_kr","")).strip()
+    # ✅ 납득할 만한 안내(설명)
+    hint = str(row.get("hint_kr", "")).strip()
     if hint:
         st.info(hint)
+    else:
+        sit = str(row.get("situation_kr", "")).strip()
+        if sit and answer_kr:
+            st.info(f"상황이 '{sit}'이므로, '{answer_kr}'처럼 답하는 게 가장 자연스럽습니다.")
+        elif sit:
+            st.info(f"상황이 '{sit}'이므로, 이 정답이 가장 자연스럽습니다.")
+        elif partner_kr:
+            st.info("상대의 발화 의도에 가장 자연스럽게 이어지는 반응입니다.")
+        else:
+            st.info("대화 흐름에 가장 자연스럽게 이어지는 반응입니다.")
+
+    # ✅ 내 자기평가 요약(제출 후)
+    try:
+        _res = (st.session_state.get(f"{NS}_results") or {}).get(str(qid), {}) or {}
+        _sev = _res.get("self_eval") or {}
+        if _sev:
+            st.markdown("#### 내 말하기 자기평가(참고)")
+            c_sev1, c_sev2, c_sev3, c_sev4 = st.columns(4)
+            c_sev1.metric("발음", f"{int(_sev.get('pron',0))}/5")
+            c_sev2.metric("억양", f"{int(_sev.get('intonation',0))}/5")
+            c_sev3.metric("속도", f"{int(_sev.get('speed',0))}/5")
+            c_sev4.metric("자신감", f"{int(_sev.get('confidence',0))}/5")
+            goal = str(_sev.get("goal","")).strip()
+            if goal:
+                st.caption(f"다음 목표: {goal}")
+    except Exception:
+        pass
+
+
