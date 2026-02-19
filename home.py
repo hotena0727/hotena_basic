@@ -1,7 +1,7 @@
 # home.py
 from __future__ import annotations
 
-BUILD_STAMP = 'v28 2026-02-19 16:01:21 KST (+09:00)'
+BUILD_STAMP = 'v29 2026-02-19 16:02:35 KST (+09:00)'
 
 from pathlib import Path
 import os
@@ -602,7 +602,7 @@ def summarize_attempts(attempts: list[dict]) -> dict:
         out["by_kind"][kind]["score"] += s
     return out
 
-def render_floating_menu()
+def render_floating_menu():
 render_plan_pill():
     plan = (st.session_state.get("user_plan") or "free").lower()
     txt = "✨ PRO 이용 중입니다" if plan == "pro" else "🆓 FREE 이용 중"
