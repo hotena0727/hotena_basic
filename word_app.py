@@ -590,13 +590,38 @@ if missing:
     st.error(f"설정값이 없습니다: {', '.join(missing)} (Cloud Run env 또는 Streamlit secrets 확인)")
     st.stop()
 
-cookies = EncryptedCookieManager(
-    prefix="hotena_beginner_",   # ✅ hotena로 통일 권장
-    password=COOKIE_PASSWORD,
-)
-if not cookies.ready():
-    st.info("잠깐만요! 곧 시작할게요🙂")
-    st.stop()
+
+# ============================================================
+# ✅ HUB session bridge (no extra cookie component)
+#   - main.py(허브)에서만 쿠키 컴포넌트를 생성합니다.
+#   - 여기서는 session_state를 쿠키처럼 다루는 래퍼를 씁니다.
+# ============================================================
+_HUB_MODE = bool(st.session_state.get("__hotena_hub_mode__"))
+
+class _HubCookies:
+    def ready(self):  # streamlit_cookies_manager 호환
+        return True
+    def get(self, key, default=None):
+        return st.session_state.get(key, default)
+    def __getitem__(self, key):
+        return st.session_state.get(key, "")
+    def __setitem__(self, key, value):
+        st.session_state[key] = value
+    def save(self):
+        # 실제 저장은 main.py에서 처리
+        return
+
+if _HUB_MODE:
+    cookies = _HubCookies()
+else:
+    cookies = EncryptedCookieManager(
+        prefix="hotena_",
+        password=COOKIE_PASSWORD,
+    )
+    if not cookies.ready():
+        st.info("잠깐만요! 곧 시작할게요🙂")
+        st.stop()
+
 
 sb = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
 

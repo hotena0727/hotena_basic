@@ -41,6 +41,9 @@ button[kind="header"]{display:none !important;}
     unsafe_allow_html=True,
 )
 
+# ✅ HUB MODE FLAG (router execution)
+st.session_state["__hotena_hub_mode__"] = True
+
 # ============================================================
 # ✅ Settings / Secrets
 # ============================================================
@@ -53,6 +56,26 @@ if not SUPABASE_URL or not SUPABASE_ANON_KEY:
     st.stop()
 
 sb = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+
+def _ensure_user_object():
+    # word_app/kanji_app는 st.session_state['user']가 있어야 로그인 UI가 뜨지 않음
+    if st.session_state.get("user") is not None:
+        return
+    at = st.session_state.get("access_token") or ""
+    uemail = st.session_state.get("user_email") or ""
+    if at:
+        try:
+            res = sb.auth.get_user(at)
+            u = getattr(res, "user", None) or (res.get("user") if isinstance(res, dict) else None)
+            if u is not None:
+                st.session_state["user"] = u
+                return
+        except Exception:
+            pass
+    # 최후의 fallback: 최소 객체(일부 기능은 제한될 수 있음)
+    if uemail:
+        from types import SimpleNamespace
+        st.session_state["user"] = SimpleNamespace(id="", email=uemail)
 
 # ============================================================
 # ✅ Router
@@ -88,10 +111,16 @@ def _restore_session_from_cookies(cookies) -> bool:
     if uemail:
         st.session_state["user_email"] = uemail
     st.session_state["is_authed"] = True
+                    u = getattr(res, "user", None) or (res.get("user") if isinstance(res, dict) else None)
+                    if u is not None:
+                        st.session_state["user"] = u
+                    else:
+                        _ensure_user_object()
     return True
 
 def require_login():
     if st.session_state.get("is_authed") and st.session_state.get("access_token"):
+        _ensure_user_object()
         return
     # if not authed, go home
     st.session_state["page"] = "home"
@@ -104,6 +133,7 @@ def render_home():
     cookies = _home_cookies()
     if not st.session_state.get("is_authed"):
         _restore_session_from_cookies(cookies)
+        _ensure_user_object()
 
     if not st.session_state.get("is_authed"):
         st.subheader("로그인")

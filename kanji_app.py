@@ -3,6 +3,7 @@
 # ✅ [A] Imports + Page Config (파일 최상단, st.* 호출보다 먼저)
 # ============================================================
 from pathlib import Path
+import os
 import random
 import pandas as pd
 import streamlit as st
@@ -377,13 +378,33 @@ if st.session_state.get("_scroll_top_once"):
 # ============================================================
 # ✅ Cookies
 # ============================================================
-cookies = EncryptedCookieManager(
-    prefix="hatena_kanji_",
-    password=st.secrets["COOKIE_PASSWORD"],
-)
-if not cookies.ready():
-    st.info("잠깐만요! 곧 시작할게요🙂")
-    st.stop()
+
+# ============================================================
+# ✅ HUB session bridge (no extra cookie component)
+# ============================================================
+_HUB_MODE = bool(st.session_state.get("__hotena_hub_mode__"))
+
+class _HubCookies:
+    def ready(self):
+        return True
+    def get(self, key, default=None):
+        return st.session_state.get(key, default)
+    def __getitem__(self, key):
+        return st.session_state.get(key, "")
+    def __setitem__(self, key, value):
+        st.session_state[key] = value
+    def save(self):
+        return
+
+if _HUB_MODE:
+    cookies = _HubCookies()
+else:
+    _COOKIE_PW = os.getenv("COOKIE_PASSWORD") or st.secrets.get("COOKIE_PASSWORD", "")
+    cookies = EncryptedCookieManager(prefix="hotena_", password=_COOKIE_PW)
+    if not cookies.ready():
+        st.info("잠깐만요! 곧 시작할게요🙂")
+        st.stop()
+
 
 if "SUPABASE_URL" not in st.secrets or "SUPABASE_ANON_KEY" not in st.secrets:
     st.error("Supabase Secrets가 설정되지 않았습니다. (SUPABASE_URL / SUPABASE_ANON_KEY)")
