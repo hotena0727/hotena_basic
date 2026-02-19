@@ -352,29 +352,6 @@ if idx >= len(qids):
     # 틀린 문제는 wrong_ids에 추가
     talk["wrong_ids"] = list(dict.fromkeys((talk.get("wrong_ids", []) or []) + wrong_list))
     talk["last_set"] = {"qids": qids, "results": results, "finished_at": datetime.utcnow().isoformat()}
-    # ✅ 말하기 자기평가 히스토리(마이페이지 요약용)
-    try:
-        hist = talk.get("self_eval_history") or []
-        now_iso = datetime.utcnow().isoformat()
-        for _qid, _r in (results or {}).items():
-            _sev = (_r or {}).get("self_eval") or {}
-            if not _sev:
-                continue
-            hist.append({
-                "ts": now_iso,
-                "qid": str(_qid),
-                "pron": int(_sev.get("pron", 0) or 0),
-                "inton": int(_sev.get("intonation", 0) or 0),
-                "speed": int(_sev.get("speed", 0) or 0),
-                "conf": int(_sev.get("confidence", 0) or 0),
-            })
-        # 너무 커지지 않게 최근 500개만 유지
-        if len(hist) > 500:
-            hist = hist[-500:]
-        talk["self_eval_history"] = hist
-    except Exception:
-        pass
-
     progress_all["talk"] = talk
     save_progress(progress_all)
     log_attempt(sel_level, sel_tag or "all", len(qids), score, wrong_list)
@@ -481,15 +458,6 @@ with st.expander("🎙️ 말하기 모드(녹음)", expanded=False):
     except Exception:
         st.caption("현재 환경에서는 녹음 기능이 지원되지 않을 수 있어요.")
 
-with st.expander("🎯 자기평가(말하기 체크)", expanded=False):
-    st.caption("채점이 아니라 ‘스스로 점검’용입니다. 10문 세트가 끝나면 마이페이지 요약에 반영돼요.")
-    sev_pron = st.slider("발음(정확도)", 1, 5, 3, key=f"{NS}_sev_pron_{qid}")
-    sev_int  = st.slider("억양(자연스러움)", 1, 5, 3, key=f"{NS}_sev_int_{qid}")
-    sev_spd  = st.slider("속도(적절함)", 1, 5, 3, key=f"{NS}_sev_spd_{qid}")
-    sev_conf = st.slider("자신감", 1, 5, 3, key=f"{NS}_sev_conf_{qid}")
-    sev_goal = st.text_input("다음 목표(한 줄)", value="", placeholder="예) 끝을 올리지 않고 차분하게 말하기", key=f"{NS}_sev_goal_{qid}")
-
-
 st.markdown("#### 보기")
 selected = st.radio("정답을 고르세요.", choices, key="talk_choice")
 
@@ -504,17 +472,8 @@ with b1:
         ans = str(row["answer_jp"]).strip()
         ok = (selected == ans)
 
-        # ✅ 자기평가(말하기) 저장
-        sev = {
-            "pron": int(st.session_state.get(f"{NS}_sev_pron_{qid}", 3)),
-            "intonation": int(st.session_state.get(f"{NS}_sev_int_{qid}", 3)),
-            "speed": int(st.session_state.get(f"{NS}_sev_spd_{qid}", 3)),
-            "confidence": int(st.session_state.get(f"{NS}_sev_conf_{qid}", 3)),
-            "goal": str(st.session_state.get(f"{NS}_sev_goal_{qid}", "")).strip(),
-        }
-
         results = st.session_state.get(f"{NS}_results", {}) or {}
-        results[str(qid)] = {"selected": selected, "correct": bool(ok), "self_eval": sev}
+        results[str(qid)] = {"selected": selected, "correct": bool(ok)}
         st.session_state[f"{NS}_results"] = results
 
         st.rerun()
@@ -588,22 +547,3 @@ if submitted:
             st.info("상대의 발화 의도에 가장 자연스럽게 이어지는 반응입니다.")
         else:
             st.info("대화 흐름에 가장 자연스럽게 이어지는 반응입니다.")
-
-    # ✅ 내 자기평가 요약(제출 후)
-    try:
-        _res = (st.session_state.get(f"{NS}_results") or {}).get(str(qid), {}) or {}
-        _sev = _res.get("self_eval") or {}
-        if _sev:
-            st.markdown("#### 내 말하기 자기평가(참고)")
-            c_sev1, c_sev2, c_sev3, c_sev4 = st.columns(4)
-            c_sev1.metric("발음", f"{int(_sev.get('pron',0))}/5")
-            c_sev2.metric("억양", f"{int(_sev.get('intonation',0))}/5")
-            c_sev3.metric("속도", f"{int(_sev.get('speed',0))}/5")
-            c_sev4.metric("자신감", f"{int(_sev.get('confidence',0))}/5")
-            goal = str(_sev.get("goal","")).strip()
-            if goal:
-                st.caption(f"다음 목표: {goal}")
-    except Exception:
-        pass
-
-
