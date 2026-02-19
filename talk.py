@@ -1,4 +1,3 @@
-# BUILD_STAMP: v35 2026-02-19 22:23:41 KST (+09:00)
 # talk.py
 from __future__ import annotations
 
@@ -529,161 +528,58 @@ else:
     # ✅ CSP-safe: inline JS 최소화(버튼 클릭 기반).
     components.html("""
 <div style='margin-top:6px;'>
-  <div style='display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px;'>
-    <button id='recBtn' style='padding:8px 12px;border-radius:999px;border:1px solid #ddd;background:white;cursor:pointer;'>🎤 녹음 시작</button>
-    <button id='stopBtn' disabled style='padding:8px 12px;border-radius:999px;border:1px solid #ddd;background:#f7f7f7;cursor:pointer;'>⏹ 정지</button>
-    <span style='font-size:0.9rem;opacity:0.75;'>표시:</span>
-    <button id='modeWave' style='padding:6px 10px;border-radius:999px;border:1px solid #ddd;background:#111;color:#fff;cursor:pointer;'>파형</button>
-    <button id='modeBars' style='padding:6px 10px;border-radius:999px;border:1px solid #ddd;background:white;cursor:pointer;'>음파</button>
-    <a id='dl' style='margin-left:8px; display:none;'>⬇️ 녹음 다운로드</a>
+  <div style='font-size:0.9rem; opacity:0.75; margin-bottom:6px;'>
+    (현재 Streamlit 버전에서 st.audio_input이 없어 브라우저 녹음 모드로 표시됩니다.)
   </div>
-
-  <canvas id='viz' width='520' height='90'
-    style='display:block;margin-top:2px;width:100%;max-width:520px;background:#111;border-radius:10px;'></canvas>
-
-  <div id='hint' style='margin-top:6px;font-size:0.85rem;opacity:0.65;'>
-    녹음 중에는 시각화가 실시간으로 움직입니다. (환경에 따라 마이크 권한 요청이 뜰 수 있어요.)
-  </div>
+  <button id='recBtn' style='padding:8px 12px;border-radius:999px;border:1px solid #ddd;background:white;cursor:pointer;'>🎤 녹음 시작</button>
+  <button id='stopBtn' disabled style='padding:8px 12px;border-radius:999px;border:1px solid #ddd;background:#f7f7f7;cursor:pointer;margin-left:6px;'>⏹ 정지</button>
+  <a id='dl' style='margin-left:10px; display:none;'>⬇️ 다운로드</a>
+  <canvas id='wv' width='520' height='80' style='display:block;margin-top:10px;width:100%;max-width:520px;background:#111;border-radius:10px;'></canvas>
 </div>
-
 <script>
-let mediaRecorder; let chunks=[];
-let audioCtx, analyser, dataArray, srcNode, streamRef;
-let rafId=null;
-let mode="wave"; // wave | bars
-
+let mediaRecorder; let chunks=[]; let audioCtx, analyser, dataArray, srcNode; let rafId;
 const recBtn=document.getElementById('recBtn');
 const stopBtn=document.getElementById('stopBtn');
 const dl=document.getElementById('dl');
-const canvas=document.getElementById('viz');
-const ctx=canvas.getContext('2d');
-
-const modeWave=document.getElementById('modeWave');
-const modeBars=document.getElementById('modeBars');
-
-function setMode(m){
-  mode=m;
-  if(mode==="wave"){
-    modeWave.style.background="#111"; modeWave.style.color="#fff";
-    modeBars.style.background="#fff"; modeBars.style.color="#111";
-  }else{
-    modeBars.style.background="#111"; modeBars.style.color="#fff";
-    modeWave.style.background="#fff"; modeWave.style.color="#111";
-  }
-}
-modeWave.onclick=()=>setMode("wave");
-modeBars.onclick=()=>setMode("bars");
-
+const canvas=document.getElementById('wv'); const ctx=canvas.getContext('2d');
 function draw(){
   if(!analyser){ return; }
-
-  ctx.fillStyle="#111";
-  ctx.fillRect(0,0,canvas.width,canvas.height);
-
-  if(mode==="wave"){
-    // Oscilloscope line (time domain)
-    analyser.getByteTimeDomainData(dataArray);
-    ctx.lineWidth=2;
-    ctx.strokeStyle="#00ff99";
-    ctx.beginPath();
-    const slice=canvas.width/dataArray.length;
-    let x=0;
-    for(let i=0;i<dataArray.length;i++){
-      const v=dataArray[i]/128.0;
-      const y=v*canvas.height/2;
-      if(i===0){ ctx.moveTo(x,y); } else { ctx.lineTo(x,y); }
-      x += slice;
-    }
-    ctx.stroke();
-  } else {
-    // "음파" 느낌: spectrum bars (frequency domain)
-    analyser.getByteFrequencyData(dataArray);
-    const barCount = Math.min(dataArray.length, 64);
-    const step = Math.floor(dataArray.length / barCount);
-    const barW = canvas.width / barCount;
-
-    for(let i=0;i<barCount;i++){
-      const v = dataArray[i*step] / 255.0;
-      const h = Math.max(2, v * (canvas.height-8));
-      const x = i * barW;
-      const y = canvas.height - h;
-      ctx.fillStyle="#00ff99";
-      ctx.fillRect(x+1, y, Math.max(1, barW-2), h);
-    }
+  analyser.getByteTimeDomainData(dataArray);
+  ctx.fillStyle='#111'; ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.lineWidth=2; ctx.strokeStyle='#00ff99'; ctx.beginPath();
+  const slice=canvas.width/dataArray.length; let x=0;
+  for(let i=0;i<dataArray.length;i++){
+    const v=dataArray[i]/128.0; const y=v*canvas.height/2;
+    if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    x+=slice;
   }
-
+  ctx.stroke();
   rafId=requestAnimationFrame(draw);
 }
-
-async function start(){
-  dl.style.display='none';
-  dl.removeAttribute('href');
-  dl.removeAttribute('download');
-
-  streamRef = await navigator.mediaDevices.getUserMedia({audio:true});
-
-  audioCtx = new (window.AudioContext||window.webkitAudioContext)();
-  analyser = audioCtx.createAnalyser();
-  analyser.fftSize = 2048;
-
-  dataArray = new Uint8Array(analyser.frequencyBinCount);
-
-  srcNode = audioCtx.createMediaStreamSource(streamRef);
-  srcNode.connect(analyser);
-
-  mediaRecorder = new MediaRecorder(streamRef);
-  chunks = [];
-
-  mediaRecorder.ondataavailable = (e)=>{ if(e.data && e.data.size>0) chunks.push(e.data); };
-  mediaRecorder.onstop = ()=>{
-    try{
-      const blob = new Blob(chunks, {type:'audio/webm'});
-      const url = URL.createObjectURL(blob);
-      dl.href = url;
-      dl.download = "talk_record.webm";
-      dl.style.display = "inline-block";
-    }catch(err){}
-    cleanupStream();
+recBtn.onclick=async()=>{
+  dl.style.display='none'; dl.removeAttribute('href'); dl.removeAttribute('download');
+  const stream=await navigator.mediaDevices.getUserMedia({audio:true});
+  audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+  analyser=audioCtx.createAnalyser(); analyser.fftSize=1024;
+  dataArray=new Uint8Array(analyser.fftSize);
+  srcNode=audioCtx.createMediaStreamSource(stream); srcNode.connect(analyser);
+  mediaRecorder=new MediaRecorder(stream);
+  chunks=[];
+  mediaRecorder.ondataavailable=e=>{ if(e.data.size>0) chunks.push(e.data); };
+  mediaRecorder.onstop=()=>{
+    const blob=new Blob(chunks,{type:'audio/webm'});
+    const url=URL.createObjectURL(blob);
+    dl.href=url; dl.download='talk_pronunciation.webm'; dl.style.display='inline-block'; dl.textContent='⬇️ 녹음 다운로드';
   };
-
   mediaRecorder.start();
-  recBtn.disabled=true;
-  stopBtn.disabled=false;
-
+  recBtn.disabled=true; stopBtn.disabled=false; stopBtn.style.background='white';
+  draw();
+};
+stopBtn.onclick=()=>{
+  if(mediaRecorder && mediaRecorder.state!=='inactive'){ mediaRecorder.stop(); }
   if(rafId) cancelAnimationFrame(rafId);
-  rafId=requestAnimationFrame(draw);
-}
-
-function cleanupStream(){
-  try{
-    if(rafId){ cancelAnimationFrame(rafId); rafId=null; }
-    if(audioCtx){ audioCtx.close(); audioCtx=null; }
-    if(streamRef){
-      streamRef.getTracks().forEach(t=>t.stop());
-      streamRef=null;
-    }
-  }catch(e){}
-}
-
-function stop(){
-  try{
-    stopBtn.disabled=true;
-    recBtn.disabled=false;
-    if(mediaRecorder && mediaRecorder.state!=="inactive"){
-      mediaRecorder.stop();
-    } else {
-      cleanupStream();
-    }
-  }catch(e){
-    cleanupStream();
-  }
-}
-
-recBtn.onclick = ()=>start();
-stopBtn.onclick = ()=>stop();
-
-// initial mode
-setMode("wave");
+  recBtn.disabled=false; stopBtn.disabled=true; stopBtn.style.background='#f7f7f7';
+};
 </script>
-""", height=260)
+""", height=190)
 
