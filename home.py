@@ -8,7 +8,17 @@ import json
 import hashlib
 from datetime import date, datetime, timedelta, timezone
 import streamlit as st
-import theme_hotena
+
+# ============================================================
+# ✅ Theme (Hotena) - one-time CSS inject
+# ============================================================
+try:
+    from theme_hotena import apply_theme
+    apply_theme()
+except Exception:
+    pass
+
+
 import streamlit.components.v1 as components
 from supabase import create_client
 from streamlit_cookies_manager import EncryptedCookieManager
@@ -17,8 +27,6 @@ from streamlit_cookies_manager import EncryptedCookieManager
 # ✅ Page Config (Hub only)
 # ============================================================
 st.set_page_config(page_title="Hotena Hub", layout="centered")
-
-theme_hotena.apply_hotena_theme()
 
 # ✅ CSS reset (child pages may hide Streamlit header; keep top UI from being clipped)
 st.markdown(
@@ -120,86 +128,6 @@ div[data-testid="stMetric"]{
 st.session_state["_page_config_set"] = True  # children should not call set_page_config
 
 BASE_DIR = Path(__file__).resolve().parent
-
-# ============================================================
-# ✅ Hotena Theme (global design system)
-# - button height / card radius / badges / mobile touch targets
-# - keep Streamlit header but reduce top padding
-# ============================================================
-def inject_hotena_theme():
-    if st.session_state.get("_hotena_theme_injected"):
-        return
-    st.session_state["_hotena_theme_injected"] = True
-
-    st.markdown(
-        """
-<style>
-/* ===== Global spacing (bring content up) ===== */
-div.block-container{ padding-top: 1.0rem !important; padding-bottom: 3.0rem !important; }
-
-/* ===== Touch targets ===== */
-button[kind="primary"], button[kind="secondary"], .stButton button{
-  min-height: 48px !important;
-  border-radius: 14px !important;
-  font-weight: 700 !important;
-}
-
-/* ===== Cards ===== */
-.hotena-card{
-  border:1px solid rgba(0,0,0,.08);
-  border-radius:18px;
-  padding:14px 14px;
-  background: rgba(255,255,255,.70);
-  backdrop-filter: blur(6px);
-  box-shadow: 0 6px 16px rgba(0,0,0,.06);
-}
-.hotena-card.tight{ padding:12px 12px; }
-.hotena-row{ display:flex; gap:10px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
-.hotena-muted{ opacity:.75; font-size: 0.92rem; }
-.hotena-title{ font-weight:800; font-size: 1.05rem; }
-
-/* ===== Badges ===== */
-.hotena-badge{
-  display:inline-flex;
-  align-items:center;
-  gap:6px;
-  padding:6px 10px;
-  border-radius:999px;
-  border:1px solid rgba(0,0,0,.12);
-  font-weight:800;
-  font-size: 0.85rem;
-  background: rgba(255,255,255,.85);
-}
-.hotena-badge.pro{ border-color: rgba(0,140,255,.25); }
-.hotena-badge.free{ border-color: rgba(0,0,0,.12); }
-
-/* ===== Speech bubbles (used by talk.py too) ===== */
-.bubble{
-  max-width: 92%;
-  padding: 12px 14px;
-  border-radius: 16px;
-  border: 1px solid rgba(0,0,0,.08);
-  background: rgba(255,255,255,.80);
-  box-shadow: 0 6px 16px rgba(0,0,0,.05);
-  margin: 8px 0;
-  line-height: 1.45;
-}
-.bubble.left{ margin-right:auto; border-top-left-radius: 8px; }
-.bubble.right{ margin-left:auto; border-top-right-radius: 8px; }
-.bubble.answer{ background: rgba(28,47,92,.08); border-color: rgba(28,47,92,.18); }
-.bubble small{ display:block; opacity:.7; margin-bottom:4px; font-weight:700; }
-
-/* ===== Mobile: reduce excessive gaps ===== */
-@media (max-width: 520px){
-  div.block-container{ padding-top: .7rem !important; }
-  .hotena-card{ padding:12px 12px; border-radius:16px; }
-  button[kind="primary"], button[kind="secondary"], .stButton button{ border-radius: 14px !important; }
-}
-</style>
-""",
-        unsafe_allow_html=True,
-    )
-
 
 # ============================================================
 # ✅ Config helper (env -> secrets)
@@ -975,8 +903,6 @@ def render_floating_menu():
         unsafe_allow_html=True,
     )
 
-
-inject_hotena_theme()
 
 render_floating_menu()
 render_plan_pill()
