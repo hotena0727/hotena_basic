@@ -97,26 +97,28 @@ def _home_cookies():
         st.stop()
     return cookies
 
-def _restore_session_from_cookies(cookies) -> bool:
+def _restore_session_from_cookies() -> bool:
     at = (cookies.get("access_token") or "").strip()
     rt = (cookies.get("refresh_token") or "").strip()
+
     if not at:
         return False
-    # supabase session restore best-effort
-    st.session_state["access_token"] = at
-    if rt:
+
+    try:
+        res = supabase.auth.get_user(at)
+        u = getattr(res, "user", None) or (res.get("user") if isinstance(res, dict) else None)
+
+        if not u:
+            return False
+
+        st.session_state["access_token"] = at
         st.session_state["refresh_token"] = rt
-    # user email (optional)
-    uemail = (cookies.get("user_email") or "").strip()
-    if uemail:
-        st.session_state["user_email"] = uemail
-    st.session_state["is_authed"] = True
-                    u = getattr(res, "user", None) or (res.get("user") if isinstance(res, dict) else None)
-                    if u is not None:
-                        st.session_state["user"] = u
-                    else:
-                        _ensure_user_object()
-    return True
+        st.session_state["user"] = u
+
+        return True
+
+    except Exception:
+        return False
 
 def require_login():
     if st.session_state.get("is_authed") and st.session_state.get("access_token"):
