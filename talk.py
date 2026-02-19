@@ -1,18 +1,4 @@
 
-# ✅ Recorder unified card styles
-st.markdown(
-    """
-<style>
-.talk-rec-card{border:1px solid rgba(0,0,0,0.08);background:#fff;border-radius:16px;padding:14px 14px 12px 14px;box-shadow:0 6px 18px rgba(0,0,0,0.04);}
-.talk-rec-card h4{margin:0 0 6px 0;}
-.talk-rec-card .talk-rec-sub{font-size:12px;opacity:0.78;margin:0 0 10px 0;}
-.talk-rec-card div[data-testid='stAudioInput']{padding-top:10px;}
-.talk-rec-card div[data-testid='stAudioInput'] label{font-weight:600;}
-</style>
-    """
-    , unsafe_allow_html=True
-)
-
 # talk.py
 from __future__ import annotations
 
