@@ -1,7 +1,7 @@
 # home.py
 from __future__ import annotations
 
-BUILD_STAMP = 'v20 2026-02-19 15:39:42 KST (+09:00)'
+BUILD_STAMP = 'v21 2026-02-19 15:41:29 KST (+09:00)'
 
 from pathlib import Path
 import os
@@ -201,6 +201,25 @@ missing = [k for k, v in CFG.items() if not v]
 if missing:
     st.error(f"설정값이 없습니다: {', '.join(missing)} (Cloud Run env 또는 Streamlit secrets 확인)")
     st.stop()
+
+
+# ============================================================
+# ✅ Encrypted token helpers (defined early)
+# - Used for query_params/localStorage persistence
+# ============================================================
+def _fernet():
+    pw = CFG.get("COOKIE_PASSWORD", "")
+    key = base64.urlsafe_b64encode(hashlib.sha256(pw.encode("utf-8")).digest())
+    return Fernet(key)
+
+def _enc(s: str) -> str:
+    return _fernet().encrypt(s.encode("utf-8")).decode("utf-8")
+
+def _dec(token: str) -> str | None:
+    try:
+        return _fernet().decrypt(token.encode("utf-8")).decode("utf-8")
+    except Exception:
+        return None
 
 # ============================================================
 # ✅ Cookies (MUST be created only once per app run)
