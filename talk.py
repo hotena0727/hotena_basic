@@ -1,3 +1,18 @@
+
+# ✅ Recorder unified card styles
+st.markdown(
+    """
+<style>
+.talk-rec-card{border:1px solid rgba(0,0,0,0.08);background:#fff;border-radius:16px;padding:14px 14px 12px 14px;box-shadow:0 6px 18px rgba(0,0,0,0.04);}
+.talk-rec-card h4{margin:0 0 6px 0;}
+.talk-rec-card .talk-rec-sub{font-size:12px;opacity:0.78;margin:0 0 10px 0;}
+.talk-rec-card div[data-testid='stAudioInput']{padding-top:10px;}
+.talk-rec-card div[data-testid='stAudioInput'] label{font-weight:600;}
+</style>
+    """
+    , unsafe_allow_html=True
+)
+
 # talk.py
 from __future__ import annotations
 
@@ -571,7 +586,7 @@ if submitted:
     # - '녹음 완료'를 감지할 수 없어, 카운트는 "발음 1회 기록" 버튼으로 처리(가볍고 확실)
     # ============================================================
     st.markdown("#### 🎤 내 발음 녹음")
-    st.caption("녹음 후 파형에서 바로 지점을 찾아 들을 수 있습니다.")
+    st.markdown('<div class="talk-rec-card">'+ '<div style="font-weight:700;font-size:15px;margin-bottom:2px;">발음 녹음</div>'+ '<div class="talk-rec-sub">녹음하면서 반응을 확인하고, 녹음 후 파형에서 바로 탐색/재생하세요.</div>', unsafe_allow_html=True)
 
     # ✅ 비주얼 효과(삭막함 제거): 말하면 반응하는 레벨미터 + 녹음중 느낌(펄스/이퀄라이저)
     components.html(f"""
@@ -673,6 +688,7 @@ if submitted:
     except Exception:
         st.warning("이 환경에서는 녹음 위젯이 지원되지 않습니다.")
 
+    st.markdown("</div>", unsafe_allow_html=True)
     # ✅ 카운트(10회): DB 부담 최소로 버튼 1번
     counted_key = f"talk_rec_counted_{qid}"
     if st.button("✅ 발음 1회 기록", key=f"talk_rec_mark_{qid}_{idx}"):
@@ -682,4 +698,3 @@ if submitted:
             st.success(f"기록 완료! (오늘 {new_cnt} / {DAILY_PRON_TARGET})")
         else:
             st.info("이 문항은 이미 1회 기록되었습니다. 다음 문항에서 다시 기록해 주세요.")
-
