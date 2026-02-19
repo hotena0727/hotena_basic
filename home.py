@@ -389,6 +389,48 @@ def go(page: str):
     st.session_state["hub_page"] = page
     st.rerun()
 
+
+def _clear_training_ui_state():
+    """Clear only training-related UI/session keys so menu navigation always feels fresh.
+    IMPORTANT: Do NOT clear auth/progress tokens or user info.
+    """
+    prefixes = (
+        "q_",          # quiz option widgets (word/kanji)
+        "talk_",       # talk widgets
+        "talk_submit_",
+        "talk_next_",
+        "talk_to_wrongs_",
+    )
+    exact_keys = {
+        # common quiz flags
+        "submitted", "is_graded",
+        # word/kanji pools
+        "_pool", "pool_ready", "_patterns", "_patterns_ready",
+        # quiz state
+        "quiz", "answers", "history", "wrong_list",
+        "wrong_counter", "total_counter",
+        "saved_this_attempt", "stats_saved_this_attempt", "session_stats_applied_this_attempt",
+        "quiz_version",
+        # misc per-run UI helpers
+        "_scroll_top_once", "_scroll_top_nonce",
+        "excluded_wrong_words",
+        "target_questions",
+        "counted_qids",
+        "combo_last_notice",
+        "_counted_today",
+        "today_done",
+        "today_goal_done",
+    }
+
+    for k in list(st.session_state.keys()):
+        if isinstance(k, str) and (k in exact_keys or k.startswith(prefixes)):
+            st.session_state.pop(k, None)
+
+def nav_to(page: str):
+    _clear_training_ui_state()
+    st.session_state["hub_page"] = page
+    st.rerun()
+
 def hub_logout():
     cookies["access_token"] = ""
     cookies["refresh_token"] = ""
@@ -402,15 +444,15 @@ def render_top_menu():
     c1, c2, c3, c4, c5, c6 = st.columns([1,1,1,1,1,1], vertical_alignment="center")
 
     with c1:
-        st.button("홈", use_container_width=True, key="hub_nav_home", on_click=go, args=("home",))
+        st.button("홈", use_container_width=True, key="hub_nav_home", on_click=nav_to, args=("home",))
     with c2:
-        st.button("단어", use_container_width=True, key="hub_nav_word", on_click=go, args=("word",))
+        st.button("단어", use_container_width=True, key="hub_nav_word", on_click=nav_to, args=("word",))
     with c3:
-        st.button("한자", use_container_width=True, key="hub_nav_kanji", on_click=go, args=("kanji",))
+        st.button("한자", use_container_width=True, key="hub_nav_kanji", on_click=nav_to, args=("kanji",))
     with c4:
-        st.button("회화", use_container_width=True, key="hub_nav_talk", on_click=go, args=("talk",))
+        st.button("회화", use_container_width=True, key="hub_nav_talk", on_click=nav_to, args=("talk",))
     with c5:
-        st.button("마이페이지", use_container_width=True, key="hub_nav_my", on_click=go, args=("my",))
+        st.button("마이페이지", use_container_width=True, key="hub_nav_my", on_click=nav_to, args=("my",))
     with c6:
         st.button("로그아웃", use_container_width=True, key="hub_nav_logout", on_click=hub_logout)
 
@@ -438,13 +480,8 @@ if page == "home":
     st.info("상단 메뉴에서 원하는 항목을 선택하세요.")
 
 elif page == "my":
-    # ✅ 마이페이지는 "한자 훈련(app.py)"에 있던 대시보드 UI/기능을 그대로 재사용합니다.
-    # - HUB 상단 메뉴는 home.py가 담당
-    # - app.py의 render_my_dashboard() 디자인/기능을 그대로 보여줌
-    # ✅ app.py 내부의 마이페이지 UI로 바로 진입시키기 위해 타겟 지정
-    st.session_state["hub_target"] = "my"
-    st.session_state["page"] = "my"
-    run_script(Path(__file__).parent / "app.py")
+    # ✅ 독립 마이페이지: 한자(app.py) 안에 있던 대시보드를 그대로 분리한 mypage.py를 실행
+    run_script("mypage.py")
     st.stop()
 
 elif page == "word":

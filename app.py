@@ -1655,6 +1655,9 @@ def render_my_dashboard():
     st.subheader("📌 내 대시보드")
 
     if st.button("← 돌아가기", use_container_width=True, key="btn_my_back"):
+        if st.session_state.get("HUB_MODE"):
+            st.session_state["hub_page"] = "home"
+            st.rerun()
         st.session_state.page = "quiz"
         st.rerun()
 
