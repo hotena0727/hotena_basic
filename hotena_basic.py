@@ -46,12 +46,11 @@ import html
 # ============================================================
 # ✅ Page Config + Paths
 # ============================================================
-if not st.session_state.get("HUB_MODE"):
-    st.set_page_config(
-        page_title="왕초보탈출 하테나일본어",
-        page_icon="static/icon-192.png",
-        layout="centered",
-    )
+st.set_page_config(
+    page_title="왕초보탈출 하테나일본어",
+    page_icon="static/icon-192.png",   # 또는 "🟦"
+    layout="centered",
+)
 
 # ============================================================
 # ✅ PWA/아이콘 - set_page_config 바로 아래
@@ -288,7 +287,23 @@ st.markdown(
   letter-spacing:.2px;
 }
 
-/* (Hub) 상단 여백/헤더/툴바는 home.py 공통 CSS에서 제어 */
+/* 메인 컨테이너 위쪽 여백 줄이기 */
+div[data-testid="stAppViewContainer"] .block-container{
+  padding-top: 1.0rem !important;   /* 0.5~1.5rem 사이로 취향 조절 */
+}
+
+/* Streamlit 상단 헤더(투명 영역 포함) 자체를 더 얇게 */
+header[data-testid="stHeader"]{
+  height: 3rem !important;
+}
+
+/* (선택) 우측 상단 Streamlit 기본 툴바 영역 숨김 */
+div[data-testid="stToolbar"]{
+  visibility: hidden !important;
+  height: 0 !important;
+}
+
+
 /* 헤더 여백 */
 div[data-testid="stMarkdownContainer"] h2,
 div[data-testid="stMarkdownContainer"] h3,

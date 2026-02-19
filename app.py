@@ -18,8 +18,7 @@ import textwrap
 
 # NOTE: page config is handled by home.py
 if not st.session_state.get("_page_config_set"):
-    if not st.session_state.get("HUB_MODE"):
-    st.set_page_config(page_title="Kanji Quiz", layout="centered")
+    st.set_page_config(page_title="Hatena", layout="centered")
     st.session_state["_page_config_set"] = True
 # ============================================================
 # ✅ [SOUND] 사운드 유틸 (모바일 자동재생 정책 대응)
@@ -1973,14 +1972,9 @@ if "page" not in st.session_state:
 if st.session_state.get("page") not in ALLOWED_PAGES:
     st.session_state.page = "home"
 
-# HUB에서 실행될 때는 기본적으로 퀴즈 화면으로 진입.
-# 단, HUB 상단 메뉴에서 특정 화면(예: 마이페이지)을 요청한 경우는 그 화면으로 진입.
+# HUB에서 실행될 때는 홈/내부 라우팅 대신 바로 퀴즈 화면으로 진입
 if st.session_state.get("HUB_MODE"):
-    target = st.session_state.get("hub_target")
-    if target in ("my", "admin", "home", "quiz"):
-        st.session_state.page = target
-    else:
-        st.session_state.page = "quiz"
+    st.session_state.page = "quiz"
 
 user = st.session_state.user
 user_id = user.id
