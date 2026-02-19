@@ -4,6 +4,8 @@ from __future__ import annotations
 from pathlib import Path
 import os
 import runpy
+import importlib
+import sys
 import json
 import hashlib
 from datetime import date, datetime, timedelta, timezone
@@ -919,14 +921,21 @@ if q_page in {"home","word","kanji","talk","my","reminder"}:
 # ✅ Runner
 
 # ============================================================
-def run_script(filename: str):
-    path = (BASE_DIR / filename).resolve()
-    if not path.exists() or not path.is_file():
-        st.error(f"파일을 찾을 수 없습니다: {path}")
-        st.stop()
-    # ✅ Hub mode flag so child scripts can adjust UI/CSS
+def run_module(module_name: str):
+    # ✅ HUB 실행 플래그 (자식 모듈에서 set_page_config 중복 방지에 사용)
     st.session_state["HUB_MODE"] = True
-    runpy.run_path(str(path), run_name="__main__")
+    st.session_state["_HOTENA_PAGE_CONFIG_DONE"] = True
+
+    try:
+        if module_name in sys.modules:
+            importlib.reload(sys.modules[module_name])
+        else:
+            importlib.import_module(module_name)
+    except Exception:
+        st.error("페이지 실행 중 오류가 발생했습니다.")
+        import traceback as _tb
+        st.code(_tb.format_exc())
+        st.stop()
 
 page = st.session_state.get("hub_page", "home")
 
@@ -937,7 +946,7 @@ if page == "home":
 
 elif page == "my":
     # ✅ 독립 마이페이지: 한자(app.py) 안에 있던 대시보드를 그대로 분리한 mypage.py를 실행
-    run_script("mypage.py")
+    run_module("mypage")
     st.stop()
 
 elif page == "reminder":
@@ -946,12 +955,12 @@ elif page == "reminder":
 
 elif page == "word":
     st.session_state["hub_target"] = "word"
-    run_script("hotena_basic.py")
+    run_module("hotena_basic")
 elif page == "kanji":
     st.session_state["hub_target"] = "kanji"
-    run_script("app.py")
+    run_module("app")
 elif page == "talk":
     st.session_state["hub_target"] = "talk"
-    run_script("talk.py")
+    run_module("talk")
 else:
     st.info("상단 메뉴에서 원하는 항목을 선택하세요.")
