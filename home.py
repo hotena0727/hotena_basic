@@ -416,46 +416,15 @@ page = st.session_state.get("hub_page", "home")
 if page == "home":
     st.caption(f"로그인: {getattr(user, 'email', '')}")
     st.info("상단 메뉴에서 원하는 항목을 선택하세요.")
+
 elif page == "my":
-    st.subheader("마이페이지")
+    # ✅ 마이페이지는 "한자 훈련(app.py)"에 있던 대시보드 UI/기능을 그대로 재사용합니다.
+    # - HUB 상단 메뉴는 home.py가 담당
+    # - app.py의 render_my_dashboard() 디자인/기능을 그대로 보여줌
+    st.session_state["page"] = "my"
+    run_script(Path(__file__).parent / "app.py")
+    st.stop()
 
-    email = getattr(user, "email", "")
-    plan = st.session_state.get("user_plan", "free")
-    progress = st.session_state.get("progress_all", {}) or {}
-
-    # 상단 요약
-    c1, c2 = st.columns([2, 1], vertical_alignment="center")
-    with c1:
-        st.write(f"**이메일**: {email}")
-        st.write(f"**플랜**: {plan.upper() if isinstance(plan, str) else plan}")
-    with c2:
-        st.button("로그아웃", use_container_width=True, key="my_logout_btn", on_click=hub_logout)
-
-    st.divider()
-
-    # 알림 설정 요약
-    rem = (progress.get("reminder") or {})
-    rem_on = bool(rem.get("enabled", True))
-    rem_time = rem.get("time", "09:00")
-    st.write("### 알림")
-    st.write(f"- 상태: {'ON' if rem_on else 'OFF'}")
-    st.write(f"- 시간: {rem_time}")
-
-    st.divider()
-
-    # 빠른 이동
-    st.write("### 바로가기")
-    b1, b2, b3 = st.columns(3)
-    with b1:
-        st.button("단어로 가기", use_container_width=True, key="my_go_word", on_click=go, args=("word",))
-    with b2:
-        st.button("한자로 가기", use_container_width=True, key="my_go_kanji", on_click=go, args=("kanji",))
-    with b3:
-        st.button("회화로 가기", use_container_width=True, key="my_go_talk", on_click=go, args=("talk",))
-
-    # 원본 데이터는 접기
-    with st.expander("고급: 저장된 진행 데이터 보기", expanded=False):
-        st.json(progress)
 elif page == "word":
     st.session_state["HUB_MODE"] = True
     run_script("hotena_basic.py")
