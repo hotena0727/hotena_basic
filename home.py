@@ -1,7 +1,7 @@
 # home.py
 from __future__ import annotations
 
-BUILD_STAMP = 'v30 2026-02-19 16:04:51 KST (+09:00)'
+BUILD_STAMP = 'v31 2026-02-19 16:07:56 KST (+09:00)'
 
 from pathlib import Path
 import os
@@ -1214,6 +1214,27 @@ def run_script(filename: str):
     # ✅ Hub mode flag so child scripts can adjust UI/CSS
     st.session_state["HUB_MODE"] = True
     runpy.run_path(str(path), run_name="__main__")
+
+
+# ============================================================
+# ✅ Floating-menu query routing (CSP-safe, preserves rt/at)
+# ============================================================
+try:
+    action = st.query_params.get("action")
+    p = st.query_params.get("p")
+except Exception:
+    action, p = None, None
+
+if action == "logout":
+    hub_logout()
+
+if isinstance(p, str) and p:
+    if p in {"home", "word", "kanji", "talk", "my", "reminder"}:
+        st.session_state["hub_page"] = p
+
+# ✅ Always render floating menu + plan pill in hub mode (after auth)
+render_floating_menu()
+render_plan_pill()
 
 page = st.session_state.get("hub_page", "home")
 
