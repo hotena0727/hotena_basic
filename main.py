@@ -13,6 +13,7 @@ from streamlit_cookies_manager import EncryptedCookieManager
 APP_ID = "hotena"  # internal identifier (do not change)
 APP_TITLE = "왕초보 탈출 하테나일본어"
 APP_SLOGAN = "오늘도 10문제만."
+BUILD_ID = "20260219-010855"
 
 # ============================================================
 # ✅ Page Config (ONLY ONCE)
@@ -79,6 +80,9 @@ supabase = create_client(SUPABASE_URL, SUPABASE_ANON_KEY) if SUPABASE_URL and SU
 cookies = EncryptedCookieManager(prefix=f"{APP_ID}_", password=COOKIE_PASSWORD)
 if not cookies.ready():
     st.stop()
+
+# ✅ Hub router state (separate from embedded apps' st.session_state['page'])
+st.session_state.setdefault("hub_page", "home")
 
 # ============================================================
 # ✅ Login persistence (refresh-safe best effort)
@@ -156,9 +160,10 @@ def restore_session_from_cookies() -> bool:
 
 
 def is_logged_in() -> bool:
-    return bool(st.session_state.get("access_token")) and bool(st.session_state.get("user"))
+    return bool(st.session_state.get("access_token"))
 
 def do_logout():
+    # Optional: attempt supabase sign out (won't break if fails)
     try:
         if supabase:
             try:
@@ -168,6 +173,7 @@ def do_logout():
     except Exception:
         pass
 
+    # Clear cookies
     try:
         cookies["access_token"] = ""
         cookies["refresh_token"] = ""
@@ -176,11 +182,11 @@ def do_logout():
     except Exception:
         pass
 
+    # Clear session
     for k in list(st.session_state.keys()):
-        if k in ("page",):
-            continue
         st.session_state.pop(k, None)
-    st.session_state["page"] = "home"
+
+    st.session_state["hub_page"] = "home"
     st.rerun()
 
 # ============================================================
@@ -208,21 +214,21 @@ def handle_menu(clicked: str):
     if clicked == "logout":
         do_logout()
     elif clicked == "home":
-        st.session_state["page"] = "home"
+        st.session_state["hub_page"] = "home"
         st.rerun()
     elif clicked == "word":
-        st.session_state["page"] = "word"
+        st.session_state["hub_page"] = "word"
         st.session_state["entry_target"] = "quiz"
         st.rerun()
     elif clicked == "kanji":
-        st.session_state["page"] = "kanji"
+        st.session_state["hub_page"] = "kanji"
         st.session_state["entry_target"] = "quiz"
         st.rerun()
     elif clicked == "talk":
-        st.session_state["page"] = "talk"
+        st.session_state["hub_page"] = "talk"
         st.rerun()
     elif clicked == "mypage":
-        st.session_state["page"] = "mypage"
+        st.session_state["hub_page"] = "mypage"
         st.rerun()
 
 # ============================================================
@@ -254,8 +260,10 @@ def _exec_embedded_app(src_b64: str, entry: str = "quiz"):
     st.set_page_config = lambda *a, **k: None
 
     # Hide duplicate buttons from embedded apps (mypage/logout)
+    # IMPORTANT: patch must NOT leak to the hub top menu. We'll restore right after exec().
     orig_button = st.button
     HIDE_SUBSTR = ("마이페이지", "로그아웃", "로그아웃하기", "My Page", "Logout", "ログアウト", "マイページ")
+
     def wrapped_button(label, *args, **kwargs):
         try:
             if isinstance(label, str) and any(s in label for s in HIDE_SUBSTR):
@@ -263,6 +271,7 @@ def _exec_embedded_app(src_b64: str, entry: str = "quiz"):
         except Exception:
             pass
         return orig_button(label, *args, **kwargs)
+
     st.button = wrapped_button
 
     # Force entry
@@ -281,7 +290,10 @@ def _exec_embedded_app(src_b64: str, entry: str = "quiz"):
         "__name__": "__main__",
         "__file__": "<embedded>",
     }
-    exec(compile(src, "<embedded>", "exec"), g, g)
+    try:
+        exec(compile(src, "<embedded>", "exec"), g, g)
+    finally:
+        st.button = orig_button
 
 # ============================================================
 # ✅ Screens
@@ -326,7 +338,7 @@ def render_login():
                 cookies["user_email"] = email
                 cookies.save()
 
-                st.session_state["page"] = "home"
+                st.session_state["hub_page"] = "home"
                 st.rerun()
             except Exception as e:
                 st.error(f"로그인 오류: {e}")
@@ -346,19 +358,20 @@ def render_home():
         email = getattr(u, "email", None) or (u.get("email") if isinstance(u, dict) else "")
         if email:
             st.caption(f"로그인됨: {email}")
+        st.caption(f"빌드: {BUILD_ID}")
 
     if st.button("📘 단어 훈련", use_container_width=True):
-        st.session_state["page"] = "word"
+        st.session_state["hub_page"] = "word"
         st.session_state["entry_target"] = "quiz"
         st.rerun()
 
     if st.button("✍️ 한자 훈련", use_container_width=True):
-        st.session_state["page"] = "kanji"
+        st.session_state["hub_page"] = "kanji"
         st.session_state["entry_target"] = "quiz"
         st.rerun()
 
     if st.button("🗣 회화 훈련", use_container_width=True):
-        st.session_state["page"] = "talk"
+        st.session_state["hub_page"] = "talk"
         st.rerun()
 
 def render_talk():
@@ -379,14 +392,14 @@ def render_mypage():
     st.caption("여기에 학습 기록, 오답노트 요약, 구독 상태 등을 붙일 수 있습니다.")
 
 def render_router():
-    page = st.session_state.get("page", "home")
+    page = st.session_state.get("hub_page", "home")
 
     if page == "home":
         render_home()
         return
 
     if not is_logged_in():
-        st.session_state["page"] = "home"
+        st.session_state["hub_page"] = "home"
         st.rerun()
 
     # Common menu for all training pages
@@ -415,7 +428,7 @@ def render_router():
         render_mypage()
         return
 
-    st.session_state["page"] = "home"
+    st.session_state["hub_page"] = "home"
     st.rerun()
 
 # ============================================================
