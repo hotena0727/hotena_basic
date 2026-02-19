@@ -1,15 +1,37 @@
-# kanji_app.py (from app.py) - st.set_page_config removed; routed by main.py
 # ============================================================
 # ✅ [A] Imports + Page Config (파일 최상단, st.* 호출보다 먼저)
 # ============================================================
 from pathlib import Path
-import os
 import random
 import pandas as pd
 import streamlit as st
+
+
+# ============================================================
+# ✅ HubCookie shim (허브(main.py)에서 만든 세션/토큰을 그대로 사용)
+# - 이 파일에서는 EncryptedCookieManager를 만들지 않습니다.
+# ============================================================
+class HubCookies:
+    def ready(self) -> bool:
+        return True
+
+    def get(self, key: str, default=None):
+        return st.session_state.get(f"_hotena_cookie_{key}", default)
+
+    def __getitem__(self, key: str):
+        return self.get(key)
+
+    def __setitem__(self, key: str, value):
+        st.session_state[f"_hotena_cookie_{key}"] = value
+
+    def save(self):
+        # 허브에서만 실제 쿠키 저장을 합니다.
+        return
+
+cookies = HubCookies()
+
 import unicodedata
 from supabase import create_client
-from streamlit_cookies_manager import EncryptedCookieManager
 import streamlit.components.v1 as components
 from collections import Counter
 import time
@@ -17,6 +39,7 @@ import traceback
 import base64
 import io
 import textwrap
+
 # ============================================================
 # ✅ [SOUND] 사운드 유틸 (모바일 자동재생 정책 대응)
 # ============================================================
@@ -378,33 +401,10 @@ if st.session_state.get("_scroll_top_once"):
 # ============================================================
 # ✅ Cookies
 # ============================================================
-
-# ============================================================
-# ✅ HUB session bridge (no extra cookie component)
-# ============================================================
-_HUB_MODE = bool(st.session_state.get("__hotena_hub_mode__"))
-
-class _HubCookies:
-    def ready(self):
-        return True
-    def get(self, key, default=None):
-        return st.session_state.get(key, default)
-    def __getitem__(self, key):
-        return st.session_state.get(key, "")
-    def __setitem__(self, key, value):
-        st.session_state[key] = value
-    def save(self):
-        return
-
-if _HUB_MODE:
-    cookies = _HubCookies()
-else:
-    _COOKIE_PW = os.getenv("COOKIE_PASSWORD") or st.secrets.get("COOKIE_PASSWORD", "")
-    cookies = EncryptedCookieManager(prefix="hotena_", password=_COOKIE_PW)
-    if not cookies.ready():
-        st.info("잠깐만요! 곧 시작할게요🙂")
-        st.stop()
-
+cookies = HubCookies()
+if not cookies.ready():
+    st.info("잠깐만요! 곧 시작할게요🙂")
+    st.stop()
 
 if "SUPABASE_URL" not in st.secrets or "SUPABASE_ANON_KEY" not in st.secrets:
     st.error("Supabase Secrets가 설정되지 않았습니다. (SUPABASE_URL / SUPABASE_ANON_KEY)")

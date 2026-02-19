@@ -1,4 +1,3 @@
-# word_app.py (from hotena_basic.py) - st.set_page_config removed; routed by main.py
 # ============================================================
 # ✅ 왕초보 탈출 하테나일본어 (단어 앱) - 전체 복붙용 단일 파일
 # - 품사 선택 + 유형 선택(발음/뜻/한→일)
@@ -32,9 +31,33 @@ from pathlib import Path
 import random
 import pandas as pd
 import streamlit as st
+
+
+# ============================================================
+# ✅ HubCookie shim (허브(main.py)에서 만든 세션/토큰을 그대로 사용)
+# - 이 파일에서는 EncryptedCookieManager를 만들지 않습니다.
+# ============================================================
+class HubCookies:
+    def ready(self) -> bool:
+        return True
+
+    def get(self, key: str, default=None):
+        return st.session_state.get(f"_hotena_cookie_{key}", default)
+
+    def __getitem__(self, key: str):
+        return self.get(key)
+
+    def __setitem__(self, key: str, value):
+        st.session_state[f"_hotena_cookie_{key}"] = value
+
+    def save(self):
+        # 허브에서만 실제 쿠키 저장을 합니다.
+        return
+
+cookies = HubCookies()
+
 import unicodedata
 from supabase import create_client
-from streamlit_cookies_manager import EncryptedCookieManager
 import streamlit.components.v1 as components
 from collections import Counter
 import time
@@ -47,6 +70,7 @@ import html
 # ============================================================
 # ✅ Page Config + Paths
 # ============================================================
+
 # ============================================================
 # ✅ PWA/아이콘 - set_page_config 바로 아래
 # ============================================================
@@ -561,7 +585,6 @@ if st.session_state.get("_scroll_top_once"):
 # ============================================================
 import os
 import streamlit as st
-from streamlit_cookies_manager import EncryptedCookieManager
 from supabase import create_client
 
 def get_cfg(key: str) -> str:
@@ -590,38 +613,10 @@ if missing:
     st.error(f"설정값이 없습니다: {', '.join(missing)} (Cloud Run env 또는 Streamlit secrets 확인)")
     st.stop()
 
-
-# ============================================================
-# ✅ HUB session bridge (no extra cookie component)
-#   - main.py(허브)에서만 쿠키 컴포넌트를 생성합니다.
-#   - 여기서는 session_state를 쿠키처럼 다루는 래퍼를 씁니다.
-# ============================================================
-_HUB_MODE = bool(st.session_state.get("__hotena_hub_mode__"))
-
-class _HubCookies:
-    def ready(self):  # streamlit_cookies_manager 호환
-        return True
-    def get(self, key, default=None):
-        return st.session_state.get(key, default)
-    def __getitem__(self, key):
-        return st.session_state.get(key, "")
-    def __setitem__(self, key, value):
-        st.session_state[key] = value
-    def save(self):
-        # 실제 저장은 main.py에서 처리
-        return
-
-if _HUB_MODE:
-    cookies = _HubCookies()
-else:
-    cookies = EncryptedCookieManager(
-        prefix="hotena_",
-        password=COOKIE_PASSWORD,
-    )
-    if not cookies.ready():
-        st.info("잠깐만요! 곧 시작할게요🙂")
-        st.stop()
-
+cookies = HubCookies()
+if not cookies.ready():
+    st.info("잠깐만요! 곧 시작할게요🙂")
+    st.stop()
 
 sb = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
 
@@ -3796,7 +3791,6 @@ if st.session_state.get("submitted", False):
     show_naver_talk = (SHOW_NAVER_TALK == "N") or is_admin()
     if show_naver_talk:
         render_naver_talk()
-
 
 
 
