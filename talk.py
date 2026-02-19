@@ -349,8 +349,15 @@ def start_new_set():
     qids = sample["qid"].astype(str).tolist()
 
     st.session_state[f"{NS}_set_qids"] = qids
+    # ✅ 세트별 녹음 임시저장 키(세션 내) 초기화
+    st.session_state['talk_set_id'] = str(int(st.session_state.get('talk_set_id','0') or 0) + 1)
+    st.session_state.pop(f"talk_rec_stash_{st.session_state['talk_set_id']}", None)
     st.session_state[f"{NS}_idx"] = 0
     st.session_state[f"{NS}_results"] = {}  # qid -> {"selected":..., "correct":bool}
+    # ✅ 이전 세트 녹음 임시저장 정리(메모리 절약)
+    for k in list(st.session_state.keys()):
+        if str(k).startswith('talk_rec_stash_') and str(k) != f"talk_rec_stash_{st.session_state.get('talk_set_id','0')}" :
+            st.session_state.pop(k, None)
     st.session_state["talk_submitted"] = False
     st.session_state.pop("talk_choice", None)
 
@@ -372,6 +379,21 @@ if idx >= len(qids):
     wrong_list = [qid for qid, r in results.items() if not r.get("correct")]
 
     st.success(f"세트 완료! {score} / {len(qids)}")
+    # ✅ 이번 세트 녹음 모아보기(세션 내 임시 저장): 페이지를 떠나기 전 확인용
+    stash_key = f"talk_rec_stash_{st.session_state.get('talk_set_id','set')}"
+    stash = st.session_state.get(stash_key, {}) or {}
+    if stash:
+        with st.expander(f"🎧 이번 세트 녹음 {len(stash)}개 모아듣기", expanded=False):
+            st.caption("이 목록은 DB/Storage에 저장되지 않습니다. 새로고침/새 세트를 시작하면 사라집니다.")
+            # qids 순서대로 보여주기
+            for qid_show in qids:
+                b = stash.get(str(qid_show))
+                if b:
+                    st.markdown(f"**QID {qid_show}**")
+                    st.audio(b)
+    else:
+        st.caption("이번 세트에서 저장된 녹음이 없습니다. (녹음 후 자동으로 모아듣기 리스트에 들어갑니다.)")
+
     if wrong_list:
         st.caption(f"오답: {', '.join(wrong_list[:20])}{'…' if len(wrong_list)>20 else ''}")
 
@@ -551,18 +573,45 @@ if submitted:
     st.markdown("#### 🎤 내 발음 녹음")
     st.caption("녹음 후 파형에서 바로 지점을 찾아 들을 수 있습니다.")
 
-    # ✅ 아주 작은 비주얼 효과(삭막함 제거): 마이크 입력 레벨 미터 (밝은 톤)
+    # ✅ 비주얼 효과(삭막함 제거): 말하면 반응하는 레벨미터 + 녹음중 느낌(펄스/이퀄라이저)
     components.html(f"""
-    <div style="margin:6px 0 10px 0;">
-      <div style="font-size:12px;opacity:0.75;margin-bottom:6px;">말하면 아래 막대가 반응합니다.</div>
-      <div style="background:#f3f4f6;border:1px solid rgba(0,0,0,0.06);border-radius:999px;height:14px;overflow:hidden;">
-        <div id="talk_vu_{qid}_{idx}" style="height:14px;width:2%;background:#111;border-radius:999px;"></div>
+    <style>
+      .talk-vu-wrap{{margin:6px 0 10px 0;}}
+      .talk-vu-head{{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:6px;}}
+      .talk-vu-left{{display:flex;align-items:center;gap:8px;font-size:12px;opacity:0.78;}}
+      .talk-pulse-dot{{width:10px;height:10px;border-radius:999px;background:#ff3b30;box-shadow:0 0 0 rgba(255,59,48,0.6);animation:talkPulse 1.2s infinite;}}
+      @keyframes talkPulse{{0%{{box-shadow:0 0 0 0 rgba(255,59,48,0.55);}}70%{{box-shadow:0 0 0 10px rgba(255,59,48,0);}}100%{{box-shadow:0 0 0 0 rgba(255,59,48,0);}}}}
+      .talk-eq{{display:flex;align-items:flex-end;gap:3px;height:14px;}}
+      .talk-eq span{{display:block;width:4px;height:4px;border-radius:3px;background:#111;opacity:0.7;transition:height 80ms linear;}}
+      .talk-vu-track{{background:#f3f4f6;border:1px solid rgba(0,0,0,0.06);border-radius:999px;height:14px;overflow:hidden;}}
+      .talk-vu-bar{{height:14px;width:2%;background:linear-gradient(90deg,#111,#444);border-radius:999px;}}
+    </style>
+
+    <div class="talk-vu-wrap">
+      <div class="talk-vu-head">
+        <div class="talk-vu-left">
+          <div class="talk-pulse-dot" title="녹음 준비/마이크 입력"></div>
+          <div>말하면 반응합니다.</div>
+        </div>
+        <div class="talk-eq" aria-hidden="true">
+          <span id="eq1_{qid}_{idx}"></span><span id="eq2_{qid}_{idx}"></span><span id="eq3_{qid}_{idx}"></span><span id="eq4_{qid}_{idx}"></span>
+        </div>
+      </div>
+
+      <div class="talk-vu-track">
+        <div id="talk_vu_{qid}_{idx}" class="talk-vu-bar"></div>
       </div>
     </div>
+
     <script>
     (function(){{
       const bar = document.getElementById("talk_vu_{qid}_{idx}");
+      const e1 = document.getElementById("eq1_{qid}_{idx}");
+      const e2 = document.getElementById("eq2_{qid}_{idx}");
+      const e3 = document.getElementById("eq3_{qid}_{idx}");
+      const e4 = document.getElementById("eq4_{qid}_{idx}");
       if (!bar) return;
+
       let audioCtx, analyser, data, stream;
       const start = async () => {{
         try {{
@@ -573,6 +622,7 @@ if submitted:
           const src = audioCtx.createMediaStreamSource(stream);
           src.connect(analyser);
           data = new Uint8Array(analyser.frequencyBinCount);
+
           const tick = () => {{
             analyser.getByteFrequencyData(data);
             let sum = 0;
@@ -580,6 +630,17 @@ if submitted:
             const avg = sum / data.length; // 0~255
             const pct = Math.min(100, Math.max(2, (avg/255)*100));
             bar.style.width = pct.toFixed(1) + "%";
+
+            // tiny equalizer heights (reactive)
+            const h1 = 4 + (avg/255)*12;
+            const h2 = 4 + (data[8]/255)*12;
+            const h3 = 4 + (data[16]/255)*12;
+            const h4 = 4 + (data[24]/255)*12;
+            if (e1) e1.style.height = h1.toFixed(0)+"px";
+            if (e2) e2.style.height = h2.toFixed(0)+"px";
+            if (e3) e3.style.height = h3.toFixed(0)+"px";
+            if (e4) e4.style.height = h4.toFixed(0)+"px";
+
             requestAnimationFrame(tick);
           }};
           tick();
@@ -590,13 +651,25 @@ if submitted:
       start();
     }})();
     </script>
-    """, height=90)
+    """, height=110)
+
 
     # ✅ 기본 녹음기(파형 포함)
     rec_key = f"talk_rec_{qid}"
     audio_file = None
     try:
         audio_file = st.audio_input("녹음하기", key=rec_key)
+        # ✅ 녹음 메모리 저장(세션 내에서만, DB/Storage 저장 없음)
+        if audio_file is not None:
+            try:
+                b = audio_file.getvalue()
+                if b:
+                    stash_key = f"talk_rec_stash_{st.session_state.get('talk_set_id','set')}"
+                    if stash_key not in st.session_state:
+                        st.session_state[stash_key] = {}
+                    st.session_state[stash_key][str(qid)] = b
+            except Exception:
+                pass
     except Exception:
         st.warning("이 환경에서는 녹음 위젯이 지원되지 않습니다.")
 
