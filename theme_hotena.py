@@ -1,157 +1,192 @@
 # theme_hotena.py
 from __future__ import annotations
+
 import streamlit as st
 
-# ------------------------------------------------------------
-# ✅ Hotena Unified Theme
-# - Keep it light-weight and compatible with sub-app CSS.
-# - Apply once per run; safe to call multiple times.
-# ------------------------------------------------------------
+# ============================================================
+# ✅ Hotena Theme (single source of truth)
+# - Button height / radius / card styles / badge styles
+# - Mobile touch targets
+# - Works across all pages (home/words/kanji/talk/mypage)
+# ============================================================
 
-def apply_hotena_theme() -> None:
+HOTENA_BLUE = "#1C2F5C"   # deep navy (brand)
+HOTENA_BLUE_SOFT = "#2A3F77"
+HOTENA_BG = "#F6F8FC"
+HOTENA_TEXT = "#0B1220"
+HOTENA_MUTED = "rgba(11,18,32,.65)"
+
+def apply_hotena_theme(force: bool = False):
+    """
+    Inject global CSS once per session.
+    Call this at the start of each page render (safe to call multiple times).
+    """
+    if not force and st.session_state.get("_hotena_theme_applied"):
+        return
+
     st.markdown(
-        """
+        f"""
 <style>
-/* =========================
-   Hotena Theme Variables
-   ========================= */
-:root{
-  --hotena-bg: #0B1220;
-  --hotena-panel: rgba(255,255,255,0.06);
-  --hotena-panel-strong: rgba(255,255,255,0.09);
-  --hotena-border: rgba(255,255,255,0.12);
-  --hotena-text: rgba(255,255,255,0.92);
-  --hotena-subtext: rgba(255,255,255,0.72);
-  --hotena-accent: #2F81F7;      /* blue */
-  --hotena-accent-2: #22C55E;    /* green */
-  --hotena-danger: #EF4444;
-  --hotena-radius: 14px;
-  --hotena-radius-sm: 10px;
-}
+:root {{
+  --hotena-blue: {HOTENA_BLUE};
+  --hotena-blue-soft: {HOTENA_BLUE_SOFT};
+  --hotena-bg: {HOTENA_BG};
+  --hotena-text: {HOTENA_TEXT};
+  --hotena-muted: {HOTENA_MUTED};
 
-/* =========================
-   App background + layout
-   ========================= */
-html, body, [data-testid="stAppViewContainer"]{
-  background: radial-gradient(1200px 700px at 10% 0%, rgba(47,129,247,0.22), transparent 60%),
-              radial-gradient(900px 600px at 90% 10%, rgba(34,197,94,0.14), transparent 55%),
-              var(--hotena-bg) !important;
+  --hotena-radius: 18px;
+  --hotena-radius-sm: 14px;
+  --hotena-btn-h: 48px;
+  --hotena-shadow: 0 8px 24px rgba(0,0,0,.06);
+  --hotena-border: 1px solid rgba(0,0,0,.08);
+}}
+
+html, body, [data-testid="stAppViewContainer"] {{
+  background: var(--hotena-bg) !important;
   color: var(--hotena-text) !important;
-}
+}}
 
-[data-testid="stHeader"]{
-  background: transparent !important;
-}
+header[data-testid="stHeader"] {{
+  height: 3rem !important;
+}}
+/* reduce top padding so content sits higher (mobile friendly) */
+div[data-testid="stAppViewContainer"] .block-container {{
+  padding-top: 1.8rem !important;
+  padding-bottom: 5.0rem !important; /* room for floating menu */
+  max-width: 720px !important;
+}}
 
-[data-testid="stSidebar"]{
-  display: none; /* unified app uses no sidebar */
-}
+@media (max-width: 640px) {{
+  div[data-testid="stAppViewContainer"] .block-container {{
+    padding-top: 1.4rem !important;
+    padding-left: 0.9rem !important;
+    padding-right: 0.9rem !important;
+    padding-bottom: 5.6rem !important;
+  }}
+}}
 
-.block-container{
-  max-width: 860px;
-  padding-top: 1.2rem;
-  padding-bottom: 2.2rem;
-}
-
-/* =========================
-   Typography
-   ========================= */
-h1,h2,h3,h4,h5,h6{
-  color: var(--hotena-text) !important;
-  letter-spacing: -0.2px;
-}
-p, li, label, div{
-  color: var(--hotena-text);
-}
-small, .hotena-subtext{
-  color: var(--hotena-subtext) !important;
-}
-
-/* =========================
-   Cards / panels
-   ========================= */
-.hotena-card{
-  background: var(--hotena-panel);
-  border: 1px solid var(--hotena-border);
-  border-radius: var(--hotena-radius);
-  padding: 14px 14px;
-}
-.hotena-card-strong{
-  background: var(--hotena-panel-strong);
-  border: 1px solid var(--hotena-border);
-  border-radius: var(--hotena-radius);
-  padding: 14px 14px;
-}
-
-/* =========================
-   Buttons
-   ========================= */
-.stButton > button{
-  border-radius: 12px !important;
-  border: 1px solid var(--hotena-border) !important;
-  background: rgba(255,255,255,0.06) !important;
-  color: var(--hotena-text) !important;
-  padding: 0.62rem 0.85rem !important;
+/* ---- Buttons: unify height/radius/tap target ---- */
+button[kind="primary"], button[kind="secondary"], .stButton > button {{
+  min-height: var(--hotena-btn-h) !important;
+  border-radius: var(--hotena-radius-sm) !important;
   font-weight: 700 !important;
-}
-.stButton > button:hover{
-  border-color: rgba(47,129,247,0.55) !important;
-  background: rgba(47,129,247,0.18) !important;
-}
-.stButton > button:focus{
-  box-shadow: 0 0 0 3px rgba(47,129,247,0.25) !important;
-}
+}}
 
-/* Primary button pattern (use via st.button(..., type="primary") on newer Streamlit) */
-button[kind="primary"]{
-  background: linear-gradient(180deg, rgba(47,129,247,0.92), rgba(47,129,247,0.72)) !important;
-  border: 1px solid rgba(47,129,247,0.55) !important;
-  color: #FFFFFF !important;
-}
-button[kind="primary"]:hover{
-  background: linear-gradient(180deg, rgba(47,129,247,0.98), rgba(47,129,247,0.78)) !important;
-}
+/* Make link_button look consistent */
+a[data-testid="stLinkButton"], a[data-testid="stLinkButton"] > div {{
+  border-radius: var(--hotena-radius-sm) !important;
+}}
+a[data-testid="stLinkButton"] {{
+  min-height: var(--hotena-btn-h) !important;
+}}
 
-/* =========================
-   Inputs
-   ========================= */
-input, textarea{
-  border-radius: 12px !important;
-  border: 1px solid var(--hotena-border) !important;
-  background: rgba(255,255,255,0.06) !important;
-  color: var(--hotena-text) !important;
-}
+/* ---- Inputs: unify radius ---- */
+input, textarea, .stTextInput input, .stTextArea textarea {{
+  border-radius: var(--hotena-radius-sm) !important;
+}}
 
-[data-baseweb="select"] > div{
-  border-radius: 12px !important;
-  border: 1px solid var(--hotena-border) !important;
-  background: rgba(255,255,255,0.06) !important;
-}
+/* ---- Card helper ---- */
+.hotena-card {{
+  border: var(--hotena-border);
+  border-radius: var(--hotena-radius);
+  box-shadow: var(--hotena-shadow);
+  background: rgba(255,255,255,.82);
+  backdrop-filter: blur(6px);
+  padding: 14px 14px;
+}}
 
-[data-testid="stRadio"] div[role="radiogroup"]{
-  background: rgba(255,255,255,0.04);
-  border: 1px solid var(--hotena-border);
-  border-radius: 12px;
+.hotena-card.tight {{
   padding: 10px 12px;
-}
+}}
 
-/* =========================
-   Alerts
-   ========================= */
-[data-testid="stAlert"]{
-  border-radius: 12px !important;
-  border: 1px solid var(--hotena-border) !important;
-}
+.hotena-title {{
+  font-size: 20px;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  margin: 0 0 6px 0;
+}}
 
-/* Hide Streamlit footer */
-footer{ visibility: hidden; }
+.hotena-sub {{
+  font-size: 13px;
+  color: var(--hotena-muted);
+  margin: 0;
+}}
+
+/* ---- Badges / Pills ---- */
+.hotena-pill {{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(0,0,0,.10);
+  background: rgba(255,255,255,.9);
+  font-weight: 800;
+  font-size: 12px;
+}}
+.hotena-pill.pro {{
+  border-color: rgba(28,47,92,.25);
+  background: rgba(28,47,92,.10);
+  color: var(--hotena-blue);
+}}
+.hotena-pill.free {{
+  background: rgba(0,0,0,.04);
+  color: rgba(0,0,0,.68);
+}}
+
+/* ---- Bubble UI (talk) ---- */
+.hotena-bubble {{
+  max-width: 92%;
+  padding: 10px 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(0,0,0,.08);
+  background: rgba(255,255,255,.92);
+  box-shadow: 0 6px 18px rgba(0,0,0,.05);
+}}
+.hotena-bubble.me {{
+  margin-left:auto;
+  background: rgba(28,47,92,.10);
+  border-color: rgba(28,47,92,.18);
+}}
+.hotena-bubble.answer {{
+  background: rgba(42,63,119,.12);
+  border-color: rgba(42,63,119,.22);
+}}
+.hotena-bubble .label {{
+  font-size: 11px;
+  opacity: .7;
+  margin-bottom: 4px;
+}}
+.hotena-bubble .text {{
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.35;
+}}
+
+/* ---- Make expanders feel tighter ---- */
+details {{
+  border-radius: var(--hotena-radius) !important;
+  border: var(--hotena-border) !important;
+  background: rgba(255,255,255,.78) !important;
+}}
+summary {{
+  padding: 10px 12px !important;
+  font-weight: 800 !important;
+}}
 </style>
-        """,
+""",
         unsafe_allow_html=True,
     )
+    st.session_state["_hotena_theme_applied"] = True
 
-def hotena_header(title: str, subtitle: str | None = None) -> None:
-    apply_hotena_theme()
-    st.markdown(f"## {title}")
-    if subtitle:
-        st.markdown(f"<div class='hotena-subtext'>{subtitle}</div>", unsafe_allow_html=True)
+def pill(text: str, kind: str = "free"):
+    """kind: 'free' | 'pro' | 'neutral'"""
+    k = kind if kind in ("free","pro") else ""
+    st.markdown(f'<span class="hotena-pill {k}">{text}</span>', unsafe_allow_html=True)
+
+def card_open(tight: bool = False):
+    cls = "hotena-card tight" if tight else "hotena-card"
+    st.markdown(f'<div class="{cls}">', unsafe_allow_html=True)
+
+def card_close():
+    st.markdown("</div>", unsafe_allow_html=True)

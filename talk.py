@@ -1,3 +1,6 @@
+import theme_hotena
+theme_hotena.apply_hotena_theme()
+
 # talk.py
 from __future__ import annotations
 
@@ -253,270 +256,6 @@ def stable_daily_tip(user_id: str) -> str:
     idx = int(hashlib.sha256(seed).hexdigest()[:8], 16) % len(tips)
     return tips[idx]
 
-
-def autoplay_tts_once(ans: str, key_id: str):
-    """Auto-play TTS once per question (SpeechSynthesis, client-side)."""
-    if not ans:
-        return
-    ss_key = f"{NS}_tts_auto_{key_id}"
-    if st.session_state.get(ss_key):
-        return
-    st.session_state[ss_key] = True
-
-    def esc(s: str) -> str:
-        return (
-            str(s)
-            .replace("&", "&amp;")
-            .replace("<", "&lt;")
-            .replace(">", "&gt;")
-            .replace('"', "&quot;")
-        )
-
-    components.html(
-        f"""
-<script>
-(function() {{
-  const win = (window.parent && window.parent.speechSynthesis) ? window.parent : window;
-  function pickJaVoice() {{
-    const voices = win.speechSynthesis.getVoices ? win.speechSynthesis.getVoices() : [];
-    const ja = voices.filter(v => (v.lang || "").toLowerCase().startsWith("ja"));
-    return ja.length ? ja[0] : null;
-  }}
-  function speak(text) {{
-    try {{
-      if (!text) return;
-      const u = new win.SpeechSynthesisUtterance(text);
-      u.lang = "ja-JP";
-      const v = pickJaVoice();
-      if (v) u.voice = v;
-      win.speechSynthesis.cancel();
-      win.speechSynthesis.speak(u);
-    }} catch(e) {{}}
-  }}
-  const text = "{esc(ans)}";
-  // voices may load async on iOS; retry a couple times
-  setTimeout(() => speak(text), 50);
-  setTimeout(() => speak(text), 450);
-}})();
-</script>
-""",
-        height=0,
-    )
-
-
-def waveform_recorder_html(block_id: str) -> str:
-    """Waveform recorder (no server upload). Returns HTML string."""
-    return f"""
-<style>
-  #wr_{block_id} {{
-    border: 1px solid rgba(0,0,0,.10);
-    border-radius: 18px;
-    padding: 12px 12px;
-    background: rgba(255,255,255,.78);
-    box-shadow: 0 6px 16px rgba(0,0,0,.06);
-  }}
-  #wr_{block_id} .row {{
-    display:flex; gap:10px; align-items:center; flex-wrap:wrap;
-  }}
-  #wr_{block_id} .btn {{
-    border: 1px solid rgba(0,0,0,.12);
-    background: white;
-    padding: 10px 12px;
-    border-radius: 999px;
-    font-weight: 800;
-    cursor: pointer;
-    min-height: 46px;
-  }}
-  #wr_{block_id} .btn.primary {{
-    border-color: rgba(28,47,92,.20);
-    background: rgba(28,47,92,.06);
-  }}
-  #wr_{block_id} .dot {{
-    width:10px; height:10px; border-radius:999px;
-    background: rgba(220, 20, 60, .25);
-    box-shadow: 0 0 0 rgba(220, 20, 60, .0);
-    display:none;
-  }}
-  #wr_{block_id}.rec .dot {{
-    display:inline-block;
-    background: rgba(220, 20, 60, .85);
-    animation: wr_pulse_{block_id} 1.1s infinite;
-  }}
-  @keyframes wr_pulse_{block_id} {{
-    0% {{ box-shadow: 0 0 0 0 rgba(220,20,60,.35); }}
-    70% {{ box-shadow: 0 0 0 10px rgba(220,20,60,0); }}
-    100% {{ box-shadow: 0 0 0 0 rgba(220,20,60,0); }}
-  }}
-  #wr_{block_id} canvas {{
-    width: 100%;
-    height: 88px;
-    border-radius: 14px;
-    background: rgba(0,0,0,.04);
-    display:block;
-    margin-top: 10px;
-  }}
-  #wr_{block_id} audio {{
-    width: 100%;
-    margin-top: 10px;
-  }}
-  #wr_{block_id} .hint {{
-    opacity:.75; font-size:.9rem; margin-top:6px;
-  }}
-</style>
-
-<div id="wr_{block_id}">
-  <div class="row">
-    <span class="dot" aria-hidden="true"></span>
-    <button class="btn primary" type="button" id="wr_start_{block_id}">🎙️ 녹음 시작</button>
-    <button class="btn" type="button" id="wr_stop_{block_id}" disabled>⏹️ 정지</button>
-    <button class="btn" type="button" id="wr_clear_{block_id}" disabled>🗑️ 삭제</button>
-  </div>
-  <canvas id="wr_canvas_{block_id}"></canvas>
-  <audio id="wr_audio_{block_id}" controls></audio>
-  <div class="hint">정답을 들은 뒤, 바로 따라 말해보세요. (저장되지 않습니다)</div>
-</div>
-
-<script>
-(function() {{
-  const root = document.getElementById("wr_{block_id}");
-  const btnStart = document.getElementById("wr_start_{block_id}");
-  const btnStop  = document.getElementById("wr_stop_{block_id}");
-  const btnClear = document.getElementById("wr_clear_{block_id}");
-  const canvas   = document.getElementById("wr_canvas_{block_id}");
-  const audioEl  = document.getElementById("wr_audio_{block_id}");
-  const ctx      = canvas.getContext("2d");
-
-  let stream = null;
-  let mediaRecorder = null;
-  let chunks = [];
-  let rafId = null;
-  let audioCtx = null;
-  let analyser = null;
-  let dataArray = null;
-  let sourceNode = null;
-
-  function resizeCanvas() {{
-    const rect = canvas.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = Math.floor(rect.width * dpr);
-    canvas.height = Math.floor(rect.height * dpr);
-    ctx.setTransform(dpr,0,0,dpr,0,0);
-  }}
-  resizeCanvas();
-  window.addEventListener("resize", resizeCanvas);
-
-  function draw() {{
-    if (!analyser) return;
-    analyser.getByteTimeDomainData(dataArray);
-
-    const w = canvas.clientWidth;
-    const h = canvas.clientHeight;
-    ctx.clearRect(0,0,w,h);
-
-    // bg
-    ctx.fillStyle = "rgba(0,0,0,0.00)";
-    ctx.fillRect(0,0,w,h);
-
-    // waveform
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = "rgba(28,47,92,.85)";
-    ctx.beginPath();
-    const slice = w / dataArray.length;
-    let x = 0;
-    for (let i=0;i<dataArray.length;i++) {{
-      const v = dataArray[i] / 128.0;
-      const y = v * h/2;
-      if (i===0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-      x += slice;
-    }}
-    ctx.lineTo(w, h/2);
-    ctx.stroke();
-
-    rafId = requestAnimationFrame(draw);
-  }}
-
-  async function start() {{
-    try {{
-      chunks = [];
-      audioEl.src = "";
-      btnStart.disabled = true;
-      btnStop.disabled = false;
-      btnClear.disabled = true;
-      root.classList.add("rec");
-
-      stream = await navigator.mediaDevices.getUserMedia({{ audio: true }});
-
-      mediaRecorder = new MediaRecorder(stream);
-      mediaRecorder.ondataavailable = (e) => {{
-        if (e.data && e.data.size > 0) chunks.push(e.data);
-      }};
-      mediaRecorder.onstop = () => {{
-        const blob = new Blob(chunks, {{ type: "audio/webm" }});
-        const url = URL.createObjectURL(blob);
-        audioEl.src = url;
-        btnClear.disabled = false;
-      }};
-      mediaRecorder.start();
-
-      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 2048;
-      dataArray = new Uint8Array(analyser.fftSize);
-
-      sourceNode = audioCtx.createMediaStreamSource(stream);
-      sourceNode.connect(analyser);
-
-      if (rafId) cancelAnimationFrame(rafId);
-      rafId = requestAnimationFrame(draw);
-    }} catch(e) {{
-      console.error(e);
-      btnStart.disabled = false;
-      btnStop.disabled = true;
-      root.classList.remove("rec");
-      alert("마이크 권한을 허용해 주세요.");
-    }}
-  }}
-
-  function stop() {{
-    try {{
-      btnStop.disabled = true;
-      btnStart.disabled = false;
-      root.classList.remove("rec");
-
-      if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
-      if (stream) {{
-        stream.getTracks().forEach(t => t.stop());
-        stream = null;
-      }}
-      if (audioCtx) {{
-        audioCtx.close();
-        audioCtx = null;
-      }}
-      analyser = null;
-      dataArray = null;
-      if (rafId) cancelAnimationFrame(rafId);
-      rafId = null;
-    }} catch(e) {{ console.error(e); }}
-  }}
-
-  function clearAll() {{
-    stop();
-    chunks = [];
-    audioEl.src = "";
-    btnClear.disabled = true;
-    // clear canvas
-    const w = canvas.clientWidth, h = canvas.clientHeight;
-    ctx.clearRect(0,0,w,h);
-  }}
-
-  btnStart.addEventListener("click", start);
-  btnStop.addEventListener("click", stop);
-  btnClear.addEventListener("click", clearAll);
-}})();
-</script>
-"""
-
 # ============================================================
 # ✅ 필터 UI (레벨/상황 태그)
 # ============================================================
@@ -735,41 +474,25 @@ with b3:
 # ============================================================
 if submitted:
     ans = str(row["answer_jp"]).strip()
-
-    # ✅ Auto TTS 1회 (제출 직후)
-    autoplay_tts_once(ans, key_id=f"{qid}_{idx}")
-
-    ok = (selected == ans)
-    if ok:
+    if selected == ans:
         st.success("정답입니다.")
     else:
         st.error("오답입니다.")
 
-    # ✅ 말풍선 UI (문제 → 내 답 → 정답)
-    st.markdown(
-        f"""
-<div class="bubble left"><small>상대</small>{html.escape(str(row.get("partner_jp","")).strip())}</div>
-<div class="bubble right"><small>내 답</small>{html.escape(str(selected).strip())}</div>
-<div class="bubble left answer"><small>정답</small>{html.escape(ans)}</div>
-""",
-        unsafe_allow_html=True,
-    )
+    st.markdown("#### 정답")
+    st.write(ans)
 
-    # ✅ 정답 듣기(수동) + 발음 연습(녹음/재생, 저장 없음)
+    # ✅ 정답 발음만
     if ans:
         components.html(
             speak_buttons_html([("정답 듣기", ans)], block_id=f"a_{qid}_{idx}"),
             height=60
         )
-        components.html(
-            waveform_recorder_html(block_id=f"{qid}_{idx}"),
-            height=260,
-        )
 
     if str(row.get("answer_kr","")).strip():
         st.caption(str(row.get("answer_kr","")).strip())
 
-
+    # 힌트는 제출 후에만 보여줘도 됨
     hint = str(row.get("hint_kr","")).strip()
     if hint:
         st.info(hint)
