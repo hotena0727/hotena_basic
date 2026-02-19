@@ -177,40 +177,13 @@ def _cookies_save_once_per_run():
 #   don't feel "로그인 반복" after closing the browser.
 # - Cookie name follows: COOKIE_PREFIX + key
 # ============================================================
-def _js_set_cookie(name: str, value: str, days: int = 30):
-    try:
-        max_age = days * 24 * 60 * 60
-        components.html(
-            f"""<script>
-(function(){{
-  try {{
-    var n = {json.dumps(name)};
-    var v = encodeURIComponent({json.dumps(value)});
-    document.cookie = n + "=" + v + "; Max-Age={max_age}; Path=/; SameSite=Lax";
-  }} catch(e) {{}}
-}})();
-</script>""",
-            height=0,
-        )
-    except Exception:
-        pass
 
-def _js_delete_cookie(name: str):
-    try:
-        components.html(
-            f"""<script>
-(function(){{
-  try {{
-    var n = {json.dumps(name)};
-    document.cookie = n + "=; Max-Age=0; Path=/; SameSite=Lax";
-  }} catch(e) {{}}
-}})();
-</script>""",
-            height=0,
-        )
-    except Exception:
-        pass
-
+# ============================================================
+# ✅ IMPORTANT: Cookie persistence
+# - We rely on EncryptedCookieManager only.
+# - DO NOT write plain tokens to the same cookie names via JS.
+#   Overwriting encrypted cookies makes decryption fail on rerun, causing 'logout on refresh'.
+# ============================================================
 
 # ============================================================
 # ✅ Supabase client (anon)
@@ -247,8 +220,6 @@ def refresh_session_from_cookie_if_needed(force: bool = False) -> bool:
             cookies["access_token"] = refreshed.session.access_token
             cookies["refresh_token"] = refreshed.session.refresh_token
             _cookies_save_once_per_run()
-            _js_set_cookie(COOKIE_PREFIX + "access_token", refreshed.session.access_token, days=30)
-            _js_set_cookie(COOKIE_PREFIX + "refresh_token", refreshed.session.refresh_token, days=30)
             return True
 
     if at:
@@ -758,8 +729,6 @@ if not user:
                 cookies["access_token"] = res.session.access_token
                 cookies["refresh_token"] = res.session.refresh_token
                 _cookies_save_once_per_run()
-                _js_set_cookie(COOKIE_PREFIX + "access_token", res.session.access_token, days=30)
-                _js_set_cookie(COOKIE_PREFIX + "refresh_token", res.session.refresh_token, days=30)
                 st.success("로그인 완료!")
                 st.rerun()
             else:
@@ -837,8 +806,6 @@ def hub_logout():
     cookies["access_token"] = ""
     cookies["refresh_token"] = ""
     _cookies_save_once_per_run()
-    _js_delete_cookie(COOKIE_PREFIX + "access_token")
-    _js_delete_cookie(COOKIE_PREFIX + "refresh_token")
     for k in ["user","access_token","refresh_token","sb_authed","sb_authed_token","progress_all","hub_page","HUB_MODE"]:
         st.session_state.pop(k, None)
 
