@@ -1,7 +1,7 @@
 # home.py
 from __future__ import annotations
 
-BUILD_STAMP = 'v25 2026-02-19 15:55:53 KST (+09:00)'
+BUILD_STAMP = 'v26 2026-02-19 15:57:44 KST (+09:00)'
 
 from pathlib import Path
 import os
@@ -170,8 +170,14 @@ div[data-testid="stMetric"]{
   }
 }
 </style>
-""",
-    unsafe_allow_html=True,
+""".replace("__HREF_HOME__", href_home)\
+        .replace("__HREF_WORD__", href_word)\
+        .replace("__HREF_KANJI__", href_kanji)\
+        .replace("__HREF_TALK__", href_talk)\
+        .replace("__HREF_MY__", href_my)\
+        .replace("__HREF_REM__", href_rem)\
+        .replace("__HREF_OUT__", href_out),
+        unsafe_allow_html=True,
 )
 st.session_state["_page_config_set"] = True  # children should not call set_page_config
 
@@ -509,7 +515,7 @@ def render_home_dashboard(sb_authed, user):
     streak = calc_streak(daily_map, today=kst_today)
 
     st.markdown(
-        f"""
+        """
 <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:0.75rem;margin-top:0.2rem;margin-bottom:0.6rem;">
   <div>
     <div style="font-size:1.35rem;font-weight:800;line-height:1.2;">하테나 학습 허브</div>
@@ -1043,13 +1049,13 @@ def render_floating_menu():
 
   <div class="hub-menu-panel">
     <div class="hub-menu-title">메뉴</div>
-    <a href="{href_home}" target="_self">🏠 홈</a>
-    <a href="{href_word}" target="_self">📘 단어</a>
-    <a href="{href_kanji}" target="_self">🈶 한자</a>
-    <a href="{href_talk}" target="_self">💬 회화</a>
-    <a href="{href_my}" target="_self">👤 마이페이지</a>
-    <a href="{href_rem}" target="_self">🔔 알림 설정</a>
-    <a href="{href_out}" target="_self">🚪 로그아웃</a>
+    <a href="__HREF_HOME__" target="_self">🏠 홈</a>
+    <a href="__HREF_WORD__" target="_self">📘 단어</a>
+    <a href="__HREF_KANJI__" target="_self">🈶 한자</a>
+    <a href="__HREF_TALK__" target="_self">💬 회화</a>
+    <a href="__HREF_MY__" target="_self">👤 마이페이지</a>
+    <a href="__HREF_REM__" target="_self">🔔 알림 설정</a>
+    <a href="__HREF_OUT__" target="_self">🚪 로그아웃</a>
     <div style="height:0.6rem"></div>
     <div style="font-size:0.85rem; opacity:0.7;">Tip: 바깥을 누르면 닫힙니다.</div>
   </div>
