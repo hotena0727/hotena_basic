@@ -1551,6 +1551,12 @@ def require_login():
 """,
             unsafe_allow_html=True,
         )
+        if st.session_state.get("_hub_mode"):
+            st.info("홈에서 로그인 후 이용해 주세요.")
+            st.stop()
+        if st.session_state.get("_hub_mode"):
+            st.info("홈에서 로그인 후 이용해 주세요.")
+            st.stop()
         auth_box()
         st.stop()
 

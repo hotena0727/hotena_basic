@@ -142,6 +142,8 @@ if missing:
     st.error(f"설정값이 없습니다: {', '.join(missing)} (Cloud Run env 또는 Streamlit secrets 확인)")
     st.stop()
 
+COOKIE_PREFIX = "hotena_beginner_"
+
 # ============================================================
 # ✅ Cookies (MUST be created only once per app run)
 # ============================================================
@@ -168,6 +170,47 @@ def _cookies_save_once_per_run():
     except Exception:
         # 쿠키 저장 실패는 치명적이지 않으므로 조용히 무시
         pass
+
+# ============================================================
+# ✅ Persistent cookie helper (30 days)
+# - We mirror tokens to browser cookies with Max-Age so users
+#   don't feel "로그인 반복" after closing the browser.
+# - Cookie name follows: COOKIE_PREFIX + key
+# ============================================================
+def _js_set_cookie(name: str, value: str, days: int = 30):
+    try:
+        max_age = days * 24 * 60 * 60
+        components.html(
+            f"""<script>
+(function(){{
+  try {{
+    var n = {json.dumps(name)};
+    var v = encodeURIComponent({json.dumps(value)});
+    document.cookie = n + "=" + v + "; Max-Age={max_age}; Path=/; SameSite=Lax";
+  }} catch(e) {{}}
+}})();
+</script>""",
+            height=0,
+        )
+    except Exception:
+        pass
+
+def _js_delete_cookie(name: str):
+    try:
+        components.html(
+            f"""<script>
+(function(){{
+  try {{
+    var n = {json.dumps(name)};
+    document.cookie = n + "=; Max-Age=0; Path=/; SameSite=Lax";
+  }} catch(e) {{}}
+}})();
+</script>""",
+            height=0,
+        )
+    except Exception:
+        pass
+
 
 # ============================================================
 # ✅ Supabase client (anon)
@@ -204,6 +247,8 @@ def refresh_session_from_cookie_if_needed(force: bool = False) -> bool:
             cookies["access_token"] = refreshed.session.access_token
             cookies["refresh_token"] = refreshed.session.refresh_token
             _cookies_save_once_per_run()
+            _js_set_cookie(COOKIE_PREFIX + "access_token", refreshed.session.access_token, days=30)
+            _js_set_cookie(COOKIE_PREFIX + "refresh_token", refreshed.session.refresh_token, days=30)
             return True
 
     if at:
@@ -680,7 +725,13 @@ st.session_state["REMINDER_MESSAGES"] = REMINDER_MESSAGES
 refresh_session_from_cookie_if_needed(force=False)
 
 user = st.session_state.get("user")
+# ✅ Hub mode flag: child pages disable their own login UI
+st.session_state["_hub_mode"] = True
+st.session_state["_hub_authed_ready"] = bool(st.session_state.get("user"))
+
 sb_authed = st.session_state.get("sb_authed")
+# ✅ if authed client exists, mark ready
+st.session_state["_hub_authed_ready"] = bool(user and sb_authed)
 
 if not user:
     st.subheader("로그인")
@@ -707,6 +758,8 @@ if not user:
                 cookies["access_token"] = res.session.access_token
                 cookies["refresh_token"] = res.session.refresh_token
                 _cookies_save_once_per_run()
+                _js_set_cookie(COOKIE_PREFIX + "access_token", res.session.access_token, days=30)
+                _js_set_cookie(COOKIE_PREFIX + "refresh_token", res.session.refresh_token, days=30)
                 st.success("로그인 완료!")
                 st.rerun()
             else:
@@ -784,6 +837,8 @@ def hub_logout():
     cookies["access_token"] = ""
     cookies["refresh_token"] = ""
     _cookies_save_once_per_run()
+    _js_delete_cookie(COOKIE_PREFIX + "access_token")
+    _js_delete_cookie(COOKIE_PREFIX + "refresh_token")
     for k in ["user","access_token","refresh_token","sb_authed","sb_authed_token","progress_all","hub_page","HUB_MODE"]:
         st.session_state.pop(k, None)
 

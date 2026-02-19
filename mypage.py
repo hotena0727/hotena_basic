@@ -57,7 +57,7 @@ def render_mypage():
     user = st.session_state.get("user")
 
     if not sb or not user:
-        st.info("로그인이 필요합니다.")
+        st.info("홈에서 로그인 후 이용해 주세요.")
         return
 
     rows = _fetch_attempts(sb, user.id, limit=500)
