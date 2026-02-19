@@ -1,4 +1,3 @@
-# BUILD_STAMP: v35 2026-02-19 22:23:41 KST (+09:00)
 # talk.py
 from __future__ import annotations
 
@@ -135,6 +134,40 @@ def save_progress(progress_all: dict):
         _sb().table("profiles").update({"progress": progress_all}).eq("id", USER_ID).execute()
     except Exception:
         pass
+
+# ============================================================
+# ✅ Daily Pronunciation Challenge (오늘 발음 3회)
+# - counts recordings per day, stored in profiles.progress["talk"]["daily_pron"]
+# ============================================================
+DAILY_PRON_TARGET = 3
+
+def _today_key() -> str:
+    try:
+        return date.today().isoformat()
+    except Exception:
+        return datetime.now().date().isoformat()
+
+def get_daily_pron_count(talk: dict) -> int:
+    dp = talk.get("daily_pron") or {}
+    return int(dp.get(_today_key(), 0) or 0)
+
+def inc_daily_pron_count(progress_all: dict, talk: dict, inc: int = 1) -> int:
+    dp = talk.get("daily_pron") or {}
+    k = _today_key()
+    dp[k] = int(dp.get(k, 0) or 0) + int(inc)
+    talk["daily_pron"] = dp
+    progress_all["talk"] = talk
+    st.session_state["progress_all"] = progress_all
+    save_progress(progress_all)
+    return int(dp[k])
+
+def render_daily_pron_banner(talk: dict):
+    count = get_daily_pron_count(talk)
+    st.markdown("### 🎯 오늘 발음 챌린지 (3회)")
+    st.progress(min(count / DAILY_PRON_TARGET, 1.0))
+    st.caption(f"진행: {count} / {DAILY_PRON_TARGET}")
+    if count >= DAILY_PRON_TARGET:
+        st.success("오늘 발음 3회 달성! 🎉 내일도 3회만 해봅시다.")
 
 def log_attempt(level: str, tag: str, quiz_len: int, score: int, wrong_list: list[str]):
     if not USER_ID:
@@ -282,6 +315,10 @@ if len(df2) < 4:
 
 st.info(stable_daily_tip(str(USER_ID or "guest")))
 
+# ✅ Daily pronunciation challenge banner
+render_daily_pron_banner(talk)
+
+
 # ============================================================
 # ✅ 세트(10문) 상태
 # ============================================================
@@ -316,12 +353,11 @@ def start_new_set():
     st.session_state[f"{NS}_idx"] = 0
     st.session_state[f"{NS}_results"] = {}  # qid -> {"selected":..., "correct":bool}
     st.session_state["talk_submitted"] = False
-    # ✅ 이전 문제의 보기/선택/녹음 키 정리
+    st.session_state.pop("talk_choice", None)
+    # ✅ 이전 문제 보기/녹음 캐시 정리
     for k in list(st.session_state.keys()):
-        if str(k).startswith(f"{NS}_choices_") or str(k).startswith(f"{NS}_choice_") or str(k).startswith(f"{NS}_rec_"):
+        if str(k).startswith("talk_choices_") or str(k).startswith("talk_rec_"):
             st.session_state.pop(k, None)
-    
-        # (qid별 key를 쓰므로 별도 pop 불필요)
 
 # 세트가 없거나, 필터가 바뀌었으면 새로 시작
 sig = f"{sel_level}|{sel_tag}|{int(exclude_mastered)}"
@@ -410,12 +446,11 @@ qid = qids[idx]
 row = DF[DF["qid"].astype(str) == str(qid)].iloc[0].to_dict()
 
 # 보기 구성(쌩뚱맞게 가리기)
-# 보기 구성(✅ 문제당 1회만 생성해 고정: 선택해도 보기 순서가 바뀌지 않게)
-_choices_key = f"{NS}_choices_{qid}"
-if _choices_key not in st.session_state:
-    st.session_state[_choices_key] = build_choices(row, pool_answers)
-choices = st.session_state[_choices_key]
-
+# 보기 구성(쌩뚱맞게 가리기) - ✅ qid별로 1회만 생성해서 rerun에도 고정
+ckey = f"talk_choices_{qid}"
+if ckey not in st.session_state:
+    st.session_state[ckey] = build_choices(row, pool_answers)
+choices = st.session_state[ckey]
 
 # 상단 진행 표기: "1 / 10" (Q1 제거)
 st.markdown(f"### {idx+1} / {len(qids)}")
@@ -444,7 +479,7 @@ if partner_kr:
     st.caption(partner_kr)
 
 st.markdown("#### 보기")
-selected = st.radio("정답을 고르세요.", choices, key=f"{NS}_choice_{qid}")
+selected = st.radio("정답을 고르세요.", choices, key="talk_choice")
 
 submitted = st.session_state.get("talk_submitted", False)
 
@@ -469,11 +504,10 @@ with b2:
     if st.button("다음", use_container_width=True, disabled=not submitted, key=f"talk_next_{qid}_{idx}"):
         st.session_state[f"{NS}_idx"] = idx + 1
         st.session_state["talk_submitted"] = False
-        # ✅ 현재 문제의 보기/선택/녹음 상태 정리
-        st.session_state.pop(f"{NS}_choices_{qid}", None)
-        st.session_state.pop(f"{NS}_choice_{qid}", None)
-        st.session_state.pop(f"{NS}_rec_{qid}_{idx}", None)
-        # (qid별 key를 쓰므로 별도 pop 불필요)
+        st.session_state.pop("talk_choice", None)
+        st.session_state.pop(f"talk_choices_{qid}", None)
+        st.session_state.pop(f"talk_rec_counted_{qid}", None)
+        st.session_state.pop(f"talk_rec_bytes_{qid}", None)
         st.rerun()
 
 with b3:
@@ -494,11 +528,17 @@ if submitted:
     st.markdown("#### 정답")
     st.write(ans)
 
-    # ✅ 정답 발음만
+    # ✅ 제출 후: 상대 발화 + 정답 모두 듣기
+    ptxt = str(row.get("partner_jp","")).strip()
+    items = []
+    if ptxt:
+        items.append(("상대 발화 듣기", ptxt))
     if ans:
+        items.append(("정답 듣기", ans))
+    if items:
         components.html(
-            speak_buttons_html([("정답 듣기", ans)], block_id=f"a_{qid}_{idx}"),
-            height=60
+            speak_buttons_html(items, block_id=f"post_{qid}_{idx}"),
+            height=80
         )
 
     if str(row.get("answer_kr","")).strip():
@@ -508,182 +548,94 @@ if submitted:
     hint = str(row.get("hint_kr","")).strip()
     if hint:
         st.info(hint)
+    # ============================================================
+    # ✅ 발음 녹음 (제출 후) + 오늘 발음 3회 카운트
+    # - st.audio_input은 파형 UI를 제공(지원되는 Streamlit 버전일 때)
+    # ============================================================
+    st.markdown("#### 🎤 내 발음 녹음")
+    st.caption("정답을 소리 내어 말해보고, 녹음해 보세요. (오늘 3회 챌린지 카운트)")
 
-# ============================================================
-# ✅ 제출 후: 내 발음 녹음 (파형 UI) 
-# - Streamlit >= 1.32: st.audio_input 사용 (권장)
-# - 구버전/미지원 환경: HTML MediaRecorder + 간단 파형(저장은 브라우저 내)
-# ============================================================
-st.markdown('#### 내 발음 녹음')
-if hasattr(st, 'audio_input'):
-    rec = st.audio_input('마이크로 녹음하세요 (파형 표시)', key=f"{NS}_rec_{qid}_{idx}")
-    if rec is not None:
-        try:
-            audio_bytes = rec.getvalue()
-        except Exception:
-            audio_bytes = None
-        if audio_bytes:
-            st.success('녹음이 저장되었습니다.')
-            st.audio(audio_bytes, format='audio/wav')
-else:
-    # ✅ CSP-safe: inline JS 최소화(버튼 클릭 기반).
-    components.html("""
-<div style='margin-top:6px;'>
-  <div style='display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px;'>
-    <button id='recBtn' style='padding:8px 12px;border-radius:999px;border:1px solid #ddd;background:white;cursor:pointer;'>🎤 녹음 시작</button>
-    <button id='stopBtn' disabled style='padding:8px 12px;border-radius:999px;border:1px solid #ddd;background:#f7f7f7;cursor:pointer;'>⏹ 정지</button>
-    <span style='font-size:0.9rem;opacity:0.75;'>표시:</span>
-    <button id='modeWave' style='padding:6px 10px;border-radius:999px;border:1px solid #ddd;background:#111;color:#fff;cursor:pointer;'>파형</button>
-    <button id='modeBars' style='padding:6px 10px;border-radius:999px;border:1px solid #ddd;background:white;cursor:pointer;'>음파</button>
-    <a id='dl' style='margin-left:8px; display:none;'>⬇️ 녹음 다운로드</a>
-  </div>
+    # ✅ 실시간 음파(바) 시각화 (녹음 중 말하면 막대가 움직입니다)
+    components.html(f"""
+    <div style='margin:8px 0 10px 0;'>
+      <canvas id='talk_spec_{qid}_{idx}' style='width:100%;height:140px;background:#0b0b0b;border-radius:12px;'></canvas>
+    </div>
+    <script>
+    (function() {{
+      const cid = 'talk_spec_{qid}_{idx}';
+      const canvas = document.getElementById(cid);
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      // set actual pixel size
+      const resize = () => {{
+        const rect = canvas.getBoundingClientRect();
+        canvas.width = Math.floor(rect.width * devicePixelRatio);
+        canvas.height = Math.floor(rect.height * devicePixelRatio);
+        ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
+      }};
+      resize();
+      window.addEventListener('resize', resize);
 
-  <canvas id='viz' width='520' height='90'
-    style='display:block;margin-top:2px;width:100%;max-width:520px;background:#111;border-radius:10px;'></canvas>
+      let audioCtx, analyser, data, raf;
+      const start = async () => {{
+        try {{
+          const stream = await navigator.mediaDevices.getUserMedia({{audio:true}});
+          audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+          analyser = audioCtx.createAnalyser();
+          analyser.fftSize = 256;
+          const src = audioCtx.createMediaStreamSource(stream);
+          src.connect(analyser);
+          data = new Uint8Array(analyser.frequencyBinCount);
 
-  <div id='hint' style='margin-top:6px;font-size:0.85rem;opacity:0.65;'>
-    녹음 중에는 시각화가 실시간으로 움직입니다. (환경에 따라 마이크 권한 요청이 뜰 수 있어요.)
-  </div>
-</div>
+          const draw = () => {{
+            raf = requestAnimationFrame(draw);
+            analyser.getByteFrequencyData(data);
+            const w = canvas.getBoundingClientRect().width;
+            const h = canvas.getBoundingClientRect().height;
+            ctx.clearRect(0,0,w,h);
+            ctx.fillStyle = '#0b0b0b';
+            ctx.fillRect(0,0,w,h);
 
-<script>
-let mediaRecorder; let chunks=[];
-let audioCtx, analyser, dataArray, srcNode, streamRef;
-let rafId=null;
-let mode="wave"; // wave | bars
+            const bars = data.length;
+            const bw = w / bars;
+            for (let i=0;i<bars;i++) {{
+              const v = data[i]/255;
+              const bh = Math.max(2, v * h);
+              // no fixed color requirement from user; use neutral light
+              ctx.fillStyle = '#e6e6e6';
+              ctx.fillRect(i*bw, h-bh, bw*0.85, bh);
+            }}
+          }};
+          draw();
+        }} catch(e) {{
+          // ignore
+        }}
+      }};
+      // start immediately (after submit)
+      start();
+    }})();
+    </script>
+    """, height=170)
 
-const recBtn=document.getElementById('recBtn');
-const stopBtn=document.getElementById('stopBtn');
-const dl=document.getElementById('dl');
-const canvas=document.getElementById('viz');
-const ctx=canvas.getContext('2d');
+    rec_key = f"talk_rec_{qid}"
+    counted_key = f"talk_rec_counted_{qid}"
 
-const modeWave=document.getElementById('modeWave');
-const modeBars=document.getElementById('modeBars');
+    audio_bytes = None
+    try:
+        audio_file = st.audio_input("녹음하기", key=rec_key)
+        if audio_file is not None:
+            audio_bytes = audio_file.getvalue()
+    except Exception:
+        st.warning("이 환경에서는 st.audio_input이 지원되지 않습니다. (Streamlit 버전 확인 필요)")
 
-function setMode(m){
-  mode=m;
-  if(mode==="wave"){
-    modeWave.style.background="#111"; modeWave.style.color="#fff";
-    modeBars.style.background="#fff"; modeBars.style.color="#111";
-  }else{
-    modeBars.style.background="#111"; modeBars.style.color="#fff";
-    modeWave.style.background="#fff"; modeWave.style.color="#111";
-  }
-}
-modeWave.onclick=()=>setMode("wave");
-modeBars.onclick=()=>setMode("bars");
+    if audio_bytes:
+        st.session_state[f"talk_rec_bytes_{qid}"] = audio_bytes
 
-function draw(){
-  if(!analyser){ return; }
-
-  ctx.fillStyle="#111";
-  ctx.fillRect(0,0,canvas.width,canvas.height);
-
-  if(mode==="wave"){
-    // Oscilloscope line (time domain)
-    analyser.getByteTimeDomainData(dataArray);
-    ctx.lineWidth=2;
-    ctx.strokeStyle="#00ff99";
-    ctx.beginPath();
-    const slice=canvas.width/dataArray.length;
-    let x=0;
-    for(let i=0;i<dataArray.length;i++){
-      const v=dataArray[i]/128.0;
-      const y=v*canvas.height/2;
-      if(i===0){ ctx.moveTo(x,y); } else { ctx.lineTo(x,y); }
-      x += slice;
-    }
-    ctx.stroke();
-  } else {
-    // "음파" 느낌: spectrum bars (frequency domain)
-    analyser.getByteFrequencyData(dataArray);
-    const barCount = Math.min(dataArray.length, 64);
-    const step = Math.floor(dataArray.length / barCount);
-    const barW = canvas.width / barCount;
-
-    for(let i=0;i<barCount;i++){
-      const v = dataArray[i*step] / 255.0;
-      const h = Math.max(2, v * (canvas.height-8));
-      const x = i * barW;
-      const y = canvas.height - h;
-      ctx.fillStyle="#00ff99";
-      ctx.fillRect(x+1, y, Math.max(1, barW-2), h);
-    }
-  }
-
-  rafId=requestAnimationFrame(draw);
-}
-
-async function start(){
-  dl.style.display='none';
-  dl.removeAttribute('href');
-  dl.removeAttribute('download');
-
-  streamRef = await navigator.mediaDevices.getUserMedia({audio:true});
-
-  audioCtx = new (window.AudioContext||window.webkitAudioContext)();
-  analyser = audioCtx.createAnalyser();
-  analyser.fftSize = 2048;
-
-  dataArray = new Uint8Array(analyser.frequencyBinCount);
-
-  srcNode = audioCtx.createMediaStreamSource(streamRef);
-  srcNode.connect(analyser);
-
-  mediaRecorder = new MediaRecorder(streamRef);
-  chunks = [];
-
-  mediaRecorder.ondataavailable = (e)=>{ if(e.data && e.data.size>0) chunks.push(e.data); };
-  mediaRecorder.onstop = ()=>{
-    try{
-      const blob = new Blob(chunks, {type:'audio/webm'});
-      const url = URL.createObjectURL(blob);
-      dl.href = url;
-      dl.download = "talk_record.webm";
-      dl.style.display = "inline-block";
-    }catch(err){}
-    cleanupStream();
-  };
-
-  mediaRecorder.start();
-  recBtn.disabled=true;
-  stopBtn.disabled=false;
-
-  if(rafId) cancelAnimationFrame(rafId);
-  rafId=requestAnimationFrame(draw);
-}
-
-function cleanupStream(){
-  try{
-    if(rafId){ cancelAnimationFrame(rafId); rafId=null; }
-    if(audioCtx){ audioCtx.close(); audioCtx=null; }
-    if(streamRef){
-      streamRef.getTracks().forEach(t=>t.stop());
-      streamRef=null;
-    }
-  }catch(e){}
-}
-
-function stop(){
-  try{
-    stopBtn.disabled=true;
-    recBtn.disabled=false;
-    if(mediaRecorder && mediaRecorder.state!=="inactive"){
-      mediaRecorder.stop();
-    } else {
-      cleanupStream();
-    }
-  }catch(e){
-    cleanupStream();
-  }
-}
-
-recBtn.onclick = ()=>start();
-stopBtn.onclick = ()=>stop();
-
-// initial mode
-setMode("wave");
-</script>
-""", height=260)
+        # ✅ 같은 문제에서 여러 번 눌러도 1회만 카운트
+        if not st.session_state.get(counted_key, False):
+            new_cnt = inc_daily_pron_count(progress_all, talk, inc=1)
+            st.session_state[counted_key] = True
+            st.success(f"발음 1회 기록! (오늘 {new_cnt} / {DAILY_PRON_TARGET})")
+        else:
+            st.caption("이 문항의 녹음은 이미 카운트되었습니다. (다음 문항에서 다시 1회 카운트)")
 
