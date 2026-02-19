@@ -925,7 +925,7 @@ def run_script(filename: str):
         st.error(f"파일을 찾을 수 없습니다: {path}")
         st.stop()
 
-    # ✅ 페이지 진입마다 쿠키 세션 복원(로그인 반복 방지)
+    # ✅ 페이지 실행 전: 쿠키 세션 복원(페이지마다 로그인 뜨는 문제 완화)
     try:
         refresh_session_from_cookie_if_needed(force=True)
     except Exception:
@@ -941,6 +941,7 @@ def run_script(filename: str):
         import traceback as _tb
         st.code(_tb.format_exc())
         st.stop()
+
 page = st.session_state.get("hub_page", "home")
 
 if page == "home":
