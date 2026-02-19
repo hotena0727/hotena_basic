@@ -52,6 +52,43 @@ st.set_page_config(
     layout="centered",
 )
 
+
+# ============================================================
+# ✅ [HOTFIX] Disable onboarding ("60초 이용안내") block entirely
+# - In case any legacy UI is still rendered, forcibly hide/remove it.
+# ============================================================
+try:
+    components.html(
+        """
+<script>
+(function(){
+  const kill = () => {
+    const needles = ["60초 이용안내", "처음 오셨나요"];
+    // expander renders as <details><summary>...</summary>...
+    document.querySelectorAll("details").forEach(d => {
+      const s = d.querySelector("summary");
+      const t = (s ? s.innerText : d.innerText) || "";
+      if (needles.some(n => t.includes(n))) { d.remove(); }
+    });
+    // also remove any plain text blocks
+    document.querySelectorAll("*").forEach(el => {
+      if (el && el.childNodes && el.childNodes.length===1 && el.childNodes[0].nodeType===3) {
+        const t = el.innerText || "";
+        if (needles.some(n => t.includes(n))) { el.remove(); }
+      }
+    });
+  };
+  window.setTimeout(kill, 50);
+  window.setTimeout(kill, 500);
+})();
+</script>
+""",
+        height=0,
+    )
+except Exception:
+    pass
+
+
 # ============================================================
 # ✅ PWA/아이콘 - set_page_config 바로 아래
 # ============================================================
@@ -1370,7 +1407,6 @@ def render_pronounce_button(text: str, uid: str, label: str = "🔊 발음"):
         """,
         height=43,
     )
-
 # ============================================================
 # ✅ Login UI
 # ============================================================
@@ -1517,13 +1553,6 @@ def require_login():
         )
         auth_box()
         st.stop()
-
-# ✅ 첫 방문 자동 노출
-if not has_seen_onboarding():
-    render_onboarding_card(expanded=True)
-else:
-    if st.button("📘 이용안내 다시보기", use_container_width=True):
-        render_onboarding_card(expanded=True)
 
 # ============================================================
 # ✅ 네이버톡 배너 (제출 후만)
