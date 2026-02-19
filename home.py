@@ -17,6 +17,17 @@ from streamlit_cookies_manager import EncryptedCookieManager
 # ✅ Page Config (Hub only)
 # ============================================================
 st.set_page_config(page_title="Hatena Hub", layout="centered")
+
+# ✅ CSS reset (child pages may hide Streamlit header; keep top UI from being clipped)
+st.markdown(
+    """
+<style>
+header[data-testid="stHeader"]{ height: 3rem !important; }
+div[data-testid="stAppViewContainer"] .block-container{ padding-top: 2.2rem !important; }
+</style>
+""",
+    unsafe_allow_html=True,
+)
 st.session_state["_page_config_set"] = True  # children should not call set_page_config
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -390,6 +401,8 @@ def run_script(filename: str):
     if not path.exists() or not path.is_file():
         st.error(f"파일을 찾을 수 없습니다: {path}")
         st.stop()
+    # ✅ Hub mode flag so child scripts can adjust UI/CSS
+    st.session_state["HUB_MODE"] = True
     runpy.run_path(str(path), run_name="__main__")
 
 page = st.session_state.get("hub_page", "home")

@@ -294,7 +294,7 @@ div[data-testid="stAppViewContainer"] .block-container{
 
 /* Streamlit 상단 헤더(투명 영역 포함) 자체를 더 얇게 */
 header[data-testid="stHeader"]{
-  height: 0rem !important;
+  height: 3rem !important;
 }
 
 /* (선택) 우측 상단 Streamlit 기본 툴바 영역 숨김 */
