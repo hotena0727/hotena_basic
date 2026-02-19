@@ -13,8 +13,7 @@ from streamlit_cookies_manager import EncryptedCookieManager
 APP_ID = "hotena"  # internal identifier (do not change)
 APP_TITLE = "왕초보 탈출 하테나일본어"
 APP_SLOGAN = "오늘도 10문제만."
-BUILD_ID = "20260219-010855"
-
+BUILD_ID = "20260219-011127"
 # ============================================================
 # ✅ Page Config (ONLY ONCE)
 # ============================================================
@@ -130,7 +129,9 @@ def restore_session_from_cookies() -> bool:
             at = refreshed["access_token"] or ""
             rt = refreshed.get("refresh_token") or rt
             cookies["access_token"] = at
+                _hub_set_tokens(at, None)
             cookies["refresh_token"] = rt
+                _hub_set_tokens(None, rt)
             try:
                 cookies.save()
             except Exception:
@@ -158,6 +159,26 @@ def restore_session_from_cookies() -> bool:
 
     return bool(st.session_state.get("access_token"))
 
+
+
+# ============================================================
+# ✅ Hub token source-of-truth (embedded apps must not clear)
+# ============================================================
+def _hub_set_tokens(at: str | None, rt: str | None):
+    if at is not None:
+        st.session_state["_hub_access_token"] = at
+        st.session_state["access_token"] = at
+    if rt is not None:
+        st.session_state["_hub_refresh_token"] = rt
+        st.session_state["refresh_token"] = rt
+
+def _hub_restore_tokens():
+    at = st.session_state.get("_hub_access_token")
+    rt = st.session_state.get("_hub_refresh_token")
+    if at:
+        st.session_state["access_token"] = at
+    if rt:
+        st.session_state["refresh_token"] = rt
 
 def is_logged_in() -> bool:
     return bool(st.session_state.get("access_token"))
@@ -262,7 +283,7 @@ def _exec_embedded_app(src_b64: str, entry: str = "quiz"):
     # Hide duplicate buttons from embedded apps (mypage/logout)
     # IMPORTANT: patch must NOT leak to the hub top menu. We'll restore right after exec().
     orig_button = st.button
-    HIDE_SUBSTR = ("마이페이지", "로그아웃", "로그아웃하기", "My Page", "Logout", "ログアウト", "マイページ")
+    HIDE_SUBSTR = ("마이페이지", "로그아웃", "로그아웃하기", "My Page", "Logout", "ログアウト", "マイページ", "단어 훈련", "한자 훈련", "회화 훈련", "단어훈련", "한자훈련", "회화훈련")
 
     def wrapped_button(label, *args, **kwargs):
         try:
@@ -294,6 +315,7 @@ def _exec_embedded_app(src_b64: str, entry: str = "quiz"):
         exec(compile(src, "<embedded>", "exec"), g, g)
     finally:
         st.button = orig_button
+        _hub_restore_tokens()
 
 # ============================================================
 # ✅ Screens
@@ -331,7 +353,9 @@ def render_login():
 
                 st.session_state["user"] = user or {"email": email}
                 st.session_state["access_token"] = session.access_token
+                st.session_state["_hub_access_token"] = session.access_token
                 st.session_state["refresh_token"] = session.refresh_token
+                st.session_state["_hub_refresh_token"] = session.refresh_token
 
                 cookies["access_token"] = session.access_token
                 cookies["refresh_token"] = session.refresh_token
@@ -435,8 +459,7 @@ def render_router():
 # ✅ Entry
 # ============================================================
 try:
-    if not is_logged_in():
-        restore_session_from_cookies()
+    restore_session_from_cookies()
     if not is_logged_in():
         render_login()
     else:
