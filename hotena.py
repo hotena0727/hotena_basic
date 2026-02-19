@@ -5,8 +5,11 @@ import streamlit as st
 
 import words
 import kanji
+import theme_hotena
 
 st.set_page_config(page_title="하테나 통합 (hotena)", layout="centered", page_icon="🟦")
+
+theme_hotena.apply_hotena_theme()
 
 # ------------------------------------------------------------
 # Unified launcher state

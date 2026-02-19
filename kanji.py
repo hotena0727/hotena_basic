@@ -1,3 +1,5 @@
+import theme_hotena
+
 # Auto-generated wrapper for hotena unified app
 
 def render_kanji_app():
@@ -28,6 +30,7 @@ def render_kanji_app():
         # autoplay는 막힐 수 있음. 그래도 "사용자 클릭 직후"엔 성공률이 올라감
         st.markdown(
             f"""
+    theme_hotena.apply_hotena_theme()
             <audio autoplay>
               <source src="data:{mime};base64,{b64}">
             </audio>
