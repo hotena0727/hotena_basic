@@ -16,7 +16,7 @@ EXPOSE 8080
 
 CMD ["bash", "-lc", "\
 set -e; \
-streamlit run hotena_basic.py \
+streamlit run home.py \
   --server.port=8501 \
   --server.address=0.0.0.0 \
   --server.headless=true \
@@ -24,3 +24,4 @@ streamlit run hotena_basic.py \
   --server.fileWatcherType=none & \
 exec nginx -g 'daemon off;' \
 "]
+
