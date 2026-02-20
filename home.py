@@ -776,8 +776,6 @@ def render_plan_pill():
     if "sound_enabled" not in st.session_state:
         st.session_state.sound_enabled = False
 
-    status_txt = "소리 ON" if bool(st.session_state.sound_enabled) else "소리 OFF"
-
     # ✅ Anchor + CSS to keep this bar on ONE line (especially on mobile)
     st.markdown('<div id="hub_planbar_anchor"></div>', unsafe_allow_html=True)
     st.markdown(
@@ -802,13 +800,7 @@ def render_plan_pill():
   white-space: nowrap;
 }
 
-/* ✅ Sound status text */
-.hotena-sound-status{
-  font-size: .86rem;
-  opacity: .80;
-  white-space: nowrap;
-  margin-left: 0.05rem;
-}
+/* ✅ Right align the last column (sound) */
 
 /* ✅ Make widget label never wrap (defensive) */
 div[data-testid="stAppViewContainer"] label[data-testid="stWidgetLabel"]{
@@ -818,8 +810,8 @@ div[data-testid="stAppViewContainer"] label[data-testid="stWidgetLabel"]{
 """,
         unsafe_allow_html=True,
     )
-
-    c1, c2, c3 = st.columns([6.6, 2.2, 1.2], vertical_alignment="center")
+    # ✅ Layout: plan pill (left) + sound toggle (far right)
+    c1, c2 = st.columns([8.6, 1.4], vertical_alignment="center")
     with c1:
         st.markdown(
             f"""
@@ -830,17 +822,13 @@ div[data-testid="stAppViewContainer"] label[data-testid="stWidgetLabel"]{
             unsafe_allow_html=True,
         )
     with c2:
-        st.markdown(f'<div class="hotena-sound-status">{status_txt}</div>', unsafe_allow_html=True)
-    with c3:
-        # ✅ Toggle itself: label collapsed (we show status text instead)
+        # ✅ Far-right toggle with clear label ("소리")
         st.session_state.sound_enabled = st.toggle(
             "소리",
             value=bool(st.session_state.sound_enabled),
-            label_visibility="collapsed",
             key="hub_sound_toggle",
             help="정답/오답 효과음 ON/OFF",
         )
-
 
 def render_daily_goal_home(sb_authed, user_id: str):
     """Home dashboard: daily goal (sets-based). 1 set == 10 questions (quiz_len)."""
