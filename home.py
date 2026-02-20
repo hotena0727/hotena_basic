@@ -1281,6 +1281,9 @@ def render_global_float_top():
     })();
     </script>
     """, height=0)
+# ✅ Global float-top button (all pages)
+render_global_float_top()
+
 
 def render_bottom_nav(active: str = "home"):
     """Mobile-only bottom nav. Hidden on wide screens."""

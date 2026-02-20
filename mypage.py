@@ -79,14 +79,22 @@ st.set_page_config(page_title="My Page", layout="centered")
 _cards_css()
 
 user = st.session_state.get("user") or {}
-email = (user.get("email") if isinstance(user, dict) else None) or st.session_state.get("user_email") or ""
+user_obj = st.session_state.get("user")
+def _get_email(u):
+    if not u:
+        return ''
+    if isinstance(u, dict):
+        return (u.get('email') or u.get('user_email') or (u.get('user_metadata') or {}).get('email') or '').strip()
+    return (getattr(u, 'email', '') or getattr(getattr(u, 'user', None), 'email', '') or '').strip()
+
+email = _get_email(user_obj) or (user.get('email') if isinstance(user, dict) else '') or (st.session_state.get('user_email') or '')
 
 st.markdown("<div class='h-card'>"
             "<div class='h-title'>👤 마이페이지</div>"
             f"<div class='h-sub'>로그인: {email or '알 수 없음'}</div>"
             "</div>", unsafe_allow_html=True)
 
-sb = _sb()
+sb = st.session_state.get('sb_authed') or st.session_state.get('sb') or _sb()
 if not sb or not email:
     st.info("로그인 정보를 확인할 수 없습니다. 홈으로 돌아가 다시 로그인해 주세요.")
     st.stop()
