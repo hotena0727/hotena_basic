@@ -705,8 +705,33 @@ def render_home_dashboard(sb_authed, user):
   .row-kanji{background: linear-gradient(90deg, rgba(76,175,80,0.09), rgba(255,255,255,0.02) 55%); border-color: rgba(76,175,80,0.18);}
   .row-talk{background: linear-gradient(90deg, rgba(156,39,176,0.09), rgba(255,255,255,0.02) 55%); border-color: rgba(156,39,176,0.18);}
 
-  .h-cta{margin-top:.20rem;margin-bottom:.20rem;}
-  .h-cta b{font-size:1.0rem;}
+  /* ✅ Smart CTA (A안): message+CTA fused card */
+  .cta_box{
+    margin-top: .20rem;
+    margin-bottom: 0;
+    padding: 12px 14px;
+    border: 1px solid rgba(0,0,0,0.08);
+    border-radius: 14px;
+    background: rgba(255,255,255,0.70);
+    backdrop-filter: blur(2px);
+  }
+  .cta_box b{font-size:1.0rem;}
+  .cta_box_top{
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    border-bottom: 0;
+  }
+
+  /* CTA button: match cards and fuse with message box */
+  .st-key-hub_cta_primary button{
+    width:100% !important;
+    border-top-left-radius:0 !important;
+    border-top-right-radius:0 !important;
+    margin-top:0 !important;
+    min-height: 46px !important;
+    font-size: 1.02rem !important;
+  }
+  .st-key-hub_cta_primary{ margin-top:0 !important; }
 
   /* ✅ goal gear: icon-only + overlay on level progress card */
   .st-key-hub_goal_gear_icon{display:flex;justify-content:flex-end;margin-top:-44px;margin-bottom:10px;}
@@ -913,7 +938,7 @@ def render_home_dashboard(sb_authed, user):
     else:
         msg = f"오늘 {remaining}세트만 더 하면 목표 달성! ({rec_label} 추천)"
 
-    st.markdown(f"<div class='h-cta'><b>{msg}</b></div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='cta_box cta_box_top'><b>{msg}</b></div>", unsafe_allow_html=True)
 
     if st.button(f"{rec_emoji} {rec_label} 시작", use_container_width=True, key="hub_cta_primary"):
         st.session_state["p"] = rec_kind
