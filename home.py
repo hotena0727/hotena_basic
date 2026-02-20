@@ -791,19 +791,35 @@ def render_home_dashboard(sb_authed, user):
   .hub-cta-btn:hover{background:rgba(255,255,255,0.08);}
 
 
-  /* ✅ gear icon button (no box) */
+  /* ✅ gear icon (visual only icon, no box) */
+  #hub_gear_anchor + div[data-testid="stButton"]{
+    padding:0 !important;
+    margin:0 !important;
+    width:auto !important;
+    display:flex !important;
+    justify-content:flex-end !important;
+  }
   #hub_gear_anchor + div[data-testid="stButton"] button{
     background: transparent !important;
-    border: none !important;
+    border: 0 !important;
     box-shadow: none !important;
     padding: 0 !important;
     min-height: 0 !important;
+    min-width: 0 !important;
     width: auto !important;
+    border-radius: 0 !important;
+    line-height: 1 !important;
+    font-size: 18px !important;
   }
-  #hub_gear_anchor + div[data-testid="stButton"] button:hover{opacity:0.7;}
-  #hub_gear_anchor + div[data-testid="stButton"] button:focus{
+  #hub_gear_anchor + div[data-testid="stButton"] button:hover{
+    background: transparent !important;
+    opacity: 0.72;
+  }
+  #hub_gear_anchor + div[data-testid="stButton"] button:focus,
+  #hub_gear_anchor + div[data-testid="stButton"] button:active{
     outline: none !important;
     box-shadow: none !important;
+    background: transparent !important;
   }
 
 </style>
@@ -983,7 +999,30 @@ def render_home_dashboard(sb_authed, user):
     except Exception:
         _qp2 = {}
     try:
-        _qp2.pop("toggle_goal", None)
+        _qp2.pop("togg
+# ---- goal settings (compact expander) ----
+    if st.session_state.get("show_goal_settings", False):
+        with st.expander("루틴 목표 수정", expanded=True):
+            new_goal = st.number_input(
+                "하루 목표 세트 수 (1세트=10문항)",
+                min_value=0,
+                max_value=100,
+                value=int(goal_sets),
+                step=1,
+            )
+            csave, cclose = st.columns([1, 1], gap="small")
+            with csave:
+                if st.button("저장", use_container_width=True, key="hub_daily_goal_save"):
+                    progress_all["daily_goal_sets"] = int(new_goal)
+                    st.session_state["progress_all"] = progress_all
+                    save_progress(sb_authed, user.id, progress_all)
+                    st.success("저장했습니다.")
+            with cclose:
+                if st.button("닫기", use_container_width=True, key="hub_goal_close"):
+                    st.session_state["show_goal_settings"] = False
+
+
+le_goal", None)
     except Exception:
         pass
     _qp2["p"] = rec_kind
@@ -1011,27 +1050,7 @@ def render_home_dashboard(sb_authed, user):
         unsafe_allow_html=True,
     )
 
-    # ---- goal settings (compact expander) ----
-    if st.session_state.get("show_goal_settings", False):
-        with st.expander("루틴 목표 수정", expanded=True):
-            new_goal = st.number_input(
-                "하루 목표 세트 수 (1세트=10문항)",
-                min_value=0,
-                max_value=100,
-                value=int(goal_sets),
-                step=1,
-            )
-            csave, cclose = st.columns([1, 1], gap="small")
-            with csave:
-                if st.button("저장", use_container_width=True, key="hub_daily_goal_save"):
-                    progress_all["daily_goal_sets"] = int(new_goal)
-                    st.session_state["progress_all"] = progress_all
-                    save_progress(sb_authed, user.id, progress_all)
-                    st.success("저장했습니다.")
-            with cclose:
-                if st.button("닫기", use_container_width=True, key="hub_goal_close"):
-                    st.session_state["show_goal_settings"] = False
-
+    
 
 def summarize_attempts(attempts: list[dict]) -> dict:
     out = {
