@@ -602,6 +602,157 @@ def summarize_attempts(attempts: list[dict]) -> dict:
         out["by_kind"][kind]["score"] += s
     return out
 
+
+# ============================================================
+# ✅ Unified UI helpers (Header + Bottom Nav)
+# - Used by word/kanji/talk scripts via st.session_state callbacks
+# ============================================================
+
+def _hub_base_qs() -> str:
+    """Build base query string containing encrypted rt/at (if present)."""
+    try:
+        rt_enc = st.query_params.get("rt", "")
+        at_enc = st.query_params.get("at", "")
+    except Exception:
+        rt_enc, at_enc = "", ""
+    try:
+        import urllib.parse
+        q = []
+        if rt_enc:
+            q.append("rt=" + urllib.parse.quote(rt_enc, safe=""))
+        if at_enc:
+            q.append("at=" + urllib.parse.quote(at_enc, safe=""))
+        return ("&".join(q) + ("&" if q else ""))
+    except Exception:
+        base = ""
+        if rt_enc:
+            base += "rt=" + rt_enc + "&"
+        if at_enc:
+            base += "at=" + at_enc + "&"
+        return base
+
+def hub_href(page: str) -> str:
+    base = _hub_base_qs()
+    return "?" + base + "p=" + str(page)
+
+def _hub_active_page() -> str:
+    try:
+        p = st.query_params.get("p") or "home"
+    except Exception:
+        p = "home"
+    return p if isinstance(p, str) else "home"
+
+def render_bottom_nav(active: str | None = None):
+    """Fixed bottom nav bar (mobile-first)."""
+    if not active:
+        active = _hub_active_page()
+
+    href_home  = hub_href("home")
+    href_word  = hub_href("word")
+    href_kanji = hub_href("kanji")
+    href_talk  = hub_href("talk")
+    href_my    = hub_href("my")
+
+    # Use pure anchors (no JS) to avoid CSP issues.
+    html = """<style>
+/* ===== Bottom Nav (Hub) ===== */
+.hub-bottom-nav{
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  z-index: 2147483646;
+  padding: 10px 12px calc(10px + env(safe-area-inset-bottom));
+  background: rgba(18,18,18,0.82);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid rgba(255,255,255,0.10);
+}
+.hub-bottom-nav .row{
+  max-width: 860px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+.hub-bottom-nav a{
+  text-decoration: none !important;
+  color: rgba(255,255,255,0.85) !important;
+  font-weight: 800;
+  font-size: 12px;
+  padding: 10px 8px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.10);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  user-select: none;
+}
+.hub-bottom-nav a .ico{ font-size: 16px; line-height: 1; }
+.hub-bottom-nav a.active{
+  background: rgba(255,255,255,0.12);
+  border-color: rgba(255,255,255,0.28);
+}
+@media (min-width: 801px){
+  .hub-bottom-nav{ display:none; }
+}
+</style>
+<div class="hub-bottom-nav">
+  <div class="row">
+    <a href="__HREF_HOME__" class="__A_HOME__"><span class="ico">🏠</span><span>홈</span></a>
+    <a href="__HREF_WORD__" class="__A_WORD__"><span class="ico">🧩</span><span>단어</span></a>
+    <a href="__HREF_KANJI__" class="__A_KANJI__"><span class="ico">🈶</span><span>한자</span></a>
+    <a href="__HREF_TALK__" class="__A_TALK__"><span class="ico">💬</span><span>회화</span></a>
+    <a href="__HREF_MY__" class="__A_MY__"><span class="ico">👤</span><span>MY</span></a>
+  </div>
+</div>
+""".replace("__HREF_HOME__", href_home)\
+    .replace("__HREF_WORD__", href_word)\
+    .replace("__HREF_KANJI__", href_kanji)\
+    .replace("__HREF_TALK__", href_talk)\
+    .replace("__HREF_MY__", href_my)
+
+    cls = {
+        "home":"__A_HOME__","word":"__A_WORD__","kanji":"__A_KANJI__","talk":"__A_TALK__","my":"__A_MY__"
+    }.get(active, "__A_HOME__")
+
+    html = html.replace(cls, cls + " active")
+    # replace remaining placeholders
+    html = html.replace("__A_HOME__", "").replace("__A_WORD__", "").replace("__A_KANJI__", "").replace("__A_TALK__", "").replace("__A_MY__", "")
+    components.html(html, height=0)
+
+def hub_compact_goal_bar(sb_authed, user_id: str):
+    """Small goal bar used on training pages."""
+    progress_all = st.session_state.get("progress_all", {}) or {}
+    goal_sets = int((progress_all.get("daily_goal_sets") or 3))
+
+    attempts = fetch_today_attempts(sb_authed, user_id)
+    sm = summarize_attempts(attempts)
+    done_sets = int(sm.get("total_sets", 0))
+    pct = 0.0 if goal_sets <= 0 else min(1.0, done_sets / float(goal_sets))
+
+    st.progress(pct)
+    st.caption(f"🎯 오늘 {done_sets}/{goal_sets}세트 (1세트=10문항)")
+
+def hub_render_header(title: str, subtitle: str | None = None, active: str | None = None):
+    """Unified header for training pages."""
+    st.markdown(f"## {title}")
+    if subtitle:
+        st.caption(subtitle)
+
+    sb_authed = get_authed_sb()
+    u = st.session_state.get("user")
+    if sb_authed and u and getattr(u, "id", None):
+        try:
+            hub_compact_goal_bar(sb_authed, u.id)
+        except Exception:
+            pass
+
+    render_bottom_nav(active=active)
+
+# Expose callbacks to child scripts
+st.session_state["hub_render_header"] = hub_render_header
+st.session_state["hub_render_bottom_nav"] = render_bottom_nav
+st.session_state["hub_href"] = hub_href
+
 def render_floating_menu():
     """✅ Floating hamburger menu (Hub)
     - Uses pure HTML/CSS toggle.
@@ -1234,6 +1385,7 @@ if isinstance(p, str) and p:
 
 # ✅ Always render floating menu + plan pill in hub mode (after auth)
 render_floating_menu()
+render_bottom_nav(active=_hub_active_page())
 render_plan_pill()
 
 page = st.session_state.get("hub_page", "home")
