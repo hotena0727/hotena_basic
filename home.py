@@ -1770,3 +1770,22 @@ else:
     # ✅ Fallback: unknown page -> go home
     st.session_state["hub_page"] = "home"
     render_home_dashboard(sb_authed, user)
+
+def kill_top_gap_final():
+    st.markdown("""
+    <style>
+    header[data-testid="stHeader"], div[data-testid="stToolbar"], div[data-testid="stDecoration"]{
+      display:none !important; height:0 !important; min-height:0 !important;
+    }
+    div[data-testid="stAppViewContainer"], div[data-testid="stAppViewContainer"] .main{
+      padding-top:0 !important; margin-top:0 !important;
+    }
+    section.main > div.block-container,
+    div[data-testid="stAppViewContainer"] .block-container{
+      padding-top:0 !important; margin-top:0 !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+# ✅ 모든 렌더링이 끝난 "마지막 줄" 근처에서 호출
+kill_top_gap_final()
