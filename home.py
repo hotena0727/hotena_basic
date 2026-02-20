@@ -1846,6 +1846,7 @@ render_bottom_nav(active=page)
 if page == "home":
     # ✅ Home Hub: dashboard view
     render_home_dashboard(sb_authed, user)
+    st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
     st.info("☰ 메뉴에서 단어/한자/회화 훈련을 선택하세요.")
 
 elif page == "my":
