@@ -746,6 +746,25 @@ def render_home_dashboard(sb_authed, user):
   .hub-gear,
   .hub-gear:visited,
   .hub-gear:hover,
+
+  /* ✅ Streamlit button inside .hub-gear: remove box/outline so it looks like icon-only */
+  .hub-gear div[data-testid="stButton"]{margin:0 !important;}
+  .hub-gear div[data-testid="stButton"] > button{
+    background:transparent !important;
+    border:none !important;
+    box-shadow:none !important;
+    padding:0 !important;
+    width:2.0rem !important;
+    height:2.0rem !important;
+    min-height:2.0rem !important;
+    line-height:1 !important;
+    font-size:1.15rem !important;
+    color:inherit !important;
+  }
+  .hub-gear div[data-testid="stButton"] > button:hover{opacity:0.85;background:transparent !important;}
+  .hub-gear div[data-testid="stButton"] > button:focus,
+  .hub-gear div[data-testid="stButton"] > button:focus-visible{outline:none !important;box-shadow:none !important;}
+
   .hub-gear:active{
     display:inline-flex;align-items:center;justify-content:center;
     width:2.0rem;height:2.0rem;
@@ -990,17 +1009,27 @@ def render_home_dashboard(sb_authed, user):
         st.session_state["show_goal_settings"] = False
 
     # ✅ 기어(우측 정렬) → 그 아래 CTA 블록(다른 카드들과 같은 폭)
+    # ✅ 기어(우측 정렬) → 기어 바로 아래에 목표 설정(expander) → 그 아래 Smart CTA 카드
     from urllib.parse import urlencode
 
     # --- CTA link query (p=rec_kind) ---
-    _qp2 = {}
     try:
         _qp2 = dict(st.query_params)
     except Exception:
         _qp2 = {}
-    try:
-        _qp2.pop("togg
-# ---- goal settings (compact expander) ----
+    _qp2["p"] = rec_kind
+    _qs2 = urlencode(_qp2, doseq=True)
+
+    # ✅ gear icon (icon-only; no box) — 클릭하면 같은 자리에서 패널 토글
+    _gsp, _gcol = st.columns([1, 0.08], gap="small")
+    with _gcol:
+        st.markdown("<div class='hub-gear'>", unsafe_allow_html=True)
+        if st.button("⚙️", key="hub_goal_gear_icon", help="루틴 목표 수정"):
+            st.session_state["show_goal_settings"] = not st.session_state.get("show_goal_settings", False)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    # ---- goal settings (compact expander) ----
+    # ✅ 반드시 CTA 카드 "위", 그리고 기어 "바로 밑"에 나오게
     if st.session_state.get("show_goal_settings", False):
         with st.expander("루틴 목표 수정", expanded=True):
             new_goal = st.number_input(
@@ -1021,20 +1050,7 @@ def render_home_dashboard(sb_authed, user):
                 if st.button("닫기", use_container_width=True, key="hub_goal_close"):
                     st.session_state["show_goal_settings"] = False
 
-
-le_goal", None)
-    except Exception:
-        pass
-    _qp2["p"] = rec_kind
-    _qs2 = urlencode(_qp2, doseq=True)
-
-    # ✅ gear icon (same page) + CTA card
-    _gsp, _gcol = st.columns([1, 0.08], gap="small")
-    with _gcol:
-        st.markdown("<div id='hub_gear_anchor'></div>", unsafe_allow_html=True)
-        if st.button("⚙️", key="hub_goal_gear_icon", help="루틴 목표 수정"):
-            st.session_state["show_goal_settings"] = not st.session_state.get("show_goal_settings", False)
-
+    # ✅ Smart CTA 카드 (메시지 + 버튼을 한 덩어리로)
     st.markdown(
         f"""
         <div class='hub-cta-wrap'>
@@ -1046,7 +1062,8 @@ le_goal", None)
             </a>
           </div>
         </div>
-        """,
+        """
+        ,
         unsafe_allow_html=True,
     )
 
