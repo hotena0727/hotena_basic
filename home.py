@@ -1868,15 +1868,18 @@ elif page == "word":
     st.session_state["hub_target"] = "word"
     render_training_header(sb_authed, user, kind="word", title="📘 단어 훈련", subtitle="뜻/발음/한→일 · 10문제 1세트")
     st.session_state['HUB_MODE'] = True
+    st.session_state['_entered_word'] = True
     run_module('hotena_basic')
 elif page == "kanji":
     st.session_state["hub_target"] = "kanji"
     render_training_header(sb_authed, user, kind="kanji", title="🈶 한자 훈련", subtitle="읽기/뜻/복습 · 10문제 1세트")
     st.session_state['HUB_MODE'] = True
+    st.session_state['_entered_kanji'] = True
     run_module('app')
 elif page == "talk":
     st.session_state["hub_target"] = "talk"
     render_training_header(sb_authed, user, kind="talk", title="💬 회화 훈련", subtitle="상황 판단 · 정답 선택 · 발음 연습")
+    st.session_state['_entered_talk'] = True
     run_module('talk')
 else:
     # ✅ Fallback: unknown page -> go home
