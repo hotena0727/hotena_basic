@@ -1,5 +1,4 @@
-HUB_MODE = st.session_state.get('HUB_MODE', False)
-
+from __future__ import annotations
 # ============================================================
 # ✅ 왕초보 탈출 하테나일본어 (단어 앱) - 전체 복붙용 단일 파일
 # - 품사 선택 + 유형 선택(발음/뜻/한→일)
@@ -27,7 +26,6 @@ HUB_MODE = st.session_state.get('HUB_MODE', False)
 #   4) ✅ 필수패턴: "퀴즈"가 아니라 "카드"로(품사 그룹별) expander 제공
 # ============================================================
 
-from __future__ import annotations
 
 from pathlib import Path
 import random
@@ -48,15 +46,13 @@ import html
 # ============================================================
 # ✅ Page Config + Paths
 # ============================================================
-if not st.session_state.get("_page_config_set"):
+if not st.session_state.get('_page_config_set'):
     st.set_page_config(
-        page_title="왕초보탈출 하테나일본어",
-        page_icon="static/icon-192.png",
-        layout="centered",
-    )
-    st.session_state["_page_config_set"] = True
-
-
+    page_title="왕초보탈출 하테나일본어",
+    page_icon="static/icon-192.png",   # 또는 "🟦"
+    layout="centered",
+)
+    st.session_state['_page_config_set'] = True
 # ============================================================
 # ✅ [HOTFIX] Disable onboarding ("60초 이용안내") block entirely
 # - In case any legacy UI is still rendered, forcibly hide/remove it.
