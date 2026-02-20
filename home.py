@@ -1127,7 +1127,7 @@ def render_plan_pill():
     txt = "✨ PRO 이용 중입니다" if plan == "pro" else "🆓 FREE 이용 중"
     st.markdown(
         f"""
-<div style="display:flex;justify-content:flex-start;margin-top:0;margin-bottom:0;">
+<div style="display:flex;justify-content:flex-start;margin-top:0.05rem;margin-bottom:0.2rem;">
   <div style="
     display:inline-flex;align-items:center;gap:.45rem;
     padding:.28rem .55rem;border-radius:999px;
@@ -1689,10 +1689,10 @@ def render_training_header(sb_authed, user, kind: str, title: str, subtitle: str
 
     st.markdown(
         f"""
-<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:0.75rem;margin-top:0.25rem;margin-bottom:0.45rem;">
+<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:0.75rem;margin-top:0rem;margin-bottom:0.20rem;">
   <div>
     <div style="font-size:1.35rem;font-weight:800;line-height:1.2;">{title}</div>
-    <div style="opacity:0.72;font-size:0.95rem; margin-top:0;">{subtitle}</div>
+    <div style="opacity:0.72;font-size:0.95rem; margin-top:0.05rem;">{subtitle}</div>
   </div>
   <div style="text-align:right;">
     <div style="display:inline-flex;align-items:center;gap:.35rem;padding:.22rem .55rem;border-radius:999px;border:1px solid rgba(0,0,0,.10);background:rgba(0,0,0,.02);font-size:.88rem;">
@@ -1705,9 +1705,39 @@ def render_training_header(sb_authed, user, kind: str, title: str, subtitle: str
     )
 
     # compact progress
+    # ✅ compact progress spacing (hub)
+
+    st.markdown(
+
+        \"\"\"
+
+    <style>
+
+    /* training header: tighten gap around progress + divider */
+
+    div[data-testid="stProgress"]{ margin-top: 6px !important; margin-bottom: 4px !important; }
+
+    div[data-testid="stCaptionContainer"], div[data-testid="stCaptionContainer"] p{
+
+      margin-top: 0px !important; margin-bottom: 6px !important;
+
+    }
+
+    hr.hub-hr{ border: none; border-top: 1px solid rgba(0,0,0,0.14); margin: 8px 0 10px 0 !important; }
+
+    </style>
+
+    \"\"\",
+
+        unsafe_allow_html=True,
+
+    )
+
     st.progress(pct)
-    st.caption(f"오늘 완료: {done_sets_total}/{goal_sets}세트 · 현재 페이지: {kind}")
-    st.markdown("---")
+
+    st.caption(f\"오늘 완료: {done_sets_total}/{goal_sets}세트 · 현재 페이지: {kind}\")
+
+    st.markdown('<hr class=\"hub-hr\"/>', unsafe_allow_html=True)
 
 def run_script(filename: str):
     path = (BASE_DIR / filename).resolve()
@@ -1784,20 +1814,7 @@ def kill_top_gap_final():
     div[data-testid="stAppViewContainer"] .block-container{
       padding-top:0 !important; margin-top:0 !important;
     }
-    
-/* ✅ ULTRA micro-tuning: remove any residual top gaps inside containers */
-div[data-testid="stAppViewContainer"] .block-container > div{
-  margin-top: 0 !important;
-  padding-top: 0 !important;
-}
-div[data-testid="stAppViewContainer"] h1,
-div[data-testid="stAppViewContainer"] h2,
-div[data-testid="stAppViewContainer"] h3,
-div[data-testid="stAppViewContainer"] p{
-  margin-top: 0 !important;
-}
-
-</style>
+    </style>
     """, unsafe_allow_html=True)
 
 # ✅ 모든 렌더링이 끝난 "마지막 줄" 근처에서 호출
