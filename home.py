@@ -1,7 +1,7 @@
 # home.py
 from __future__ import annotations
 
-BUILD_STAMP = 'v32-uiAB 2026-02-20 KST (+09:00)'
+BUILD_STAMP = 'v33-dots3 2026-02-20 KST (+09:00)'
 
 from pathlib import Path
 import os
@@ -802,16 +802,21 @@ def render_plan_pill():
 
 
 # ============================================================
-# ✅ UI helper: fixed 3-dot progress (home dashboard)
+# ✅ UI helper: fixed 3-dot progress (app-like)
 # ============================================================
 def _dots_3(done_sets: int, goal_sets: int) -> str:
-    # goal_sets is ignored for dot count; we always show 3 dots for a clean, app-like look.
-    # Map progress into 0..3 based on ratio.
-    try:
-        ratio = 0.0 if goal_sets <= 0 else (done_sets / float(goal_sets))
-    except Exception:
-        ratio = 0.0
-    filled = 0 if ratio <= 0 else (3 if ratio >= 1 else max(0, min(3, int(round(ratio * 3)))))
+    # Always show 3 dots for a clean dashboard look.
+    if goal_sets <= 0:
+        filled = 0
+    else:
+        ratio = done_sets / float(goal_sets)
+        if ratio <= 0:
+            filled = 0
+        elif ratio >= 1:
+            filled = 3
+        else:
+            filled = int(round(ratio * 3))
+            filled = max(0, min(3, filled))
     return " ".join(["●"] * filled + ["○"] * (3 - filled))
 
 
@@ -831,7 +836,7 @@ def render_daily_goal_home(sb_authed, user_id: str):
     pct = 0 if goal_sets <= 0 else min(100, int(round(done_sets / goal_sets * 100)))
 
     st.markdown("## 🎯 오늘의 목표 (세트 기준)")
-# (progress bar removed for app-like UI)
+    st.markdown(f"<div style='font-size:18px;letter-spacing:1px;'>{_dots_3(int(done_sets), int(goal_sets))}</div>", unsafe_allow_html=True)
 
     c1, c2, c3 = st.columns(3)
     c1.metric("오늘 완료 세트", f"{done_sets}/{goal_sets}")
@@ -1380,9 +1385,8 @@ def render_training_header(sb_authed, user, kind: str, title: str, subtitle: str
         unsafe_allow_html=True,
     )
 
-    # compact progress
-# (progress bar removed for app-like UI)
-
+    # compact progress (dots)
+    st.markdown(f"<div style='font-size:16px;letter-spacing:1px;'>{_dots_3(int(done_sets_total), int(goal_sets))}</div>", unsafe_allow_html=True)
     st.caption(f"오늘 완료: {done_sets_total}/{goal_sets}세트 · 현재 페이지: {kind}")
     st.markdown("---")
 
