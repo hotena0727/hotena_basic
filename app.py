@@ -2085,30 +2085,10 @@ if streak is not None:
     elif streak >= 7:
         st.info("🏅 7일 연속 달성! 흐름이 잡혔어요.")
 
-if "today_goal" not in st.session_state:
-    st.session_state.today_goal = "오늘은 10문항 1회 완주"
-if "today_goal_done" not in st.session_state:
-    st.session_state.today_goal_done = False
 
-with st.container():
-    st.markdown("### 🎯 오늘의 목표(루틴)")
-    c1, c2 = st.columns([7, 3])
-    with c1:
-        st.session_state.today_goal = st.text_input(
-            "목표 문장",
-            value=st.session_state.today_goal,
-            label_visibility="collapsed",
-            placeholder="예) 오늘은 10문항 2회 + 오답만 다시풀기 1회",
-        )
-    with c2:
-        st.session_state.today_goal_done = st.checkbox("달성", value=bool(st.session_state.today_goal_done))
+# ✅ (HOME HUB에서 '오늘의 목표'를 통합 관리합니다.)
 
-    if st.session_state.today_goal_done:
-        st.success("좋아요. 오늘 루틴 완료 ✅")
-    else:
-        st.caption("가볍게라도 체크하면 루틴이 끊기지 않습니다.")
 
-st.divider()
 
 # ============================================================
 # ✅ 세션 초기화

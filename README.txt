@@ -1,12 +1,1 @@
-# Hatena Hub (단어/한자/회화)
-
-실행:
-  streamlit run home.py
-
-필수 secrets/env:
-  SUPABASE_URL
-  SUPABASE_ANON_KEY
-  COOKIE_PASSWORD
-
-회화 CSV:
-  data/talk_situations.csv
+Patch: app.py에서 '오늘의 목표(루틴)' 섹션을 제거하고, 목표 관리는 home.py(홈 허브)에서만 하도록 했습니다.
