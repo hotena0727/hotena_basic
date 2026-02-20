@@ -89,22 +89,21 @@ st.markdown(
    ========================================================== */
 
 header[data-testid="stHeader"]{
-  height: 0px !important;
-  min-height: 0px !important;
-  visibility: hidden !important;
+  height: auto !important;
+  min-height: 3.25rem !important;
 }
 
 /* Container spacing */
 div[data-testid="stAppViewContainer"] .block-container{
-  padding-top: 0.05rem !important;
+  padding-top: 0.25rem !important;
   padding-bottom: 5.25rem !important; /* bottom breathing room for mobile */
 }
 
 /* Headlines: tighter */
 div[data-testid="stAppViewContainer"] h1,
 div[data-testid="stAppViewContainer"] h2{
-  margin-top: 0.05rem !important;
-  margin-bottom: 0.35rem !important;
+  margin-top: 0.15rem !important;
+  margin-bottom: 0.55rem !important;
 }
 
 /* Defensive: if a child adds negative margins / weird offsets */
@@ -159,7 +158,7 @@ div[data-testid="stMetric"]{
   div[data-testid="stAppViewContainer"] .block-container{
     padding-left: 1.0rem !important;
     padding-right: 1.0rem !important;
-    padding-top: 0.05rem !important;
+    padding-top: 0.15rem !important;
     padding-bottom: 6.0rem !important;
   }
 
@@ -642,7 +641,7 @@ def render_floating_menu():
 /* ===== Floating Menu (Hub) ===== */
 .hub-float-wrap{
   position: fixed;
-  top: 0.65rem;
+  top: 3.1rem;
   left: 0.65rem;
   z-index: 2147483647;
   font-family: inherit;
@@ -772,8 +771,15 @@ def render_float_top_anchor_button():
 def render_plan_pill():
     plan = (st.session_state.get("user_plan") or "free").lower()
     txt = "✨ PRO 이용 중입니다" if plan == "pro" else "🆓 FREE 이용 중"
-    st.markdown(
-        f"""
+
+    # ✅ unified SFX toggle lives here (Hub-level), so child pages won't render their own toggle.
+    if "sound_enabled" not in st.session_state:
+        st.session_state.sound_enabled = False
+
+    c1, c2 = st.columns([8.5, 1.5], vertical_alignment="center")
+    with c1:
+        st.markdown(
+            f"""
 <div style="display:flex;justify-content:flex-start;margin-top:0.15rem;margin-bottom:0.2rem;">
   <div style="
     display:inline-flex;align-items:center;gap:.45rem;
@@ -783,8 +789,16 @@ def render_plan_pill():
   ">{txt}</div>
 </div>
 """,
-        unsafe_allow_html=True,
-    )
+            unsafe_allow_html=True,
+        )
+    with c2:
+        st.session_state.sound_enabled = st.toggle(
+            "🔊",
+            value=bool(st.session_state.sound_enabled),
+            label_visibility="collapsed",
+            key="hub_sound_toggle",
+            help="정답/오답 효과음 ON/OFF",
+        )
 
 def render_daily_goal_home(sb_authed, user_id: str):
     """Home dashboard: daily goal (sets-based). 1 set == 10 questions (quiz_len)."""
@@ -1143,7 +1157,7 @@ def render_floating_menu():
 /* ===== Floating Menu (Hub) ===== */
 .hub-float-wrap{
   position: fixed;
-  top: 0.65rem;
+  top: 3.1rem;
   left: 0.65rem;
   z-index: 2147483647;
   font-family: inherit;
@@ -1320,9 +1334,8 @@ def render_bottom_nav(active: str = "home"):
 </div>"""
     st.markdown(html, unsafe_allow_html=True)
 
-
 def render_training_header(sb_authed, user, kind: str, title: str, subtitle: str):
-    """A) Unified title header (extra-compact) + tiny progress bar."""
+    """A) Unified title + compact daily goal progress strip on training pages."""
     progress_all = st.session_state.get("progress_all", {}) or {}
     goal_sets = int((progress_all.get("daily_goal_sets") or 3))
 
@@ -1335,34 +1348,27 @@ def render_training_header(sb_authed, user, kind: str, title: str, subtitle: str
     if goal_sets > 0:
         pct = min(1.0, done_sets_total / float(goal_sets))
 
-    pct_w = int(round(pct * 100))
-
-    # ✅ Title row (tight)
     st.markdown(
         f"""
-<div style="display:flex;align-items:center;justify-content:space-between;gap:0.6rem;margin-top:0.0rem;margin-bottom:0.25rem;">
-  <div style="min-width:0;">
-    <div style="font-size:1.22rem;font-weight:800;line-height:1.15;">{title}</div>
-    <div style="opacity:0.70;font-size:0.90rem;line-height:1.2;margin-top:0.05rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{subtitle}</div>
+<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:0.75rem;margin-top:0.25rem;margin-bottom:0.45rem;">
+  <div>
+    <div style="font-size:1.35rem;font-weight:800;line-height:1.2;">{title}</div>
+    <div style="opacity:0.72;font-size:0.95rem; margin-top:0.15rem;">{subtitle}</div>
   </div>
-  <div style="text-align:right;flex:0 0 auto;">
-    <div style="display:inline-flex;align-items:center;gap:.35rem;padding:.16rem .50rem;border-radius:999px;border:1px solid rgba(0,0,0,.10);background:rgba(0,0,0,.02);font-size:.84rem;white-space:nowrap;">
+  <div style="text-align:right;">
+    <div style="display:inline-flex;align-items:center;gap:.35rem;padding:.22rem .55rem;border-radius:999px;border:1px solid rgba(0,0,0,.10);background:rgba(0,0,0,.02);font-size:.88rem;">
       오늘 {done_sets_kind}세트
     </div>
   </div>
-</div>
-
-<div style="height:6px;border-radius:999px;background:rgba(0,0,0,0.08);overflow:hidden;margin:0 0 0.25rem 0;">
-  <div style="height:100%;width:{pct_w}%;background:rgba(0,0,0,0.35);"></div>
-</div>
-
-<div style="opacity:0.65;font-size:0.82rem;line-height:1.1;margin-bottom:0.35rem;">
-  오늘 완료: {done_sets_total}/{goal_sets}세트
 </div>
 """,
         unsafe_allow_html=True,
     )
 
+    # compact progress
+    st.progress(pct)
+    st.caption(f"오늘 완료: {done_sets_total}/{goal_sets}세트 · 현재 페이지: {kind}")
+    st.markdown("---")
 
 def run_script(filename: str):
     path = (BASE_DIR / filename).resolve()
@@ -1403,9 +1409,7 @@ if page == "home":
     st.info("☰ 메뉴에서 단어/한자/회화 훈련을 선택하세요.")
 
 elif page == "my":
-    # ✅ 마이페이지도 훈련 페이지들과 같은 '상단 높이'로 통일
-    st.session_state["hub_target"] = "my"
-    render_training_header(sb_authed, user, kind="my", title="👤 마이페이지", subtitle="학습 기록 · 목표 · 설정")
+    # ✅ 독립 마이페이지: 한자(app.py) 안에 있던 대시보드를 그대로 분리한 mypage.py를 실행
     run_script("mypage.py")
     st.stop()
 

@@ -61,6 +61,10 @@ def render_sound_toggle():
     - 대신 토글은 상태만 바꾸고,
       사용자가 '테스트 재생' 버튼을 눌러 브라우저에 오디오 허용을 "한 번" 해주게 함
     """
+    # ✅ Hub mode: sound toggle is rendered in home.py (plan pill)
+    if st.session_state.get("HUB_MODE", False):
+        return
+
     if "sound_enabled" not in st.session_state:
         st.session_state.sound_enabled = False
 
@@ -1913,16 +1917,15 @@ def render_home():
     page_title = "👤 마이페이지" if st.session_state.get("page") == "my" else "✨하테나일본어 한자정복"
 
 
-    if not st.session_state.get("HUB_MODE"):
-        st.markdown(
-            f"""
-        <div class="jp headbar">
-          <div class="headtitle">{page_title}</div>
-          <div class="headhello">환영합니다 🙂 <span class="mail">{email}</span></div>
-        </div>
-        """,
-            unsafe_allow_html=True
-        )
+    st.markdown(
+        f"""
+<div class="jp headbar">
+  <div class="headtitle">{page_title}</div>
+  <div class="headhello">환영합니다 🙂 <span class="mail">{email}</span></div>
+</div>
+""",
+        unsafe_allow_html=True
+    )
 
     quotes = [
         "배움은 매일 새로 시작해도 늦지 않다.",
@@ -2017,16 +2020,15 @@ if st.session_state.get("page") != "home":
     else:
         _title = "✨ 한자 퀴즈"
 
-    if not st.session_state.get("HUB_MODE"):
-        st.markdown(
-            f"""
-        <div class="jp headbar">
-          <div class="headtitle">{_title}</div>
-          <div class="headhello">환영합니다 🙂 <span class="mail">{email}</span></div>
-        </div>
-        """,
-            unsafe_allow_html=True
-        )
+    st.markdown(
+        f"""
+<div class="jp headbar">
+  <div class="headtitle">{_title}</div>
+  <div class="headhello">환영합니다 🙂 <span class="mail">{email}</span></div>
+</div>
+""",
+        unsafe_allow_html=True
+    )
 
 # 프로필/출석
 if sb_authed is not None:

@@ -31,12 +31,8 @@ USER_EMAIL = getattr(u, "email", "") or ""
 USER_PLAN = (st.session_state.get("user_plan") or "free").lower()
 IS_PRO = USER_PLAN == "pro"
 
-if not st.session_state.get("HUB_MODE"):
-    st.title("회화 훈련 · 상황판단")
-    st.caption("1문제씩: 상황 → 상대 발화(🔊/PRO) → 보기 선택 → 제출 → 정답/설명 → (선택)말하기 완료 체크")
-else:
-    # HUB 상단 헤더가 이미 있으므로, 추가 타이틀/캡션은 생략
-    st.markdown("<div style=\"height:0.05rem\"></div>", unsafe_allow_html=True)
+st.title("회화 훈련 · 상황판단")
+st.caption("1문제씩: 상황 → 상대 발화(🔊/PRO) → 보기 선택 → 제출 → 정답/설명 → (선택)말하기 완료 체크")
 
 # ============================================================
 # ✅ Supabase client (hub reuse)

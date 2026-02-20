@@ -1267,6 +1267,10 @@ def play_sound_file(path: str):
             st.exception(e)
 
 def render_sound_toggle():
+    # ✅ Hub mode: sound toggle is rendered in home.py (plan pill)
+    if st.session_state.get("HUB_MODE", False):
+        return
+
     if "sound_enabled" not in st.session_state:
         st.session_state.sound_enabled = False
 
@@ -2474,16 +2478,15 @@ def render_home():
     email = (getattr(u, "email", None) if u else None) or st.session_state.get("login_email", "")
 
     # ✅ (1) 타이틀/환영
-    if not st.session_state.get("HUB_MODE"):
-        st.markdown(
-            f"""
-        <div class="jp headbar">
-          <div class="headtitle">✨ 왕초보 탈출 하테나일본어</div>
-          <div class="headhello">환영합니다 🙂 <span class="mail">{email}</span></div>
-        </div>
-        """,
-            unsafe_allow_html=True,
-        )
+    st.markdown(
+        f"""
+<div class="jp headbar">
+  <div class="headtitle">✨ 왕초보 탈출 하테나일본어</div>
+  <div class="headhello">환영합니다 🙂 <span class="mail">{email}</span></div>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
 
     # ✅ (2) 오늘의 학습 리포트: 홈에서만 / 타이틀 다음, 오늘의 말 위
     try:
@@ -2809,16 +2812,15 @@ if st.session_state.get("quiz_type") not in available_types:
 if st.session_state.get("page") != "home":
     u = st.session_state.get("user")
     email = (getattr(u, "email", None) if u else None) or st.session_state.get("login_email", "")
-    if not st.session_state.get("HUB_MODE"):
-        st.markdown(
-            f"""
-        <div class="jp headbar">
-          <div class="headtitle">✨ 왕초보 탈출 하테나일본어</div>
-          <div class="headhello">환영합니다 🙂 <span class="mail">{email}</span></div>
-        </div>
-        """,
-            unsafe_allow_html=True,
-        )
+    st.markdown(
+        f"""
+<div class="jp headbar">
+  <div class="headtitle">✨ 왕초보 탈출 하테나일본어</div>
+  <div class="headhello">환영합니다 🙂 <span class="mail">{email}</span></div>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
 
 if sb_authed is not None:
     ensure_profile(sb_authed, user)
