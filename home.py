@@ -769,33 +769,50 @@ def render_float_top_anchor_button():
 
 
 def render_plan_pill():
-    """✅ Hub 상단 플랜 표시(심플) + 클릭 시 안내.
-    - 표시: '✨ PRO' 또는 '🆓 FREE'
-    - 클릭: 플랜 설명(간단)
-    """
     plan = (st.session_state.get("user_plan") or "free").lower()
-    label = "✨ PRO" if plan == "pro" else "🆓 FREE"
+    label = "✨ Pro" if plan == "pro" else "🆓 Free"
 
-    # 왼쪽에만 작게 두기
-    c1, c2 = st.columns([1, 6])
-    with c1:
-        # Streamlit 버전에 따라 popover가 없을 수 있어 expander로 폴백
-        try:
-            box = st.popover(label)
-        except Exception:
-            box = st.expander(label, expanded=False)
+    # ✅ compact "pill button" styling (scoped)
+    st.markdown(
+        """
+<style>
+.plan-pill-wrap div[data-testid="stButton"]{width:auto;}
+.plan-pill-wrap div[data-testid="stButton"] > button{
+  padding: 0.18rem 0.55rem !important;
+  border-radius: 999px !important;
+  font-size: 0.86rem !important;
+  line-height: 1.1 !important;
+  min-height: 0 !important;
+  height: 28px !important;
+  border: 1px solid rgba(0,0,0,.10) !important;
+}
+.plan-pill-wrap div[data-testid="stButton"] > button:hover{
+  border-color: rgba(0,0,0,.18) !important;
+}
+</style>
+""",
+        unsafe_allow_html=True,
+    )
 
-        with box:
-            st.markdown("#### 플랜 안내")
+    if "_plan_help_open" not in st.session_state:
+        st.session_state["_plan_help_open"] = False
+
+    st.markdown('<div class="plan-pill-wrap">', unsafe_allow_html=True)
+    if st.button(label, key="plan_pill_btn", help="플랜 안내 보기", type="secondary"):
+        st.session_state["_plan_help_open"] = not st.session_state["_plan_help_open"]
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    if st.session_state.get("_plan_help_open"):
+        with st.expander("플랜 안내", expanded=True):
             st.markdown(
-                """- **FREE**: 기본 퀴즈/기록 확인
-- **PRO**: 무제한, 추가 기능(예: 상세 리포트/확장 기능 등)
+                """
+- **Free**: 기본 기능 체험(일부 제한 가능)
+- **Pro**: 무제한/추가기능(오답노트 전체, 무제한 문제, 추가 콘텐츠 등)
 
-※ 실제 잠금/해제되는 기능은 앱 업데이트에 따라 달라질 수 있어요.
+※ 실제 잠금/제한은 운영 정책에 따라 바뀔 수 있어요.
 """
             )
-    with c2:
-        st.write("")
+
 
 def render_daily_goal_home(sb_authed, user_id: str):
     """Home dashboard: daily goal (sets-based). 1 set == 10 questions (quiz_len)."""
