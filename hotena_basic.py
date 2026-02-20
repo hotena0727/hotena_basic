@@ -1,4 +1,4 @@
-# (Removed: 오늘의 목표 block for HUB mode)
+import streamlit as st
 
 # ============================================================
 # ✅ 이하: 기존 세션 상태 초기화/shape ensure (그대로 유지)
