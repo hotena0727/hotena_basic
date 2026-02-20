@@ -2959,8 +2959,7 @@ if not st.session_state.get("HUB_MODE", False):
             st.info("🔥 30일 연속 달성!")
         elif streak >= 7:
             st.info("🏅 7일 연속 달성!")
-
-        # --- (A) 오늘 목표(루틴) 섹션 제거됨 (2026-02-20)
+    # --- (Removed) 오늘 목표(루틴) 섹션 ---
 
 # ============================================================
 # ✅ 이하: 기존 세션 상태 초기화/shape ensure (그대로 유지)
@@ -3143,8 +3142,6 @@ with cbtn1:
         clear_question_widget_keys()
     
         # ✅ 새 퀴즈 시작 = 제출 카운트 플래그 리셋
-        st.session_state["_counted_today"] = False
-
         # ✅ 콤보 알림 단계 리셋(오늘 최고 콤보 기록은 유지)
         st.session_state["combo_last_notice"] = 0
     
@@ -3233,58 +3230,8 @@ def _esc_html(x) -> str:
 
 
 # ============================================================
-# ✅ 오늘 목표(Progress) - 세션 기반 (DB 없이)
-#   - 상단(1곳)만 사용
-#   - 하단은 SHOW_BOTTOM_GOAL=False면 절대 렌더링 안 됨
+# ✅ (Removed) 오늘 목표(Progress) 섹션
 # ============================================================
-
-SHOW_BOTTOM_GOAL = False  # ✅ 하단을 완전히 숨기려면 False 유지
-
-def get_today_done_count() -> int:
-    return int(st.session_state.get("today_done", 0))
-
-def add_done_count(n: int):
-    st.session_state["today_done"] = get_today_done_count() + int(n)
-
-def reset_today_done():
-    st.session_state["today_done"] = 0
-
-def get_today_goal_default() -> int:
-    return 10
-
-# ✅ 누적용 상태(필요하면 유지)
-if "counted_qids" not in st.session_state:
-    st.session_state["counted_qids"] = set()
-if "is_graded" not in st.session_state:
-    st.session_state["is_graded"] = False
-
-def render_today_goal_progress():
-    st.markdown("### 🎯 오늘 목표 진행률")
-
-    goal = int(st.session_state.get("today_goal", get_today_goal_default()))
-    done = get_today_done_count()
-
-    ratio = 0.0 if goal <= 0 else min(max(done / goal, 0.0), 1.0)
-
-    st.progress(ratio)
-    st.caption(f"진행: **{done} / {goal}문항** ({int(ratio*100)}%)")
-
-    if done >= goal and goal > 0:
-        st.success("🔥 오늘 목표 달성!")
-
-    if st.button("🔁 오늘 목표 리셋", use_container_width=True, key="btn_reset_today_goal"):
-        reset_today_done()
-        st.rerun()
-
-    st.divider()
-
-# ============================================================
-# ✅ 하단 렌더링(숨김)
-#   - 아래 조건부 블록만 남기고, "직접 호출"은 절대 하지 마세요.
-# ============================================================
-
-if SHOW_BOTTOM_GOAL:
-    render_today_goal_progress()
 
 
 # ============================================================
@@ -3373,12 +3320,6 @@ if st.button(
 
     # ✅ 제출 시점에만 answers에 확정 반영
     st.session_state.answers = selected_now
-
-    # ✅ 중복 카운트 방지
-    if not st.session_state.get("_counted_today", False):
-        add_done_count(int(st.session_state.get("quiz_len", 10)))
-        st.session_state["_counted_today"] = True
-
 if not all_answered:
     st.info("모든 문제에 답을 선택하면 제출 버튼이 활성화됩니다.")
 
@@ -3660,9 +3601,6 @@ if st.session_state.get("submitted", False):
                 st.stop()
 
             clear_question_widget_keys()
-
-            st.session_state["_counted_today"] = False
-            
             new_quiz = build_quiz(st.session_state.quiz_type, st.session_state.pos_group)
             start_quiz_state(new_quiz, st.session_state.quiz_type, clear_wrongs=True)
             st.session_state.free_limit_applied_this_attempt = False
