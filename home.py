@@ -13,6 +13,7 @@ from cryptography.fernet import Fernet
 from datetime import date, datetime, timedelta, timezone
 import streamlit as st
 import streamlit.components.v1 as components
+import importlib
 # ============================================================
 # ✅ LocalStorage / QueryParam persistence helpers
 # ============================================================
@@ -216,20 +217,6 @@ div[data-testid="stMetric"]{
   font-size: 12px;
   color: rgba(0,0,0,0.55);
 }
-
-
-/* ✅ Word header divider: ultra-tight */
-hr.hub-hr{
-  border: none !important;
-  border-top: 1px solid rgba(0,0,0,0.12) !important;
-  margin: 6px 0 10px 0 !important;
-}
-div[data-testid="stProgress"]{ margin-top: 6px !important; margin-bottom: 4px !important; }
-div[data-testid="stCaptionContainer"], div[data-testid="stCaptionContainer"] p{
-  margin-top: 0px !important;
-  margin-bottom: 0px !important;
-}
-div[data-testid="stCaptionContainer"]{ padding-top: 0px !important; padding-bottom: 0px !important; }
 
 </style>
 """,
@@ -1812,7 +1799,8 @@ def render_training_header(sb_authed, user, kind: str, title: str, subtitle: str
     # compact progress
     st.progress(pct)
     st.caption(f"오늘 완료: {done_sets_total}/{goal_sets}세트 · 현재 페이지: {kind}")
-    st.markdown('<hr class=\"hub-hr\"/>', unsafe_allow_html=True)
+    st.markdown("---")
+
 def run_script(filename: str):
     path = (BASE_DIR / filename).resolve()
     if not path.exists() or not path.is_file():
@@ -1821,6 +1809,23 @@ def run_script(filename: str):
     # ✅ Hub mode flag so child scripts can adjust UI/CSS
     st.session_state["HUB_MODE"] = True
     runpy.run_path(str(path), run_name="__main__")
+
+
+# ============================================================
+# ✅ Module runner (NO runpy gap)
+# - Import + reload so it executes in the SAME Streamlit run
+# - Avoids the extra block spacing that runpy.run_path introduces
+# ============================================================
+def run_module(module_name: str):
+    try:
+        mod = importlib.import_module(module_name)
+        importlib.reload(mod)  # ensure rerun renders the module content
+    except Exception:
+        # surface full traceback in-app
+        import traceback as _tb
+        st.error("모듈 실행 중 오류가 발생했습니다.")
+        st.code(_tb.format_exc())
+        raise
 
 
 # ============================================================
@@ -1851,7 +1856,10 @@ if page == "home":
     render_home_dashboard(sb_authed, user)
 elif page == "my":
     # ✅ 독립 마이페이지: 한자(app.py) 안에 있던 대시보드를 그대로 분리한 mypage.py를 실행
-    run_script("mypage.py")
+    st.session_state['HUB_MODE']=True
+    import mypage as _myp
+    importlib.reload(_myp)
+    _myp.render()
     st.stop()
 
 elif page == "reminder":
@@ -1861,15 +1869,18 @@ elif page == "reminder":
 elif page == "word":
     st.session_state["hub_target"] = "word"
     render_training_header(sb_authed, user, kind="word", title="📘 단어 훈련", subtitle="뜻/발음/한→일 · 10문제 1세트")
-    run_script("hotena_basic.py")
+    st.session_state['HUB_MODE']=True
+    run_module('hotena_basic')
 elif page == "kanji":
     st.session_state["hub_target"] = "kanji"
     render_training_header(sb_authed, user, kind="kanji", title="🈶 한자 훈련", subtitle="읽기/뜻/복습 · 10문제 1세트")
-    run_script("app.py")
+    st.session_state['HUB_MODE']=True
+    run_module('app')
 elif page == "talk":
     st.session_state["hub_target"] = "talk"
     render_training_header(sb_authed, user, kind="talk", title="💬 회화 훈련", subtitle="상황 판단 · 정답 선택 · 발음 연습")
-    run_script("talk.py")
+    st.session_state['HUB_MODE']=True
+    run_module('talk')
 else:
     # ✅ Fallback: unknown page -> go home
     st.session_state["hub_page"] = "home"
