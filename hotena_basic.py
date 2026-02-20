@@ -424,33 +424,8 @@ div.stButton > button{
 
 /* divider 간격(래퍼로만) */
 .tight-divider hr{
-  /* ✅ divider ↔ title gap 최소화 */
-  margin: 0px 0 2px 0 !important;
+  margin: 6px 0 10px 0 !important;
 }
-
-/* ✅ Streamlit divider 기본 여백도 전역 최소화 */
-div[data-testid="stDivider"]{
-  margin: 0 !important;
-  padding: 0 !important;
-}
-div[data-testid="stDivider"] > hr{
-  margin: 0px 0 2px 0 !important;
-}
-
-/* ✅ divider 바로 다음 요소(타이틀/컨테이너) 위 여백 제거 */
-div[data-testid="stDivider"] + div{
-  margin-top: 0 !important;
-  padding-top: 0 !important;
-}
-div[data-testid="stDivider"] + div *:first-child{
-  margin-top: 0 !important;
-}
-
-/* ✅ section 간 기본 margin이 남는 케이스 방어 */
-div[data-testid="stElementContainer"]{
-  margin-top: 0 !important;
-}
-
 
 /* Q번호 아래 간격 축소 */
 div[data-testid="stMarkdownContainer"] h3{
@@ -2834,7 +2809,7 @@ except Exception:
 if st.session_state.get("quiz_type") not in available_types:
     st.session_state.quiz_type = "meaning"
 
-if st.session_state.get("page") != "home":
+if (not st.session_state.get("HUB_MODE")) and st.session_state.get("page") != "home":
     u = st.session_state.get("user")
     email = (getattr(u, "email", None) if u else None) or st.session_state.get("login_email", "")
     st.markdown(
@@ -3825,22 +3800,4 @@ if st.session_state.get("submitted", False):
     if show_naver_talk:
         render_naver_talk()
 
-
-# ============================================================
-# ✅ [TOP GAP FINAL OVERRIDE] (must be LAST)
-# - Forces all Streamlit top gaps to 0.
-# ============================================================
-st.markdown(r"""
-<style>
-header[data-testid="stHeader"]{display:none !important; height:0 !important; min-height:0 !important; margin:0 !important; padding:0 !important;}
-div[data-testid="stToolbar"]{display:none !important; height:0 !important;}
-div[data-testid="stDecoration"]{display:none !important; height:0 !important;}
-div[data-testid="stAppViewContainer"] .block-container{padding-top:0rem !important; margin-top:0rem !important;}
-section.main > div{padding-top:0rem !important; margin-top:0rem !important;}
-div[data-testid="stMain"]{padding-top:0rem !important; margin-top:0rem !important;}
-div[data-testid="stMainBlockContainer"]{padding-top:0rem !important; margin-top:0rem !important;}
-.block-container > div:first-child{margin-top:0rem !important; padding-top:0rem !important;}
-div[data-testid="stElementContainer"]{margin-top:0rem !important; padding-top:0rem !important;}
-</style>
-""", unsafe_allow_html=True)
 
