@@ -89,29 +89,15 @@ st.markdown(
    ========================================================== */
 
 header[data-testid="stHeader"]{
-  display:none !important;
-  height:0 !important;
-  min-height:0 !important;
+  height: auto !important;
+  min-height: 3.25rem !important;
 }
-div[data-testid="stDecoration"]{display:none !important; height:0 !important;}
-div[data-testid="stToolbar"]{display:none !important; height:0 !important;}
 
 /* Container spacing */
 div[data-testid="stAppViewContainer"] .block-container{
-  padding-top: 0rem !important;
+  padding-top: 0.25rem !important;
   padding-bottom: 5.25rem !important; /* bottom breathing room for mobile */
 }
-/* ✅ Near-zero top: force main containers to start at top */
-div[data-testid="stAppViewContainer"]{
-  padding-top: 0 !important;
-}
-div[data-testid="stAppViewContainer"] .main{
-  padding-top: 0 !important;
-}
-section.main > div{
-  padding-top: 0 !important;
-}
-
 
 /* Headlines: tighter */
 div[data-testid="stAppViewContainer"] h1,
@@ -170,9 +156,11 @@ div[data-testid="stMetric"]{
 /* Mobile-only tuning */
 @media (max-width: 640px){
   div[data-testid="stAppViewContainer"] .block-container{
-  padding-top: 0rem !important;
-  padding-bottom: 5.25rem !important; /* bottom breathing room for mobile */
-}
+    padding-left: 1.0rem !important;
+    padding-right: 1.0rem !important;
+    padding-top: 0.15rem !important;
+    padding-bottom: 6.0rem !important;
+  }
 
   /* Slightly larger tap targets on phones */
   div[data-testid="stAppViewContainer"] .stButton > button,
