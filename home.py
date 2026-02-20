@@ -99,6 +99,7 @@ div[data-testid="stToolbar"]{
   display:none !important;
   height:0 !important;
 }
+div[data-testid="stDecoration"]{ display:none !important; height:0 !important; }
 
 /* Container spacing */
 div[data-testid="stAppViewContainer"] .block-container{
@@ -170,7 +171,7 @@ div[data-testid="stMetric"]{
   div[data-testid="stAppViewContainer"] .block-container{
     padding-left: 1.0rem !important;
     padding-right: 1.0rem !important;
-    padding-top: 0.15rem !important;
+    padding-top: 0rem !important;
     padding-bottom: 6.0rem !important;
   }
 
@@ -1098,7 +1099,7 @@ def render_floating_menu():
 /* ===== Floating Menu (Hub) ===== */
 .hub-float-wrap{
   position: fixed;
-  top: 3.1rem;
+  top: 0.75rem;
   left: 0.65rem;
   z-index: 2147483647;
   font-family: inherit;
@@ -1217,6 +1218,13 @@ def render_float_top_anchor_button():
   color: #fff !important;
   font-size: 18px;
   box-shadow: 0 12px 26px rgba(0,0,0,0.22);
+}
+
+/* ✅ Final override: always start at the very top */
+div[data-testid="stAppViewContainer"] .main,
+section.main{
+  padding-top: 0rem !important;
+  margin-top: 0rem !important;
 }
 </style>
 <a class="hotena-float-top" href="#hotena-top" aria-label="맨 위로">⬆︎</a>
@@ -1599,7 +1607,7 @@ def render_floating_menu():
 /* ===== Floating Menu (Hub) ===== */
 .hub-float-wrap{
   position: fixed;
-  top: 3.1rem;
+  top: 0.75rem;
   left: 0.65rem;
   z-index: 2147483647;
   font-family: inherit;
