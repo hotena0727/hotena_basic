@@ -1267,10 +1267,6 @@ def play_sound_file(path: str):
             st.exception(e)
 
 def render_sound_toggle():
-    # ✅ Hub mode: sound toggle is rendered in home.py (plan pill)
-    if st.session_state.get("HUB_MODE", False):
-        return
-
     if "sound_enabled" not in st.session_state:
         st.session_state.sound_enabled = False
 
