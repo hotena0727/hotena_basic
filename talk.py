@@ -33,25 +33,6 @@ IS_PRO = USER_PLAN == "pro"
 
 st.title("회화 훈련 · 상황판단")
 st.caption("1문제씩: 상황 → 상대 발화(🔊/PRO) → 보기 선택 → 제출 → 정답/설명 → (선택)말하기 완료 체크")
-# ============================================================
-# ✅ Scroll helpers (다음 문제/맨 위로)
-# ============================================================
-def _scroll_to_top_now():
-    components.html(
-        "<script>try{window.parent.scrollTo(0,0);}catch(e){window.scrollTo(0,0);}</script>",
-        height=0,
-    )
-
-# rerun 후 1회 실행되는 플래그
-if st.session_state.get("talk_scroll_top"):
-    _scroll_to_top_now()
-    st.session_state["talk_scroll_top"] = False
-
-# 빠른 이동(긴 화면에서 유용)
-if st.button("⬆️ 맨 위로", key=f"{NS}_top_quick", use_container_width=False):
-    st.session_state["talk_scroll_top"] = True
-    st.rerun()
-
 
 # ============================================================
 # ✅ Supabase client (hub reuse)
@@ -498,22 +479,6 @@ if submitted:
         # XP 지급(1문제 말하기 완료)
         award_xp(1, "회화 말하기 완료")
         st.success("+1 XP (말하기 완료)")
-
-
-# ✅ 말하기 이후: 아래에서 바로 다음으로 (스크롤 이동 포함)
-st.markdown(" ")
-b1, b2 = st.columns([0.62, 0.38])
-with b1:
-    # 말하기 완료 체크(현재 체크박스 상태) 또는 녹음이 있으면 다음 활성화
-    can_next = bool(speak_done) or (("audio" in locals()) and (audio is not None))
-    if st.button("➡️ 다음 문제", use_container_width=True, disabled=not can_next, key=f"{NS}_next_bottom_{qid}"):
-        st.session_state["talk_scroll_top"] = True
-        st.session_state[f"{NS}_idx"] = min(idx + 1, len(qids))  # 마지막이면 완료 화면으로
-        st.rerun()
-with b2:
-    if st.button("⬆️ 맨 위로", use_container_width=True, key=f"{NS}_top_{qid}"):
-        st.session_state["talk_scroll_top"] = True
-        st.rerun()
 
 # ============================================================
 # ✅ Set completion (10문제 모두 제출되면 자동 집계)
