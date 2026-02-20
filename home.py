@@ -1,7 +1,7 @@
 # home.py
 from __future__ import annotations
 
-BUILD_STAMP = 'v38.1-levelbars-visible 2026-02-20 KST (+09:00)'
+BUILD_STAMP = 'v38.2-homehub-all3-fixedindent 2026-02-20 KST (+09:00)'
 
 from pathlib import Path
 import os
@@ -518,36 +518,38 @@ def _dots_3(done_sets: int, goal_sets: int) -> str:
 
 
 def render_home_dashboard(sb_authed, user):
-    """Home Hub dashboard (A++: central donut + weekly mini heatmap + smart CTA)."""
+    """Home Hub dashboard: donut + weekly routine + level mini bars + smart CTA."""
 
     # ---- data ----
-    attempts_recent = fetch_recent_attempts(sb_authed, user.id, limit=500)
-    sm_recent = summarize_attempts(attempts_recent)
-
+    attempts_recent = fetch_recent_attempts(sb_authed, user.id, limit=800)
     attempts_today = fetch_today_attempts(sb_authed, user.id)
+
     sm_today = summarize_attempts(attempts_today)
 
-    daily_map = build_daily_sets_map(attempts_recent)
-    kst_today = datetime.now(timezone(timedelta(hours=9))).date()
-# ---- daily auto reset marker (KST) ----
-# Attempts are fetched by date, so "reset" here means: when the date changes,
-# we clear any home-only caches and persist last_seen_date for consistency.
-last_seen = (progress_all.get("last_seen_date") or "")
-today_str = str(kst_today)
-if last_seen != today_str:
-    progress_all["last_seen_date"] = today_str
-    st.session_state["home_last_seen_date"] = today_str
-    try:
-        save_progress(sb_authed, user.id, progress_all)
-    except Exception:
-        # do not break UI if save fails
-        pass
+    # ---- goal / progress ----
+    progress_all = st.session_state.get("progress_all", {}) or {}
+    goal_sets = int(progress_all.get("daily_goal_sets") or 3)
 
+    # ---- date helpers (KST) ----
+    kst_now = datetime.now(timezone(timedelta(hours=9)))
+    kst_today = kst_now.date()
+
+    # ---- daily marker (app-like reset) ----
+    today_str = str(kst_today)
+    last_seen = str(progress_all.get("last_seen_date") or "")
+    if last_seen != today_str:
+        progress_all["last_seen_date"] = today_str
+        st.session_state["progress_all"] = progress_all
+        try:
+            save_progress(sb_authed, user.id, progress_all)
+        except Exception:
+            pass
+
+    # ---- routine / streak ----
+    daily_map = build_daily_sets_map(attempts_recent)
     streak = calc_streak(daily_map, today=kst_today)
 
-    progress_all = st.session_state.get("progress_all", {}) or {}
-    goal_sets = int((progress_all.get("daily_goal_sets") or 3))
-
+    # ---- today summary ----
     done_total = int(sm_today.get("total_sets", 0))
     pct = 0 if goal_sets <= 0 else int(round(min(1.0, done_total / float(goal_sets)) * 100))
 
@@ -555,20 +557,48 @@ if last_seen != today_str:
     k = sm_today["by_kind"]["kanji"]
     t = sm_today["by_kind"]["talk"]
 
+    # ---- one-line motivation (stable per day) ----
+    remaining_sets = max(0, goal_sets - done_total)
+    messages = [
+        "오늘도 10문제면 충분해요. 가볍게 한 세트만.",
+        "완벽 말고, 이어가기. 오늘도 한 번만 눌러보세요.",
+        "하루 한 세트가 쌓이면, 실력이 됩니다.",
+        "짧게라도 괜찮아요. 지금 시작이 제일 쉬워요.",
+        "어제보다 1문제만 더. 그게 루틴이에요.",
+        "오늘의 성취는 ‘시작’에서 결정돼요.",
+    ]
+    idx = (kst_today.toordinal() + (streak * 3) + remaining_sets) % len(messages)
+    motivation = messages[idx]
+
+    # ---- UI helper (3-dot progress) ----
+    def _dots_3(done_sets: int, goal_sets_: int) -> str:
+        if goal_sets_ <= 0:
+            filled = 0
+        else:
+            ratio = done_sets / float(goal_sets_)
+            if ratio <= 0:
+                filled = 0
+            elif ratio >= 1:
+                filled = 3
+            else:
+                filled = int(round(ratio * 3))
+                filled = max(0, min(3, filled))
+        return " ".join(["●"] * filled + ["○"] * (3 - filled))
+
     # ---- CSS ----
     st.markdown(
         """
 <style>
   .h-wrap{margin-top:.10rem;}
-  .h-top{display:flex;align-items:flex-end;justify-content:space-between;gap:.75rem;margin:.15rem 0 .45rem;}
+  .h-top{display:flex;align-items:flex-end;justify-content:space-between;gap:.75rem;margin:.10rem 0 .40rem;}
   .h-title{font-size:1.28rem;font-weight:850;line-height:1.15;margin:0;}
-  .h-sub{opacity:.70;font-size:.92rem;margin:.18rem 0 0;}
+  .h-sub{opacity:.70;font-size:.92rem;margin:.16rem 0 0;}
   .h-pill{display:inline-flex;align-items:center;gap:.35rem;padding:.20rem .55rem;border-radius:999px;border:1px solid rgba(0,0,0,.10);background:rgba(0,0,0,.02);font-size:.92rem;white-space:nowrap;}
 
-  /* ===== Donut (gradient + smooth fill) ===== */
+  /* ===== Donut ===== */
   @property --p { syntax: '<number>'; inherits: false; initial-value: 0; }
 
-  .h-center{display:flex;align-items:center;justify-content:center;margin:.52rem 0 .20rem;position:relative;}
+  .h-center{display:flex;align-items:center;justify-content:center;margin:.50rem 0 .18rem;position:relative;}
   .donut{
     --p: 0;
     width: 150px; height: 150px; border-radius: 50%;
@@ -618,7 +648,7 @@ if last_seen != today_str:
   }
 
   /* ===== Mini weekly heatmap ===== */
-  .hm-wrap{margin:.05rem 0 .40rem;}
+  .hm-wrap{margin:.05rem 0 .36rem;}
   .hm-title{display:flex;align-items:center;justify-content:space-between;margin:.06rem 0 .22rem;}
   .hm-title b{font-size:.92rem;}
   .hm-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:.30rem;}
@@ -636,38 +666,13 @@ if last_seen != today_str:
   .hm-hi{background: rgba(46,124,246,0.36); border-color: rgba(46,124,246,0.28);}
   .hm-lab{font-size:.78rem; opacity:.68; margin-top:.16rem;}
 
-  /* ===== Rows (subtle tone per part) ===== */
-  .h-rows{display:flex;flex-direction:column;gap:.46rem;margin:.05rem 0 .55rem;}
-  .row{
-    display:flex;align-items:center;justify-content:space-between;gap:.6rem;
-    padding: .62rem .72rem;
-    border-radius: 16px;
-    border: 1px solid rgba(49,51,63,0.14);
-    background: rgba(255,255,255,0.06);
-    box-shadow: 0 9px 24px rgba(0,0,0,0.07);
-    transition: transform 120ms ease, box-shadow 120ms ease;
-  }
-  .row:hover{transform: translateY(-1px); box-shadow: 0 12px 30px rgba(0,0,0,0.10);}
-  .row-left{display:flex;flex-direction:column;gap:.12rem;min-width:0;}
-  .row-title{font-size:1.00rem;font-weight:820;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .row-meta{font-size:.82rem;opacity:.72;margin:0;}
-  .row-right{text-align:right;white-space:nowrap;}
-  .row-dots{font-size:1.05rem;letter-spacing:1px;margin:0;}
-  .row-goal{font-size:.82rem;opacity:.72;margin-top:.05rem;}
-
-  .row-word{background: linear-gradient(90deg, rgba(46,124,246,0.09), rgba(255,255,255,0.02) 55%); border-color: rgba(46,124,246,0.18);}
-  .row-kanji{background: linear-gradient(90deg, rgba(76,175,80,0.09), rgba(255,255,255,0.02) 55%); border-color: rgba(76,175,80,0.18);}
-  .row-talk{background: linear-gradient(90deg, rgba(156,39,176,0.09), rgba(255,255,255,0.02) 55%); border-color: rgba(156,39,176,0.18);}
-
-  .h-cta{margin-top:.20rem;margin-bottom:.20rem;}
-  .h-cta b{font-size:1.0rem;}
-/* ===== Level mini bars ===== */
+  /* ===== Level mini bars ===== */
   .lv-wrap{
-    margin:.10rem 0 .42rem;
+    margin:.06rem 0 .38rem;
     padding:.58rem .70rem;
     border-radius:16px;
     border:1px solid rgba(49,51,63,0.14);
-    background: rgba(255,255,255,0.02);
+    background: rgba(255,255,255,0.06);
     box-shadow: 0 9px 24px rgba(0,0,0,0.06);
   }
   .lv-title{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:.42rem;}
@@ -678,28 +683,37 @@ if last_seen != today_str:
   .lv-track{height:10px;border-radius:999px;background:rgba(0,0,0,0.07);overflow:hidden;border:1px solid rgba(0,0,0,0.05);}
   .lv-fill{height:100%;border-radius:999px;background:rgba(46,124,246,0.55);}
   .lv-val{font-size:.82rem;opacity:.70;text-align:right;}
+
+  /* ===== Rows ===== */
+  .h-rows{display:flex;flex-direction:column;gap:.46rem;margin:.05rem 0 .55rem;}
+  .row{
+    display:flex;align-items:center;justify-content:space-between;gap:.6rem;
+    padding: .62rem .72rem;
+    border-radius: 16px;
+    border: 1px solid rgba(49,51,63,0.14);
+    background: rgba(255,255,255,0.02);
+    box-shadow: 0 9px 24px rgba(0,0,0,0.07);
+    transition: transform 120ms ease, box-shadow 120ms ease;
+  }
+  .row:hover{transform: translateY(-1px); box-shadow: 0 12px 30px rgba(0,0,0,0.10);}
+  .row-left{display:flex;flex-direction:column;gap:.12rem;min-width:0;}
+  .row-title{font-size:1.00rem;font-weight:820;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .row-meta{font-size:.82rem;opacity:.72;margin:0;}
+  .row-right{text-align:right;white-space:nowrap;}
+  .row-dots{font-size:1.05rem;letter-spacing:1px;margin:0;}
+  .row-goal{font-size:.82rem;opacity:.72;margin-top:.05rem;}
+  .row-word{background: linear-gradient(90deg, rgba(46,124,246,0.09), rgba(255,255,255,0.02) 55%); border-color: rgba(46,124,246,0.18);}
+  .row-kanji{background: linear-gradient(90deg, rgba(76,175,80,0.09), rgba(255,255,255,0.02) 55%); border-color: rgba(76,175,80,0.18);}
+  .row-talk{background: linear-gradient(90deg, rgba(156,39,176,0.09), rgba(255,255,255,0.02) 55%); border-color: rgba(156,39,176,0.18);}
+
+  .h-cta{margin-top:.20rem;margin-bottom:.20rem;}
+  .h-cta b{font-size:1.0rem;}
 </style>
         """,
         unsafe_allow_html=True,
     )
-# ---- one-line motivation (stable per day) ----
-remaining_sets = max(0, goal_sets - done_total)
-messages = [
-    "오늘도 10문제면 충분해요. 가볍게 한 세트만.",
-    "완벽 말고, 이어가기. 오늘도 한 번만 눌러보세요.",
-    "하루 한 세트가 쌓이면, 실력이 됩니다.",
-    "짧게라도 괜찮아요. 지금 시작이 제일 쉬워요.",
-    "어제보다 1문제만 더. 그게 루틴이에요.",
-    "오늘의 성취는 ‘시작’에서 결정돼요.",
-]
-# deterministic pick by date (avoids changing every rerun)
-idx = (kst_today.toordinal() + (streak * 3) + remaining_sets) % len(messages)
-motivation = messages[idx]
-
 
     # ---- header ----
-    st.markdown("<div style=\"height:1px;background:rgba(0,0,0,0.06);margin:.10rem 0 .38rem;\"></div>", unsafe_allow_html=True)
-
     st.markdown(
         f"""
 <div class="h-wrap">
@@ -716,7 +730,7 @@ motivation = messages[idx]
         unsafe_allow_html=True,
     )
 
-    # ---- central donut ----
+    # ---- donut ----
     st.markdown(
         f"""
 <div class="h-center">
@@ -762,33 +776,27 @@ motivation = messages[idx]
   <div class="hm-grid">{hm_cells}</div>
   <div class="hm-lab">최근 7일 (오늘 포함)</div>
 </div>
+""",
+        unsafe_allow_html=True,
+    )
 
-
-
-    # ---- level mini progress (recent 30 days, sets) ----
-    kst_now = datetime.now(timezone(timedelta(hours=9)))
+    # ---- level mini bars (recent 30 days, sets) ----
     cutoff = kst_now - timedelta(days=30)
-
     lvl_sets = {"N5": 0, "N4": 0, "N3": 0, "N2": 0, "N1": 0}
+
     for a in attempts_recent:
         try:
             lv = str(a.get("level") or "").strip().upper()
-            # created_at may be iso string
             created_at = a.get("created_at")
-            if isinstance(created_at, str):
-                # tolerate "Z"
-                s = created_at.replace("Z", "+00:00")
-                dt = datetime.fromisoformat(s)
-            else:
-                dt = None
-            if dt is None:
+            if not isinstance(created_at, str):
                 continue
+            s = created_at.replace("Z", "+00:00")
+            dt = datetime.fromisoformat(s)
             if dt.tzinfo is None:
                 dt = dt.replace(tzinfo=timezone.utc)
             if dt < cutoff:
                 continue
             if lv in lvl_sets:
-                # treat one attempt as one set (10문항)
                 lvl_sets[lv] += 1
         except Exception:
             continue
@@ -801,7 +809,7 @@ motivation = messages[idx]
 
     level_rows = ""
     for lv in ["N5","N4","N3","N2","N1"]:
-        v = lvl_sets.get(lv, 0)
+        v = int(lvl_sets.get(lv, 0))
         p = _bar_pct(v)
         level_rows += f"""
 <div class="lv-row">
@@ -820,11 +828,8 @@ motivation = messages[idx]
 """,
         unsafe_allow_html=True,
     )
-""",
-        unsafe_allow_html=True,
-    )
 
-    # ---- rows (clickable) ----
+    # ---- rows ----
     def _row(href: str, title: str, done: int, q: int, kind: str):
         dots = _dots_3(int(done), int(goal_sets))
         return f"""<a href='{href}' style='text-decoration:none;color:inherit;'>
