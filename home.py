@@ -1,7 +1,7 @@
 # home.py
 from __future__ import annotations
 
-BUILD_STAMP = 'v33-top0 2026-02-20 KST (+09:00)'
+BUILD_STAMP = 'v32-uiAB 2026-02-20 KST (+09:00)'
 
 from pathlib import Path
 import os
@@ -89,17 +89,14 @@ st.markdown(
    ========================================================== */
 
 header[data-testid="stHeader"]{
-  display:none !important;
-  height:0 !important;
-  min-height:0 !important;
+  display: none !important;
+  height: 0 !important;
+  min-height: 0 !important;
 }
 
-div[data-testid="stToolbar"]{display:none !important;}
-div[data-testid="stDecoration"]{display:none !important;}
-
 /* Container spacing */
-section.main{padding-top:0 !important;}
-main{padding-top:0 !important;}
+/* Ultra-tight top: remove built-in Streamlit top padding */
+section.main > div{ padding-top: 0rem !important; }
 
 div[data-testid="stAppViewContainer"] .block-container{
   padding-top: 0rem !important;
@@ -165,7 +162,7 @@ div[data-testid="stMetric"]{
   div[data-testid="stAppViewContainer"] .block-container{
     padding-left: 1.0rem !important;
     padding-right: 1.0rem !important;
-    padding-top: 0.15rem !important;
+    padding-top: 0rem !important;
     padding-bottom: 6.0rem !important;
   }
 
