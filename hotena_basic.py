@@ -31,6 +31,22 @@ from pathlib import Path
 import random
 import pandas as pd
 import streamlit as st
+
+# ============================================================
+# ✅ HUB 모드: 디바이더 바로 아래로 타이틀/첫 블록 끌어올리기
+# - (home 허브에서 이미 상단을 정리하므로) 중복 여백만 제거
+# ============================================================
+if st.session_state.get("HUB_MODE", False):
+    st.markdown(
+        """<style>
+/* hub → word title gap killer */
+div[data-testid="stAppViewContainer"] .block-container{ padding-top:0 !important; margin-top:0 !important; }
+div[data-testid="stAppViewContainer"] .block-container > div:first-child{ margin-top:0 !important; padding-top:0 !important; }
+.headbar, .topbar, .headerbar{ margin-top:0 !important; padding-top:0 !important; }
+</style>""",
+        unsafe_allow_html=True,
+    )
+
 import unicodedata
 from supabase import create_client
 from streamlit_cookies_manager import EncryptedCookieManager
@@ -3814,4 +3830,5 @@ if st.session_state.get("submitted", False):
     show_naver_talk = (SHOW_NAVER_TALK == "N") or is_admin()
     if show_naver_talk:
         render_naver_talk()
+
 
