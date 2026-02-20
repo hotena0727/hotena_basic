@@ -1,7 +1,7 @@
 # home.py
 from __future__ import annotations
 
-BUILD_STAMP = 'v35-homeAplus-donut 2026-02-20 KST (+09:00)'
+BUILD_STAMP = 'v36-homeAplus-donut+rows 2026-02-20 KST (+09:00)'
 
 from pathlib import Path
 import os
@@ -494,32 +494,9 @@ def calc_streak(daily_sets: dict[date, int], today: date | None = None) -> int:
         cur = cur - timedelta(days=1)
         if streak > 3650:
             break
-    return streak
-
-
-
-# ============================================================
-# ✅ UI helper: fixed 3-dot progress (app-like)
-# ============================================================
-def _dots_3(done_sets: int, goal_sets: int) -> str:
-    if goal_sets <= 0:
-        filled = 0
-    else:
-        ratio = done_sets / float(goal_sets)
-        if ratio <= 0:
-            filled = 0
-        elif ratio >= 1:
-            filled = 3
-        else:
-            filled = int(round(ratio * 3))
-            filled = max(0, min(3, filled))
-    return " ".join(["●"] * filled + ["○"] * (3 - filled))
-
-
+   
 def render_home_dashboard(sb_authed, user):
-    """Home Hub dashboard (A+안: central donut + minimal rows)."""
-
-    # ---- data ----
+    """Home Hub dashboard (game-like + mobile-friendly)."""
     attempts_recent = fetch_recent_attempts(sb_authed, user.id, limit=500)
     sm_recent = summarize_attempts(attempts_recent)
 
@@ -530,159 +507,78 @@ def render_home_dashboard(sb_authed, user):
     kst_today = datetime.now(timezone(timedelta(hours=9))).date()
     streak = calc_streak(daily_map, today=kst_today)
 
-    progress_all = st.session_state.get("progress_all", {}) or {}
-    goal_sets = int((progress_all.get("daily_goal_sets") or 3))
-
-    done_total = int(sm_today.get("total_sets", 0))
-    pct = 0 if goal_sets <= 0 else int(round(min(1.0, done_total / float(goal_sets)) * 100))
-
-    w = sm_today["by_kind"]["word"]
-    k = sm_today["by_kind"]["kanji"]
-    t = sm_today["by_kind"]["talk"]
-
-    # ---- CSS ----
-    st.markdown(
-        """
-<style>
-  .h-wrap{margin-top:.10rem;}
-  .h-top{display:flex;align-items:flex-end;justify-content:space-between;gap:.75rem;margin:.15rem 0 .45rem;}
-  .h-title{font-size:1.28rem;font-weight:850;line-height:1.15;margin:0;}
-  .h-sub{opacity:.70;font-size:.92rem;margin:.18rem 0 0;}
-  .h-pill{display:inline-flex;align-items:center;gap:.35rem;padding:.20rem .55rem;border-radius:999px;border:1px solid rgba(0,0,0,.10);background:rgba(0,0,0,.02);font-size:.92rem;white-space:nowrap;}
-
-  .h-center{display:flex;align-items:center;justify-content:center;margin:.55rem 0 .35rem;}
-  .donut{
-    width: 140px; height: 140px; border-radius: 50%;
-    background: conic-gradient(#2E7CF6 var(--p), rgba(0,0,0,.08) 0);
-    display:flex;align-items:center;justify-content:center;
-    box-shadow: 0 10px 28px rgba(0,0,0,0.08);
-    border: 1px solid rgba(49,51,63,0.14);
-  }
-  .donut::before{
-    content:"";
-    width: 104px; height: 104px; border-radius: 50%;
-    background: rgba(255,255,255,0.98);
-    border: 1px solid rgba(0,0,0,.06);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.6);
-  }
-  .donut-inner{
-    position:absolute;
-    width: 140px; height: 140px;
-    display:flex;flex-direction:column;align-items:center;justify-content:center;
-    text-align:center;
-    pointer-events:none;
-  }
-  .donut-pct{font-size:1.55rem;font-weight:900;line-height:1.0;margin-bottom:.15rem;}
-  .donut-label{font-size:.86rem;opacity:.72;}
-
-  .h-rows{display:flex;flex-direction:column;gap:.42rem;margin:.35rem 0 .60rem;}
-  .row{
-    display:flex;align-items:center;justify-content:space-between;gap:.6rem;
-    padding: .60rem .70rem;
-    border-radius: 16px;
-    border: 1px solid rgba(49,51,63,0.14);
-    background: rgba(255,255,255,0.02);
-    box-shadow: 0 8px 22px rgba(0,0,0,0.06);
-  }
-  .row-left{display:flex;flex-direction:column;gap:.12rem;min-width:0;}
-  .row-title{font-size:1.00rem;font-weight:820;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-  .row-meta{font-size:.82rem;opacity:.72;margin:0;}
-  .row-right{text-align:right;white-space:nowrap;}
-  .row-dots{font-size:1.05rem;letter-spacing:1px;margin:0;}
-  .row-goal{font-size:.82rem;opacity:.72;margin-top:.05rem;}
-
-  .h-cta{margin-top:.25rem;margin-bottom:.25rem;}
-  .h-cta b{font-size:1.0rem;}
-</style>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    # ---- header ----
     st.markdown(
         f"""
-<div class="h-wrap">
-  <div class="h-top">
-    <div>
-      <p class="h-title">하테나 학습 허브</p>
-      <p class="h-sub">오늘의 성취율을 확인하고, 바로 이어가세요.</p>
+<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:0.75rem;margin-top:0.2rem;margin-bottom:0.6rem;">
+  <div>
+    <div style="font-size:1.35rem;font-weight:800;line-height:1.2;">하테나 학습 허브</div>
+    <div style="opacity:0.72;font-size:0.95rem; margin-top:0.15rem;">오늘도 1세트만 더 해볼까요?</div>
+  </div>
+  <div style="text-align:right;">
+    <div style="display:inline-flex;align-items:center;gap:.35rem;padding:.22rem .55rem;border-radius:999px;border:1px solid rgba(0,0,0,.10);background:rgba(0,0,0,.02);font-size:.92rem;">
+      🔥 <b>{streak}</b>일 연속
     </div>
-    <div class="h-pill">🔥 <b>{streak}</b>일</div>
   </div>
 </div>
 """,
         unsafe_allow_html=True,
     )
 
-    # ---- central donut ----
-    # conic-gradient expects an angle/percent; we pass e.g. "67%"
-    st.markdown(
-        f"""
-<div class="h-center" style="position:relative;">
-  <div class="donut" style="--p:{pct}%"></div>
-  <div class="donut-inner">
-    <div class="donut-pct">{pct}%</div>
-    <div class="donut-label">오늘 목표</div>
+    # Daily goal block (sets-based)
+    render_daily_goal_home(sb_authed, user.id)
+
+    st.markdown("---")
+
+    st.markdown("## 📊 이번 주 학습")
+    days = [kst_today - timedelta(days=i) for i in range(6, -1, -1)]
+    sets = [int(daily_map.get(d, 0)) for d in days]
+    try:
+        import pandas as pd
+
+        chart_df = pd.DataFrame({"날짜": [d.strftime("%m/%d") for d in days], "세트": sets}).set_index("날짜")
+        st.bar_chart(chart_df)
+    except Exception:
+        st.caption("그래프를 표시할 수 없습니다.")
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric("오늘 세트", f"{sm_today['total_sets']}세트")
+    acc_today = 0
+    if sm_today["total_q"] > 0:
+        acc_today = int(round(sm_today["total_score"] / sm_today["total_q"] * 100))
+    c2.metric("오늘 정답률", f"{acc_today}%")
+    c3.metric("최근 500회 누적", f"{sm_recent['total_sets']}세트")
+
+    st.markdown("---")
+
+    st.markdown("## 🚀 훈련 바로가기")
+
+    def _card(href: str, title: str, subtitle: str, foot: str):
+        st.markdown(
+            f"""
+<a href="{href}" target="_self" style="text-decoration:none;">
+  <div style="border:1px solid rgba(0,0,0,.10);border-radius:18px;padding:0.9rem 0.95rem;margin:0.55rem 0;background:rgba(0,0,0,.015);">
+    <div style="font-weight:800;font-size:1.05rem;">{title}</div>
+    <div style="opacity:0.72;margin-top:0.18rem;">{subtitle}</div>
+    <div style="opacity:0.75;font-size:0.9rem;margin-top:0.55rem;">{foot}</div>
   </div>
-</div>
+</a>
 """,
-        unsafe_allow_html=True,
-    )
+            unsafe_allow_html=True,
+        )
 
-    # ---- minimal rows (clickable) ----
-    def _row(href: str, title: str, done: int, q: int):
-        dots = _dots_3(int(done), int(goal_sets))
-        return f"""<a href='{href}' style='text-decoration:none;color:inherit;'>
-  <div class='row'>
-    <div class='row-left'>
-      <p class='row-title'>{title}</p>
-      <p class='row-meta'>{q} 문항</p>
-    </div>
-    <div class='row-right'>
-      <p class='row-dots'>{dots}</p>
-      <div class='row-goal'>{done}/{goal_sets} 세트</div>
-    </div>
-  </div>
-</a>"""
+    t_word = sm_today["by_kind"]["word"]["sets"]
+    t_kanji = sm_today["by_kind"]["kanji"]["sets"]
+    t_talk = sm_today["by_kind"]["talk"]["sets"]
+    r_word = sm_recent["by_kind"]["word"]["sets"]
+    r_kanji = sm_recent["by_kind"]["kanji"]["sets"]
+    r_talk = sm_recent["by_kind"]["talk"]["sets"]
 
-    rows_html = """<div class='h-rows'>""" + \
-        _row("?p=word", "📘 단어", int(w["sets"]), int(w["q"])) + \
-        _row("?p=kanji", "🈶 한자", int(k["sets"]), int(k["q"])) + \
-        _row("?p=talk", "💬 회화", int(t["sets"]), int(t["q"])) + \
-        """</div>"""
-    st.markdown(rows_html, unsafe_allow_html=True)
+    _card("?p=word", "📘 단어 훈련", f"오늘 {t_word}세트 완료", f"누적(최근 500회): {r_word}세트")
+    _card("?p=kanji", "🈶 한자 훈련", f"오늘 {t_kanji}세트 완료", f"누적(최근 500회): {r_kanji}세트")
+    _card("?p=talk", "💬 회화 훈련", f"오늘 {t_talk}세트 완료", f"누적(최근 500회): {r_talk}세트")
 
-    # ---- CTA ----
-    remaining = max(0, goal_sets - done_total)
-    if remaining == 0:
-        msg = "오늘 목표 달성! 내일도 1세트부터 가볍게 이어가요."
-    elif remaining == 1:
-        msg = "오늘 1세트만 더 하면 목표 달성!"
-    else:
-        msg = f"오늘 {remaining}세트만 더 하면 목표 달성!"
-
-    st.markdown(f"<div class='h-cta'><b>{msg}</b></div>", unsafe_allow_html=True)
-    c1, c2 = st.columns(2, gap="small")
-    with c1:
-        if st.button("📘 단어 시작", use_container_width=True, key="hub_cta_word"):
-            st.session_state["p"] = "word"
-            st.query_params["p"] = "word"
-            st.rerun()
-    with c2:
-        if st.button("🈶 한자 시작", use_container_width=True, key="hub_cta_kanji"):
-            st.session_state["p"] = "kanji"
-            st.query_params["p"] = "kanji"
-            st.rerun()
-
-    # ---- goal settings (keep existing behavior) ----
-    with st.expander("목표 수정", expanded=False):
-        new_goal = st.number_input("하루 목표 세트 수 (1세트=10문항)", min_value=0, max_value=100, value=goal_sets, step=1)
-        if st.button("저장", use_container_width=True, key="hub_daily_goal_save"):
-            progress_all["daily_goal_sets"] = int(new_goal)
-            st.session_state["progress_all"] = progress_all
-            save_progress(sb_authed, user.id, progress_all)
-            st.success("저장했습니다.")
-
+    st.caption("※ 누적 수치는 최근 기록(최대 500회) 기준으로 빠르게 표시됩니다.")
+으로 빠르게 표시됩니다.")
 
 def summarize_attempts(attempts: list[dict]) -> dict:
     out = {
