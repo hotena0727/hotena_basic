@@ -75,7 +75,7 @@ from streamlit_cookies_manager import EncryptedCookieManager
 # ============================================================
 st.set_page_config(page_title="Hotena Hub", layout="centered")
 # ✅ TOP anchor for floating button (no-JS)
-st.markdown('<div id="hotena-top"></div>', unsafe_allow_html=True)
+components.html('<div id="hotena-top"></div>', height=0)
 
 # ✅ CSS reset (child pages may hide Streamlit header; keep top UI from being clipped)
 st.markdown(
@@ -240,6 +240,14 @@ section.main > div{ padding-top:0 !important; margin-top:0 !important; }
 div[data-testid="stMain"]{ padding-top:0 !important; margin-top:0 !important; }
 div[data-testid="stMainBlockContainer"]{ padding-top:0 !important; margin-top:0 !important; }
 
+
+/* ✅ Kill Streamlit wrapper spacing for the very first (anchor) element + top block */
+div[data-testid="stVerticalBlock"] > div:first-child,
+div[data-testid="stVerticalBlock"] > div:first-child > div{
+  margin-top: 0rem !important;
+  padding-top: 0rem !important;
+}
+div[data-testid="stElementContainer"]{ margin-top: 0rem !important; }
 </style>
 """,
     unsafe_allow_html=True,
