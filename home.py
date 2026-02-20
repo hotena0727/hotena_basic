@@ -531,6 +531,24 @@ def render_home_dashboard(sb_authed, user):
     daily_map = build_daily_sets_map(attempts_recent)
 
     kst_today = datetime.now(timezone(timedelta(hours=9))).date()
+
+    # ---- qs toggle (gear icon link) ----
+    if "show_goal_settings" not in st.session_state:
+        st.session_state["show_goal_settings"] = False
+
+    _tg = st.query_params.get("toggle_goal")
+    if isinstance(_tg, (list, tuple)):
+        _tg = _tg[0] if _tg else None
+    if _tg == "1":
+        st.session_state["show_goal_settings"] = not st.session_state.get("show_goal_settings", False)
+        try:
+            del st.query_params["toggle_goal"]
+        except Exception:
+            try:
+                st.query_params.pop("toggle_goal", None)
+            except Exception:
+                pass
+        st.rerun()
     streak = calc_streak(daily_map, today=kst_today)
 
     progress_all = st.session_state.get("progress_all", {}) or {}
@@ -707,6 +725,15 @@ def render_home_dashboard(sb_authed, user):
 
   .h-cta{margin-top:.20rem;margin-bottom:.20rem;}
   .h-cta b{font-size:1.0rem;}
+
+  /* gear icon-only (no button box) */
+  .hub-gear-row{display:flex;justify-content:flex-end;line-height:1;margin:.05rem 0 .35rem;}
+  .hub-gear{display:inline-flex;align-items:center;justify-content:center;
+    width:2.1rem;height:2.1rem;border-radius:999px;
+    text-decoration:none;font-size:1.15rem;
+    background:transparent;border:1px solid rgba(255,255,255,0.18);
+  }
+  .hub-gear:hover{background:rgba(255,255,255,0.06);}
 </style>
         """,
         unsafe_allow_html=True,
@@ -879,9 +906,19 @@ def render_home_dashboard(sb_authed, user):
         st.markdown(f"<div class='h-cta'><b>{msg}</b></div>", unsafe_allow_html=True)
 
     with cta_r:
-        # (1) Goal gear (toggle)
-        if st.button("⚙️", key="hub_goal_gear_bottom", help="루틴 목표 수정", use_container_width=True):
-            st.session_state["show_goal_settings"] = not st.session_state["show_goal_settings"]
+        # (1) Goal gear (icon-only link)
+        from urllib.parse import urlencode
+        _qp = {}
+        try:
+            _qp = dict(st.query_params)
+        except Exception:
+            _qp = {}
+        _qp["toggle_goal"] = "1"
+        _qs = urlencode(_qp, doseq=True)
+        st.markdown(
+            f"<div class='hub-gear-row'><a class='hub-gear' href='?{_qs}' title='루틴 목표 수정'>⚙️</a></div>",
+            unsafe_allow_html=True,
+        )
 
         # (2) Smart CTA (start)
         if st.button(f"{rec_emoji} {rec_label} 시작", use_container_width=True, key="hub_cta_primary"):
