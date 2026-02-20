@@ -88,14 +88,13 @@ st.markdown(
    - Normalize spacing/typography for "app-like" feel
    ========================================================== */
 
-header[data-testid="stHeader"]{
-  height: auto !important;
-  min-height: 3.25rem !important;
-}
+header[data-testid="stHeader"]{ display:none !important; }
+div[data-testid="stToolbar"]{ display:none !important; }
 
 /* Container spacing */
 div[data-testid="stAppViewContainer"] .block-container{
-  padding-top: 0.25rem !important;
+  padding-top: 0rem !important;
+  margin-top: 0rem !important;
   padding-bottom: 5.25rem !important; /* bottom breathing room for mobile */
 }
 
@@ -1086,7 +1085,7 @@ def render_floating_menu():
 /* ===== Floating Menu (Hub) ===== */
 .hub-float-wrap{
   position: fixed;
-  top: 3.1rem;
+  top: 0.75rem;
   left: 0.65rem;
   z-index: 2147483647;
   font-family: inherit;
@@ -1587,7 +1586,7 @@ def render_floating_menu():
 /* ===== Floating Menu (Hub) ===== */
 .hub-float-wrap{
   position: fixed;
-  top: 3.1rem;
+  top: 0.75rem;
   left: 0.65rem;
   z-index: 2147483647;
   font-family: inherit;
