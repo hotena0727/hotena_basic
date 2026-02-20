@@ -1732,8 +1732,6 @@ render_bottom_nav(active=page)
 if page == "home":
     # ✅ Home Hub: dashboard view
     render_home_dashboard(sb_authed, user)
-    st.info("☰ 메뉴에서 단어/한자/회화 훈련을 선택하세요.")
-
 elif page == "my":
     # ✅ 독립 마이페이지: 한자(app.py) 안에 있던 대시보드를 그대로 분리한 mypage.py를 실행
     run_script("mypage.py")
@@ -1756,4 +1754,3 @@ elif page == "talk":
     render_training_header(sb_authed, user, kind="talk", title="💬 회화 훈련", subtitle="상황 판단 · 정답 선택 · 발음 연습")
     run_script("talk.py")
 else:
-    st.info("상단 메뉴에서 원하는 항목을 선택하세요.")
