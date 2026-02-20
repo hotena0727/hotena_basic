@@ -99,7 +99,7 @@ div[data-testid="stAppViewContainer"]{ padding-top:0 !important; margin-top:0 !i
 div[data-testid="stAppViewContainer"] .main{ padding-top:0 !important; margin-top:0 !important; }
 section.main > div.block-container,
 div[data-testid="stAppViewContainer"] .block-container{
-  padding-top: 0rem;
+  padding-top: 0rem !important;
   margin-top: 0rem !important;
   padding-bottom: 5.25rem !important; /* keep bottom breathing room */
 }
@@ -1782,56 +1782,10 @@ def kill_top_gap_final():
     }
     section.main > div.block-container,
     div[data-testid="stAppViewContainer"] .block-container{
-      padding-top:0rem; margin-top:0 !important;
+      padding-top:0 !important; margin-top:0 !important;
     }
     </style>
     """, unsafe_allow_html=True)
 
 # ✅ 모든 렌더링이 끝난 "마지막 줄" 근처에서 호출
 kill_top_gap_final()
-
-# ============================================================
-# ✅ TOP GAP KILL SWITCH (ULTRA - LAST WINS)
-# - Must be executed after all other CSS injections
-# ============================================================
-st.markdown("""
-<style>
-/* Streamlit chrome */
-header[data-testid="stHeader"]{ display:none !important; height:0 !important; min-height:0 !important; }
-div[data-testid="stToolbar"]{ display:none !important; height:0 !important; }
-div[data-testid="stDecoration"]{ display:none !important; height:0 !important; }
-#MainMenu{ visibility:hidden !important; height:0 !important; }
-footer{ visibility:hidden !important; height:0 !important; }
-
-/* Containers */
-div[data-testid="stAppViewContainer"],
-div[data-testid="stAppViewContainer"] .main,
-section.main,
-section.main > div,
-section.main > div.block-container,
-div[data-testid="stAppViewContainer"] .block-container,
-div[data-testid="stMain"],
-div[data-testid="stMainBlockContainer"]{
-  padding-top: 0rem !important;
-  margin-top: 0rem !important;
-}
-
-/* First element wrappers */
-div[data-testid="stAppViewContainer"] .block-container > div:first-child,
-div[data-testid="stAppViewContainer"] .block-container > div:first-child > div{
-  margin-top: 0rem !important;
-  padding-top: 0rem !important;
-}
-
-/* Markdown default margins */
-div[data-testid="stAppViewContainer"] .stMarkdown,
-div[data-testid="stAppViewContainer"] .stMarkdownContainer,
-div[data-testid="stAppViewContainer"] p{
-  margin-top: 0rem !important;
-  padding-top: 0rem !important;
-}
-
-/* Anchor */
-#hotena-top{ height:0 !important; margin:0 !important; padding:0 !important; }
-</style>
-""", unsafe_allow_html=True)
