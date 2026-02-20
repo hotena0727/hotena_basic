@@ -1,7 +1,7 @@
 # home.py
 from __future__ import annotations
 
-BUILD_STAMP = 'v32-uiAB 2026-02-20 KST (+09:00)'
+BUILD_STAMP = 'v31 2026-02-19 16:07:56 KST (+09:00)'
 
 from pathlib import Path
 import os
@@ -74,6 +74,10 @@ from streamlit_cookies_manager import EncryptedCookieManager
 # ✅ Page Config (Hub only)
 # ============================================================
 st.set_page_config(page_title="Hotena Hub", layout="centered")
+# ============================================================
+# ✅ HOTENA TOP ANCHOR (for floating "맨 위로" link)
+# ============================================================
+st.markdown("<div id='hotena_top_anchor'></div>", unsafe_allow_html=True)
 
 # ✅ CSS reset (child pages may hide Streamlit header; keep top UI from being clipped)
 st.markdown(
@@ -737,131 +741,78 @@ def render_floating_menu():
 
 
 
-
 def render_floating_scroll_top():
+    """우측 하단 '맨 위로' 바로가기 (단어/한자와 동일하게 쓰기 위한 공통 버튼).
+    - JS 없이 anchor(#hotena_top_anchor)로 이동 → 보안/호환 안정
+    """
+    try:
+        rt_enc = st.query_params.get("rt", "")
+        at_enc = st.query_params.get("at", "")
+    except Exception:
+        rt_enc, at_enc = "", ""
+
+    # 쿼리 유지(로그인 유지용)
+    def _q(s: str) -> str:
+        try:
+            import urllib.parse
+            return urllib.parse.quote(s, safe="") if s else ""
+        except Exception:
+            return s or ""
+
+    base = ""
+    if rt_enc:
+        base += "rt=" + _q(rt_enc) + "&"
+    if at_enc:
+        base += "at=" + _q(at_enc) + "&"
+
+    # 현재 페이지 쿼리를 유지하면서 hash만 바꾸면 스크롤 이동이 안 되는 경우가 있어,
+    # href에 현재 query도 포함 + hash를 붙이는 방식으로 처리
+    try:
+        # 현재 querystring 재구성 (p, action 등 포함)
+        qp = dict(st.query_params)
+        qs = "&".join([f"{k}={_q(str(v))}" for k, v in qp.items() if v is not None and str(v) != ""])
+        href = "?" + qs + "#hotena_top_anchor" if qs else "#hotena_top_anchor"
+    except Exception:
+        href = "#hotena_top_anchor"
+
     components.html(
-        """
-<script>
-(function(){
-  const doc = window.parent.document;
-  if (doc.getElementById("__FAB_TOP__")) return;
-
-  const btn = doc.createElement("button");
-  btn.id = "__FAB_TOP__";
-  btn.textContent = "↑";
-
-  btn.style.position = "fixed";
-  btn.style.right = "14px";
-  btn.style.zIndex = "2147483647";
-  btn.style.width = "46px";
-  btn.style.height = "46px";
-  btn.style.borderRadius = "999px";
-  btn.style.border = "1px solid rgba(120,120,120,0.25)";
-  btn.style.background = "rgba(0,0,0,0.55)";
-  btn.style.color = "#fff";
-  btn.style.fontSize = "18px";
-  btn.style.fontWeight = "900";
-  btn.style.boxShadow = "0 10px 22px rgba(0,0,0,0.25)";
-  btn.style.cursor = "pointer";
-  btn.style.userSelect = "none";
-  btn.style.display = "flex";
-  btn.style.alignItems = "center";
-  btn.style.justifyContent = "center";
-  btn.style.opacity = "0";
-
-  const applyDeviceVisibility = () => {
-    try {
-      const w = window.parent.innerWidth || window.innerWidth;
-      if (w >= 801) btn.style.display = "none";
-      else btn.style.display = "flex";
-    } catch(e) {}
-  };
-
-  const goTop = () => {
-    try {
-      const top = doc.getElementById("__TOP__");
-      if (top) top.scrollIntoView({behavior:"smooth", block:"start"});
-
-      const targets = [
-        doc.querySelector('[data-testid="stAppViewContainer"]'),
-        doc.querySelector('[data-testid="stMain"]'),
-        doc.querySelector('section.main'),
-        doc.documentElement,
-        doc.body
-      ].filter(Boolean);
-
-      targets.forEach(t => {
-        if (t && typeof t.scrollTo === "function") t.scrollTo({top:0, left:0, behavior:"smooth"});
-        if (t) t.scrollTop = 0;
-      });
-
-      window.parent.scrollTo(0,0);
-      window.scrollTo(0,0);
-    } catch(e) {}
-  };
-
-  btn.addEventListener("click", goTop);
-
-  const mount = () => doc.querySelector('[data-testid="stAppViewContainer"]') || doc.body;
-
-  const BASE = 18;
-  const EXTRA = 34;
-
-  const reposition = () => {
-    try {
-      const vv = window.parent.visualViewport || window.visualViewport;
-      const innerH = window.parent.innerHeight || window.innerHeight;
-      const hiddenBottom = vv ? Math.max(0, innerH - vv.height - (vv.offsetTop || 0)) : 0;
-      btn.style.bottom = (BASE + EXTRA + hiddenBottom) + "px";
-      btn.style.opacity = "1";
-    } catch(e) {
-      btn.style.bottom = "220px";
-      btn.style.opacity = "1";
-    }
-    applyDeviceVisibility();
-  };
-
-  const tryAttach = (n=0) => {
-    const root = mount();
-    if (!root) {
-      if (n < 30) return setTimeout(() => tryAttach(n+1), 50);
-      return;
-    }
-    root.appendChild(btn);
-    reposition();
-    setTimeout(reposition, 50);
-    setTimeout(reposition, 200);
-    setTimeout(reposition, 600);
-  };
-
-  tryAttach();
-  window.parent.addEventListener("resize", reposition, {passive:true});
-
-  const vv = window.parent.visualViewport || window.visualViewport;
-  if (vv) {
-    vv.addEventListener("resize", reposition, {passive:true});
-    vv.addEventListener("scroll", reposition, {passive:true});
-  }
-})();
-</script>
-        """,
-        height=1,
+        f"""
+<style>
+/* ===== Floating Scroll Top (common) ===== */
+.hotena-float-top {{
+  position: fixed;
+  right: 16px;
+  bottom: 18px;
+  z-index: 2147483000;
+}}
+.hotena-float-top a {{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 999px;
+  text-decoration: none;
+  font-weight: 900;
+  font-size: 18px;
+  border: 1px solid rgba(0,0,0,0.10);
+  background: rgba(255,255,255,0.92);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 10px 26px rgba(0,0,0,0.14);
+  color: rgba(15, 23, 42, 0.92);
+}}
+/* 모바일에서 하단 네비와 겹치지 않게 */
+@media (max-width: 640px) {{
+  .hotena-float-top {{ bottom: 84px; }}
+}}
+</style>
+<div class="hotena-float-top">
+  <a href="{href}" aria-label="맨 위로">⬆︎</a>
+</div>
+""",
+        height=0,
     )
 
-render_floating_scroll_top()
-
-if st.session_state.get("_scroll_top_once"):
-    st.session_state["_scroll_top_once"] = False
-    st.session_state["_scroll_top_nonce"] = st.session_state.get("_scroll_top_nonce", 0) + 1
-    scroll_to_top(nonce=st.session_state["_scroll_top_nonce"])
-
-# ============================================================
-# ✅ Cookies + Supabase (Cloud Run env + Streamlit secrets 겸용)
-# ============================================================
-import os
-import streamlit as st
-from streamlit_cookies_manager import EncryptedCookieManager
-from supabase import create_client
 
 def render_plan_pill():
     plan = (st.session_state.get("user_plan") or "free").lower()
@@ -1333,123 +1284,6 @@ def render_floating_menu():
 
     st.markdown(html, unsafe_allow_html=True)
 
-# ============================================================
-# ✅ Bottom Nav (Mobile) + Training Header (A/B)
-# - A: top progress strip for training pages
-# - B: fixed bottom navigation bar (Home/Word/Kanji/Talk/My)
-# ============================================================
-
-def _hub_build_base_qs() -> str:
-    """Build querystring base that preserves encrypted rt/at for login persistence."""
-    try:
-        rt_enc = st.query_params.get("rt", "")
-        at_enc = st.query_params.get("at", "")
-    except Exception:
-        rt_enc, at_enc = "", ""
-
-    def _q(s: str) -> str:
-        try:
-            import urllib.parse
-            return urllib.parse.quote(s, safe="") if s else ""
-        except Exception:
-            return s or ""
-
-    parts = []
-    if rt_enc:
-        parts.append("rt=" + _q(rt_enc))
-    if at_enc:
-        parts.append("at=" + _q(at_enc))
-    return ("&".join(parts) + "&") if parts else ""
-
-def render_bottom_nav(active: str = "home"):
-    """Mobile-only bottom nav. Hidden on wide screens."""
-    base = _hub_build_base_qs()
-    def href(p: str) -> str:
-        return "?" + base + "p=" + p
-
-    # Mobile only: hide on >= 801px
-    html = f"""<style>
-.hub-bottom-nav {{
-  position: fixed;
-  left: 0; right: 0; bottom: 0;
-  z-index: 2147483000;
-  padding: 10px 12px 12px;
-  background: rgba(255,255,255,0.92);
-  backdrop-filter: blur(10px);
-  border-top: 1px solid rgba(0,0,0,0.08);
-}}
-.hub-bottom-nav .row {{
-  display:flex; gap: 10px; justify-content:space-between;
-  max-width: 840px; margin: 0 auto;
-}}
-.hub-bottom-nav a {{
-  flex: 1 1 0;
-  text-decoration:none;
-  color: rgba(20,20,20,0.92);
-  border: 1px solid rgba(0,0,0,0.08);
-  border-radius: 14px;
-  padding: 10px 8px;
-  display:flex; flex-direction:column; align-items:center; justify-content:center;
-  font-size: 12px;
-  background: rgba(0,0,0,0.02);
-}}
-.hub-bottom-nav a .ic {{ font-size: 18px; line-height: 1; margin-bottom: 4px; }}
-.hub-bottom-nav a.active {{
-  background: rgba(0,0,0,0.88);
-  color: #fff;
-  border-color: rgba(0,0,0,0.88);
-}}
-@media (min-width: 801px) {{
-  .hub-bottom-nav {{ display:none !important; }}
-}}
-</style>
-<div class="hub-bottom-nav">
-  <div class="row">
-    <a href="{href('home')}" target="_self" class="{ 'active' if active=='home' else '' }"><div class="ic">🏠</div><div>홈</div></a>
-    <a href="{href('word')}" target="_self" class="{ 'active' if active=='word' else '' }"><div class="ic">📘</div><div>단어</div></a>
-    <a href="{href('kanji')}" target="_self" class="{ 'active' if active=='kanji' else '' }"><div class="ic">🈶</div><div>한자</div></a>
-    <a href="{href('talk')}" target="_self" class="{ 'active' if active=='talk' else '' }"><div class="ic">💬</div><div>회화</div></a>
-    <a href="{href('my')}" target="_self" class="{ 'active' if active=='my' else '' }"><div class="ic">👤</div><div>MY</div></a>
-  </div>
-</div>"""
-    st.markdown(html, unsafe_allow_html=True)
-
-def render_training_header(sb_authed, user, kind: str, title: str, subtitle: str):
-    """A) Unified title + compact daily goal progress strip on training pages."""
-    progress_all = st.session_state.get("progress_all", {}) or {}
-    goal_sets = int((progress_all.get("daily_goal_sets") or 3))
-
-    attempts = fetch_today_attempts(sb_authed, user.id)
-    sm = summarize_attempts(attempts)
-    done_sets_total = int(sm.get("total_sets", 0))
-    done_sets_kind = int(sm.get("by_kind", {}).get(kind, {}).get("sets", 0))
-
-    pct = 0.0
-    if goal_sets > 0:
-        pct = min(1.0, done_sets_total / float(goal_sets))
-
-    st.markdown(
-        f"""
-<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:0.75rem;margin-top:0.25rem;margin-bottom:0.45rem;">
-  <div>
-    <div style="font-size:1.35rem;font-weight:800;line-height:1.2;">{title}</div>
-    <div style="opacity:0.72;font-size:0.95rem; margin-top:0.15rem;">{subtitle}</div>
-  </div>
-  <div style="text-align:right;">
-    <div style="display:inline-flex;align-items:center;gap:.35rem;padding:.22rem .55rem;border-radius:999px;border:1px solid rgba(0,0,0,.10);background:rgba(0,0,0,.02);font-size:.88rem;">
-      오늘 {done_sets_kind}세트
-    </div>
-  </div>
-</div>
-""",
-        unsafe_allow_html=True,
-    )
-
-    # compact progress
-    st.progress(pct)
-    st.caption(f"오늘 완료: {done_sets_total}/{goal_sets}세트 · 현재 페이지: {kind}")
-    st.markdown("---")
-
 def run_script(filename: str):
     path = (BASE_DIR / filename).resolve()
     if not path.exists() or not path.is_file():
@@ -1481,7 +1315,6 @@ render_floating_menu()
 render_plan_pill()
 
 page = st.session_state.get("hub_page", "home")
-render_bottom_nav(active=page)
 
 if page == "home":
     # ✅ Home Hub: dashboard view
@@ -1499,15 +1332,12 @@ elif page == "reminder":
 
 elif page == "word":
     st.session_state["hub_target"] = "word"
-    render_training_header(sb_authed, user, kind="word", title="📘 단어 훈련", subtitle="뜻/발음/한→일 · 10문제 1세트")
     run_script("hotena_basic.py")
 elif page == "kanji":
     st.session_state["hub_target"] = "kanji"
-    render_training_header(sb_authed, user, kind="kanji", title="🈶 한자 훈련", subtitle="읽기/뜻/복습 · 10문제 1세트")
     run_script("app.py")
 elif page == "talk":
     st.session_state["hub_target"] = "talk"
-    render_training_header(sb_authed, user, kind="talk", title="💬 회화 훈련", subtitle="상황 판단 · 정답 선택 · 발음 연습")
     run_script("talk.py")
 else:
     st.info("상단 메뉴에서 원하는 항목을 선택하세요.")
