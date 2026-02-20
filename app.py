@@ -66,7 +66,7 @@ def render_sound_toggle():
         return
 
     if "sound_enabled" not in st.session_state:
-    st.session_state.sound_enabled = True
+        st.session_state.sound_enabled = False
 
     c1, c2, c3 = st.columns([1.4, 4.6, 4.0], vertical_alignment="center")
 
@@ -2065,53 +2065,51 @@ if st.session_state.page == "my":
 
 # quiz page
 render_topcard()
-if not st.session_state.get("HUB_MODE"):
-    render_sound_toggle()  # 🔊 소리 ON/OFF 버튼(최초 1회 클릭 필요)
+render_sound_toggle()  # 🔊 소리 ON/OFF 버튼(최초 1회 클릭 필요)
 
 
 # ============================================================
-# ✅ 상단: 오늘의 목표 + 출석 배지 (standalone only)
+# ✅ 상단: 오늘의 목표 + 출석 배지
 # ============================================================
-if not st.session_state.get("HUB_MODE"):
+streak = st.session_state.get("streak_count")
+did_today = st.session_state.get("did_attend_today")
 
-    streak = st.session_state.get("streak_count")
-    did_today = st.session_state.get("did_attend_today")
+if streak is not None:
+    if did_today:
+        st.success(f"✅ 오늘 출석 완료!  (연속 {streak}일)")
+    else:
+        st.caption(f"연속 출석 {streak}일")
 
-    if streak is not None:
-        if did_today:
-            st.success(f"✅ 오늘 출석 완료!  (연속 {streak}일)")
-        else:
-            st.caption(f"연속 출석 {streak}일")
+    if streak >= 30:
+        st.info("🔥 30일 연속 달성! 진짜 레전드…")
+    elif streak >= 7:
+        st.info("🏅 7일 연속 달성! 흐름이 잡혔어요.")
 
-        if streak >= 30:
-            st.info("🔥 30일 연속 달성! 진짜 레전드…")
-        elif streak >= 7:
-            st.info("🏅 7일 연속 달성! 흐름이 잡혔어요.")
+if "today_goal" not in st.session_state:
+    st.session_state.today_goal = "오늘은 10문항 1회 완주"
+if "today_goal_done" not in st.session_state:
+    st.session_state.today_goal_done = False
 
-    if "today_goal" not in st.session_state:
-        st.session_state.today_goal = "오늘은 10문항 1회 완주"
-    if "today_goal_done" not in st.session_state:
-        st.session_state.today_goal_done = False
+with st.container():
+    st.markdown("### 🎯 오늘의 목표(루틴)")
+    c1, c2 = st.columns([7, 3])
+    with c1:
+        st.session_state.today_goal = st.text_input(
+            "목표 문장",
+            value=st.session_state.today_goal,
+            label_visibility="collapsed",
+            placeholder="예) 오늘은 10문항 2회 + 오답만 다시풀기 1회",
+        )
+    with c2:
+        st.session_state.today_goal_done = st.checkbox("달성", value=bool(st.session_state.today_goal_done))
 
-    with st.container():
-        st.markdown("### 🎯 오늘의 목표(루틴)")
-        c1, c2 = st.columns([7, 3])
-        with c1:
-            st.session_state.today_goal = st.text_input(
-                "목표 문장",
-                value=st.session_state.today_goal,
-                label_visibility="collapsed",
-                placeholder="예) 오늘은 10문항 2회 + 오답만 다시풀기 1회",
-            )
-        with c2:
-            st.session_state.today_goal_done = st.checkbox("달성", value=bool(st.session_state.today_goal_done))
+    if st.session_state.today_goal_done:
+        st.success("좋아요. 오늘 루틴 완료 ✅")
+    else:
+        st.caption("가볍게라도 체크하면 루틴이 끊기지 않습니다.")
 
-        if st.session_state.today_goal_done:
-            st.success("좋아요. 오늘 루틴 완료 ✅")
-        else:
-            st.caption("가볍게라도 체크하면 루틴이 끊기지 않습니다.")
+st.divider()
 
-    st.divider()
 # ============================================================
 # ✅ 세션 초기화
 # ============================================================

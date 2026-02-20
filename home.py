@@ -770,85 +770,64 @@ def render_float_top_anchor_button():
 
 def render_plan_pill():
     plan = (st.session_state.get("user_plan") or "free").lower()
-    pill_txt = "✨ PRO 이용 중입니다" if plan == "pro" else "🆓 FREE 이용 중"
+    txt = "✨ PRO 이용 중입니다" if plan == "pro" else "🆓 FREE 이용 중"
 
-    # ✅ Unified SFX toggle lives here (Hub-level), so child pages won't render their own toggle.
+    # ✅ unified SFX toggle lives here (Hub-level), so child pages won't render their own toggle.
     if "sound_enabled" not in st.session_state:
-        st.session_state.sound_enabled = True
+        st.session_state.sound_enabled = False
 
-    # ✅ Anchor + CSS to keep this bar on ONE line (especially on mobile)
-    st.markdown('<div id="hub_planbar_anchor"></div>', unsafe_allow_html=True)
-    st.markdown(
-        """
-<style>
-/* ✅ Keep the plan pill + sound controls on one row */
-#hub_planbar_anchor + div[data-testid="stHorizontalBlock"]{
-  flex-wrap: nowrap !important;
-  align-items: center !important;
-  gap: 0.35rem !important;              /* tighter: "바로 오른쪽" 느낌 */
-}
-#hub_planbar_anchor + div[data-testid="stHorizontalBlock"] > div{
-  min-width: 0 !important;
-}
-
-/* ✅ Plan pill */
-.hotena-plan-pill{
-  display:inline-flex;align-items:center;
-  padding:.22rem .50rem;border-radius:999px;
-  border:1px solid rgba(0,0,0,.10);
-  font-size:.84rem;opacity:.92;background:rgba(0,0,0,.02);
-  white-space: nowrap;
-}
-
-/* ✅ Right align the last column (sound) */
-
-/* ✅ Make widget label never wrap (defensive) */
-div[data-testid="stAppViewContainer"] label[data-testid="stWidgetLabel"]{
-  white-space: nowrap !important;
-}
-</style>
-""",
-        unsafe_allow_html=True,
-    )
-    # ✅ Layout: plan pill (left) + sound toggle (far right)
-    c1, c2 = st.columns([8.6, 1.4], vertical_alignment="center")
+    c1, c2 = st.columns([8.5, 1.5], vertical_alignment="center")
     with c1:
         st.markdown(
             f"""
-<div style="display:flex;align-items:center;justify-content:flex-start;margin-top:0.10rem;margin-bottom:0.10rem;">
-  <div class="hotena-plan-pill">{pill_txt}</div>
+<div style="display:flex;justify-content:flex-start;margin-top:0.15rem;margin-bottom:0.2rem;">
+  <div style="
+    display:inline-flex;align-items:center;gap:.45rem;
+    padding:.28rem .55rem;border-radius:999px;
+    border:1px solid rgba(0,0,0,.10);
+    font-size:.86rem;opacity:.92;background:rgba(0,0,0,.02);
+  ">{txt}</div>
 </div>
 """,
             unsafe_allow_html=True,
         )
     with c2:
-        # ✅ Far-right toggle with clear label ("소리")
         st.session_state.sound_enabled = st.toggle(
-            "sound",
+            "🔊",
             value=bool(st.session_state.sound_enabled),
-            key="hub_sound_toggle",
             label_visibility="collapsed",
+            key="hub_sound_toggle",
             help="정답/오답 효과음 ON/OFF",
         )
 
 def render_daily_goal_home(sb_authed, user_id: str):
-    """Home dashboard: daily goal (sets-based). 1 set == 10 questions."""
+    """Home dashboard: daily goal (sets-based). 1 set == 10 questions (quiz_len)."""
     progress_all = st.session_state.get("progress_all", {}) or {}
+
+    # ✅ 세트 목표(기본 3세트). 기존 '문항 목표'를 쓰고 있었다면, 일단 세트 목표로 전환합니다.
     goal_sets = int((progress_all.get("daily_goal_sets") or 3))
 
     attempts = fetch_today_attempts(sb_authed, user_id)
     sm = summarize_attempts(attempts)
 
-    done_sets_total = int(sm.get("total_sets", 0))
-    pct = 0 if goal_sets <= 0 else min(100, int(round(done_sets_total / goal_sets * 100)))
+    done_sets = int(sm.get("total_sets", 0))
+    done_q = int(sm.get("total_q", 0))
 
-    # ✅ Compact routine card (word + kanji 중심)
-    st.markdown("### 🎯 오늘의 목표")
+    pct = 0 if goal_sets <= 0 else min(100, int(round(done_sets / goal_sets * 100)))
+
+    st.markdown("## 🎯 오늘의 목표 (세트 기준)")
     st.progress(pct / 100 if goal_sets > 0 else 0.0)
 
-    c1, c2 = st.columns(2)
-    c1.caption(f"전체: {done_sets_total}/{goal_sets}세트")
-    c2.caption(f"단어: {sm['by_kind']['word']['sets']}세트 · 한자: {sm['by_kind']['kanji']['sets']}세트")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("오늘 완료 세트", f"{done_sets}/{goal_sets}")
+    acc = 0 if done_q <= 0 else int(round(sm.get("total_score", 0) / done_q * 100))
+    c2.metric("정답률", f"{acc}%")
+    c3.metric("문항 수", f"{done_q}문항")
+
+    b1, b2, b3 = st.columns(3)
+    b1.caption(f"단어: {sm['by_kind']['word']['sets']}세트 · {sm['by_kind']['word']['q']}문항")
+    b2.caption(f"한자: {sm['by_kind']['kanji']['sets']}세트 · {sm['by_kind']['kanji']['q']}문항")
+    b3.caption(f"회화: {sm['by_kind']['talk']['sets']}세트 · {sm['by_kind']['talk']['q']}문항")
 
     with st.expander("목표 수정", expanded=False):
         new_goal = st.number_input("하루 목표 세트 수 (1세트=10문항)", min_value=0, max_value=100, value=goal_sets, step=1)
@@ -1369,38 +1348,26 @@ def render_training_header(sb_authed, user, kind: str, title: str, subtitle: str
     if goal_sets > 0:
         pct = min(1.0, done_sets_total / float(goal_sets))
 
-    # ✅ words/kanji: 제목 옆 "오늘의 목표" 배지 제거 (단어 훈련처럼 깔끔하게)
-    show_kind_badge = kind not in ("word", "kanji")
-
-    badge_html = ""
-    if show_kind_badge:
-        badge_html = f"""
+    st.markdown(
+        f"""
+<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:0.75rem;margin-top:0.25rem;margin-bottom:0.45rem;">
+  <div>
+    <div style="font-size:1.35rem;font-weight:800;line-height:1.2;">{title}</div>
+    <div style="opacity:0.72;font-size:0.95rem; margin-top:0.15rem;">{subtitle}</div>
+  </div>
   <div style="text-align:right;">
     <div style="display:inline-flex;align-items:center;gap:.35rem;padding:.22rem .55rem;border-radius:999px;border:1px solid rgba(0,0,0,.10);background:rgba(0,0,0,.02);font-size:.88rem;">
       오늘 {done_sets_kind}세트
     </div>
-  </div>"""
-
-    st.markdown(
-        f"""
-<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:0.75rem;margin-top:0.15rem;margin-bottom:0.35rem;">
-  <div>
-    <div style="font-size:1.35rem;font-weight:800;line-height:1.2;">{title}</div>
-    <div style="opacity:0.72;font-size:0.95rem; margin-top:0.12rem;">{subtitle}</div>
   </div>
-  {badge_html}
 </div>
 """,
         unsafe_allow_html=True,
     )
 
-    # compact progress (overall daily goal)
+    # compact progress
     st.progress(pct)
-
-    # ✅ words/kanji: "오늘 완료/목표" 캡션도 생략해서 상단을 더 타이트하게
-    if kind not in ("words", "kanji"):
-        st.caption(f"오늘 완료: {done_sets_total}/{goal_sets}세트 · 현재 페이지: {kind}")
-
+    st.caption(f"오늘 완료: {done_sets_total}/{goal_sets}세트 · 현재 페이지: {kind}")
     st.markdown("---")
 
 def run_script(filename: str):
