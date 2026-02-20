@@ -88,14 +88,27 @@ st.markdown(
    - Normalize spacing/typography for "app-like" feel
    ========================================================== */
 
-header[data-testid="stHeader"]{ display:none !important; }
-div[data-testid="stToolbar"]{ display:none !important; }
+header[data-testid="stHeader"]{
+  display: none !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+div[data-testid="stToolbar"]{
+  display:none !important;
+  height:0 !important;
+}
 
 /* Container spacing */
 div[data-testid="stAppViewContainer"] .block-container{
   padding-top: 0rem !important;
   margin-top: 0rem !important;
   padding-bottom: 5.25rem !important; /* bottom breathing room for mobile */
+}
+div[data-testid="stAppViewContainer"] .block-container > div:first-child{
+  margin-top: 0rem !important;
+  padding-top: 0rem !important;
 }
 
 /* Headlines: tighter */
@@ -1085,7 +1098,7 @@ def render_floating_menu():
 /* ===== Floating Menu (Hub) ===== */
 .hub-float-wrap{
   position: fixed;
-  top: 0.75rem;
+  top: 3.1rem;
   left: 0.65rem;
   z-index: 2147483647;
   font-family: inherit;
@@ -1217,7 +1230,7 @@ def render_plan_pill():
     txt = "✨ PRO 이용 중입니다" if plan == "pro" else "🆓 FREE 이용 중"
     st.markdown(
         f"""
-<div style="display:flex;justify-content:flex-start;margin-top:0.15rem;margin-bottom:0.2rem;">
+<div style="display:flex;justify-content:flex-start;margin-top:0rem;margin-bottom:0rem;">
   <div style="
     display:inline-flex;align-items:center;gap:.45rem;
     padding:.28rem .55rem;border-radius:999px;
@@ -1586,7 +1599,7 @@ def render_floating_menu():
 /* ===== Floating Menu (Hub) ===== */
 .hub-float-wrap{
   position: fixed;
-  top: 0.75rem;
+  top: 3.1rem;
   left: 0.65rem;
   z-index: 2147483647;
   font-family: inherit;
