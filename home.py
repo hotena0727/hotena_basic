@@ -1,7 +1,7 @@
 # home.py
 from __future__ import annotations
 
-BUILD_STAMP = 'v40-clean-rebuild-goalgear-uc 2026-02-20 KST (+09:00)'
+BUILD_STAMP = 'v41-homehub-gear-under-cards-clean 2026-02-20 KST (+09:00)'
 
 from pathlib import Path
 import os
@@ -853,12 +853,10 @@ def render_home_dashboard(sb_authed, user):
     st.markdown(rows_html, unsafe_allow_html=True)
 
 # ---- goal settings (under the 3 cards) ----
-st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
-
+st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 if "show_goal_settings" not in st.session_state:
     st.session_state["show_goal_settings"] = False
 
-# right-aligned gear button
 _gs1, _gs2 = st.columns([1, 0.18], gap="small")
 with _gs2:
     if st.button("⚙️", key="hub_goal_gear_uc", help="루틴 목표 수정", use_container_width=True):
@@ -910,7 +908,6 @@ if st.session_state.get("show_goal_settings", False):
         st.query_params["p"] = rec_kind
         st.rerun()
 
-    # ---- goal settings (compact expander) ----
     if st.session_state.get("show_goal_settings", False):
         with st.expander("루틴 목표 수정", expanded=True):
             new_goal = st.number_input(
