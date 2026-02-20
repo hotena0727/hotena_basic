@@ -737,34 +737,12 @@ def render_floating_menu():
 
 
 def render_floating_quick_actions(active_page: str):
-    """✅ Bottom-right quick actions (consistent across pages)
-    - Top: scroll to top (JS)
-    - Talk: Next question (via query param act=next)
-    - Uses same queryparam base (rt/at) to preserve login persistence.
+    """✅ Bottom-right quick action (consistent across pages)
+    - Only: Scroll to top
+    - Rendered from home.py so every page shares the exact same position/style.
     """
-    try:
-        rt_enc = st.query_params.get("rt", "")
-        at_enc = st.query_params.get("at", "")
-    except Exception:
-        rt_enc, at_enc = "", ""
-
-    def _q(s: str) -> str:
-        try:
-            import urllib.parse
-            return urllib.parse.quote(s, safe="") if s else ""
-        except Exception:
-            return s or ""
-
-    base = ""
-    if rt_enc:
-        base += "rt=" + _q(rt_enc) + "&"
-    if at_enc:
-        base += "at=" + _q(at_enc) + "&"
-
-    href_next = "?" + base + "p=talk&act=next"
-
     html = """<style>
-/* ===== Floating Quick Actions ===== */
+/* ===== Floating Quick Action (Top) ===== */
 .hub-quick-wrap{
   position: fixed;
   right: 14px;
@@ -789,18 +767,14 @@ def render_floating_quick_actions(active_page: str):
   color: rgba(20,20,20,0.95);
   cursor: pointer;
 }
-.hub-quick-btn:active{
-  transform: translateY(1px);
-}
+.hub-quick-btn:active{ transform: translateY(1px); }
 @media (min-width: 801px){
   .hub-quick-wrap{ bottom: 18px; }
 }
 </style>
 <div class="hub-quick-wrap">
-  __NEXT_BTN__
   <button class="hub-quick-btn" id="hubTopBtn" title="맨 위로">⬆︎</button>
 </div>
-
 <script>
 (function(){
   const topBtn = document.getElementById("hubTopBtn");
@@ -811,15 +785,10 @@ def render_floating_quick_actions(active_page: str):
 })();
 </script>
 """
-
-    next_btn = ""
-    if active_page == "talk":
-        next_btn = f'<a class="hub-quick-btn" href="{href_next}" target="_self" title="다음 문제">▶︎</a>'
-
-    html = html.replace("__NEXT_BTN__", next_btn)
     st.markdown(html, unsafe_allow_html=True)
 
-def render_plan_pill():
+def render_plan_pill(
+):
     plan = (st.session_state.get("user_plan") or "free").lower()
     txt = "✨ PRO 이용 중입니다" if plan == "pro" else "🆓 FREE 이용 중"
     st.markdown(
@@ -1467,6 +1436,3 @@ elif page == "talk":
     run_script("talk.py")
 else:
     st.info("상단 메뉴에서 원하는 항목을 선택하세요.")
-
-# ✅ Quick actions (bottom-right)
-render_floating_quick_actions(active_page=page)
