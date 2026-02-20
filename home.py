@@ -726,17 +726,30 @@ def render_home_dashboard(sb_authed, user):
   .h-cta{margin-top:.20rem;margin-bottom:.20rem;}
   .h-cta b{font-size:1.0rem;}
 
-  .hub-msgbox{
-    margin-top:.10rem;
-    margin-bottom:.38rem;
-    padding:0.58rem 0.78rem;
-    border-radius:1.0rem;
-    border:1px solid rgba(255,255,255,0.14);
-    background:rgba(255,255,255,0.04);
-    font-weight:750;
-    font-size:0.98rem;
-    line-height:1.35;
+  .hub-cta-card{
+  margin-top:.10rem;
+  padding:0.78rem 0.86rem;
+  border-radius:1.15rem;
+  border:1px solid rgba(0,0,0,0.06);
+  background:rgba(0,0,0,0.02);
+  box-shadow:0 10px 24px rgba(0,0,0,0.06);
+}
+.hub-msgbox{
+  margin:0 0 .55rem 0;
+  padding:0;
+  border:none;
+  background:transparent;
+  font-weight:750;
+  font-size:0.98rem;
+  line-height:1.35;
+}
+@media (prefers-color-scheme: dark){
+  .hub-cta-card{
+    border:1px solid rgba(255,255,255,0.12);
+    background:rgba(255,255,255,0.05);
+    box-shadow:0 10px 24px rgba(0,0,0,0.35);
   }
+}
 
   /* gear icon-only + CTA link button */
   .hub-gear-row{display:flex;justify-content:flex-end;line-height:1;margin:.05rem 0 .35rem;}
@@ -756,20 +769,35 @@ def render_home_dashboard(sb_authed, user):
   .hub-gear:hover{opacity:0.85;}
 
   .hub-cta-btn,
+.hub-cta-btn:visited,
+.hub-cta-btn:hover,
+.hub-cta-btn:active{
+  display:flex;align-items:center;justify-content:center;gap:.45rem;
+  width:100%;
+  padding:0.78rem 0.95rem;
+  border-radius:1.05rem;
+  text-decoration:none !important;
+  border:1px solid rgba(0,0,0,0.10);
+  background:rgba(255,255,255,0.92);
+  font-weight:800;
+  font-size:1.03rem;
+  color:rgba(0,0,0,0.88);
+  transition:transform .06s ease, box-shadow .12s ease, background .12s ease;
+}
+.hub-cta-btn:hover{ transform: translateY(-1px); box-shadow:0 10px 22px rgba(0,0,0,0.10); }
+.hub-cta-emoji{ font-size:1.05rem; line-height:1; }
+.hub-cta-text{ line-height:1; }
+@media (prefers-color-scheme: dark){
+  .hub-cta-btn,
   .hub-cta-btn:visited,
   .hub-cta-btn:hover,
   .hub-cta-btn:active{
-    display:flex;align-items:center;justify-content:center;
-    width:100%;
-    padding:0.72rem 0.9rem;
-    border-radius:1.0rem;
-    text-decoration:none !important;
     border:1px solid rgba(255,255,255,0.16);
-    background:rgba(255,255,255,0.05);
-    font-weight:700;
-    font-size:1.02rem;
-    color:inherit;
+    background:rgba(255,255,255,0.08);
+    color:rgba(255,255,255,0.92);
   }
+  .hub-cta-btn:hover{ box-shadow:0 10px 22px rgba(0,0,0,0.45); }
+}
   .hub-cta-btn:hover{background:rgba(255,255,255,0.08);}
 
 </style>
@@ -943,8 +971,6 @@ def render_home_dashboard(sb_authed, user):
     main_col, gear_col = st.columns([0.82, 0.18], gap="small")
 
     with main_col:
-        st.markdown(f"<div class='hub-msgbox'>{msg}</div>", unsafe_allow_html=True)
-
         from urllib.parse import urlencode
         _qp2 = {}
         try:
@@ -958,10 +984,20 @@ def render_home_dashboard(sb_authed, user):
             pass
         _qp2["p"] = rec_kind
         _qs2 = urlencode(_qp2, doseq=True)
+
         st.markdown(
-            f"<a class='hub-cta-btn' href='?{_qs2}' title='{rec_label} 시작'>{rec_emoji} {rec_label} 시작</a>",
+            f"""
+            <div class='hub-cta-card'>
+              <div class='hub-msgbox'>{msg}</div>
+              <a class='hub-cta-btn' href='?{_qs2}' title='{rec_label} 시작'>
+                <span class='hub-cta-emoji'>{rec_emoji}</span>
+                <span class='hub-cta-text'>{rec_label} 시작</span>
+              </a>
+            </div>
+            """,
             unsafe_allow_html=True,
         )
+
 
     with gear_col:
         # icon-only gear (no underline / no box)
