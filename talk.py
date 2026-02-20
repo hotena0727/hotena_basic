@@ -14,6 +14,63 @@ from supabase import create_client
 # ============================================================
 # ✅ Settings
 # ============================================================
+# ============================================================
+# ✅ HOTENA_FLOAT_TOP_BTN + SCROLL TOP (bottom-right)
+# - keeps the original "우측 하단 맨위로" UX
+# ============================================================
+def hotena_scroll_top_now(smooth: bool = True):
+    components.html(
+        f"<script>window.scrollTo({{top:0, behavior:'{'smooth' if smooth else 'instant'}'}});</script>",
+        height=0
+    )
+
+def render_float_top_button():
+    components.html("""
+    <script>
+    (function(){
+      if (window.__hotenaFloatTopMounted) return;
+      window.__hotenaFloatTopMounted = true;
+
+      const btn = document.createElement('button');
+      btn.id = 'hotena-float-top';
+      btn.innerHTML = '⬆︎';
+      btn.setAttribute('title','맨 위로');
+      btn.style.cssText = `
+        position: fixed;
+        right: 14px;
+        bottom: 84px;
+        z-index: 2147483000;
+        width: 46px;
+        height: 46px;
+        border-radius: 999px;
+        border: 1px solid rgba(0,0,0,0.12);
+        background: rgba(255,255,255,0.92);
+        backdrop-filter: blur(10px);
+        box-shadow: 0 10px 26px rgba(0,0,0,0.12);
+        font-size: 18px;
+        cursor: pointer;
+        display: none;
+      `;
+      btn.onclick = () => window.scrollTo({top:0, behavior:'smooth'});
+      document.body.appendChild(btn);
+
+      const onScroll = () => {
+        const y = window.scrollY || document.documentElement.scrollTop || 0;
+        btn.style.display = (y > 400) ? 'block' : 'none';
+      };
+      window.addEventListener('scroll', onScroll, {passive:true});
+      onScroll();
+    })();
+    </script>
+    """, height=0)
+
+# mount once per render
+render_float_top_button()
+
+# one-shot auto scroll to top (for "다음 문제" UX)
+if st.session_state.pop("talk_scroll_top_once", False):
+    hotena_scroll_top_now(smooth=False)
+
 NS = "talk"
 SET_LEN = 10
 
@@ -536,96 +593,58 @@ def finalize_set_if_ready():
     if callable(rec):
         rec("talk", score, len(qids))
 
-    
     st.session_state[done_key] = True
 
-    acc = int(round((score / len(qids)) * 100)) if len(qids) else 0
-    wrong_qids = [str(w.get("qid")) for w in wrong_list if w.get("qid") is not None]
+    st.balloons()
+    st.success(f"🎉 10문제 완주! 점수: {score}/{len(qids)}  ·  오답: {wrong_count}")
 
+
+finalize_set_if_ready()
+
+# ============================================================
+# ✅ HOTENA_STICKY_NEXT_BAR (A): post-submit quick actions
+# - 녹음/말하기 후, 스크롤 올리지 않고 바로 다음 문제로
+# ============================================================
+_submitted = bool(st.session_state.get("talk_submitted", False))
+if _submitted:
     st.markdown(
-        f"""
-<div style="border:1px solid rgba(0,0,0,0.08); border-radius:16px; padding:14px 14px 12px;
-            background: rgba(0,0,0,0.02); box-shadow:0 8px 24px rgba(0,0,0,0.04);">
-  <div style="font-size:1.2rem; font-weight:900; margin-bottom:6px;">🎉 1세트 완료</div>
-  <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-    <div style="padding:6px 10px; border-radius:999px; background:#fff; border:1px solid rgba(0,0,0,0.08); font-weight:800;">
-      점수 {score}/{len(qids)}
-    </div>
-    <div style="padding:6px 10px; border-radius:999px; background:#fff; border:1px solid rgba(0,0,0,0.08); font-weight:800;">
-      정답률 {acc}%
-    </div>
-    <div style="padding:6px 10px; border-radius:999px; background:#fff; border:1px solid rgba(0,0,0,0.08);">
-      오답 {len(wrong_qids)}개
-    </div>
-  </div>
-</div>
-""",
+        """
+<style>
+.hotena-nextbar{
+  position: fixed;
+  left: 0; right: 0;
+  bottom: 56px; /* home.py 하단 네비 위 */
+  z-index: 2147482500;
+  padding: 10px 12px;
+  background: rgba(255,255,255,0.92);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid rgba(0,0,0,0.08);
+}
+</style>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        "<div class='hotena-nextbar'><div style='max-width:860px;margin:0 auto;"
+        "display:flex;gap:10px;align-items:center;'>"
+        "<div style='flex:1;font-weight:700;'>말하기 완료 → 다음 문제</div>"
+        "</div></div>",
         unsafe_allow_html=True,
     )
 
-    if acc == 100:
-        st.success("완벽합니다. 이 흐름 그대로 한 세트만 더 🔥")
-    elif acc >= 80:
-        st.info("좋습니다. 오답만 한 번 더 잡고 넘어가면 더 탄탄해져요.")
-    else:
-        st.warning("괜찮습니다. 오답만 한 번 돌리면 금방 올라갑니다.")
-
-    if wrong_qids:
-        with st.expander("오답 빠른 확인", expanded=False):
-            for n, q in enumerate(wrong_qids, 1):
-                rr = pool_df[pool_df["qid"].astype(str) == str(q)]
-                st.markdown(f"**{n}. QID {q}**")
-                if len(rr) > 0:
-                    r0 = rr.iloc[0].to_dict()
-                    partner = str(r0.get("partner_jp","")).strip()
-                    ans = str(r0.get("answer_jp","")).strip()
-                    if partner:
-                        st.write(f"상대: {partner}")
-                    if ans:
-                        st.write(f"정답: {ans}")
-
-    r1, r2, r3 = st.columns([0.42, 0.33, 0.25])
-    with r1:
-        if st.button("➡️ 다음 세트", use_container_width=True, type="primary", key=f"{NS}_cta_nextset"):
-            reset_set()
-            st.rerun()
-    with r2:
-        if st.button("🔁 오답만", use_container_width=True, disabled=(len(wrong_qids)==0), key=f"{NS}_cta_wrongsonly"):
-            if wrong_qids:
-                st.session_state[f"{NS}_set_qids"] = wrong_qids
-                st.session_state[f"{NS}_idx"] = 0
-                st.session_state[f"{NS}_answers"] = {qid: {"selected": None, "ok": None, "spoken": False} for qid in wrong_qids}
-                for q in wrong_qids:
-                    st.session_state.pop(f"{NS}_submitted_{q}", None)
-                    st.session_state.pop(f"{NS}_selected_{q}", None)
-                    st.session_state.pop(f"{NS}_opts_{q}", None)
-                st.session_state.pop(f"{NS}_set_done", None)
-            st.rerun()
-    with r3:
-        if st.button("🏠 홈", use_container_width=True, key=f"{NS}_cta_home"):
-            try:
-                st.query_params["p"] = "home"
-            except Exception:
-                pass
-            st.rerun()
-
-    st.markdown("### 🔁 다음 훈련 추천")
-    c1, c2 = st.columns(2)
-    with c1:
-        if st.button("📘 단어 1세트", use_container_width=True, key=f"{NS}_cta_word"):
-            try:
-                st.query_params["p"] = "word"
-            except Exception:
-                pass
-            st.rerun()
+    c1, c2 = st.columns([0.68, 0.32])
     with c2:
-        if st.button("🈶 한자 1세트", use_container_width=True, key=f"{NS}_cta_kanji"):
-            try:
-                st.query_params["p"] = "kanji"
-            except Exception:
-                pass
+        if st.button("➡️ 다음 문제", use_container_width=True, key="talk_next_btn"):
+            st.session_state["talk_scroll_top_once"] = True
+            # idx 키 자동 탐색
+            for k in [f"{NS}_idx", "talk_idx", "idx"]:
+                if k in st.session_state and isinstance(st.session_state.get(k), int):
+                    st.session_state[k] += 1
+                    break
+            st.session_state["talk_submitted"] = False
             st.rerun()
+    with c1:
+        if st.button("⬆️ 맨 위로", use_container_width=True, key="talk_top_btn2"):
+            hotena_scroll_top_now(smooth=True)
 
-    st.stop()
-
-finalize_set_if_ready()
+# HOTENA_STICKY_NEXT_BAR end
