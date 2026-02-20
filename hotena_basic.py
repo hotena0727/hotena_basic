@@ -265,24 +265,6 @@ def render_pattern_cards():
 .pat-sub{ opacity:.75; font-size:13px; margin-top:6px; }
 .pat-ex{ margin-top:10px; font-size:13px; line-height:1.55; }
 .pat-ex b{ font-weight:900; }
-
-
-/* ==========================================================
-   ✅ GLOBAL Divider Tight (Quiz header spacing)
-   - Some dividers are not wrapped with .tight-divider
-   ========================================================== */
-div[data-testid="stDivider"]{ margin:0 !important; padding:0 !important; }
-div[data-testid="stDivider"] hr{ margin:0 !important; padding:0 !important; }
-section.main hr{ margin-top:0 !important; margin-bottom:2px !important; }
-
-/* If a divider sits right before a title/headbar, remove extra gap */
-section.main hr + div,
-section.main hr + div [class*="headtitle"],
-section.main hr + div [class*="headbar"]{
-  margin-top:0 !important;
-  padding-top:0 !important;
-}
-
 </style>
 """, unsafe_allow_html=True)
 
@@ -442,8 +424,33 @@ div.stButton > button{
 
 /* divider 간격(래퍼로만) */
 .tight-divider hr{
-  margin: 6px 0 10px 0 !important;
+  /* ✅ divider ↔ title gap 최소화 */
+  margin: 0px 0 2px 0 !important;
 }
+
+/* ✅ Streamlit divider 기본 여백도 전역 최소화 */
+div[data-testid="stDivider"]{
+  margin: 0 !important;
+  padding: 0 !important;
+}
+div[data-testid="stDivider"] > hr{
+  margin: 0px 0 2px 0 !important;
+}
+
+/* ✅ divider 바로 다음 요소(타이틀/컨테이너) 위 여백 제거 */
+div[data-testid="stDivider"] + div{
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+}
+div[data-testid="stDivider"] + div *:first-child{
+  margin-top: 0 !important;
+}
+
+/* ✅ section 간 기본 margin이 남는 케이스 방어 */
+div[data-testid="stElementContainer"]{
+  margin-top: 0 !important;
+}
+
 
 /* Q번호 아래 간격 축소 */
 div[data-testid="stMarkdownContainer"] h3{
