@@ -31,17 +31,6 @@ from pathlib import Path
 import random
 import pandas as pd
 import streamlit as st
-
-# ============================================================
-# ✅ HUB 진입 시 '보기 선택됨' 초기화 (key를 바꾸는 방식)
-# - 라디오/선택 위젯이 이전 값으로 고정되는 현상을 방지
-# ============================================================
-if st.session_state.get("_entered_word"):
-    # 가장 안전: 문제 위젯 key를 바꾸도록 버전만 올린다.
-    st.session_state["quiz_version"] = int(st.session_state.get("quiz_version", 0)) + 1
-    st.session_state["_entered_word"] = False
-
-
 import unicodedata
 from supabase import create_client
 from streamlit_cookies_manager import EncryptedCookieManager
@@ -57,23 +46,19 @@ import html
 # ============================================================
 # ✅ Page Config + Paths
 # ============================================================
-if not st.session_state.get('_page_config_set'):
-    st.set_page_config(
+st.set_page_config(
     page_title="왕초보탈출 하테나일본어",
     page_icon="static/icon-192.png",   # 또는 "🟦"
     layout="centered",
 )
 
 
-
-    st.session_state['_page_config_set'] = True
 # ============================================================
 # ✅ [HOTFIX] Disable onboarding ("60초 이용안내") block entirely
 # - In case any legacy UI is still rendered, forcibly hide/remove it.
 # ============================================================
 try:
-    components.html(
-        """
+    components.html("""
 <script>
 (function(){
   const kill = () => {
@@ -3741,7 +3726,7 @@ if st.session_state.submitted:
             textwrap.dedent(f"""
 {STYLE}
 {html_block}
-"""),
+""", height=42),
             height=h,
         )
 

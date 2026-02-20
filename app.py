@@ -2095,18 +2095,6 @@ if streak is not None:
 # ============================================================
 if "quiz_version" not in st.session_state:
     st.session_state.quiz_version = 0
-
-
-# ============================================================
-# ✅ HUB 진입 시: 보기 선택(라디오) 초기화 (한자)
-# ============================================================
-if st.session_state.get("_entered_kanji"):
-    st.session_state.quiz_version = int(st.session_state.get("quiz_version", 0)) + 1
-    for k in ("submitted", "is_graded", "answers"):
-        if k in st.session_state:
-            st.session_state.pop(k, None)
-    st.session_state["_entered_kanji"] = False
-
 if "submitted" not in st.session_state:
     st.session_state.submitted = False
 if "wrong_list" not in st.session_state:
