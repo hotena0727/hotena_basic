@@ -113,15 +113,23 @@ header[data-testid="stHeader"]{
 
 /* Container spacing */
 div[data-testid="stAppViewContainer"] .block-container{
-  padding-top: 0.12rem !important;
+  padding-top: 0.25rem !important;
   padding-bottom: 5.25rem !important; /* bottom breathing room for mobile */
+}
+
+/* Compact divider used under training header */
+.hub-divider{
+  height: 1px;
+  background: rgba(0,0,0,.10);
+  margin: 6px 0 2px 0;
+  border-radius: 999px;
 }
 
 /* Headlines: tighter */
 div[data-testid="stAppViewContainer"] h1,
 div[data-testid="stAppViewContainer"] h2{
-  margin-top: 0.06rem !important;
-  margin-bottom: 0.42rem !important;
+  margin-top: 0.15rem !important;
+  margin-bottom: 0.55rem !important;
 }
 
 /* Defensive: if a child adds negative margins / weird offsets */
@@ -1798,10 +1806,10 @@ def render_training_header(sb_authed, user, kind: str, title: str, subtitle: str
 
     st.markdown(
         f"""
-<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:0.75rem;margin-top:0.25rem;margin-bottom:0.45rem;">
+<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:0.75rem;margin-top:0.10rem;margin-bottom:0.18rem;">
   <div>
     <div style="font-size:1.35rem;font-weight:800;line-height:1.2;">{title}</div>
-    <div style="opacity:0.72;font-size:0.95rem; margin-top:0.15rem;">{subtitle}</div>
+    <div style="opacity:0.72;font-size:0.95rem; margin-top:0.06rem;">{subtitle}</div>
   </div>
   <div style="text-align:right;">
     <div style="display:inline-flex;align-items:center;gap:.35rem;padding:.22rem .55rem;border-radius:999px;border:1px solid rgba(0,0,0,.10);background:rgba(0,0,0,.02);font-size:.88rem;">
@@ -1816,7 +1824,7 @@ def render_training_header(sb_authed, user, kind: str, title: str, subtitle: str
     # compact progress
     st.progress(pct)
     st.caption(f"오늘 완료: {done_sets_total}/{goal_sets}세트 · 현재 페이지: {kind}")
-    st.markdown("---")
+    st.markdown('<div class="hub-divider"></div>', unsafe_allow_html=True)
 
 def run_script(filename: str):
     path = (BASE_DIR / filename).resolve()
