@@ -54,6 +54,46 @@ st.set_page_config(
 
 
 # ============================================================
+# ✅ [TOP GAP KILL SWITCH] Remove top padding/margins (Cloud Run entry: hotena_basic.py)
+# - Only affects top spacing; does not touch app logic.
+# ============================================================
+st.markdown("""
+<style>
+/* Streamlit top/header areas */
+header[data-testid="stHeader"]{display:none !important; height:0 !important; min-height:0 !important;}
+div[data-testid="stToolbar"]{display:none !important; height:0 !important;}
+div[data-testid="stDecoration"]{display:none !important; height:0 !important;}
+
+/* Main containers */
+div[data-testid="stAppViewContainer"] .block-container{
+  padding-top: 0rem !important;
+  margin-top: 0rem !important;
+}
+section.main > div{
+  padding-top: 0rem !important;
+  margin-top: 0rem !important;
+}
+div[data-testid="stMain"]{
+  padding-top: 0rem !important;
+  margin-top: 0rem !important;
+}
+div[data-testid="stMainBlockContainer"]{
+  padding-top: 0rem !important;
+  margin-top: 0rem !important;
+}
+.block-container > div:first-child{
+  margin-top: 0rem !important;
+  padding-top: 0rem !important;
+}
+
+/* If any markdown element container adds top spacing */
+div[data-testid="stElementContainer"]{ margin-top: 0rem !important; }
+</style>
+""", unsafe_allow_html=True)
+
+
+
+# ============================================================
 # ✅ [HOTFIX] Disable onboarding ("60초 이용안내") block entirely
 # - In case any legacy UI is still rendered, forcibly hide/remove it.
 # ============================================================
@@ -3799,8 +3839,4 @@ if st.session_state.get("submitted", False):
     show_naver_talk = (SHOW_NAVER_TALK == "N") or is_admin()
     if show_naver_talk:
         render_naver_talk()
-
-
-
-
 
