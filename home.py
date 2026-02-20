@@ -89,17 +89,13 @@ st.markdown(
    ========================================================== */
 
 header[data-testid="stHeader"]{
-  display:none !important;
-  height:0 !important;
-  min-height:0 !important;
+  height: auto !important;
+  min-height: 3.25rem !important;
 }
-
-div[data-testid="stToolbar"]{display:none !important; height:0 !important;}
-div[data-testid="stDecoration"]{display:none !important; height:0 !important;}
 
 /* Container spacing */
 div[data-testid="stAppViewContainer"] .block-container{
-  padding-top: 0rem !important;
+  padding-top: 0.25rem !important;
   padding-bottom: 5.25rem !important; /* bottom breathing room for mobile */
 }
 
@@ -774,20 +770,49 @@ def render_float_top_anchor_button():
 
 def render_plan_pill():
     plan = (st.session_state.get("user_plan") or "free").lower()
-    txt = "✨ Pro" if plan == "pro" else "🆓 Free"
+    label = "✨ Pro" if plan == "pro" else "🆓 Free"
+
+    # ✅ compact "pill button" styling (scoped)
     st.markdown(
-        f"""
-<div style="display:flex;justify-content:flex-start;margin-top:0.15rem;margin-bottom:0.2rem;">
-  <div style="
-    display:inline-flex;align-items:center;gap:.45rem;
-    padding:.28rem .55rem;border-radius:999px;
-    border:1px solid rgba(0,0,0,.10);
-    font-size:.86rem;opacity:.92;background:rgba(0,0,0,.02);
-  ">{txt}</div>
-</div>
+        """
+<style>
+.plan-pill-wrap div[data-testid="stButton"]{width:auto;}
+.plan-pill-wrap div[data-testid="stButton"] > button{
+  padding: 0.18rem 0.55rem !important;
+  border-radius: 999px !important;
+  font-size: 0.86rem !important;
+  line-height: 1.1 !important;
+  min-height: 0 !important;
+  height: 28px !important;
+  border: 1px solid rgba(0,0,0,.10) !important;
+}
+.plan-pill-wrap div[data-testid="stButton"] > button:hover{
+  border-color: rgba(0,0,0,.18) !important;
+}
+</style>
 """,
         unsafe_allow_html=True,
     )
+
+    if "_plan_help_open" not in st.session_state:
+        st.session_state["_plan_help_open"] = False
+
+    st.markdown('<div class="plan-pill-wrap">', unsafe_allow_html=True)
+    if st.button(label, key="plan_pill_btn", help="플랜 안내 보기", type="secondary"):
+        st.session_state["_plan_help_open"] = not st.session_state["_plan_help_open"]
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    if st.session_state.get("_plan_help_open"):
+        with st.expander("플랜 안내", expanded=True):
+            st.markdown(
+                """
+- **Free**: 기본 기능 체험(일부 제한 가능)
+- **Pro**: 무제한/추가기능(오답노트 전체, 무제한 문제, 추가 콘텐츠 등)
+
+※ 실제 잠금/제한은 운영 정책에 따라 바뀔 수 있어요.
+"""
+            )
+
 
 def render_daily_goal_home(sb_authed, user_id: str):
     """Home dashboard: daily goal (sets-based). 1 set == 10 questions (quiz_len)."""
