@@ -18,39 +18,6 @@ NS = "talk"
 QUIZ_LEN = 10
 
 # ============================================================
-# ✅ Hub action handler (from home.py floating quick actions)
-# - ?p=talk&act=next : go to next question and scroll to top
-# ============================================================
-try:
-    _act = st.query_params.get("act", "")
-except Exception:
-    _act = ""
-
-if _act == "next":
-    # clear act first to avoid loop
-    try:
-        del st.query_params["act"]
-    except Exception:
-        try:
-            st.query_params["act"] = ""
-        except Exception:
-            pass
-
-    # advance idx if possible
-    for k in [f"{NS}_idx", "talk_idx", "idx"]:
-        if k in st.session_state and isinstance(st.session_state.get(k), int):
-            st.session_state[k] += 1
-            break
-
-    # reset submit flag so the next question shows normally
-    st.session_state["talk_submitted"] = False
-
-    # scroll to top after rerun
-    components.html("<script>window.scrollTo({top:0, behavior:'instant'});</script>", height=0)
-    st.rerun()
-
-
-# ============================================================
 # ✅ Session gate (공통 로그인은 home.py에서)
 # ============================================================
 if "user" not in st.session_state:

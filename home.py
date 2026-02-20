@@ -1,7 +1,7 @@
 # home.py
 from __future__ import annotations
 
-BUILD_STAMP = 'v54-quickactions 2026-02-20 KST (+09:00)'
+BUILD_STAMP = 'v32-uiAB 2026-02-20 KST (+09:00)'
 
 from pathlib import Path
 import os
@@ -736,59 +736,134 @@ def render_floating_menu():
     st.markdown(html, unsafe_allow_html=True)
 
 
-def render_floating_quick_actions(active_page: str):
-    """✅ Bottom-right quick action (consistent across pages)
-    - Only: Scroll to top
-    - Rendered from home.py so every page shares the exact same position/style.
-    """
-    html = """<style>
-/* ===== Floating Quick Action (Top) ===== */
-.hub-quick-wrap{
-  position: fixed;
-  right: 14px;
-  bottom: 84px; /* above bottom nav */
-  z-index: 2147483500;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.hub-quick-btn{
-  width: 46px;
-  height: 46px;
-  border-radius: 999px;
-  border: 1px solid rgba(0,0,0,0.12);
-  background: rgba(255,255,255,0.92);
-  backdrop-filter: blur(10px);
-  box-shadow: 0 10px 26px rgba(0,0,0,0.12);
-  display: grid;
-  place-items: center;
-  font-size: 18px;
-  text-decoration: none;
-  color: rgba(20,20,20,0.95);
-  cursor: pointer;
-}
-.hub-quick-btn:active{ transform: translateY(1px); }
-@media (min-width: 801px){
-  .hub-quick-wrap{ bottom: 18px; }
-}
-</style>
-<div class="hub-quick-wrap">
-  <button class="hub-quick-btn" id="hubTopBtn" title="맨 위로">⬆︎</button>
-</div>
+
+
+def render_floating_scroll_top():
+    components.html(
+        """
 <script>
 (function(){
-  const topBtn = document.getElementById("hubTopBtn");
-  if (!topBtn) return;
-  topBtn.addEventListener("click", function(){
-    window.scrollTo({top:0, behavior:"smooth"});
-  });
+  const doc = window.parent.document;
+  if (doc.getElementById("__FAB_TOP__")) return;
+
+  const btn = doc.createElement("button");
+  btn.id = "__FAB_TOP__";
+  btn.textContent = "↑";
+
+  btn.style.position = "fixed";
+  btn.style.right = "14px";
+  btn.style.zIndex = "2147483647";
+  btn.style.width = "46px";
+  btn.style.height = "46px";
+  btn.style.borderRadius = "999px";
+  btn.style.border = "1px solid rgba(120,120,120,0.25)";
+  btn.style.background = "rgba(0,0,0,0.55)";
+  btn.style.color = "#fff";
+  btn.style.fontSize = "18px";
+  btn.style.fontWeight = "900";
+  btn.style.boxShadow = "0 10px 22px rgba(0,0,0,0.25)";
+  btn.style.cursor = "pointer";
+  btn.style.userSelect = "none";
+  btn.style.display = "flex";
+  btn.style.alignItems = "center";
+  btn.style.justifyContent = "center";
+  btn.style.opacity = "0";
+
+  const applyDeviceVisibility = () => {
+    try {
+      const w = window.parent.innerWidth || window.innerWidth;
+      if (w >= 801) btn.style.display = "none";
+      else btn.style.display = "flex";
+    } catch(e) {}
+  };
+
+  const goTop = () => {
+    try {
+      const top = doc.getElementById("__TOP__");
+      if (top) top.scrollIntoView({behavior:"smooth", block:"start"});
+
+      const targets = [
+        doc.querySelector('[data-testid="stAppViewContainer"]'),
+        doc.querySelector('[data-testid="stMain"]'),
+        doc.querySelector('section.main'),
+        doc.documentElement,
+        doc.body
+      ].filter(Boolean);
+
+      targets.forEach(t => {
+        if (t && typeof t.scrollTo === "function") t.scrollTo({top:0, left:0, behavior:"smooth"});
+        if (t) t.scrollTop = 0;
+      });
+
+      window.parent.scrollTo(0,0);
+      window.scrollTo(0,0);
+    } catch(e) {}
+  };
+
+  btn.addEventListener("click", goTop);
+
+  const mount = () => doc.querySelector('[data-testid="stAppViewContainer"]') || doc.body;
+
+  const BASE = 18;
+  const EXTRA = 34;
+
+  const reposition = () => {
+    try {
+      const vv = window.parent.visualViewport || window.visualViewport;
+      const innerH = window.parent.innerHeight || window.innerHeight;
+      const hiddenBottom = vv ? Math.max(0, innerH - vv.height - (vv.offsetTop || 0)) : 0;
+      btn.style.bottom = (BASE + EXTRA + hiddenBottom) + "px";
+      btn.style.opacity = "1";
+    } catch(e) {
+      btn.style.bottom = "220px";
+      btn.style.opacity = "1";
+    }
+    applyDeviceVisibility();
+  };
+
+  const tryAttach = (n=0) => {
+    const root = mount();
+    if (!root) {
+      if (n < 30) return setTimeout(() => tryAttach(n+1), 50);
+      return;
+    }
+    root.appendChild(btn);
+    reposition();
+    setTimeout(reposition, 50);
+    setTimeout(reposition, 200);
+    setTimeout(reposition, 600);
+  };
+
+  tryAttach();
+  window.parent.addEventListener("resize", reposition, {passive:true});
+
+  const vv = window.parent.visualViewport || window.visualViewport;
+  if (vv) {
+    vv.addEventListener("resize", reposition, {passive:true});
+    vv.addEventListener("scroll", reposition, {passive:true});
+  }
 })();
 </script>
-"""
-    st.markdown(html, unsafe_allow_html=True)
+        """,
+        height=1,
+    )
 
-def render_plan_pill(
-):
+render_floating_scroll_top()
+
+if st.session_state.get("_scroll_top_once"):
+    st.session_state["_scroll_top_once"] = False
+    st.session_state["_scroll_top_nonce"] = st.session_state.get("_scroll_top_nonce", 0) + 1
+    scroll_to_top(nonce=st.session_state["_scroll_top_nonce"])
+
+# ============================================================
+# ✅ Cookies + Supabase (Cloud Run env + Streamlit secrets 겸용)
+# ============================================================
+import os
+import streamlit as st
+from streamlit_cookies_manager import EncryptedCookieManager
+from supabase import create_client
+
+def render_plan_pill():
     plan = (st.session_state.get("user_plan") or "free").lower()
     txt = "✨ PRO 이용 중입니다" if plan == "pro" else "🆓 FREE 이용 중"
     st.markdown(
