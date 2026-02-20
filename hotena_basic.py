@@ -1,3 +1,5 @@
+HUB_MODE = st.session_state.get('HUB_MODE', False)
+
 # ============================================================
 # ✅ 왕초보 탈출 하테나일본어 (단어 앱) - 전체 복붙용 단일 파일
 # - 품사 선택 + 유형 선택(발음/뜻/한→일)
@@ -46,11 +48,13 @@ import html
 # ============================================================
 # ✅ Page Config + Paths
 # ============================================================
-st.set_page_config(
-    page_title="왕초보탈출 하테나일본어",
-    page_icon="static/icon-192.png",   # 또는 "🟦"
-    layout="centered",
-)
+if not st.session_state.get("_page_config_set"):
+    st.set_page_config(
+        page_title="왕초보탈출 하테나일본어",
+        page_icon="static/icon-192.png",
+        layout="centered",
+    )
+    st.session_state["_page_config_set"] = True
 
 
 # ============================================================
@@ -58,7 +62,8 @@ st.set_page_config(
 # - In case any legacy UI is still rendered, forcibly hide/remove it.
 # ============================================================
 try:
-    components.html("""
+    components.html(
+        """
 <script>
 (function(){
   const kill = () => {
@@ -3726,7 +3731,7 @@ if st.session_state.submitted:
             textwrap.dedent(f"""
 {STYLE}
 {html_block}
-""", height=42),
+"""),
             height=h,
         )
 
