@@ -1784,14 +1784,6 @@ def kill_top_gap_final():
     div[data-testid="stAppViewContainer"] .block-container{
       padding-top:0 !important; margin-top:0 !important;
     }
-
-    /* 마지막 최종 오버라이드에 추가 */
-    div[data-testid="stAppViewContainer"] h1,
-    div[data-testid="stAppViewContainer"] h2,
-    div[data-testid="stAppViewContainer"] h3,
-    div[data-testid="stAppViewContainer"] p {
-      margin-top: 0 !important;
-    }
     </style>
     """, unsafe_allow_html=True)
 
