@@ -1,7 +1,7 @@
 # home.py
 from __future__ import annotations
 
-BUILD_STAMP = 'v2+undercards-gear-stable 2026-02-20 KST (+09:00)'
+BUILD_STAMP = 'v41-homehub-gear-under-cards-clean 2026-02-20 KST (+09:00)'
 
 from pathlib import Path
 import os
@@ -873,7 +873,6 @@ if st.session_state.get("show_goal_settings", False):
             max_value=100,
             value=int(goal_sets),
             step=1,
-            key="hub_goal_sets_input",
         )
         csave, cclose = st.columns([1, 1], gap="small")
         with csave:
@@ -912,8 +911,6 @@ if st.session_state.get("show_goal_settings", False):
         st.session_state["p"] = rec_kind
         st.query_params["p"] = rec_kind
         st.rerun()
-
-    # ---- goal settings (compact expander) ----
 
 def summarize_attempts(attempts: list[dict]) -> dict:
     out = {
