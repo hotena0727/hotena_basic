@@ -1,7 +1,7 @@
 # home.py
 from __future__ import annotations
 
-BUILD_STAMP = 'v37-hotfix-only-dots3 2026-02-20 KST (+09:00)'
+BUILD_STAMP = 'v38-homehub-autoreset+motivation+levelbars 2026-02-20 KST (+09:00)'
 
 from pathlib import Path
 import os
@@ -529,6 +529,20 @@ def render_home_dashboard(sb_authed, user):
 
     daily_map = build_daily_sets_map(attempts_recent)
     kst_today = datetime.now(timezone(timedelta(hours=9))).date()
+# ---- daily auto reset marker (KST) ----
+# Attempts are fetched by date, so "reset" here means: when the date changes,
+# we clear any home-only caches and persist last_seen_date for consistency.
+last_seen = (progress_all.get("last_seen_date") or "")
+today_str = str(kst_today)
+if last_seen != today_str:
+    progress_all["last_seen_date"] = today_str
+    st.session_state["home_last_seen_date"] = today_str
+    try:
+        save_progress(sb_authed, user.id, progress_all)
+    except Exception:
+        # do not break UI if save fails
+        pass
+
     streak = calc_streak(daily_map, today=kst_today)
 
     progress_all = st.session_state.get("progress_all", {}) or {}
@@ -647,10 +661,41 @@ def render_home_dashboard(sb_authed, user):
 
   .h-cta{margin-top:.20rem;margin-bottom:.20rem;}
   .h-cta b{font-size:1.0rem;}
+/* ===== Level mini bars ===== */
+  .lv-wrap{
+    margin:.10rem 0 .42rem;
+    padding:.58rem .70rem;
+    border-radius:16px;
+    border:1px solid rgba(49,51,63,0.14);
+    background: rgba(255,255,255,0.02);
+    box-shadow: 0 9px 24px rgba(0,0,0,0.06);
+  }
+  .lv-title{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:.42rem;}
+  .lv-title b{font-size:.92rem;}
+  .lv-title span{font-size:.82rem;opacity:.68;}
+  .lv-row{display:grid;grid-template-columns:38px 1fr 30px;gap:.45rem;align-items:center;margin:.22rem 0;}
+  .lv-lab{font-size:.86rem;font-weight:800;opacity:.78;}
+  .lv-track{height:10px;border-radius:999px;background:rgba(0,0,0,0.07);overflow:hidden;border:1px solid rgba(0,0,0,0.05);}
+  .lv-fill{height:100%;border-radius:999px;background:rgba(46,124,246,0.55);}
+  .lv-val{font-size:.82rem;opacity:.70;text-align:right;}
 </style>
         """,
         unsafe_allow_html=True,
     )
+# ---- one-line motivation (stable per day) ----
+remaining_sets = max(0, goal_sets - done_total)
+messages = [
+    "오늘도 10문제면 충분해요. 가볍게 한 세트만.",
+    "완벽 말고, 이어가기. 오늘도 한 번만 눌러보세요.",
+    "하루 한 세트가 쌓이면, 실력이 됩니다.",
+    "짧게라도 괜찮아요. 지금 시작이 제일 쉬워요.",
+    "어제보다 1문제만 더. 그게 루틴이에요.",
+    "오늘의 성취는 ‘시작’에서 결정돼요.",
+]
+# deterministic pick by date (avoids changing every rerun)
+idx = (kst_today.toordinal() + (streak * 3) + remaining_sets) % len(messages)
+motivation = messages[idx]
+
 
     # ---- header ----
     st.markdown(
@@ -659,7 +704,8 @@ def render_home_dashboard(sb_authed, user):
   <div class="h-top">
     <div>
       <p class="h-title">하테나 학습 허브</p>
-      <p class="h-sub">오늘의 성취율을 확인하고, 바로 이어가세요.</p>
+      <p class="h-sub">{motivation}</p>
+      <p class="h-sub" style="opacity:.58;font-size:.86rem;margin:.10rem 0 0;">오늘의 성취율을 확인하고, 바로 이어가세요.</p>
     </div>
     <div class="h-pill">🔥 <b>{streak}</b>일</div>
   </div>
@@ -714,6 +760,64 @@ def render_home_dashboard(sb_authed, user):
   <div class="hm-grid">{hm_cells}</div>
   <div class="hm-lab">최근 7일 (오늘 포함)</div>
 </div>
+
+
+
+    # ---- level mini progress (recent 30 days, sets) ----
+    kst_now = datetime.now(timezone(timedelta(hours=9)))
+    cutoff = kst_now - timedelta(days=30)
+
+    lvl_sets = {"N5": 0, "N4": 0, "N3": 0, "N2": 0, "N1": 0}
+    for a in attempts_recent:
+        try:
+            lv = str(a.get("level") or "").strip().upper()
+            # created_at may be iso string
+            created_at = a.get("created_at")
+            if isinstance(created_at, str):
+                # tolerate "Z"
+                s = created_at.replace("Z", "+00:00")
+                dt = datetime.fromisoformat(s)
+            else:
+                dt = None
+            if dt is None:
+                continue
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            if dt < cutoff:
+                continue
+            if lv in lvl_sets:
+                # treat one attempt as one set (10문항)
+                lvl_sets[lv] += 1
+        except Exception:
+            continue
+
+    max_v = max(lvl_sets.values()) if lvl_sets else 0
+    def _bar_pct(v: int) -> int:
+        if max_v <= 0:
+            return 0
+        return int(round((v / max_v) * 100))
+
+    level_rows = ""
+    for lv in ["N5","N4","N3","N2","N1"]:
+        v = lvl_sets.get(lv, 0)
+        p = _bar_pct(v)
+        level_rows += f"""
+<div class="lv-row">
+  <div class="lv-lab">{lv}</div>
+  <div class="lv-track"><div class="lv-fill" style="width:{p}%"></div></div>
+  <div class="lv-val">{v}</div>
+</div>
+"""
+
+    st.markdown(
+        f"""
+<div class="lv-wrap">
+  <div class="lv-title"><b>레벨 진행</b><span>최근 30일 · 세트 수</span></div>
+  {level_rows}
+</div>
+""",
+        unsafe_allow_html=True,
+    )
 """,
         unsafe_allow_html=True,
     )
