@@ -1,7 +1,7 @@
 # home.py
 from __future__ import annotations
 
-BUILD_STAMP = 'v31 2026-02-19 16:07:56 KST (+09:00)'
+BUILD_STAMP = 'v32-uiAB 2026-02-20 KST (+09:00)'
 
 from pathlib import Path
 import os
@@ -74,95 +74,8 @@ from streamlit_cookies_manager import EncryptedCookieManager
 # ✅ Page Config (Hub only)
 # ============================================================
 st.set_page_config(page_title="Hotena Hub", layout="centered")
-
-# ============================================================
-# ✅ Global Floating "맨 위로" (Word/Kanji/Mypage same behavior)
-# - show after scroll, fixed bottom-right
-# - click => scroll to top reliably (Streamlit containers + window)
-# ============================================================
-st.markdown('<div id="__TOP__"></div>', unsafe_allow_html=True)
-
-def __HOTENA_FLOAT_TOP__():
-    components.html(
-        r"""
-<style>
-  /* keep it close to existing Hotena floating buttons */
-  #hotena_float_top_btn{
-    position: fixed;
-    right: 18px;
-    bottom: 90px;
-    z-index: 2147483000;
-    width: 52px;
-    height: 52px;
-    border-radius: 999px;
-    border: 0;
-    background: rgba(20,20,20,0.92);
-    color: #fff;
-    font-size: 18px;
-    font-weight: 800;
-    cursor: pointer;
-    box-shadow: 0 12px 28px rgba(0,0,0,0.22);
-    display: none;
-  }
-  #hotena_float_top_btn:active{ transform: scale(0.98); }
-  @media (max-width: 600px){
-    #hotena_float_top_btn{ right: 14px; bottom: 110px; width: 50px; height: 50px; }
-  }
-</style>
-
-<button id="hotena_float_top_btn" aria-label="맨 위로">⬆︎</button>
-
-<script>
-(function(){
-  const doc = window.parent.document;
-  const btn = doc.getElementById('hotena_float_top_btn') || document.getElementById('hotena_float_top_btn');
-
-  const targets = [
-    doc.querySelector('[data-testid="stAppViewContainer"]'),
-    doc.querySelector('[data-testid="stMain"]'),
-    doc.querySelector('section.main'),
-    doc.documentElement,
-    doc.body
-  ].filter(Boolean);
-
-  const goTop = () => {
-    try {
-      const top = doc.getElementById("__TOP__");
-      if (top) top.scrollIntoView({behavior:"auto", block:"start"});
-      targets.forEach(t => {
-        if (t && typeof t.scrollTo === "function") t.scrollTo({top:0,left:0,behavior:"auto"});
-        if (t) t.scrollTop = 0;
-      });
-      window.parent.scrollTo(0,0);
-      window.scrollTo(0,0);
-    } catch(e){}
-  };
-
-  const onScroll = () => {
-    try{
-      const y = window.scrollY || document.documentElement.scrollTop || 0;
-      btn.style.display = (y > 260) ? 'block' : 'none';
-    } catch(e){}
-  };
-
-  if (btn){
-    btn.onclick = () => { goTop(); requestAnimationFrame(goTop); setTimeout(goTop, 60); setTimeout(goTop, 160); };
-  }
-
-  window.addEventListener('scroll', onScroll, {passive:true});
-  onScroll();
-})();
-</script>
-        """,
-        height=0,
-    )
-
-# render once per run (safe)
-try:
-    __HOTENA_FLOAT_TOP__()
-except Exception:
-    pass
-
+# ✅ TOP anchor for floating button (no-JS)
+st.markdown('<div id="hotena-top"></div>', unsafe_allow_html=True)
 
 # ✅ CSS reset (child pages may hide Streamlit header; keep top UI from being clipped)
 st.markdown(
@@ -825,6 +738,36 @@ def render_floating_menu():
     st.markdown(html, unsafe_allow_html=True)
 
 
+
+def render_float_top_anchor_button():
+    """✅ Bottom-right '맨 위로' button using anchor (CSP/No-JS safe)"""
+    st.markdown(
+        """
+<style>
+.hotena-float-top{
+  position: fixed;
+  right: 14px;
+  bottom: 88px;
+  z-index: 2147483646;
+  width: 50px;
+  height: 50px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none !important;
+  background: rgba(17,17,17,0.86);
+  color: #fff !important;
+  font-size: 18px;
+  box-shadow: 0 12px 26px rgba(0,0,0,0.22);
+}
+</style>
+<a class="hotena-float-top" href="#hotena-top" aria-label="맨 위로">⬆︎</a>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 def render_plan_pill():
     plan = (st.session_state.get("user_plan") or "free").lower()
     txt = "✨ PRO 이용 중입니다" if plan == "pro" else "🆓 FREE 이용 중"
@@ -1295,6 +1238,123 @@ def render_floating_menu():
 
     st.markdown(html, unsafe_allow_html=True)
 
+# ============================================================
+# ✅ Bottom Nav (Mobile) + Training Header (A/B)
+# - A: top progress strip for training pages
+# - B: fixed bottom navigation bar (Home/Word/Kanji/Talk/My)
+# ============================================================
+
+def _hub_build_base_qs() -> str:
+    """Build querystring base that preserves encrypted rt/at for login persistence."""
+    try:
+        rt_enc = st.query_params.get("rt", "")
+        at_enc = st.query_params.get("at", "")
+    except Exception:
+        rt_enc, at_enc = "", ""
+
+    def _q(s: str) -> str:
+        try:
+            import urllib.parse
+            return urllib.parse.quote(s, safe="") if s else ""
+        except Exception:
+            return s or ""
+
+    parts = []
+    if rt_enc:
+        parts.append("rt=" + _q(rt_enc))
+    if at_enc:
+        parts.append("at=" + _q(at_enc))
+    return ("&".join(parts) + "&") if parts else ""
+
+def render_bottom_nav(active: str = "home"):
+    """Mobile-only bottom nav. Hidden on wide screens."""
+    base = _hub_build_base_qs()
+    def href(p: str) -> str:
+        return "?" + base + "p=" + p
+
+    # Mobile only: hide on >= 801px
+    html = f"""<style>
+.hub-bottom-nav {{
+  position: fixed;
+  left: 0; right: 0; bottom: 0;
+  z-index: 2147483000;
+  padding: 10px 12px 12px;
+  background: rgba(255,255,255,0.92);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid rgba(0,0,0,0.08);
+}}
+.hub-bottom-nav .row {{
+  display:flex; gap: 10px; justify-content:space-between;
+  max-width: 840px; margin: 0 auto;
+}}
+.hub-bottom-nav a {{
+  flex: 1 1 0;
+  text-decoration:none;
+  color: rgba(20,20,20,0.92);
+  border: 1px solid rgba(0,0,0,0.08);
+  border-radius: 14px;
+  padding: 10px 8px;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  font-size: 12px;
+  background: rgba(0,0,0,0.02);
+}}
+.hub-bottom-nav a .ic {{ font-size: 18px; line-height: 1; margin-bottom: 4px; }}
+.hub-bottom-nav a.active {{
+  background: rgba(0,0,0,0.88);
+  color: #fff;
+  border-color: rgba(0,0,0,0.88);
+}}
+@media (min-width: 801px) {{
+  .hub-bottom-nav {{ display:none !important; }}
+}}
+</style>
+<div class="hub-bottom-nav">
+  <div class="row">
+    <a href="{href('home')}" target="_self" class="{ 'active' if active=='home' else '' }"><div class="ic">🏠</div><div>홈</div></a>
+    <a href="{href('word')}" target="_self" class="{ 'active' if active=='word' else '' }"><div class="ic">📘</div><div>단어</div></a>
+    <a href="{href('kanji')}" target="_self" class="{ 'active' if active=='kanji' else '' }"><div class="ic">🈶</div><div>한자</div></a>
+    <a href="{href('talk')}" target="_self" class="{ 'active' if active=='talk' else '' }"><div class="ic">💬</div><div>회화</div></a>
+    <a href="{href('my')}" target="_self" class="{ 'active' if active=='my' else '' }"><div class="ic">👤</div><div>MY</div></a>
+  </div>
+</div>"""
+    st.markdown(html, unsafe_allow_html=True)
+
+def render_training_header(sb_authed, user, kind: str, title: str, subtitle: str):
+    """A) Unified title + compact daily goal progress strip on training pages."""
+    progress_all = st.session_state.get("progress_all", {}) or {}
+    goal_sets = int((progress_all.get("daily_goal_sets") or 3))
+
+    attempts = fetch_today_attempts(sb_authed, user.id)
+    sm = summarize_attempts(attempts)
+    done_sets_total = int(sm.get("total_sets", 0))
+    done_sets_kind = int(sm.get("by_kind", {}).get(kind, {}).get("sets", 0))
+
+    pct = 0.0
+    if goal_sets > 0:
+        pct = min(1.0, done_sets_total / float(goal_sets))
+
+    st.markdown(
+        f"""
+<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:0.75rem;margin-top:0.25rem;margin-bottom:0.45rem;">
+  <div>
+    <div style="font-size:1.35rem;font-weight:800;line-height:1.2;">{title}</div>
+    <div style="opacity:0.72;font-size:0.95rem; margin-top:0.15rem;">{subtitle}</div>
+  </div>
+  <div style="text-align:right;">
+    <div style="display:inline-flex;align-items:center;gap:.35rem;padding:.22rem .55rem;border-radius:999px;border:1px solid rgba(0,0,0,.10);background:rgba(0,0,0,.02);font-size:.88rem;">
+      오늘 {done_sets_kind}세트
+    </div>
+  </div>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
+
+    # compact progress
+    st.progress(pct)
+    st.caption(f"오늘 완료: {done_sets_total}/{goal_sets}세트 · 현재 페이지: {kind}")
+    st.markdown("---")
+
 def run_script(filename: str):
     path = (BASE_DIR / filename).resolve()
     if not path.exists() or not path.is_file():
@@ -1326,6 +1386,7 @@ render_floating_menu()
 render_plan_pill()
 
 page = st.session_state.get("hub_page", "home")
+render_bottom_nav(active=page)
 
 if page == "home":
     # ✅ Home Hub: dashboard view
@@ -1343,12 +1404,15 @@ elif page == "reminder":
 
 elif page == "word":
     st.session_state["hub_target"] = "word"
+    render_training_header(sb_authed, user, kind="word", title="📘 단어 훈련", subtitle="뜻/발음/한→일 · 10문제 1세트")
     run_script("hotena_basic.py")
 elif page == "kanji":
     st.session_state["hub_target"] = "kanji"
+    render_training_header(sb_authed, user, kind="kanji", title="🈶 한자 훈련", subtitle="읽기/뜻/복습 · 10문제 1세트")
     run_script("app.py")
 elif page == "talk":
     st.session_state["hub_target"] = "talk"
+    render_training_header(sb_authed, user, kind="talk", title="💬 회화 훈련", subtitle="상황 판단 · 정답 선택 · 발음 연습")
     run_script("talk.py")
 else:
     st.info("상단 메뉴에서 원하는 항목을 선택하세요.")
