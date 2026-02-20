@@ -880,7 +880,7 @@ def render_home_dashboard(sb_authed, user):
 
     with cta_r:
         # (1) Goal gear (toggle)
-        if st.button("⚙️ 목표", key="hub_goal_gear_bottom", help="루틴 목표 수정", use_container_width=True):
+        if st.button("⚙️", key="hub_goal_gear_bottom", help="루틴 목표 수정", use_container_width=True):
             st.session_state["show_goal_settings"] = not st.session_state["show_goal_settings"]
 
         # (2) Smart CTA (start)
