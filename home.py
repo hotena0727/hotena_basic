@@ -1,9 +1,22 @@
 # home.py
 from __future__ import annotations
 
+
+# ============================================================
+# ✅ Global fallbacks (safety)
+# - If any dashboard f-strings accidentally evaluate at module scope,
+#   these prevent NameError crashes. Real values are computed inside
+#   render_home_dashboard().
+# ============================================================
+motivation = ""
+streak = 0
+goal_sets = 1
+done_total = 0
+pct = 0
+
 motivation = ""
 
-BUILD_STAMP = 'v38.6-hotfix-global-motivation 2026-02-20 KST (+09:00)'
+BUILD_STAMP = 'v38.7-hotfix-global-fallbacks 2026-02-20 KST (+09:00)'
 
 from pathlib import Path
 import os
