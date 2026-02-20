@@ -543,3 +543,75 @@ def finalize_set_if_ready():
 
 
 finalize_set_if_ready()
+
+
+# ------------------------------
+# ✅ Soft Set Complete Card (A안)
+# ------------------------------
+if idx >= len(qids):
+    results = st.session_state.get(f"{NS}_results", {}) or {}
+    total = len(qids)
+    correct_n = sum(1 for q in qids if results.get(str(q), {}).get("correct") is True)
+    wrong_qids = [str(q) for q in qids if results.get(str(q), {}).get("correct") is False]
+    acc = int(round((correct_n / total) * 100)) if total else 0
+
+    st.markdown(
+        f"""
+<div style="border:1px solid rgba(0,0,0,0.08); border-radius:16px; padding:14px 14px 12px;
+            background: rgba(0,0,0,0.02); box-shadow:0 8px 24px rgba(0,0,0,0.04);">
+  <div style="font-size:1.2rem; font-weight:800; margin-bottom:6px;">🎉 1세트 완료</div>
+  <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+    <div style="padding:6px 10px; border-radius:999px; background:#fff; border:1px solid rgba(0,0,0,0.08); font-weight:700;">
+      점수 {correct_n}/{total}
+    </div>
+    <div style="padding:6px 10px; border-radius:999px; background:#fff; border:1px solid rgba(0,0,0,0.08); font-weight:700;">
+      정답률 {acc}%
+    </div>
+    <div style="padding:6px 10px; border-radius:999px; background:#fff; border:1px solid rgba(0,0,0,0.08);">
+      오답 {len(wrong_qids)}개
+    </div>
+  </div>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
+
+    if acc == 100:
+        st.success("완벽합니다. 다음 세트도 이 페이스로 가시죠 🔥")
+    elif acc >= 80:
+        st.info("좋습니다. 오답만 한 번 더 잡고 넘어가면 더 탄탄해져요.")
+    else:
+        st.warning("괜찮습니다. 오답만 한 번 돌리면 금방 올라갑니다.")
+
+    if wrong_qids:
+        with st.expander("오답 빠른 확인", expanded=False):
+            for n, q in enumerate(wrong_qids, 1):
+                row = pool_df[pool_df["qid"].astype(str) == str(q)]
+                st.markdown(f"**{n}. QID {q}**")
+                if len(row) > 0:
+                    r0 = row.iloc[0]
+                    partner = str(r0.get("partner_jp","")).strip()
+                    ans = str(r0.get("answer_jp","")).strip()
+                    if partner:
+                        st.write(f"상대: {partner}")
+                    if ans:
+                        st.write(f"정답: {ans}")
+
+    c1, c2, c3 = st.columns([0.42, 0.33, 0.25])
+    with c1:
+        if st.button("➡️ 다음 세트", use_container_width=True, type="primary"):
+            start_new_set()
+            st.rerun()
+    with c2:
+        if st.button("🔁 오답만", disabled=(len(wrong_qids)==0), use_container_width=True):
+            start_wrong_set(wrong_qids) if "start_wrong_set" in globals() else start_new_set()
+            st.rerun()
+    with c3:
+        if st.button("🏠 홈", use_container_width=True):
+            try:
+                st.query_params["p"] = "home"
+            except Exception:
+                pass
+            st.rerun()
+
+    st.stop()
