@@ -531,11 +531,6 @@ def render_home_dashboard(sb_authed, user):
     daily_map = build_daily_sets_map(attempts_recent)
 
     kst_today = datetime.now(timezone(timedelta(hours=9))).date()
-
-    # ---- goal settings toggle ----
-    if "show_goal_settings" not in st.session_state:
-        st.session_state["show_goal_settings"] = False
-
     streak = calc_streak(daily_map, today=kst_today)
 
     progress_all = st.session_state.get("progress_all", {}) or {}
@@ -713,133 +708,16 @@ def render_home_dashboard(sb_authed, user):
   .h-cta{margin-top:.20rem;margin-bottom:.20rem;}
   .h-cta b{font-size:1.0rem;}
 
-  .hub-cta-wrap{ margin-top:.35rem; }
-
-.hub-cta-card{
-  margin-top:0;
-  padding: .62rem .72rem;
-  border-radius: 16px;
-  border: 1px solid rgba(49,51,63,0.14);
-  background: rgba(255,255,255,0.02);
-  box-shadow: 0 9px 24px rgba(0,0,0,0.07);
-}
-
-.hub-msgbox{
-  margin:0 0 .55rem 0;
-  padding:0;
-  border:none;
-  background:transparent;
-  font-weight:820;
-  font-size:1.00rem;
-  line-height:1.35;
-}
-@media (prefers-color-scheme: dark){
-  .hub-cta-card{
-    border:1px solid rgba(255,255,255,0.12);
-    background:rgba(255,255,255,0.05);
-    box-shadow:0 10px 24px rgba(0,0,0,0.35);
+  /* ✅ goal gear: icon-only + overlay on level progress card */
+  .st-key-hub_goal_gear_icon{display:flex;justify-content:flex-end;margin-top:-44px;margin-bottom:10px;}
+  .st-key-hub_goal_gear_icon button{
+    background:transparent !important;border:0 !important;outline:none !important;box-shadow:none !important;
+    padding:0 !important;min-height:auto !important;height:auto !important;line-height:1 !important;
   }
-}
-
-  /* gear icon-only + CTA link button */
-  .hub-gear-row{display:flex;justify-content:flex-end;line-height:1;margin:.05rem 0 .35rem;}
-  .hub-gear,
-  .hub-gear:visited,
-  .hub-gear:hover,
-
-  /* ✅ Streamlit button inside .hub-gear: remove box/outline so it looks like icon-only */
-  .hub-gear div[data-testid="stButton"]{margin:0 !important;}
-  .hub-gear div[data-testid="stButton"] > button{
-    background:transparent !important;
-    border:none !important;
-    box-shadow:none !important;
-    padding:0 !important;
-    width:2.0rem !important;
-    height:2.0rem !important;
-    min-height:2.0rem !important;
-    line-height:1 !important;
-    font-size:1.15rem !important;
-    color:inherit !important;
-  }
-  .hub-gear div[data-testid="stButton"] > button:hover{opacity:0.85;background:transparent !important;}
-  .hub-gear div[data-testid="stButton"] > button:focus,
-  .hub-gear div[data-testid="stButton"] > button:focus-visible{outline:none !important;box-shadow:none !important;}
-
-  .hub-gear:active{
-    display:inline-flex;align-items:center;justify-content:center;
-    width:2.0rem;height:2.0rem;
-    text-decoration:none !important;
-    border:none !important;
-    outline:none !important;
-    font-size:1.15rem;
-    background:transparent !important;
-    color:inherit;
-  }
-  .hub-gear:hover{opacity:0.85;}
-
-  .hub-cta-btn,
-.hub-cta-btn:visited,
-.hub-cta-btn:hover,
-.hub-cta-btn:active{
-  display:flex;align-items:center;justify-content:center;gap:.45rem;
-  width:100%;
-  padding:0.78rem 0.95rem;
-  border-radius:1.05rem;
-  text-decoration:none !important;
-  border:1px solid rgba(0,0,0,0.10);
-  background:rgba(255,255,255,0.92);
-  font-weight:800;
-  font-size:1.03rem;
-  color:rgba(0,0,0,0.88);
-  transition:transform .06s ease, box-shadow .12s ease, background .12s ease;
-}
-.hub-cta-btn:hover{ transform: translateY(-1px); box-shadow:0 10px 22px rgba(0,0,0,0.10); }
-.hub-cta-emoji{ font-size:1.05rem; line-height:1; }
-.hub-cta-text{ line-height:1; }
-@media (prefers-color-scheme: dark){
-  .hub-cta-btn,
-  .hub-cta-btn:visited,
-  .hub-cta-btn:hover,
-  .hub-cta-btn:active{
-    border:1px solid rgba(255,255,255,0.16);
-    background:rgba(255,255,255,0.08);
-    color:rgba(255,255,255,0.92);
-  }
-  .hub-cta-btn:hover{ box-shadow:0 10px 22px rgba(0,0,0,0.45); }
-}
-  .hub-cta-btn:hover{background:rgba(255,255,255,0.08);}
-
-
-  /* ✅ gear icon (visual only icon, no box) */
-  #hub_gear_anchor + div[data-testid="stButton"]{
-    padding:0 !important;
-    margin:0 !important;
-    width:auto !important;
-    display:flex !important;
-    justify-content:flex-end !important;
-  }
-  #hub_gear_anchor + div[data-testid="stButton"] button{
-    background: transparent !important;
-    border: 0 !important;
-    box-shadow: none !important;
-    padding: 0 !important;
-    min-height: 0 !important;
-    min-width: 0 !important;
-    width: auto !important;
-    border-radius: 0 !important;
-    line-height: 1 !important;
-    font-size: 18px !important;
-  }
-  #hub_gear_anchor + div[data-testid="stButton"] button:hover{
-    background: transparent !important;
-    opacity: 0.72;
-  }
-  #hub_gear_anchor + div[data-testid="stButton"] button:focus,
-  #hub_gear_anchor + div[data-testid="stButton"] button:active{
-    outline: none !important;
-    box-shadow: none !important;
-    background: transparent !important;
-  }
+  .st-key-hub_goal_gear_icon button:focus,
+  .st-key-hub_goal_gear_icon button:focus-visible,
+  .st-key-hub_goal_gear_icon button:active{outline:none !important;box-shadow:none !important;}
+  .st-key-hub_goal_gear_icon button p{font-size:18px !important;margin:0 !important;}
 
 </style>
         """,
@@ -964,6 +842,36 @@ def render_home_dashboard(sb_authed, user):
         unsafe_allow_html=True,
     )
 
+    # ---- goal gear (on level progress card, top-right) ----
+    if "show_goal_settings" not in st.session_state:
+        st.session_state["show_goal_settings"] = False
+
+    _gl, _gr = st.columns([1, 0.08], gap="small")
+    with _gr:
+        if st.button("⚙️", key="hub_goal_gear_icon", help="루틴 목표 수정"):
+            st.session_state["show_goal_settings"] = not st.session_state["show_goal_settings"]
+
+    # ---- goal settings (compact expander) ----
+    if st.session_state.get("show_goal_settings", False):
+        with st.expander("루틴 목표 수정", expanded=True):
+            new_goal = st.number_input(
+                "하루 목표 세트 수 (1세트=10문항)",
+                min_value=0,
+                max_value=100,
+                value=int(goal_sets),
+                step=1,
+            )
+            csave, cclose = st.columns([1, 1], gap="small")
+            with csave:
+                if st.button("저장", use_container_width=True, key="hub_daily_goal_save"):
+                    progress_all["daily_goal_sets"] = int(new_goal)
+                    st.session_state["progress_all"] = progress_all
+                    save_progress(sb_authed, user.id, progress_all)
+                    st.success("저장했습니다.")
+            with cclose:
+                if st.button("닫기", use_container_width=True, key="hub_goal_close"):
+                    st.session_state["show_goal_settings"] = False
+
     # ---- rows (clickable) ----
     def _row(href: str, title: str, done: int, q: int, kind: str):
         dots = _dots_3(int(done), int(goal_sets))
@@ -987,7 +895,7 @@ def render_home_dashboard(sb_authed, user):
         """</div>"""
     st.markdown(rows_html, unsafe_allow_html=True)
 
-        # ---- Smart CTA (message + CTA stacked, gear icon only) ----
+    # ---- Smart CTA (button set) ----
     remaining = max(0, goal_sets - done_total)
     kinds = [
         ("word", "📘", "단어", int(w["sets"])),
@@ -1005,69 +913,14 @@ def render_home_dashboard(sb_authed, user):
     else:
         msg = f"오늘 {remaining}세트만 더 하면 목표 달성! ({rec_label} 추천)"
 
-    if "show_goal_settings" not in st.session_state:
-        st.session_state["show_goal_settings"] = False
+    st.markdown(f"<div class='h-cta'><b>{msg}</b></div>", unsafe_allow_html=True)
 
-    # ✅ 기어(우측 정렬) → 그 아래 CTA 블록(다른 카드들과 같은 폭)
-    # ✅ 기어(우측 정렬) → 기어 바로 아래에 목표 설정(expander) → 그 아래 Smart CTA 카드
-    from urllib.parse import urlencode
+    if st.button(f"{rec_emoji} {rec_label} 시작", use_container_width=True, key="hub_cta_primary"):
+        st.session_state["p"] = rec_kind
+        st.query_params["p"] = rec_kind
+        st.rerun()
 
-    # --- CTA link query (p=rec_kind) ---
-    try:
-        _qp2 = dict(st.query_params)
-    except Exception:
-        _qp2 = {}
-    _qp2["p"] = rec_kind
-    _qs2 = urlencode(_qp2, doseq=True)
 
-    # ✅ gear icon (icon-only; no box) — 클릭하면 같은 자리에서 패널 토글
-    _gsp, _gcol = st.columns([1, 0.08], gap="small")
-    with _gcol:
-        st.markdown("<div class='hub-gear'>", unsafe_allow_html=True)
-        if st.button("⚙️", key="hub_goal_gear_icon", help="루틴 목표 수정"):
-            st.session_state["show_goal_settings"] = not st.session_state.get("show_goal_settings", False)
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    # ---- goal settings (compact expander) ----
-    # ✅ 반드시 CTA 카드 "위", 그리고 기어 "바로 밑"에 나오게
-    if st.session_state.get("show_goal_settings", False):
-        with st.expander("루틴 목표 수정", expanded=True):
-            new_goal = st.number_input(
-                "하루 목표 세트 수 (1세트=10문항)",
-                min_value=0,
-                max_value=100,
-                value=int(goal_sets),
-                step=1,
-            )
-            csave, cclose = st.columns([1, 1], gap="small")
-            with csave:
-                if st.button("저장", use_container_width=True, key="hub_daily_goal_save"):
-                    progress_all["daily_goal_sets"] = int(new_goal)
-                    st.session_state["progress_all"] = progress_all
-                    save_progress(sb_authed, user.id, progress_all)
-                    st.success("저장했습니다.")
-            with cclose:
-                if st.button("닫기", use_container_width=True, key="hub_goal_close"):
-                    st.session_state["show_goal_settings"] = False
-
-    # ✅ Smart CTA 카드 (메시지 + 버튼을 한 덩어리로)
-    st.markdown(
-        f"""
-        <div class='hub-cta-wrap'>
-          <div class='hub-cta-card'>
-            <div class='hub-msgbox'>{msg}</div>
-            <a class='hub-cta-btn' href='?{_qs2}' title='{rec_label} 시작'>
-              <span class='hub-cta-emoji'>{rec_emoji}</span>
-              <span class='hub-cta-text'>{rec_label} 시작</span>
-            </a>
-          </div>
-        </div>
-        """
-        ,
-        unsafe_allow_html=True,
-    )
-
-    
 
 def summarize_attempts(attempts: list[dict]) -> dict:
     out = {
@@ -1879,7 +1732,6 @@ render_bottom_nav(active=page)
 if page == "home":
     # ✅ Home Hub: dashboard view
     render_home_dashboard(sb_authed, user)
-    st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
     st.info("☰ 메뉴에서 단어/한자/회화 훈련을 선택하세요.")
 
 elif page == "my":
