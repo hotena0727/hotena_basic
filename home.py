@@ -6,6 +6,7 @@ BUILD_STAMP = 'home-min-clean-v2 (replace dashboard) 2026-02-20 KST (+09:00)'
 from pathlib import Path
 import os
 import runpy
+import importlib
 import json
 import hashlib
 import base64
@@ -81,15 +82,6 @@ st.markdown('<div id="hotena-top"></div>', unsafe_allow_html=True)
 st.markdown(
     """
 <style>
-
-/* ✅ Ultra-tight training divider + progress spacing */
-.hub-hr{
-  border:0 !important;
-  border-top:1px solid rgba(0,0,0,.08) !important;
-  margin: .25rem 0 .35rem 0 !important;
-}
-div[data-testid="stProgress"]{ margin-top:.10rem !important; margin-bottom:.20rem !important; }
-div[data-testid="stCaptionContainer"]{ margin-top:0 !important; padding-top:0 !important; }
 /* ==========================================================
    ✅ HUB Global CSS (Mobile-first polish)
    - Keep header visible (child pages may hide)
@@ -225,11 +217,6 @@ div[data-testid="stMetric"]{
   font-size: 12px;
   color: rgba(0,0,0,0.55);
 }
-
-
-/* ✅ ULTRA: divider → next block gap killer */
-.hub-hr-tight{ border:0; border-top:1px solid rgba(255,255,255,.14); margin:0 !important; padding:0 !important; height:0 !important; }
-div[data-testid="stDivider"], div[data-testid="stDivider"] *{ margin:0 !important; padding:0 !important; }
 
 </style>
 """,
@@ -1794,7 +1781,7 @@ def render_training_header(sb_authed, user, kind: str, title: str, subtitle: str
 
     st.markdown(
         f"""
-<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:0.75rem;margin-top:0.00rem;margin-bottom:0.30rem;">
+<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:0.75rem;margin-top:0.25rem;margin-bottom:0.45rem;">
   <div>
     <div style="font-size:1.35rem;font-weight:800;line-height:1.2;">{title}</div>
     <div style="opacity:0.72;font-size:0.95rem; margin-top:0.15rem;">{subtitle}</div>
@@ -1812,7 +1799,19 @@ def render_training_header(sb_authed, user, kind: str, title: str, subtitle: str
     # compact progress
     st.progress(pct)
     st.caption(f"오늘 완료: {done_sets_total}/{goal_sets}세트 · 현재 페이지: {kind}")
-    st.markdown('<hr class="hub-hr"/>', unsafe_allow_html=True)
+    st.markdown("---")
+
+
+# ============================================================
+# ✅ Module runner (NO runpy boundary gap)
+# - Import/reload a module by name so it renders in the SAME Streamlit flow
+# ============================================================
+def run_module(module_name: str):
+    mod = importlib.import_module(module_name)
+    importlib.reload(mod)  # dev-friendly
+    # Optional: if module provides render(), call it; otherwise importing executes top-level UI.
+    if hasattr(mod, "render") and callable(getattr(mod, "render")):
+        mod.render()
 
 def run_script(filename: str):
     path = (BASE_DIR / filename).resolve()
@@ -1852,8 +1851,8 @@ if page == "home":
     render_home_dashboard(sb_authed, user)
 elif page == "my":
     # ✅ 독립 마이페이지: 한자(app.py) 안에 있던 대시보드를 그대로 분리한 mypage.py를 실행
-    st.session_state['_entered_mypage'] = True
-    run_script('mypage.py')
+    st.session_state['HUB_MODE'] = True
+    run_module('mypage')
     st.stop()
 
 elif page == "reminder":
@@ -1863,18 +1862,21 @@ elif page == "reminder":
 elif page == "word":
     st.session_state["hub_target"] = "word"
     render_training_header(sb_authed, user, kind="word", title="📘 단어 훈련", subtitle="뜻/발음/한→일 · 10문제 1세트")
+    st.session_state['HUB_MODE'] = True
     st.session_state['_entered_word'] = True
-    run_script('hotena_basic.py')
+    run_module('hotena_basic')
 elif page == "kanji":
     st.session_state["hub_target"] = "kanji"
     render_training_header(sb_authed, user, kind="kanji", title="🈶 한자 훈련", subtitle="읽기/뜻/복습 · 10문제 1세트")
+    st.session_state['HUB_MODE'] = True
     st.session_state['_entered_kanji'] = True
-    run_script('app.py')
+    run_module('app')
 elif page == "talk":
     st.session_state["hub_target"] = "talk"
     render_training_header(sb_authed, user, kind="talk", title="💬 회화 훈련", subtitle="상황 판단 · 정답 선택 · 발음 연습")
+    st.session_state['HUB_MODE'] = True
     st.session_state['_entered_talk'] = True
-    run_script('talk.py')
+    run_module('talk')
 else:
     # ✅ Fallback: unknown page -> go home
     st.session_state["hub_page"] = "home"
