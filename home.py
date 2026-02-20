@@ -1789,3 +1789,11 @@ def kill_top_gap_final():
 
 # ✅ 모든 렌더링이 끝난 "마지막 줄" 근처에서 호출
 kill_top_gap_final()
+
+/* 마지막 최종 오버라이드에 추가 */
+div[data-testid="stAppViewContainer"] h1,
+div[data-testid="stAppViewContainer"] h2,
+div[data-testid="stAppViewContainer"] h3,
+div[data-testid="stAppViewContainer"] p {
+  margin-top: 0 !important;
+}
