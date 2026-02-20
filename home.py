@@ -89,15 +89,15 @@ st.markdown(
    ========================================================== */
 
 header[data-testid="stHeader"]{
-  display: none !important;
-  height: 0 !important;
-  min-height: 0 !important;
+  display:none !important;
+  height:0 !important;
+  min-height:0 !important;
 }
 
-/* Container spacing */
-/* Ultra-tight top: remove built-in Streamlit top padding */
-section.main > div{ padding-top: 0rem !important; }
+div[data-testid="stToolbar"]{display:none !important; height:0 !important;}
+div[data-testid="stDecoration"]{display:none !important; height:0 !important;}
 
+/* Container spacing */
 div[data-testid="stAppViewContainer"] .block-container{
   padding-top: 0rem !important;
   padding-bottom: 5.25rem !important; /* bottom breathing room for mobile */
@@ -162,7 +162,7 @@ div[data-testid="stMetric"]{
   div[data-testid="stAppViewContainer"] .block-container{
     padding-left: 1.0rem !important;
     padding-right: 1.0rem !important;
-    padding-top: 0rem !important;
+    padding-top: 0.15rem !important;
     padding-bottom: 6.0rem !important;
   }
 
@@ -774,7 +774,7 @@ def render_float_top_anchor_button():
 
 def render_plan_pill():
     plan = (st.session_state.get("user_plan") or "free").lower()
-    txt = "✨ PRO 이용 중입니다" if plan == "pro" else "🆓 FREE 이용 중"
+    txt = "✨ Pro" if plan == "pro" else "🆓 Free"
     st.markdown(
         f"""
 <div style="display:flex;justify-content:flex-start;margin-top:0.15rem;margin-bottom:0.2rem;">
