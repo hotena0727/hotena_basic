@@ -1,7 +1,7 @@
 # home.py
 from __future__ import annotations
 
-BUILD_STAMP = 'v38.4-goalgear-fixed 2026-02-20 KST (+09:00)'
+BUILD_STAMP = 'v38.5-fix-motivation-scope 2026-02-20 KST (+09:00)'
 
 from pathlib import Path
 import os
