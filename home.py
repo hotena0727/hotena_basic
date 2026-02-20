@@ -800,6 +800,21 @@ def render_plan_pill():
             help="정답/오답 효과음 ON/OFF",
         )
 
+
+# ============================================================
+# ✅ UI helper: fixed 3-dot progress (home dashboard)
+# ============================================================
+def _dots_3(done_sets: int, goal_sets: int) -> str:
+    # goal_sets is ignored for dot count; we always show 3 dots for a clean, app-like look.
+    # Map progress into 0..3 based on ratio.
+    try:
+        ratio = 0.0 if goal_sets <= 0 else (done_sets / float(goal_sets))
+    except Exception:
+        ratio = 0.0
+    filled = 0 if ratio <= 0 else (3 if ratio >= 1 else max(0, min(3, int(round(ratio * 3)))))
+    return " ".join(["●"] * filled + ["○"] * (3 - filled))
+
+
 def render_daily_goal_home(sb_authed, user_id: str):
     """Home dashboard: daily goal (sets-based). 1 set == 10 questions (quiz_len)."""
     progress_all = st.session_state.get("progress_all", {}) or {}
@@ -816,7 +831,7 @@ def render_daily_goal_home(sb_authed, user_id: str):
     pct = 0 if goal_sets <= 0 else min(100, int(round(done_sets / goal_sets * 100)))
 
     st.markdown("## 🎯 오늘의 목표 (세트 기준)")
-    st.progress(pct / 100 if goal_sets > 0 else 0.0)
+# (progress bar removed for app-like UI)
 
     c1, c2, c3 = st.columns(3)
     c1.metric("오늘 완료 세트", f"{done_sets}/{goal_sets}")
@@ -1366,7 +1381,8 @@ def render_training_header(sb_authed, user, kind: str, title: str, subtitle: str
     )
 
     # compact progress
-    st.progress(pct)
+# (progress bar removed for app-like UI)
+
     st.caption(f"오늘 완료: {done_sets_total}/{goal_sets}세트 · 현재 페이지: {kind}")
     st.markdown("---")
 
