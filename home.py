@@ -75,7 +75,7 @@ from streamlit_cookies_manager import EncryptedCookieManager
 # ============================================================
 st.set_page_config(page_title="Hotena Hub", layout="centered")
 # ✅ TOP anchor for floating button (no-JS)
-st.markdown('<div id="hotena-top"></div>', unsafe_allow_html=True)
+components.html('<div id="hotena-top"></div>', height=0)
 
 # ✅ CSS reset (child pages may hide Streamlit header; keep top UI from being clipped)
 st.markdown(
@@ -88,26 +88,17 @@ st.markdown(
    - Normalize spacing/typography for "app-like" feel
    ========================================================== */
 
-header[data-testid="stHeader"]{display:none !important; height:0 !important; min-height:0 !important;}
+header[data-testid="stHeader"]{
+  display:none !important;
+  height:0 !important;
+  min-height:0 !important;
+}
 
 /* Container spacing */
 div[data-testid="stAppViewContainer"] .block-container{
   padding-top: 0rem !important;
-  padding-bottom: 5.25rem !important; /* bottom breathing room for mobile */
+  padding-bottom: 5.25rem !important !important;
 }
-/* ✅ TOP GAP KILL SWITCH (Hub) */
-div[data-testid="stDecoration"]{display:none !important; height:0 !important;}
-div[data-testid="stToolbar"]{display:none !important; height:0 !important;}
-
-/* Streamlit main wrappers sometimes add top padding */
-section.main > div{padding-top:0rem !important;}
-div[data-testid="stMain"]{padding-top:0rem !important; margin-top:0rem !important;}
-div[data-testid="stMainBlockContainer"]{padding-top:0rem !important; margin-top:0rem !important;}
-
-/* First element container margins (kills phantom top space) */
-div[data-testid="stAppViewContainer"] .block-container > div:first-child{margin-top:0rem !important; padding-top:0rem !important;}
-div[data-testid="stAppViewContainer"] .block-container > div:first-child > div:first-child{margin-top:0rem !important; padding-top:0rem !important;}
-
 
 /* Headlines: tighter */
 div[data-testid="stAppViewContainer"] h1,
@@ -226,6 +217,12 @@ div[data-testid="stMetric"]{
   font-size: 12px;
   color: rgba(0,0,0,0.55);
 }
+
+
+/* ✅ TOP GAP KILL SWITCH (home only) */
+div[data-testid="stAppViewContainer"] .block-container{ padding-top:0rem !important; margin-top:0rem !important; }
+section.main > div{ padding-top:0rem !important; margin-top:0rem !important; }
+.block-container > div:first-child{ margin-top:0rem !important; padding-top:0rem !important; }
 
 </style>
 """,
@@ -1228,7 +1225,7 @@ def render_plan_pill():
     txt = "✨ PRO 이용 중입니다" if plan == "pro" else "🆓 FREE 이용 중"
     st.markdown(
         f"""
-<div style="display:flex;justify-content:flex-start;margin-top:0;margin-bottom:0;">
+<div style="display:flex;justify-content:flex-start;margin-top:0.15rem;margin-bottom:0.2rem;">
   <div style="
     display:inline-flex;align-items:center;gap:.45rem;
     padding:.28rem .55rem;border-radius:999px;
