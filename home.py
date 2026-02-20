@@ -1754,6 +1754,4 @@ elif page == "talk":
     render_training_header(sb_authed, user, kind="talk", title="💬 회화 훈련", subtitle="상황 판단 · 정답 선택 · 발음 연습")
     run_script("talk.py")
 else:
-    # ✅ Fallback: unknown page -> go home
-    st.session_state["hub_page"] = "home"
-    render_home_dashboard(sb_authed, user)
+    st.info("상단 메뉴에서 원하는 항목을 선택하세요.")
