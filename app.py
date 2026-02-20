@@ -1913,15 +1913,16 @@ def render_home():
     page_title = "👤 마이페이지" if st.session_state.get("page") == "my" else "✨하테나일본어 한자정복"
 
 
-    st.markdown(
-        f"""
-<div class="jp headbar">
-  <div class="headtitle">{page_title}</div>
-  <div class="headhello">환영합니다 🙂 <span class="mail">{email}</span></div>
-</div>
-""",
-        unsafe_allow_html=True
-    )
+    if not st.session_state.get("HUB_MODE"):
+        st.markdown(
+            f"""
+        <div class="jp headbar">
+          <div class="headtitle">{page_title}</div>
+          <div class="headhello">환영합니다 🙂 <span class="mail">{email}</span></div>
+        </div>
+        """,
+            unsafe_allow_html=True
+        )
 
     quotes = [
         "배움은 매일 새로 시작해도 늦지 않다.",
@@ -2016,15 +2017,16 @@ if st.session_state.get("page") != "home":
     else:
         _title = "✨ 한자 퀴즈"
 
-    st.markdown(
-        f"""
-<div class="jp headbar">
-  <div class="headtitle">{_title}</div>
-  <div class="headhello">환영합니다 🙂 <span class="mail">{email}</span></div>
-</div>
-""",
-        unsafe_allow_html=True
-    )
+    if not st.session_state.get("HUB_MODE"):
+        st.markdown(
+            f"""
+        <div class="jp headbar">
+          <div class="headtitle">{_title}</div>
+          <div class="headhello">환영합니다 🙂 <span class="mail">{email}</span></div>
+        </div>
+        """,
+            unsafe_allow_html=True
+        )
 
 # 프로필/출석
 if sb_authed is not None:

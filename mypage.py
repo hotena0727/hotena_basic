@@ -18,7 +18,11 @@ def _get_email(user):
     return None
 
 def render():
-    st.markdown("## 👤 마이페이지")
+    if not st.session_state.get("HUB_MODE"):
+        st.markdown("## 👤 마이페이지")
+    else:
+        # HUB 상단 헤더가 이미 있으므로, 추가 타이틀은 생략
+        st.markdown("<div style='height:0.25rem'></div>", unsafe_allow_html=True)
     user = st.session_state.get("user")
     sb = st.session_state.get("sb_authed") or st.session_state.get("sb")
     plan = (st.session_state.get("user_plan") or "free").upper()

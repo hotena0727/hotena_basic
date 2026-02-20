@@ -1394,7 +1394,9 @@ if page == "home":
     st.info("☰ 메뉴에서 단어/한자/회화 훈련을 선택하세요.")
 
 elif page == "my":
-    # ✅ 독립 마이페이지: 한자(app.py) 안에 있던 대시보드를 그대로 분리한 mypage.py를 실행
+    # ✅ 마이페이지도 훈련 페이지들과 같은 '상단 높이'로 통일
+    st.session_state["hub_target"] = "my"
+    render_training_header(sb_authed, user, kind="my", title="👤 마이페이지", subtitle="학습 기록 · 목표 · 설정")
     run_script("mypage.py")
     st.stop()
 
