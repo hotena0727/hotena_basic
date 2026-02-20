@@ -326,14 +326,12 @@ st.markdown(
 
 /* 메인 컨테이너 위쪽 여백 줄이기 */
 div[data-testid="stAppViewContainer"] .block-container{
-    padding-top: 0rem !important;   /* TOP GAP KILL */
+  padding-top: 1.0rem !important;   /* 0.5~1.5rem 사이로 취향 조절 */
 }
 
 /* Streamlit 상단 헤더(투명 영역 포함) 자체를 더 얇게 */
 header[data-testid="stHeader"]{
-  display:none !important;
-  height:0 !important;
-  min-height:0 !important;
+  height: 3rem !important;
 }
 
 /* (선택) 우측 상단 Streamlit 기본 툴바 영역 숨김 */
@@ -347,7 +345,7 @@ div[data-testid="stToolbar"]{
 div[data-testid="stMarkdownContainer"] h2,
 div[data-testid="stMarkdownContainer"] h3,
 div[data-testid="stMarkdownContainer"] h4{
-    margin-top: 0px !important;
+  margin-top: 10px !important;
   margin-bottom: 8px !important;
 }
 
@@ -426,50 +424,14 @@ div.stButton > button{
 
 /* divider 간격(래퍼로만) */
 .tight-divider hr{
-  margin: 6px 0 10px 0 !important;
+  margin: 0px 0 2px 0 !important;
 }
+
+.tight-divider div[data-testid="stDivider"]{margin-top:0 !important; margin-bottom:0 !important; padding-top:0 !important; padding-bottom:0 !important;}
 
 /* Q번호 아래 간격 축소 */
 div[data-testid="stMarkdownContainer"] h3{
   margin-bottom: 4px !important;
-}
-
-/* ==========================================================
-   ✅ TOP GAP KILL SWITCH (ULTRA / LAST-WINS)
-   ========================================================== */
-div[data-testid="stAppViewContainer"],
-div[data-testid="stAppViewContainer"] .main,
-section.main,
-div[data-testid="stMain"],
-div[data-testid="stMainBlockContainer"]{
-  padding-top: 0 !important;
-  margin-top: 0 !important;
-}
-
-div[data-testid="stAppViewContainer"] .block-container,
-section.main > div.block-container{
-  padding-top: 0 !important;
-  margin-top: 0 !important;
-}
-
-/* first / all element containers: remove stray top space */
-div[data-testid="stAppViewContainer"] .block-container > div{
-  margin-top: 0 !important;
-  padding-top: 0 !important;
-}
-
-/* headings: keep tight */
-div[data-testid="stAppViewContainer"] h1,
-div[data-testid="stAppViewContainer"] h2,
-div[data-testid="stAppViewContainer"] h3,
-div[data-testid="stAppViewContainer"] p{
-  margin-top: 0 !important;
-}
-
-/* hide chrome defensively */
-div[data-testid="stToolbar"], div[data-testid="stDecoration"]{
-  display:none !important;
-  height:0 !important;
 }
 </style>
 """,
@@ -3767,7 +3729,7 @@ if st.session_state.submitted:
             textwrap.dedent(f"""
 {STYLE}
 {html_block}
-""", height=0),
+"""),
             height=h,
         )
 
