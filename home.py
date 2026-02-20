@@ -170,6 +170,53 @@ div[data-testid="stMetric"]{
     border-radius: 14px !important;
   }
 }
+
+/* ✅ Goal settings (inline, modern) */
+.goal-settings-wrap{
+  margin-top: 10px;
+  margin-bottom: 10px;
+  padding: 12px 14px;
+  border: 1px solid rgba(0,0,0,0.06);
+  border-radius: 14px;
+  background: rgba(245,247,251,0.85);
+}
+.goal-settings-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  margin-bottom: 10px;
+}
+.goal-settings-head .ttl{
+  font-weight:700;
+  font-size: 14px;
+}
+.goal-settings-head .meta{
+  font-size: 12px;
+  color: rgba(0,0,0,0.55);
+  white-space: nowrap;
+}
+.goal-bar{
+  width:100%;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(0,0,0,0.08);
+  overflow:hidden;
+  margin: 8px 0 12px;
+}
+.goal-bar > div{
+  height:100%;
+  width: var(--w, 0%);
+  border-radius: 999px;
+  background: rgba(0,0,0,0.55);
+  transition: width 420ms ease;
+}
+.goal-help{
+  margin-top: 6px;
+  font-size: 12px;
+  color: rgba(0,0,0,0.55);
+}
+
 </style>
 """,
     unsafe_allow_html=True,
@@ -876,26 +923,58 @@ def render_home_dashboard(sb_authed, user):
         if st.button("⚙️", key="hub_goal_gear_icon", help="루틴 목표 수정"):
             st.session_state["show_goal_settings"] = not st.session_state["show_goal_settings"]
 
-    # ---- goal settings (compact expander) ----
+    # ---- goal settings (inline panel, opens right under gear) ----
     if st.session_state.get("show_goal_settings", False):
-        with st.expander("루틴 목표 수정", expanded=True):
-            new_goal = st.number_input(
-                "하루 목표 세트 수 (1세트=10문항)",
-                min_value=0,
-                max_value=100,
-                value=int(goal_sets),
-                step=1,
-            )
-            csave, cclose = st.columns([1, 1], gap="small")
-            with csave:
-                if st.button("저장", use_container_width=True, key="hub_daily_goal_save"):
-                    progress_all["daily_goal_sets"] = int(new_goal)
-                    st.session_state["progress_all"] = progress_all
-                    save_progress(sb_authed, user.id, progress_all)
-                    st.success("저장했습니다.")
-            with cclose:
-                if st.button("닫기", use_container_width=True, key="hub_goal_close"):
-                    st.session_state["show_goal_settings"] = False
+        # progress percent for the small animated bar
+        _pct = 0.0
+        try:
+            _pct = 0.0 if int(goal_sets) <= 0 else min(1.0, float(done_total) / float(goal_sets))
+        except Exception:
+            _pct = 0.0
+
+        st.markdown(
+            f"""
+<div class="goal-settings-wrap">
+  <div class="goal-settings-head">
+    <div class="ttl">루틴 목표</div>
+    <div class="meta">오늘 {int(done_total)}/{int(goal_sets)} 세트</div>
+  </div>
+  <div class="goal-bar" style="--w:{_pct*100:.0f}%"><div></div></div>
+</div>
+""",
+            unsafe_allow_html=True,
+        )
+
+        # slider (reasonable max, but keep compatibility with existing data)
+        _max_goal = max(20, int(goal_sets) * 2)
+        _max_goal = min(100, _max_goal)
+        new_goal = st.slider(
+            "하루 목표 세트 수 (1세트=10문항)",
+            min_value=0,
+            max_value=int(_max_goal),
+            value=int(goal_sets),
+            step=1,
+            key="hub_goal_slider",
+            label_visibility="collapsed",
+        )
+        st.markdown(
+            f"<div class='goal-help'>하루 목표: <b>{int(new_goal)}</b> 세트 (1세트=10문항)</div>",
+            unsafe_allow_html=True,
+        )
+
+        csave, cclose = st.columns([1, 1], gap="small")
+        with csave:
+            if st.button("저장", use_container_width=True, key="hub_daily_goal_save"):
+                progress_all["daily_goal_sets"] = int(new_goal)
+                st.session_state["progress_all"] = progress_all
+                save_progress(sb_authed, user.id, progress_all)
+                st.session_state["show_goal_settings"] = False
+                st.rerun()
+        with cclose:
+            if st.button("닫기", use_container_width=True, key="hub_goal_close"):
+                st.session_state["show_goal_settings"] = False
+                st.rerun()
+
 
     # ---- rows (clickable) ----
     def _row(href: str, title: str, done: int, q: int, kind: str):
