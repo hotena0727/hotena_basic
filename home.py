@@ -1,7 +1,7 @@
 # home.py
 from __future__ import annotations
 
-BUILD_STAMP = 'v32-uiAB 2026-02-20 KST (+09:00)'
+BUILD_STAMP = 'v54-quickactions 2026-02-20 KST (+09:00)'
 
 from pathlib import Path
 import os
@@ -736,6 +736,89 @@ def render_floating_menu():
     st.markdown(html, unsafe_allow_html=True)
 
 
+def render_floating_quick_actions(active_page: str):
+    """✅ Bottom-right quick actions (consistent across pages)
+    - Top: scroll to top (JS)
+    - Talk: Next question (via query param act=next)
+    - Uses same queryparam base (rt/at) to preserve login persistence.
+    """
+    try:
+        rt_enc = st.query_params.get("rt", "")
+        at_enc = st.query_params.get("at", "")
+    except Exception:
+        rt_enc, at_enc = "", ""
+
+    def _q(s: str) -> str:
+        try:
+            import urllib.parse
+            return urllib.parse.quote(s, safe="") if s else ""
+        except Exception:
+            return s or ""
+
+    base = ""
+    if rt_enc:
+        base += "rt=" + _q(rt_enc) + "&"
+    if at_enc:
+        base += "at=" + _q(at_enc) + "&"
+
+    href_next = "?" + base + "p=talk&act=next"
+
+    html = """<style>
+/* ===== Floating Quick Actions ===== */
+.hub-quick-wrap{
+  position: fixed;
+  right: 14px;
+  bottom: 84px; /* above bottom nav */
+  z-index: 2147483500;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.hub-quick-btn{
+  width: 46px;
+  height: 46px;
+  border-radius: 999px;
+  border: 1px solid rgba(0,0,0,0.12);
+  background: rgba(255,255,255,0.92);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 10px 26px rgba(0,0,0,0.12);
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+  text-decoration: none;
+  color: rgba(20,20,20,0.95);
+  cursor: pointer;
+}
+.hub-quick-btn:active{
+  transform: translateY(1px);
+}
+@media (min-width: 801px){
+  .hub-quick-wrap{ bottom: 18px; }
+}
+</style>
+<div class="hub-quick-wrap">
+  __NEXT_BTN__
+  <button class="hub-quick-btn" id="hubTopBtn" title="맨 위로">⬆︎</button>
+</div>
+
+<script>
+(function(){
+  const topBtn = document.getElementById("hubTopBtn");
+  if (!topBtn) return;
+  topBtn.addEventListener("click", function(){
+    window.scrollTo({top:0, behavior:"smooth"});
+  });
+})();
+</script>
+"""
+
+    next_btn = ""
+    if active_page == "talk":
+        next_btn = f'<a class="hub-quick-btn" href="{href_next}" target="_self" title="다음 문제">▶︎</a>'
+
+    html = html.replace("__NEXT_BTN__", next_btn)
+    st.markdown(html, unsafe_allow_html=True)
+
 def render_plan_pill():
     plan = (st.session_state.get("user_plan") or "free").lower()
     txt = "✨ PRO 이용 중입니다" if plan == "pro" else "🆓 FREE 이용 중"
@@ -1384,3 +1467,6 @@ elif page == "talk":
     run_script("talk.py")
 else:
     st.info("상단 메뉴에서 원하는 항목을 선택하세요.")
+
+# ✅ Quick actions (bottom-right)
+render_floating_quick_actions(active_page=page)
