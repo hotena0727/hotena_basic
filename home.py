@@ -81,6 +81,15 @@ st.markdown('<div id="hotena-top"></div>', unsafe_allow_html=True)
 st.markdown(
     """
 <style>
+
+/* ✅ Ultra-tight training divider + progress spacing */
+.hub-hr{
+  border:0 !important;
+  border-top:1px solid rgba(0,0,0,.08) !important;
+  margin: .25rem 0 .35rem 0 !important;
+}
+div[data-testid="stProgress"]{ margin-top:.10rem !important; margin-bottom:.20rem !important; }
+div[data-testid="stCaptionContainer"]{ margin-top:0 !important; padding-top:0 !important; }
 /* ==========================================================
    ✅ HUB Global CSS (Mobile-first polish)
    - Keep header visible (child pages may hide)
@@ -216,6 +225,11 @@ div[data-testid="stMetric"]{
   font-size: 12px;
   color: rgba(0,0,0,0.55);
 }
+
+
+/* ✅ ULTRA: divider → next block gap killer */
+.hub-hr-tight{ border:0; border-top:1px solid rgba(255,255,255,.14); margin:0 !important; padding:0 !important; height:0 !important; }
+div[data-testid="stDivider"], div[data-testid="stDivider"] *{ margin:0 !important; padding:0 !important; }
 
 </style>
 """,
@@ -1780,7 +1794,7 @@ def render_training_header(sb_authed, user, kind: str, title: str, subtitle: str
 
     st.markdown(
         f"""
-<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:0.75rem;margin-top:0.25rem;margin-bottom:0.45rem;">
+<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:0.75rem;margin-top:0.00rem;margin-bottom:0.30rem;">
   <div>
     <div style="font-size:1.35rem;font-weight:800;line-height:1.2;">{title}</div>
     <div style="opacity:0.72;font-size:0.95rem; margin-top:0.15rem;">{subtitle}</div>
@@ -1798,7 +1812,7 @@ def render_training_header(sb_authed, user, kind: str, title: str, subtitle: str
     # compact progress
     st.progress(pct)
     st.caption(f"오늘 완료: {done_sets_total}/{goal_sets}세트 · 현재 페이지: {kind}")
-    st.markdown("---")
+    st.markdown('<hr class="hub-hr"/>', unsafe_allow_html=True)
 
 def run_script(filename: str):
     path = (BASE_DIR / filename).resolve()
