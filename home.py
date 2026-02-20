@@ -532,23 +532,10 @@ def render_home_dashboard(sb_authed, user):
 
     kst_today = datetime.now(timezone(timedelta(hours=9))).date()
 
-    # ---- qs toggle (gear icon link) ----
+    # ---- goal settings toggle ----
     if "show_goal_settings" not in st.session_state:
         st.session_state["show_goal_settings"] = False
 
-    _tg = st.query_params.get("toggle_goal")
-    if isinstance(_tg, (list, tuple)):
-        _tg = _tg[0] if _tg else None
-    if _tg == "1":
-        st.session_state["show_goal_settings"] = not st.session_state.get("show_goal_settings", False)
-        try:
-            del st.query_params["toggle_goal"]
-        except Exception:
-            try:
-                st.query_params.pop("toggle_goal", None)
-            except Exception:
-                pass
-        st.rerun()
     streak = calc_streak(daily_map, today=kst_today)
 
     progress_all = st.session_state.get("progress_all", {}) or {}
@@ -803,6 +790,22 @@ def render_home_dashboard(sb_authed, user):
 }
   .hub-cta-btn:hover{background:rgba(255,255,255,0.08);}
 
+
+  /* ✅ gear icon button (no box) */
+  #hub_gear_anchor + div[data-testid="stButton"] button{
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    min-height: 0 !important;
+    width: auto !important;
+  }
+  #hub_gear_anchor + div[data-testid="stButton"] button:hover{opacity:0.7;}
+  #hub_gear_anchor + div[data-testid="stButton"] button:focus{
+    outline: none !important;
+    box-shadow: none !important;
+  }
+
 </style>
         """,
         unsafe_allow_html=True,
@@ -986,22 +989,16 @@ def render_home_dashboard(sb_authed, user):
     _qp2["p"] = rec_kind
     _qs2 = urlencode(_qp2, doseq=True)
 
-    # --- Gear toggle query (toggle_goal=1) ---
-    _qp = {}
-    try:
-        _qp = dict(st.query_params)
-    except Exception:
-        _qp = {}
-    _qp["toggle_goal"] = "1"
-    _qs = urlencode(_qp, doseq=True)
+    # ✅ gear icon (same page) + CTA card
+    _gsp, _gcol = st.columns([1, 0.08], gap="small")
+    with _gcol:
+        st.markdown("<div id='hub_gear_anchor'></div>", unsafe_allow_html=True)
+        if st.button("⚙️", key="hub_goal_gear_icon", help="루틴 목표 수정"):
+            st.session_state["show_goal_settings"] = not st.session_state.get("show_goal_settings", False)
 
     st.markdown(
         f"""
         <div class='hub-cta-wrap'>
-          <div class='hub-gear-row'>
-            <a class='hub-gear' href='?{_qs}' title='루틴 목표 수정'>⚙️</a>
-          </div>
-
           <div class='hub-cta-card'>
             <div class='hub-msgbox'>{msg}</div>
             <a class='hub-cta-btn' href='?{_qs2}' title='{rec_label} 시작'>
