@@ -438,7 +438,7 @@ div.stButton > button{
 
 /* divider 간격(래퍼로만) */
 .tight-divider hr{
-  margin: 2px 0 8px 0 !important;
+  margin: 6px 0 10px 0 !important;
 }
 
 /* Q번호 아래 간격 축소 */
@@ -2538,7 +2538,7 @@ def render_home():
         unsafe_allow_html=True,
     )
 
-    st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
+    st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
     st.divider()
 
     c1, c2, c3 = st.columns([5, 3, 3])
@@ -2960,127 +2960,7 @@ if not st.session_state.get("HUB_MODE", False):
         elif streak >= 7:
             st.info("🏅 7일 연속 달성!")
 
-    # --- (A) 기존 "오늘의 목표(루틴)" 섹션 ---
-    if "today_goal_text" not in st.session_state:
-        st.session_state.today_goal_text = "오늘은 10문항 1회 완주"
-    if "today_goal_done" not in st.session_state:
-        st.session_state.today_goal_done = False
-
-    # ============================================================
-    # ✅ [PATCH] 🎯 오늘 목표 자동 연동 + 진행률 도표(프로그레스 바)
-    # - 목표 1회=10문항, 2회=20문항...
-    # - today_total(= total) 기준으로 자동 ✅달성/⏳진행중
-    # - ✅ “오늘 목표” 박스 안에 진행률 도표 + % 표시
-    # - ✅ 세그먼트 카드/목표 카드 톤(테두리/라운드/그림자) 통일
-    # ============================================================
-
-    st.markdown("""
-    <style>
-    /* ✅ goal 세그먼트 전용 앵커 */
-    #goal_seg_anchor + div[data-testid="stSegmentedControl"]{
-      padding: 10px 12px;
-      border: 1px solid rgba(49,51,63,.12);
-      border-radius: 14px;
-      background: #fff;
-      box-shadow: 0 1px 0 rgba(0,0,0,.02);
-      margin-bottom: 10px;
-    }
-    #goal_seg_anchor + div[data-testid="stSegmentedControl"] [role="group"]{
-      display:flex !important;
-      width:100% !important;
-      gap: 8px !important;
-    }
-    #goal_seg_anchor + div[data-testid="stSegmentedControl"] button{
-      flex: 1 1 0 !important;
-      min-width: 0 !important;
-      text-align: center !important;
-      padding: 12px 10px !important;
-      font-size: 15px !important;
-      border-radius: 12px !important;
-      border: 1px solid rgba(49,51,63,.12) !important;
-    }
-    #goal_seg_anchor + div[data-testid="stSegmentedControl"] button[aria-pressed="true"]{
-      border: 1px solid rgba(255,0,0,.35) !important;
-      box-shadow: 0 0 0 2px rgba(255,0,0,.08) inset;
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-    # ✅ 앵커는 segmented_control "바로 직전"에 둬야 함
-    st.markdown('<div id="goal_seg_anchor"></div>', unsafe_allow_html=True)
-
-
-    # ✅ 1) 목표(세션) 설정값
-    if "goal_sessions" not in st.session_state:
-        st.session_state.goal_sessions = 1  # 기본 1회(=10문항)
-
-    target_questions = st.slider(
-        "오늘 목표",
-        min_value=10, max_value=60, step=10,
-        value=st.session_state.get("target_questions", 10),
-    )
-    st.session_state["target_questions"] = target_questions
-
-
-    # ✅ 2) 오늘 푼 문항수(기존 total 변수 재사용)
-    today_total = int(total)  # ← 기존 코드에서 total이 "오늘 푼 문항"이면 그대로 OK
-
-    goal_done = today_total >= target_questions
-    goal_percent = int(min(100, (today_total / max(1, target_questions)) * 100))
-    remain = max(0, target_questions - today_total)
-
-    goal_msg = "오늘 목표 달성! 내일도 루틴 이어가요 🔥" if goal_done else f"남은 문항: {remain}"
-
-
-    # ✅ 3) 자동 목표 UI (진행률 도표 포함)
-    import streamlit.components.v1 as components
-
-    card_html = f"""
-    <div class="jp" style="
-      border:1px solid rgba(49,51,63,.12);
-      border-radius:18px;
-      padding:14px 14px;
-      background:#fff;
-      box-shadow: 0 1px 0 rgba(0,0,0,.02);
-      margin: 6px 0 10px 0;
-      font-family: inherit;
-    ">
-      <div style="display:flex; justify-content:space-between; align-items:center;">
-        <div style="font-weight:900; font-size:14px; opacity:.80;">🎯 오늘 목표</div>
-        <div style="font-size:12px; font-weight:900; opacity:.85;">
-          {"✅ 달성" if goal_done else "⏳ 진행중"}
-        </div>
-      </div>
-
-      <div style="margin-top:10px; display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
-        <div style="font-size:13px; font-weight:800; opacity:.85;">
-          목표: <b>{target_questions}</b>문항
-        </div>
-        <div style="font-size:13px; font-weight:800; opacity:.85;">
-          진행: <b>{today_total}</b> / {target_questions}문항
-        </div>
-        <div style="font-size:13px; font-weight:900; opacity:.85;">
-          {goal_percent}%
-        </div>
-      </div>
-
-      <div style="margin-top:10px;">
-        <div style="height:10px; border-radius:999px; background: rgba(0,0,0,0.07); overflow:hidden;">
-          <div style="height:100%; width:{goal_percent}%; background: rgba(0,0,0,0.25);"></div>
-        </div>
-
-        <div style="margin-top:10px; font-size:12.5px; opacity:.72; font-weight:700;">
-          {goal_msg}
-        </div>
-      </div>
-    </div>
-    """
-
-    # height는 카드 높이에 맞춰 적당히
-    components.html(card_html, height=140)
-
-
-    st.divider()
+        # --- (A) 오늘 목표(루틴) 섹션 제거됨 (2026-02-20)
 
 # ============================================================
 # ✅ 이하: 기존 세션 상태 초기화/shape ensure (그대로 유지)
