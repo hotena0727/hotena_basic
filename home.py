@@ -235,6 +235,16 @@ div[data-testid="stMetric"]{
   color: rgba(0,0,0,0.55);
 }
 
+
+/* ==========================================================
+   ✅ Training header spacing (title ↔ divider)
+   - Scope to our wrapper .hub-training-header
+   ========================================================== */
+.hub-training-header { margin-top: 0rem; margin-bottom: 0.15rem; }
+.hub-training-header div[data-testid="stProgress"] { margin-top: 0.30rem !important; margin-bottom: 0.25rem !important; }
+.hub-training-header div[data-testid="stCaptionContainer"] { margin-top: 0.10rem !important; margin-bottom: 0.10rem !important; }
+.hub-tight-hr { height:1px; background: rgba(0,0,0,.10); margin: 0.35rem 0 0.10rem 0; border-radius:999px; }
+
 </style>
 """,
     unsafe_allow_html=True,
@@ -1796,9 +1806,10 @@ def render_training_header(sb_authed, user, kind: str, title: str, subtitle: str
     if goal_sets > 0:
         pct = min(1.0, done_sets_total / float(goal_sets))
 
+    st.markdown('<div class="hub-training-header">', unsafe_allow_html=True)
     st.markdown(
         f"""
-<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:0.75rem;margin-top:0.10rem;margin-bottom:0.18rem;">
+<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:0.75rem;margin-top:0.05rem;margin-bottom:0.20rem;">
   <div>
     <div style="font-size:1.35rem;font-weight:800;line-height:1.2;">{title}</div>
     <div style="opacity:0.72;font-size:0.95rem; margin-top:0.15rem;">{subtitle}</div>
@@ -1813,19 +1824,11 @@ def render_training_header(sb_authed, user, kind: str, title: str, subtitle: str
         unsafe_allow_html=True,
     )
 
-    # compact progress (tight spacing)
-    st.markdown(
-        """<style>
-/* tighten header→progress→divider spacing */
-div[data-testid="stProgress"]{ margin-top: .20rem !important; margin-bottom: .10rem !important; }
-div[data-testid="stCaptionContainer"]{ margin-top: .10rem !important; margin-bottom: .10rem !important; }
-.hub-hr{ height:1px; background: rgba(0,0,0,.12); margin: .18rem 0 .18rem 0; }
-</style>""",
-        unsafe_allow_html=True,
-    )
+    # compact progress
     st.progress(pct)
     st.caption(f"오늘 완료: {done_sets_total}/{goal_sets}세트 · 현재 페이지: {kind}")
-    st.markdown('<div class="hub-hr"></div>', unsafe_allow_html=True)
+    st.markdown('<div class="hub-tight-hr"></div>', unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 
 def run_script(filename: str):
     path = (BASE_DIR / filename).resolve()
