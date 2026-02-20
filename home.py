@@ -1203,9 +1203,10 @@ def render_float_top_anchor_button():
   width: 50px;
   height: 50px;
   border-radius: 999px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  display: block;
+  min-height: auto;
+  align-items: flex-start;
+  justify-content: flex-start;
   text-decoration: none !important;
   background: rgba(17,17,17,0.86);
   color: #fff !important;
