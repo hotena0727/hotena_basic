@@ -774,7 +774,7 @@ def render_plan_pill():
 
     # ✅ Unified SFX toggle lives here (Hub-level), so child pages won't render their own toggle.
     if "sound_enabled" not in st.session_state:
-        st.session_state.sound_enabled = False
+        st.session_state.sound_enabled = True
 
     # ✅ Anchor + CSS to keep this bar on ONE line (especially on mobile)
     st.markdown('<div id="hub_planbar_anchor"></div>', unsafe_allow_html=True)
@@ -824,40 +824,31 @@ div[data-testid="stAppViewContainer"] label[data-testid="stWidgetLabel"]{
     with c2:
         # ✅ Far-right toggle with clear label ("소리")
         st.session_state.sound_enabled = st.toggle(
-            "소리",
+            "sound",
             value=bool(st.session_state.sound_enabled),
             key="hub_sound_toggle",
+            label_visibility="collapsed",
             help="정답/오답 효과음 ON/OFF",
         )
 
 def render_daily_goal_home(sb_authed, user_id: str):
-    """Home dashboard: daily goal (sets-based). 1 set == 10 questions (quiz_len)."""
+    """Home dashboard: daily goal (sets-based). 1 set == 10 questions."""
     progress_all = st.session_state.get("progress_all", {}) or {}
-
-    # ✅ 세트 목표(기본 3세트). 기존 '문항 목표'를 쓰고 있었다면, 일단 세트 목표로 전환합니다.
     goal_sets = int((progress_all.get("daily_goal_sets") or 3))
 
     attempts = fetch_today_attempts(sb_authed, user_id)
     sm = summarize_attempts(attempts)
 
-    done_sets = int(sm.get("total_sets", 0))
-    done_q = int(sm.get("total_q", 0))
+    done_sets_total = int(sm.get("total_sets", 0))
+    pct = 0 if goal_sets <= 0 else min(100, int(round(done_sets_total / goal_sets * 100)))
 
-    pct = 0 if goal_sets <= 0 else min(100, int(round(done_sets / goal_sets * 100)))
-
-    st.markdown("## 🎯 오늘의 목표 (세트 기준)")
+    # ✅ Compact routine card (word + kanji 중심)
+    st.markdown("### 🎯 오늘의 목표")
     st.progress(pct / 100 if goal_sets > 0 else 0.0)
 
-    c1, c2, c3 = st.columns(3)
-    c1.metric("오늘 완료 세트", f"{done_sets}/{goal_sets}")
-    acc = 0 if done_q <= 0 else int(round(sm.get("total_score", 0) / done_q * 100))
-    c2.metric("정답률", f"{acc}%")
-    c3.metric("문항 수", f"{done_q}문항")
-
-    b1, b2, b3 = st.columns(3)
-    b1.caption(f"단어: {sm['by_kind']['word']['sets']}세트 · {sm['by_kind']['word']['q']}문항")
-    b2.caption(f"한자: {sm['by_kind']['kanji']['sets']}세트 · {sm['by_kind']['kanji']['q']}문항")
-    b3.caption(f"회화: {sm['by_kind']['talk']['sets']}세트 · {sm['by_kind']['talk']['q']}문항")
+    c1, c2 = st.columns(2)
+    c1.caption(f"전체: {done_sets_total}/{goal_sets}세트")
+    c2.caption(f"단어: {sm['by_kind']['word']['sets']}세트 · 한자: {sm['by_kind']['kanji']['sets']}세트")
 
     with st.expander("목표 수정", expanded=False):
         new_goal = st.number_input("하루 목표 세트 수 (1세트=10문항)", min_value=0, max_value=100, value=goal_sets, step=1)
@@ -1379,7 +1370,7 @@ def render_training_header(sb_authed, user, kind: str, title: str, subtitle: str
         pct = min(1.0, done_sets_total / float(goal_sets))
 
     # ✅ words/kanji: 제목 옆 "오늘의 목표" 배지 제거 (단어 훈련처럼 깔끔하게)
-    show_kind_badge = kind not in ("words", "kanji")
+    show_kind_badge = kind not in ("word", "kanji")
 
     badge_html = ""
     if show_kind_badge:

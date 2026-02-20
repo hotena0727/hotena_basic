@@ -66,7 +66,7 @@ def render_sound_toggle():
         return
 
     if "sound_enabled" not in st.session_state:
-        st.session_state.sound_enabled = False
+    st.session_state.sound_enabled = True
 
     c1, c2, c3 = st.columns([1.4, 4.6, 4.0], vertical_alignment="center")
 
