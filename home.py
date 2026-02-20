@@ -1,7 +1,7 @@
 # home.py
 from __future__ import annotations
 
-BUILD_STAMP = 'v38.2-homehub-all3-fixedindent 2026-02-20 KST (+09:00)'
+BUILD_STAMP = 'v38.3-goal-gear-compact 2026-02-20 KST (+09:00)'
 
 from pathlib import Path
 import os
@@ -539,6 +539,7 @@ def render_home_dashboard(sb_authed, user):
     last_seen = str(progress_all.get("last_seen_date") or "")
     if last_seen != today_str:
         progress_all["last_seen_date"] = today_str
+        st.session_state["show_goal_settings"] = False
         st.session_state["progress_all"] = progress_all
         try:
             save_progress(sb_authed, user.id, progress_all)
@@ -894,14 +895,26 @@ def render_home_dashboard(sb_authed, user):
             st.query_params["p"] = "talk"
             st.rerun()
 
-    # ---- goal settings (keep existing behavior) ----
-    with st.expander("목표 수정", expanded=False):
+# ---- goal settings (compact) ----
+st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
+cgs1, cgs2 = st.columns([1, 0.28], gap="small")
+with cgs2:
+    if st.button("⚙️", key="hub_goal_gear", help="루틴 목표 수정", use_container_width=True):
+        st.session_state["show_goal_settings"] = True
+
+if st.session_state.get("show_goal_settings", False):
+    with st.expander("루틴 목표 수정", expanded=True):
         new_goal = st.number_input("하루 목표 세트 수 (1세트=10문항)", min_value=0, max_value=100, value=goal_sets, step=1)
-        if st.button("저장", use_container_width=True, key="hub_daily_goal_save"):
-            progress_all["daily_goal_sets"] = int(new_goal)
-            st.session_state["progress_all"] = progress_all
-            save_progress(sb_authed, user.id, progress_all)
-            st.success("저장했습니다.")
+        cols_save = st.columns([1, 1], gap="small")
+        with cols_save[0]:
+            if st.button("저장", use_container_width=True, key="hub_daily_goal_save"):
+                progress_all["daily_goal_sets"] = int(new_goal)
+                st.session_state["progress_all"] = progress_all
+                save_progress(sb_authed, user.id, progress_all)
+                st.success("저장했습니다.")
+        with cols_save[1]:
+            if st.button("닫기", use_container_width=True, key="hub_goal_close"):
+                st.session_state["show_goal_settings"] = False
 
 
 def summarize_attempts(attempts: list[dict]) -> dict:
