@@ -5,6 +5,17 @@ from pathlib import Path
 import random
 import pandas as pd
 import streamlit as st
+
+
+# ============================================================
+# ✅ HUB 진입 시 보기 선택 초기화 (한자)
+# ============================================================
+if st.session_state.get("_entered_kanji"):
+    for k in list(st.session_state.keys()):
+        if k.startswith("quiz_") or k.startswith("radio_") or k.startswith("selected"):
+            st.session_state.pop(k, None)
+    st.session_state["_entered_kanji"] = False
+
 import unicodedata
 from supabase import create_client
 from streamlit_cookies_manager import EncryptedCookieManager
