@@ -230,6 +230,16 @@ div[data-testid="stMetric"]{
   color: rgba(0,0,0,0.55);
 }
 
+
+/* ✅ ULTRA: Streamlit versions vary, so override multiple containers */
+html, body { margin:0 !important; padding:0 !important; }
+div[data-testid="stAppViewContainer"]{ padding-top:0 !important; }
+div[data-testid="stAppViewContainer"] > div:first-child{ margin-top:0 !important; padding-top:0 !important; }
+section.main{ padding-top:0 !important; }
+section.main > div{ padding-top:0 !important; margin-top:0 !important; }
+div[data-testid="stMain"]{ padding-top:0 !important; margin-top:0 !important; }
+div[data-testid="stMainBlockContainer"]{ padding-top:0 !important; margin-top:0 !important; }
+
 </style>
 """,
     unsafe_allow_html=True,
