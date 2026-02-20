@@ -1,7 +1,7 @@
 # home.py
 from __future__ import annotations
 
-BUILD_STAMP = 'v34-homeA-minimalcards 2026-02-20 KST (+09:00)'
+BUILD_STAMP = 'v35-homeAplus-donut 2026-02-20 KST (+09:00)'
 
 from pathlib import Path
 import os
@@ -502,7 +502,6 @@ def calc_streak(daily_sets: dict[date, int], today: date | None = None) -> int:
 # ✅ UI helper: fixed 3-dot progress (app-like)
 # ============================================================
 def _dots_3(done_sets: int, goal_sets: int) -> str:
-    # Always show 3 dots for a clean dashboard look.
     if goal_sets <= 0:
         filled = 0
     else:
@@ -518,7 +517,7 @@ def _dots_3(done_sets: int, goal_sets: int) -> str:
 
 
 def render_home_dashboard(sb_authed, user):
-    """Home Hub dashboard (A안: minimal, app-like cards)."""
+    """Home Hub dashboard (A+안: central donut + minimal rows)."""
 
     # ---- data ----
     attempts_recent = fetch_recent_attempts(sb_authed, user.id, limit=500)
@@ -534,33 +533,66 @@ def render_home_dashboard(sb_authed, user):
     progress_all = st.session_state.get("progress_all", {}) or {}
     goal_sets = int((progress_all.get("daily_goal_sets") or 3))
 
-    # ---- CSS (cards) ----
+    done_total = int(sm_today.get("total_sets", 0))
+    pct = 0 if goal_sets <= 0 else int(round(min(1.0, done_total / float(goal_sets)) * 100))
+
+    w = sm_today["by_kind"]["word"]
+    k = sm_today["by_kind"]["kanji"]
+    t = sm_today["by_kind"]["talk"]
+
+    # ---- CSS ----
     st.markdown(
         """
 <style>
-  .h-home-wrap{margin-top:.15rem;}
-  .h-row{display:flex;align-items:flex-end;justify-content:space-between;gap:.75rem;margin:.2rem 0 .55rem;}
-  .h-title{font-size:1.32rem;font-weight:850;line-height:1.15;}
-  .h-sub{opacity:.72;font-size:.94rem;margin-top:.12rem;}
-  .h-pill{display:inline-flex;align-items:center;gap:.35rem;padding:.22rem .55rem;border-radius:999px;border:1px solid rgba(0,0,0,.10);background:rgba(0,0,0,.02);font-size:.92rem;}
-  .h-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.6rem;margin-top:.15rem;}
-  @media (max-width: 720px){
-    .h-grid{grid-template-columns:1fr;gap:.55rem;}
+  .h-wrap{margin-top:.10rem;}
+  .h-top{display:flex;align-items:flex-end;justify-content:space-between;gap:.75rem;margin:.15rem 0 .45rem;}
+  .h-title{font-size:1.28rem;font-weight:850;line-height:1.15;margin:0;}
+  .h-sub{opacity:.70;font-size:.92rem;margin:.18rem 0 0;}
+  .h-pill{display:inline-flex;align-items:center;gap:.35rem;padding:.20rem .55rem;border-radius:999px;border:1px solid rgba(0,0,0,.10);background:rgba(0,0,0,.02);font-size:.92rem;white-space:nowrap;}
+
+  .h-center{display:flex;align-items:center;justify-content:center;margin:.55rem 0 .35rem;}
+  .donut{
+    width: 140px; height: 140px; border-radius: 50%;
+    background: conic-gradient(#2E7CF6 var(--p), rgba(0,0,0,.08) 0);
+    display:flex;align-items:center;justify-content:center;
+    box-shadow: 0 10px 28px rgba(0,0,0,0.08);
+    border: 1px solid rgba(49,51,63,0.14);
   }
-  a.h-card{display:block;text-decoration:none !important;color:inherit;}
-  .h-card-inner{
-    border-radius:18px;
-    border:1px solid rgba(49,51,63,0.14);
+  .donut::before{
+    content:"";
+    width: 104px; height: 104px; border-radius: 50%;
+    background: rgba(255,255,255,0.98);
+    border: 1px solid rgba(0,0,0,.06);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.6);
+  }
+  .donut-inner{
+    position:absolute;
+    width: 140px; height: 140px;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;
+    pointer-events:none;
+  }
+  .donut-pct{font-size:1.55rem;font-weight:900;line-height:1.0;margin-bottom:.15rem;}
+  .donut-label{font-size:.86rem;opacity:.72;}
+
+  .h-rows{display:flex;flex-direction:column;gap:.42rem;margin:.35rem 0 .60rem;}
+  .row{
+    display:flex;align-items:center;justify-content:space-between;gap:.6rem;
+    padding: .60rem .70rem;
+    border-radius: 16px;
+    border: 1px solid rgba(49,51,63,0.14);
     background: rgba(255,255,255,0.02);
-    box-shadow: 0 8px 26px rgba(0,0,0,0.07);
-    padding: 14px 14px 12px;
-    transition: transform 120ms ease, box-shadow 120ms ease;
+    box-shadow: 0 8px 22px rgba(0,0,0,0.06);
   }
-  .h-card-inner:hover{transform: translateY(-1px); box-shadow: 0 12px 32px rgba(0,0,0,0.10);}
-  .h-card-title{font-size:1.05rem;font-weight:820; margin:0 0 .25rem;}
-  .h-card-meta{font-size:.86rem; opacity:.78; margin:0;}
-  .h-dots{margin-top:.35rem; font-size:1.05rem; letter-spacing:1px;}
-  .h-cta{margin-top:.8rem;}
+  .row-left{display:flex;flex-direction:column;gap:.12rem;min-width:0;}
+  .row-title{font-size:1.00rem;font-weight:820;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .row-meta{font-size:.82rem;opacity:.72;margin:0;}
+  .row-right{text-align:right;white-space:nowrap;}
+  .row-dots{font-size:1.05rem;letter-spacing:1px;margin:0;}
+  .row-goal{font-size:.82rem;opacity:.72;margin-top:.05rem;}
+
+  .h-cta{margin-top:.25rem;margin-bottom:.25rem;}
+  .h-cta b{font-size:1.0rem;}
 </style>
         """,
         unsafe_allow_html=True,
@@ -569,48 +601,61 @@ def render_home_dashboard(sb_authed, user):
     # ---- header ----
     st.markdown(
         f"""
-<div class="h-home-wrap">
-  <div class="h-row">
+<div class="h-wrap">
+  <div class="h-top">
     <div>
-      <div class="h-title">하테나 학습 허브</div>
-      <div class="h-sub">오늘의 루틴을 한눈에 보고, 바로 시작해 보세요.</div>
+      <p class="h-title">하테나 학습 허브</p>
+      <p class="h-sub">오늘의 성취율을 확인하고, 바로 이어가세요.</p>
     </div>
-    <div style="text-align:right;">
-      <div class="h-pill">🔥 <b>{streak}</b>일</div>
-    </div>
+    <div class="h-pill">🔥 <b>{streak}</b>일</div>
   </div>
 </div>
 """,
         unsafe_allow_html=True,
     )
 
-    # ---- cards ----
-    w = sm_today["by_kind"]["word"]
-    k = sm_today["by_kind"]["kanji"]
-    t = sm_today["by_kind"]["talk"]
+    # ---- central donut ----
+    # conic-gradient expects an angle/percent; we pass e.g. "67%"
+    st.markdown(
+        f"""
+<div class="h-center" style="position:relative;">
+  <div class="donut" style="--p:{pct}%"></div>
+  <div class="donut-inner">
+    <div class="donut-pct">{pct}%</div>
+    <div class="donut-label">오늘 목표</div>
+  </div>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
 
-    def _card(href: str, title: str, done: int, q: int):
+    # ---- minimal rows (clickable) ----
+    def _row(href: str, title: str, done: int, q: int):
         dots = _dots_3(int(done), int(goal_sets))
-        return f"""<a class='h-card' href='{href}'>
-  <div class='h-card-inner'>
-    <div class='h-card-title'>{title}</div>
-    <p class='h-card-meta'>{done}/{goal_sets} 세트 · {q} 문항</p>
-    <div class='h-dots'>{dots}</div>
+        return f"""<a href='{href}' style='text-decoration:none;color:inherit;'>
+  <div class='row'>
+    <div class='row-left'>
+      <p class='row-title'>{title}</p>
+      <p class='row-meta'>{q} 문항</p>
+    </div>
+    <div class='row-right'>
+      <p class='row-dots'>{dots}</p>
+      <div class='row-goal'>{done}/{goal_sets} 세트</div>
+    </div>
   </div>
 </a>"""
 
-    cards_html = """<div class='h-grid'>""" + \
-        _card("?p=word", "📘 단어 훈련", int(w["sets"]), int(w["q"])) + \
-        _card("?p=kanji", "🈶 한자 훈련", int(k["sets"]), int(k["q"])) + \
-        _card("?p=talk", "💬 회화 훈련", int(t["sets"]), int(t["q"])) + \
+    rows_html = """<div class='h-rows'>""" + \
+        _row("?p=word", "📘 단어", int(w["sets"]), int(w["q"])) + \
+        _row("?p=kanji", "🈶 한자", int(k["sets"]), int(k["q"])) + \
+        _row("?p=talk", "💬 회화", int(t["sets"]), int(t["q"])) + \
         """</div>"""
-    st.markdown(cards_html, unsafe_allow_html=True)
+    st.markdown(rows_html, unsafe_allow_html=True)
 
-    # ---- CTA (one line) ----
-    done_total = int(sm_today.get("total_sets", 0))
+    # ---- CTA ----
     remaining = max(0, goal_sets - done_total)
     if remaining == 0:
-        msg = "오늘 목표 달성! 내일도 가볍게 1세트부터 이어가요."
+        msg = "오늘 목표 달성! 내일도 1세트부터 가볍게 이어가요."
     elif remaining == 1:
         msg = "오늘 1세트만 더 하면 목표 달성!"
     else:
@@ -637,9 +682,6 @@ def render_home_dashboard(sb_authed, user):
             st.session_state["progress_all"] = progress_all
             save_progress(sb_authed, user.id, progress_all)
             st.success("저장했습니다.")
-
-    # small footer
-    st.caption("※ 진행 표시는 오늘 목표(세트) 기준이며, 앱 디자인을 위해 3칸(●○○)으로 단순화했습니다.")
 
 
 def summarize_attempts(attempts: list[dict]) -> dict:
