@@ -88,20 +88,17 @@ st.markdown(
    - Normalize spacing/typography for "app-like" feel
    ========================================================== */
 
-header[data-testid="stHeader"]{display:none !important; height:0 !important; min-height:0 !important;}
-div[data-testid="stToolbar"]{display:none !important; height:0 !important;}
-div[data-testid="stDecoration"]{display:none !important; height:0 !important;}
+header[data-testid="stHeader"]{
+  height: auto !important;
+  min-height: 3.25rem !important;
+}
+
 /* Container spacing */
 div[data-testid="stAppViewContainer"] .block-container{
-  padding-top: 0rem !important;
+  padding-top: 0.25rem !important;
   padding-bottom: 5.25rem !important; /* bottom breathing room for mobile */
 }
 
-
-/* ✅ Near-zero top: force main containers to start at top */
-div[data-testid="stAppViewContainer"]{ padding-top: 0 !important; }
-div[data-testid="stAppViewContainer"] .main{ padding-top: 0 !important; }
-section.main > div{ padding-top: 0 !important; }
 /* Headlines: tighter */
 div[data-testid="stAppViewContainer"] h1,
 div[data-testid="stAppViewContainer"] h2{
@@ -771,51 +768,22 @@ def render_float_top_anchor_button():
     )
 
 
-
 def render_plan_pill():
-    """Compact plan pill (✨ Pro / 🆓 Free). Clicking reveals plan info."""
     plan = (st.session_state.get("user_plan") or "free").lower()
-    label = "✨ Pro" if plan == "pro" else "🆓 Free"
-
-    # ✅ keep pill small + pretty (scoped CSS)
+    txt = "✨ PRO 이용 중입니다" if plan == "pro" else "🆓 FREE 이용 중"
     st.markdown(
-        """
-<style>
-#planpill-wrap div[data-testid="stButton"] button{
-  padding: .28rem .55rem !important;
-  border-radius: 999px !important;
-  border: 1px solid rgba(0,0,0,.10) !important;
-  font-size: .86rem !important;
-  opacity: .92 !important;
-  background: rgba(0,0,0,.02) !important;
-  line-height: 1 !important;
-  min-height: 0 !important;
-}
-#planpill-wrap div[data-testid="stButton"] button p{
-  margin: 0 !important;
-}
-</style>
-<div id="planpill-wrap">
+        f"""
+<div style="display:flex;justify-content:flex-start;margin-top:0.15rem;margin-bottom:0.2rem;">
+  <div style="
+    display:inline-flex;align-items:center;gap:.45rem;
+    padding:.28rem .55rem;border-radius:999px;
+    border:1px solid rgba(0,0,0,.10);
+    font-size:.86rem;opacity:.92;background:rgba(0,0,0,.02);
+  ">{txt}</div>
+</div>
 """,
         unsafe_allow_html=True,
     )
-
-    clicked = st.button(label, key="planpill_btn", help="플랜 안내 보기", use_container_width=False)
-
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    # toggle visibility
-    if clicked:
-        st.session_state["show_plan_info"] = not st.session_state.get("show_plan_info", False)
-
-    if st.session_state.get("show_plan_info", False):
-        with st.expander("플랜 안내", expanded=True):
-            st.markdown(
-                """- **Free**: 기본 훈련 이용(일부 기능/횟수 제한 가능)
-- **Pro**: 무제한/확장 기능(오답노트 전체, 추가 훈련/기록 등)
-"""
-            )
-
 
 def render_daily_goal_home(sb_authed, user_id: str):
     """Home dashboard: daily goal (sets-based). 1 set == 10 questions (quiz_len)."""
@@ -841,22 +809,10 @@ def render_daily_goal_home(sb_authed, user_id: str):
     c2.metric("정답률", f"{acc}%")
     c3.metric("문항 수", f"{done_q}문항")
 
-    c1, c2, c3 = st.columns(3)
-
-    def _mini_card(col, title, done_sets_i, goal_sets_i, q_cnt_i):
-        with col:
-            pct_i = 0 if goal_sets_i <= 0 else min(100, int(round(done_sets_i / goal_sets_i * 100)))
-            st.markdown(f"### {title}")
-            st.progress(pct_i / 100 if goal_sets_i > 0 else 0.0)
-            st.caption(f"{done_sets_i}/{goal_sets_i}세트 · {q_cnt_i}문항")
-
-    w = sm["by_kind"]["word"]
-    k = sm["by_kind"]["kanji"]
-    t = sm["by_kind"]["talk"]
-
-    _mini_card(c1, "📘 단어", int(w["sets"]), goal_sets, int(w["q"]))
-    _mini_card(c2, "🈶 한자", int(k["sets"]), goal_sets, int(k["q"]))
-    _mini_card(c3, "💬 회화", int(t["sets"]), goal_sets, int(t["q"]))
+    b1, b2, b3 = st.columns(3)
+    b1.caption(f"단어: {sm['by_kind']['word']['sets']}세트 · {sm['by_kind']['word']['q']}문항")
+    b2.caption(f"한자: {sm['by_kind']['kanji']['sets']}세트 · {sm['by_kind']['kanji']['q']}문항")
+    b3.caption(f"회화: {sm['by_kind']['talk']['sets']}세트 · {sm['by_kind']['talk']['q']}문항")
 
     with st.expander("목표 수정", expanded=False):
         new_goal = st.number_input("하루 목표 세트 수 (1세트=10문항)", min_value=0, max_value=100, value=goal_sets, step=1)
@@ -1460,3 +1416,157 @@ elif page == "talk":
     run_script("talk.py")
 else:
     st.info("상단 메뉴에서 원하는 항목을 선택하세요.")
+
+# ============================================================
+    # ✅ Minimal Dashboard Home (A안)
+    # - Compact status row (Plan pill + small stats)
+    # - 3 minimal cards (Word/Kanji/Talk) with progress + CTA buttons
+    # ============================================================
+
+    def _dashboard_css():
+        st.markdown(
+            """
+    <style>
+      /* ✅ Minimal dashboard cards (button-as-card) */
+      div[data-testid="stButton"] > button.hotena-card-btn{
+        width: 100% !important;
+        text-align: left !important;
+        padding: 14px 14px !important;
+        border-radius: 16px !important;
+        border: 1px solid rgba(49,51,63,0.15) !important;
+        background: rgba(255,255,255,0.02) !important;
+        box-shadow: 0 6px 20px rgba(0,0,0,0.06) !important;
+        transition: transform 120ms ease, box-shadow 120ms ease;
+        line-height: 1.2 !important;
+      }
+      div[data-testid="stButton"] > button.hotena-card-btn:hover{
+        transform: translateY(-1px);
+        box-shadow: 0 10px 28px rgba(0,0,0,0.10) !important;
+      }
+      div[data-testid="stButton"] > button.hotena-card-btn:active{
+        transform: translateY(0px);
+      }
+
+      .hotena-card-title{
+        font-size: 18px;
+        font-weight: 700;
+        margin: 0 0 6px 0;
+      }
+      .hotena-card-sub{
+        font-size: 12px;
+        opacity: 0.78;
+        margin: 0;
+      }
+      .hotena-mini-metric{
+        font-size: 12px;
+        opacity: 0.82;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .hotena-cta{
+        margin-top: 8px;
+      }
+    </style>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    def render_home(user=None, user_plan=PLAN_FREE):
+        # CSS: keep whatever was already applied at import-time; add dashboard card CSS
+        _dashboard_css()
+
+        # --- status row ---
+        cL, cR = st.columns([2.2, 1.0], vertical_alignment="center")
+        with cL:
+            render_plan_pill(user_plan)
+        with cR:
+            # 작은 상태 요약(있는 데이터만)
+            try:
+                sm = get_today_summary()
+                goal_sets = get_goal_sets()
+                total_sets = sum(sm["by_kind"][k]["sets"] for k in ["word","kanji","talk"])
+                st.markdown(f'<div class="hotena-mini-metric">🎯 {total_sets}/{goal_sets}세트</div>', unsafe_allow_html=True)
+            except Exception:
+                st.markdown('<div class="hotena-mini-metric">🎯 오늘 목표</div>', unsafe_allow_html=True)
+
+        st.markdown("## 하테나 학습 허브")
+        st.caption("오늘의 진행 상황을 한눈에 확인하고, 바로 훈련을 시작해 보세요.")
+
+        # --- goal cards (minimal) ---
+        sm = get_today_summary()
+        goal_sets = get_goal_sets()
+
+        def _card(label, emoji, kind, page_key):
+            done = int(sm["by_kind"][kind]["sets"])
+            qcnt = int(sm["by_kind"][kind]["q"])
+            pct = 0 if goal_sets <= 0 else min(100, int(round(done / goal_sets * 100)))
+            # button-as-card
+            title = f"{emoji} {label}"
+            sub = f"{done}/{goal_sets}세트 · {qcnt}문항"
+            btn_label = f"{title}\n{sub}"
+            clicked = st.button(btn_label, key=f"card_{kind}", use_container_width=True)
+            # add class to this specific button via JS-free approach: global style targets class name
+            # Streamlit doesn't let us set class; so we re-style all buttons and then revert on CTA buttons below.
+            if clicked:
+                st.session_state["page"] = page_key
+                st.rerun()
+            st.progress(pct / 100 if goal_sets > 0 else 0.0)
+
+        # Style all buttons as cards for the next block only: we use a CSS trick by injecting a scoped style wrapper is not possible.
+        # Instead, we mark CTA buttons later with a reset class by injecting a second CSS after cards.
+        st.markdown(
+            """
+<style>
+  /* Temporarily style all buttons in this section as cards */
+  div[data-testid="stButton"] > button{
+    border-radius: 16px !important;
+    text-align: left !important;
+    padding: 14px 14px !important;
+  }
+</style>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        k1, k2, k3 = st.columns(3, gap="small")
+        with k1:
+            _card("단어 훈련", "📘", "word", "word")
+        with k2:
+            _card("한자 훈련", "🈶", "kanji", "kanji")
+        with k3:
+            _card("회화 훈련", "💬", "talk", "talk")
+
+        # Reset CTA button style (so they look like normal buttons)
+        st.markdown(
+            """
+<style>
+  /* Reset following buttons to default-ish */
+  .hotena-cta-row div[data-testid="stButton"] > button{
+    text-align: center !important;
+    padding: 0.6rem 1rem !important;
+    border-radius: 12px !important;
+  }
+</style>
+            """,
+            unsafe_allow_html=True,
+        )
+
+        st.markdown("### 오늘 1세트만 더 해볼까요?")
+        a, b = st.columns(2, gap="small")
+        with a:
+            st.markdown('<div class="hotena-cta-row">', unsafe_allow_html=True)
+            if st.button("📘 단어 시작", key="cta_word", use_container_width=True):
+                st.session_state["page"] = "word"
+                st.rerun()
+            st.markdown("</div>", unsafe_allow_html=True)
+        with b:
+            st.markdown('<div class="hotena-cta-row">', unsafe_allow_html=True)
+            if st.button("🈶 한자 시작", key="cta_kanji", use_container_width=True):
+                st.session_state["page"] = "kanji"
+                st.rerun()
+            st.markdown("</div>", unsafe_allow_html=True)
+
+        # Optional: keep existing detailed goal section collapsed (for power users)
+        with st.expander("자세히 보기", expanded=False):
+            render_daily_goal_home()
