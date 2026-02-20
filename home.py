@@ -1,7 +1,9 @@
 # home.py
 from __future__ import annotations
 
-BUILD_STAMP = 'v38.5-fix-motivation-scope 2026-02-20 KST (+09:00)'
+motivation = ""
+
+BUILD_STAMP = 'v38.6-hotfix-global-motivation 2026-02-20 KST (+09:00)'
 
 from pathlib import Path
 import os
