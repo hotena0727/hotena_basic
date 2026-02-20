@@ -1,7 +1,7 @@
 # home.py
 from __future__ import annotations
 
-BUILD_STAMP = 'v38-homehub-autoreset+motivation+levelbars 2026-02-20 KST (+09:00)'
+BUILD_STAMP = 'v38.1-levelbars-visible 2026-02-20 KST (+09:00)'
 
 from pathlib import Path
 import os
@@ -643,7 +643,7 @@ if last_seen != today_str:
     padding: .62rem .72rem;
     border-radius: 16px;
     border: 1px solid rgba(49,51,63,0.14);
-    background: rgba(255,255,255,0.02);
+    background: rgba(255,255,255,0.06);
     box-shadow: 0 9px 24px rgba(0,0,0,0.07);
     transition: transform 120ms ease, box-shadow 120ms ease;
   }
@@ -698,6 +698,8 @@ motivation = messages[idx]
 
 
     # ---- header ----
+    st.markdown("<div style=\"height:1px;background:rgba(0,0,0,0.06);margin:.10rem 0 .38rem;\"></div>", unsafe_allow_html=True)
+
     st.markdown(
         f"""
 <div class="h-wrap">
@@ -812,7 +814,7 @@ motivation = messages[idx]
     st.markdown(
         f"""
 <div class="lv-wrap">
-  <div class="lv-title"><b>레벨 진행</b><span>최근 30일 · 세트 수</span></div>
+  <div class="lv-title"><b>📊 레벨 진행</b><span>최근 30일 · 세트 수</span></div>
   {level_rows}
 </div>
 """,
