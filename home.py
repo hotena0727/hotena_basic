@@ -88,17 +88,20 @@ st.markdown(
    - Normalize spacing/typography for "app-like" feel
    ========================================================== */
 
-header[data-testid="stHeader"]{
-  height: auto !important;
-  min-height: 3.25rem !important;
-}
-
+header[data-testid="stHeader"]{display:none !important; height:0 !important; min-height:0 !important;}
+div[data-testid="stToolbar"]{display:none !important; height:0 !important;}
+div[data-testid="stDecoration"]{display:none !important; height:0 !important;}
 /* Container spacing */
 div[data-testid="stAppViewContainer"] .block-container{
-  padding-top: 0.25rem !important;
+  padding-top: 0rem !important;
   padding-bottom: 5.25rem !important; /* bottom breathing room for mobile */
 }
 
+
+/* ✅ Near-zero top: force main containers to start at top */
+div[data-testid="stAppViewContainer"]{ padding-top: 0 !important; }
+div[data-testid="stAppViewContainer"] .main{ padding-top: 0 !important; }
+section.main > div{ padding-top: 0 !important; }
 /* Headlines: tighter */
 div[data-testid="stAppViewContainer"] h1,
 div[data-testid="stAppViewContainer"] h2{
@@ -768,48 +771,48 @@ def render_float_top_anchor_button():
     )
 
 
+
 def render_plan_pill():
+    """Compact plan pill (✨ Pro / 🆓 Free). Clicking reveals plan info."""
     plan = (st.session_state.get("user_plan") or "free").lower()
     label = "✨ Pro" if plan == "pro" else "🆓 Free"
 
-    # ✅ compact "pill button" styling (scoped)
+    # ✅ keep pill small + pretty (scoped CSS)
     st.markdown(
         """
 <style>
-.plan-pill-wrap div[data-testid="stButton"]{width:auto;}
-.plan-pill-wrap div[data-testid="stButton"] > button{
-  padding: 0.18rem 0.55rem !important;
+#planpill-wrap div[data-testid="stButton"] button{
+  padding: .28rem .55rem !important;
   border-radius: 999px !important;
-  font-size: 0.86rem !important;
-  line-height: 1.1 !important;
-  min-height: 0 !important;
-  height: 28px !important;
   border: 1px solid rgba(0,0,0,.10) !important;
+  font-size: .86rem !important;
+  opacity: .92 !important;
+  background: rgba(0,0,0,.02) !important;
+  line-height: 1 !important;
+  min-height: 0 !important;
 }
-.plan-pill-wrap div[data-testid="stButton"] > button:hover{
-  border-color: rgba(0,0,0,.18) !important;
+#planpill-wrap div[data-testid="stButton"] button p{
+  margin: 0 !important;
 }
 </style>
+<div id="planpill-wrap">
 """,
         unsafe_allow_html=True,
     )
 
-    if "_plan_help_open" not in st.session_state:
-        st.session_state["_plan_help_open"] = False
+    clicked = st.button(label, key="planpill_btn", help="플랜 안내 보기", use_container_width=False)
 
-    st.markdown('<div class="plan-pill-wrap">', unsafe_allow_html=True)
-    if st.button(label, key="plan_pill_btn", help="플랜 안내 보기", type="secondary"):
-        st.session_state["_plan_help_open"] = not st.session_state["_plan_help_open"]
     st.markdown("</div>", unsafe_allow_html=True)
 
-    if st.session_state.get("_plan_help_open"):
+    # toggle visibility
+    if clicked:
+        st.session_state["show_plan_info"] = not st.session_state.get("show_plan_info", False)
+
+    if st.session_state.get("show_plan_info", False):
         with st.expander("플랜 안내", expanded=True):
             st.markdown(
-                """
-- **Free**: 기본 기능 체험(일부 제한 가능)
-- **Pro**: 무제한/추가기능(오답노트 전체, 무제한 문제, 추가 콘텐츠 등)
-
-※ 실제 잠금/제한은 운영 정책에 따라 바뀔 수 있어요.
+                """- **Free**: 기본 훈련 이용(일부 기능/횟수 제한 가능)
+- **Pro**: 무제한/확장 기능(오답노트 전체, 추가 훈련/기록 등)
 """
             )
 
@@ -838,10 +841,22 @@ def render_daily_goal_home(sb_authed, user_id: str):
     c2.metric("정답률", f"{acc}%")
     c3.metric("문항 수", f"{done_q}문항")
 
-    b1, b2, b3 = st.columns(3)
-    b1.caption(f"단어: {sm['by_kind']['word']['sets']}세트 · {sm['by_kind']['word']['q']}문항")
-    b2.caption(f"한자: {sm['by_kind']['kanji']['sets']}세트 · {sm['by_kind']['kanji']['q']}문항")
-    b3.caption(f"회화: {sm['by_kind']['talk']['sets']}세트 · {sm['by_kind']['talk']['q']}문항")
+    c1, c2, c3 = st.columns(3)
+
+    def _mini_card(col, title, done_sets_i, goal_sets_i, q_cnt_i):
+        with col:
+            pct_i = 0 if goal_sets_i <= 0 else min(100, int(round(done_sets_i / goal_sets_i * 100)))
+            st.markdown(f"### {title}")
+            st.progress(pct_i / 100 if goal_sets_i > 0 else 0.0)
+            st.caption(f"{done_sets_i}/{goal_sets_i}세트 · {q_cnt_i}문항")
+
+    w = sm["by_kind"]["word"]
+    k = sm["by_kind"]["kanji"]
+    t = sm["by_kind"]["talk"]
+
+    _mini_card(c1, "📘 단어", int(w["sets"]), goal_sets, int(w["q"]))
+    _mini_card(c2, "🈶 한자", int(k["sets"]), goal_sets, int(k["q"]))
+    _mini_card(c3, "💬 회화", int(t["sets"]), goal_sets, int(t["q"]))
 
     with st.expander("목표 수정", expanded=False):
         new_goal = st.number_input("하루 목표 세트 수 (1세트=10문항)", min_value=0, max_value=100, value=goal_sets, step=1)
