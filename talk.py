@@ -31,12 +31,8 @@ USER_EMAIL = getattr(u, "email", "") or ""
 USER_PLAN = (st.session_state.get("user_plan") or "free").lower()
 IS_PRO = USER_PLAN == "pro"
 
-hdr = st.session_state.get("hub_render_header")
-if callable(hdr):
-    hdr("회화 훈련", "상황판단 · 1문제씩 풀고 말하기 체크", active="talk")
-else:
-    st.title("회화 훈련 · 상황판단")
-    st.caption("1문제씩: 상황 → 상대 발화(🔊/PRO) → 보기 선택 → 제출 → 정답/설명 → (선택)말하기 완료 체크")
+st.title("회화 훈련 · 상황판단")
+st.caption("1문제씩: 상황 → 상대 발화(🔊/PRO) → 보기 선택 → 제출 → 정답/설명 → (선택)말하기 완료 체크")
 
 # ============================================================
 # ✅ Supabase client (hub reuse)
