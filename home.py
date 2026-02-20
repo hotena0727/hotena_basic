@@ -726,21 +726,24 @@ def render_home_dashboard(sb_authed, user):
   .h-cta{margin-top:.20rem;margin-bottom:.20rem;}
   .h-cta b{font-size:1.0rem;}
 
-  .hub-cta-card{
-  margin-top:.10rem;
-  padding:0.78rem 0.86rem;
-  border-radius:1.15rem;
-  border:1px solid rgba(0,0,0,0.06);
-  background:rgba(0,0,0,0.02);
-  box-shadow:0 10px 24px rgba(0,0,0,0.06);
+  .hub-cta-wrap{ margin-top:.35rem; }
+
+.hub-cta-card{
+  margin-top:0;
+  padding: .62rem .72rem;
+  border-radius: 16px;
+  border: 1px solid rgba(49,51,63,0.14);
+  background: rgba(255,255,255,0.02);
+  box-shadow: 0 9px 24px rgba(0,0,0,0.07);
 }
+
 .hub-msgbox{
   margin:0 0 .55rem 0;
   padding:0;
   border:none;
   background:transparent;
-  font-weight:750;
-  font-size:0.98rem;
+  font-weight:820;
+  font-size:1.00rem;
   line-height:1.35;
 }
 @media (prefers-color-scheme: dark){
@@ -967,52 +970,49 @@ def render_home_dashboard(sb_authed, user):
     if "show_goal_settings" not in st.session_state:
         st.session_state["show_goal_settings"] = False
 
-    # ✅ 메시지(블록) 바로 아래에 CTA가 붙도록 같은 컬럼에 쌓기
-    main_col, gear_col = st.columns([0.82, 0.18], gap="small")
+    # ✅ 기어(우측 정렬) → 그 아래 CTA 블록(다른 카드들과 같은 폭)
+    from urllib.parse import urlencode
 
-    with main_col:
-        from urllib.parse import urlencode
+    # --- CTA link query (p=rec_kind) ---
+    _qp2 = {}
+    try:
+        _qp2 = dict(st.query_params)
+    except Exception:
         _qp2 = {}
-        try:
-            _qp2 = dict(st.query_params)
-        except Exception:
-            _qp2 = {}
-        # ensure goal toggle param is not carried over
-        try:
-            _qp2.pop("toggle_goal", None)
-        except Exception:
-            pass
-        _qp2["p"] = rec_kind
-        _qs2 = urlencode(_qp2, doseq=True)
+    try:
+        _qp2.pop("toggle_goal", None)
+    except Exception:
+        pass
+    _qp2["p"] = rec_kind
+    _qs2 = urlencode(_qp2, doseq=True)
 
-        st.markdown(
-            f"""
-            <div class='hub-cta-card'>
-              <div class='hub-msgbox'>{msg}</div>
-              <a class='hub-cta-btn' href='?{_qs2}' title='{rec_label} 시작'>
-                <span class='hub-cta-emoji'>{rec_emoji}</span>
-                <span class='hub-cta-text'>{rec_label} 시작</span>
-              </a>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-
-    with gear_col:
-        # icon-only gear (no underline / no box)
-        from urllib.parse import urlencode
+    # --- Gear toggle query (toggle_goal=1) ---
+    _qp = {}
+    try:
+        _qp = dict(st.query_params)
+    except Exception:
         _qp = {}
-        try:
-            _qp = dict(st.query_params)
-        except Exception:
-            _qp = {}
-        _qp["toggle_goal"] = "1"
-        _qs = urlencode(_qp, doseq=True)
-        st.markdown(
-            f"<div class='hub-gear-row'><a class='hub-gear' href='?{_qs}' title='루틴 목표 수정'>⚙️</a></div>",
-            unsafe_allow_html=True,
-        )
+    _qp["toggle_goal"] = "1"
+    _qs = urlencode(_qp, doseq=True)
+
+    st.markdown(
+        f"""
+        <div class='hub-cta-wrap'>
+          <div class='hub-gear-row'>
+            <a class='hub-gear' href='?{_qs}' title='루틴 목표 수정'>⚙️</a>
+          </div>
+
+          <div class='hub-cta-card'>
+            <div class='hub-msgbox'>{msg}</div>
+            <a class='hub-cta-btn' href='?{_qs2}' title='{rec_label} 시작'>
+              <span class='hub-cta-emoji'>{rec_emoji}</span>
+              <span class='hub-cta-text'>{rec_label} 시작</span>
+            </a>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
     # ---- goal settings (compact expander) ----
     if st.session_state.get("show_goal_settings", False):
