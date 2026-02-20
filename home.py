@@ -1,7 +1,7 @@
 # home.py
 from __future__ import annotations
 
-BUILD_STAMP = 'v33-dots3 2026-02-20 KST (+09:00)'
+BUILD_STAMP = 'v34-homeA-minimalcards 2026-02-20 KST (+09:00)'
 
 from pathlib import Path
 import os
@@ -497,8 +497,30 @@ def calc_streak(daily_sets: dict[date, int], today: date | None = None) -> int:
     return streak
 
 
+
+# ============================================================
+# ✅ UI helper: fixed 3-dot progress (app-like)
+# ============================================================
+def _dots_3(done_sets: int, goal_sets: int) -> str:
+    # Always show 3 dots for a clean dashboard look.
+    if goal_sets <= 0:
+        filled = 0
+    else:
+        ratio = done_sets / float(goal_sets)
+        if ratio <= 0:
+            filled = 0
+        elif ratio >= 1:
+            filled = 3
+        else:
+            filled = int(round(ratio * 3))
+            filled = max(0, min(3, filled))
+    return " ".join(["●"] * filled + ["○"] * (3 - filled))
+
+
 def render_home_dashboard(sb_authed, user):
-    """Home Hub dashboard (game-like + mobile-friendly)."""
+    """Home Hub dashboard (A안: minimal, app-like cards)."""
+
+    # ---- data ----
     attempts_recent = fetch_recent_attempts(sb_authed, user.id, limit=500)
     sm_recent = summarize_attempts(attempts_recent)
 
@@ -509,16 +531,52 @@ def render_home_dashboard(sb_authed, user):
     kst_today = datetime.now(timezone(timedelta(hours=9))).date()
     streak = calc_streak(daily_map, today=kst_today)
 
+    progress_all = st.session_state.get("progress_all", {}) or {}
+    goal_sets = int((progress_all.get("daily_goal_sets") or 3))
+
+    # ---- CSS (cards) ----
+    st.markdown(
+        """
+<style>
+  .h-home-wrap{margin-top:.15rem;}
+  .h-row{display:flex;align-items:flex-end;justify-content:space-between;gap:.75rem;margin:.2rem 0 .55rem;}
+  .h-title{font-size:1.32rem;font-weight:850;line-height:1.15;}
+  .h-sub{opacity:.72;font-size:.94rem;margin-top:.12rem;}
+  .h-pill{display:inline-flex;align-items:center;gap:.35rem;padding:.22rem .55rem;border-radius:999px;border:1px solid rgba(0,0,0,.10);background:rgba(0,0,0,.02);font-size:.92rem;}
+  .h-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:.6rem;margin-top:.15rem;}
+  @media (max-width: 720px){
+    .h-grid{grid-template-columns:1fr;gap:.55rem;}
+  }
+  a.h-card{display:block;text-decoration:none !important;color:inherit;}
+  .h-card-inner{
+    border-radius:18px;
+    border:1px solid rgba(49,51,63,0.14);
+    background: rgba(255,255,255,0.02);
+    box-shadow: 0 8px 26px rgba(0,0,0,0.07);
+    padding: 14px 14px 12px;
+    transition: transform 120ms ease, box-shadow 120ms ease;
+  }
+  .h-card-inner:hover{transform: translateY(-1px); box-shadow: 0 12px 32px rgba(0,0,0,0.10);}
+  .h-card-title{font-size:1.05rem;font-weight:820; margin:0 0 .25rem;}
+  .h-card-meta{font-size:.86rem; opacity:.78; margin:0;}
+  .h-dots{margin-top:.35rem; font-size:1.05rem; letter-spacing:1px;}
+  .h-cta{margin-top:.8rem;}
+</style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # ---- header ----
     st.markdown(
         f"""
-<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:0.75rem;margin-top:0.2rem;margin-bottom:0.6rem;">
-  <div>
-    <div style="font-size:1.35rem;font-weight:800;line-height:1.2;">하테나 학습 허브</div>
-    <div style="opacity:0.72;font-size:0.95rem; margin-top:0.15rem;">오늘도 1세트만 더 해볼까요?</div>
-  </div>
-  <div style="text-align:right;">
-    <div style="display:inline-flex;align-items:center;gap:.35rem;padding:.22rem .55rem;border-radius:999px;border:1px solid rgba(0,0,0,.10);background:rgba(0,0,0,.02);font-size:.92rem;">
-      🔥 <b>{streak}</b>일 연속
+<div class="h-home-wrap">
+  <div class="h-row">
+    <div>
+      <div class="h-title">하테나 학습 허브</div>
+      <div class="h-sub">오늘의 루틴을 한눈에 보고, 바로 시작해 보세요.</div>
+    </div>
+    <div style="text-align:right;">
+      <div class="h-pill">🔥 <b>{streak}</b>일</div>
     </div>
   </div>
 </div>
@@ -526,60 +584,63 @@ def render_home_dashboard(sb_authed, user):
         unsafe_allow_html=True,
     )
 
-    # Daily goal block (sets-based)
-    render_daily_goal_home(sb_authed, user.id)
+    # ---- cards ----
+    w = sm_today["by_kind"]["word"]
+    k = sm_today["by_kind"]["kanji"]
+    t = sm_today["by_kind"]["talk"]
 
-    st.markdown("---")
-
-    st.markdown("## 📊 이번 주 학습")
-    days = [kst_today - timedelta(days=i) for i in range(6, -1, -1)]
-    sets = [int(daily_map.get(d, 0)) for d in days]
-    try:
-        import pandas as pd
-
-        chart_df = pd.DataFrame({"날짜": [d.strftime("%m/%d") for d in days], "세트": sets}).set_index("날짜")
-        st.bar_chart(chart_df)
-    except Exception:
-        st.caption("그래프를 표시할 수 없습니다.")
-
-    c1, c2, c3 = st.columns(3)
-    c1.metric("오늘 세트", f"{sm_today['total_sets']}세트")
-    acc_today = 0
-    if sm_today["total_q"] > 0:
-        acc_today = int(round(sm_today["total_score"] / sm_today["total_q"] * 100))
-    c2.metric("오늘 정답률", f"{acc_today}%")
-    c3.metric("최근 500회 누적", f"{sm_recent['total_sets']}세트")
-
-    st.markdown("---")
-
-    st.markdown("## 🚀 훈련 바로가기")
-
-    def _card(href: str, title: str, subtitle: str, foot: str):
-        st.markdown(
-            f"""
-<a href="{href}" target="_self" style="text-decoration:none;">
-  <div style="border:1px solid rgba(0,0,0,.10);border-radius:18px;padding:0.9rem 0.95rem;margin:0.55rem 0;background:rgba(0,0,0,.015);">
-    <div style="font-weight:800;font-size:1.05rem;">{title}</div>
-    <div style="opacity:0.72;margin-top:0.18rem;">{subtitle}</div>
-    <div style="opacity:0.75;font-size:0.9rem;margin-top:0.55rem;">{foot}</div>
+    def _card(href: str, title: str, done: int, q: int):
+        dots = _dots_3(int(done), int(goal_sets))
+        return f"""<a class='h-card' href='{href}'>
+  <div class='h-card-inner'>
+    <div class='h-card-title'>{title}</div>
+    <p class='h-card-meta'>{done}/{goal_sets} 세트 · {q} 문항</p>
+    <div class='h-dots'>{dots}</div>
   </div>
-</a>
-""",
-            unsafe_allow_html=True,
-        )
+</a>"""
 
-    t_word = sm_today["by_kind"]["word"]["sets"]
-    t_kanji = sm_today["by_kind"]["kanji"]["sets"]
-    t_talk = sm_today["by_kind"]["talk"]["sets"]
-    r_word = sm_recent["by_kind"]["word"]["sets"]
-    r_kanji = sm_recent["by_kind"]["kanji"]["sets"]
-    r_talk = sm_recent["by_kind"]["talk"]["sets"]
+    cards_html = """<div class='h-grid'>""" + \
+        _card("?p=word", "📘 단어 훈련", int(w["sets"]), int(w["q"])) + \
+        _card("?p=kanji", "🈶 한자 훈련", int(k["sets"]), int(k["q"])) + \
+        _card("?p=talk", "💬 회화 훈련", int(t["sets"]), int(t["q"])) + \
+        """</div>"""
+    st.markdown(cards_html, unsafe_allow_html=True)
 
-    _card("?p=word", "📘 단어 훈련", f"오늘 {t_word}세트 완료", f"누적(최근 500회): {r_word}세트")
-    _card("?p=kanji", "🈶 한자 훈련", f"오늘 {t_kanji}세트 완료", f"누적(최근 500회): {r_kanji}세트")
-    _card("?p=talk", "💬 회화 훈련", f"오늘 {t_talk}세트 완료", f"누적(최근 500회): {r_talk}세트")
+    # ---- CTA (one line) ----
+    done_total = int(sm_today.get("total_sets", 0))
+    remaining = max(0, goal_sets - done_total)
+    if remaining == 0:
+        msg = "오늘 목표 달성! 내일도 가볍게 1세트부터 이어가요."
+    elif remaining == 1:
+        msg = "오늘 1세트만 더 하면 목표 달성!"
+    else:
+        msg = f"오늘 {remaining}세트만 더 하면 목표 달성!"
 
-    st.caption("※ 누적 수치는 최근 기록(최대 500회) 기준으로 빠르게 표시됩니다.")
+    st.markdown(f"<div class='h-cta'><b>{msg}</b></div>", unsafe_allow_html=True)
+    c1, c2 = st.columns(2, gap="small")
+    with c1:
+        if st.button("📘 단어 시작", use_container_width=True, key="hub_cta_word"):
+            st.session_state["p"] = "word"
+            st.query_params["p"] = "word"
+            st.rerun()
+    with c2:
+        if st.button("🈶 한자 시작", use_container_width=True, key="hub_cta_kanji"):
+            st.session_state["p"] = "kanji"
+            st.query_params["p"] = "kanji"
+            st.rerun()
+
+    # ---- goal settings (keep existing behavior) ----
+    with st.expander("목표 수정", expanded=False):
+        new_goal = st.number_input("하루 목표 세트 수 (1세트=10문항)", min_value=0, max_value=100, value=goal_sets, step=1)
+        if st.button("저장", use_container_width=True, key="hub_daily_goal_save"):
+            progress_all["daily_goal_sets"] = int(new_goal)
+            st.session_state["progress_all"] = progress_all
+            save_progress(sb_authed, user.id, progress_all)
+            st.success("저장했습니다.")
+
+    # small footer
+    st.caption("※ 진행 표시는 오늘 목표(세트) 기준이며, 앱 디자인을 위해 3칸(●○○)으로 단순화했습니다.")
+
 
 def summarize_attempts(attempts: list[dict]) -> dict:
     out = {
@@ -800,26 +861,6 @@ def render_plan_pill():
             help="정답/오답 효과음 ON/OFF",
         )
 
-
-# ============================================================
-# ✅ UI helper: fixed 3-dot progress (app-like)
-# ============================================================
-def _dots_3(done_sets: int, goal_sets: int) -> str:
-    # Always show 3 dots for a clean dashboard look.
-    if goal_sets <= 0:
-        filled = 0
-    else:
-        ratio = done_sets / float(goal_sets)
-        if ratio <= 0:
-            filled = 0
-        elif ratio >= 1:
-            filled = 3
-        else:
-            filled = int(round(ratio * 3))
-            filled = max(0, min(3, filled))
-    return " ".join(["●"] * filled + ["○"] * (3 - filled))
-
-
 def render_daily_goal_home(sb_authed, user_id: str):
     """Home dashboard: daily goal (sets-based). 1 set == 10 questions (quiz_len)."""
     progress_all = st.session_state.get("progress_all", {}) or {}
@@ -836,7 +877,7 @@ def render_daily_goal_home(sb_authed, user_id: str):
     pct = 0 if goal_sets <= 0 else min(100, int(round(done_sets / goal_sets * 100)))
 
     st.markdown("## 🎯 오늘의 목표 (세트 기준)")
-    st.markdown(f"<div style='font-size:18px;letter-spacing:1px;'>{_dots_3(int(done_sets), int(goal_sets))}</div>", unsafe_allow_html=True)
+    st.progress(pct / 100 if goal_sets > 0 else 0.0)
 
     c1, c2, c3 = st.columns(3)
     c1.metric("오늘 완료 세트", f"{done_sets}/{goal_sets}")
@@ -1385,8 +1426,8 @@ def render_training_header(sb_authed, user, kind: str, title: str, subtitle: str
         unsafe_allow_html=True,
     )
 
-    # compact progress (dots)
-    st.markdown(f"<div style='font-size:16px;letter-spacing:1px;'>{_dots_3(int(done_sets_total), int(goal_sets))}</div>", unsafe_allow_html=True)
+    # compact progress
+    st.progress(pct)
     st.caption(f"오늘 완료: {done_sets_total}/{goal_sets}세트 · 현재 페이지: {kind}")
     st.markdown("---")
 
