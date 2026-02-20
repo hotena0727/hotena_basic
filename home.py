@@ -74,6 +74,8 @@ from streamlit_cookies_manager import EncryptedCookieManager
 # ✅ Page Config (Hub only)
 # ============================================================
 st.set_page_config(page_title="Hotena Hub", layout="centered")
+# ✅ TOP anchor for floating button (no-JS)
+st.markdown('<div id="hotena-top"></div>', unsafe_allow_html=True)
 
 # ✅ CSS reset (child pages may hide Streamlit header; keep top UI from being clipped)
 st.markdown(
@@ -734,6 +736,36 @@ def render_floating_menu():
                 .replace("__HREF_OUT__", href_out))
 
     st.markdown(html, unsafe_allow_html=True)
+
+
+
+def render_float_top_anchor_button():
+    """✅ Bottom-right '맨 위로' button using anchor (CSP/No-JS safe)"""
+    st.markdown(
+        """
+<style>
+.hotena-float-top{
+  position: fixed;
+  right: 14px;
+  bottom: 88px;
+  z-index: 2147483646;
+  width: 50px;
+  height: 50px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none !important;
+  background: rgba(17,17,17,0.86);
+  color: #fff !important;
+  font-size: 18px;
+  box-shadow: 0 12px 26px rgba(0,0,0,0.22);
+}
+</style>
+<a class="hotena-float-top" href="#hotena-top" aria-label="맨 위로">⬆︎</a>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def render_plan_pill():
