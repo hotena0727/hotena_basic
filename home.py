@@ -726,14 +726,40 @@ def render_home_dashboard(sb_authed, user):
   .h-cta{margin-top:.20rem;margin-bottom:.20rem;}
   .h-cta b{font-size:1.0rem;}
 
-  /* gear icon-only (no button box) */
+  /* gear icon-only + CTA link button */
   .hub-gear-row{display:flex;justify-content:flex-end;line-height:1;margin:.05rem 0 .35rem;}
-  .hub-gear{display:inline-flex;align-items:center;justify-content:center;
-    width:2.1rem;height:2.1rem;border-radius:999px;
-    text-decoration:none;font-size:1.15rem;
-    background:transparent;border:1px solid rgba(255,255,255,0.18);
+  .hub-gear,
+  .hub-gear:visited,
+  .hub-gear:hover,
+  .hub-gear:active{
+    display:inline-flex;align-items:center;justify-content:center;
+    width:2.0rem;height:2.0rem;
+    text-decoration:none !important;
+    border:none !important;
+    outline:none !important;
+    font-size:1.15rem;
+    background:transparent !important;
+    color:inherit;
   }
-  .hub-gear:hover{background:rgba(255,255,255,0.06);}
+  .hub-gear:hover{opacity:0.85;}
+
+  .hub-cta-btn,
+  .hub-cta-btn:visited,
+  .hub-cta-btn:hover,
+  .hub-cta-btn:active{
+    display:flex;align-items:center;justify-content:center;
+    width:100%;
+    padding:0.72rem 0.9rem;
+    border-radius:1.0rem;
+    text-decoration:none !important;
+    border:1px solid rgba(255,255,255,0.16);
+    background:rgba(255,255,255,0.05);
+    font-weight:700;
+    font-size:1.02rem;
+    color:inherit;
+  }
+  .hub-cta-btn:hover{background:rgba(255,255,255,0.08);}
+
 </style>
         """,
         unsafe_allow_html=True,
@@ -901,7 +927,7 @@ def render_home_dashboard(sb_authed, user):
     if "show_goal_settings" not in st.session_state:
         st.session_state["show_goal_settings"] = False
 
-    cta_l, cta_r = st.columns([0.70, 0.30], gap="small")
+    cta_l, cta_r = st.columns([0.64, 0.36], gap="small")
     with cta_l:
         st.markdown(f"<div class='h-cta'><b>{msg}</b></div>", unsafe_allow_html=True)
 
@@ -920,11 +946,24 @@ def render_home_dashboard(sb_authed, user):
             unsafe_allow_html=True,
         )
 
-        # (2) Smart CTA (start)
-        if st.button(f"{rec_emoji} {rec_label} 시작", use_container_width=True, key="hub_cta_primary"):
-            st.session_state["p"] = rec_kind
-            st.query_params["p"] = rec_kind
-            st.rerun()
+        # (2) Smart CTA (start) - link button for larger, cleaner UI
+        from urllib.parse import urlencode
+        _qp2 = {}
+        try:
+            _qp2 = dict(st.query_params)
+        except Exception:
+            _qp2 = {}
+        # ensure goal toggle param is not carried over
+        try:
+            _qp2.pop("toggle_goal", None)
+        except Exception:
+            pass
+        _qp2["p"] = rec_kind
+        _qs2 = urlencode(_qp2, doseq=True)
+        st.markdown(
+            f"<a class='hub-cta-btn' href='?{_qs2}' title='{rec_label} 시작'>{rec_emoji} {rec_label} 시작</a>",
+            unsafe_allow_html=True,
+        )
 
     # ---- goal settings (compact expander) ----
     if st.session_state.get("show_goal_settings", False):
