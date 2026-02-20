@@ -1,22 +1,7 @@
 # home.py
 from __future__ import annotations
 
-
-# ============================================================
-# ✅ Global fallbacks (safety)
-# - If any dashboard f-strings accidentally evaluate at module scope,
-#   these prevent NameError crashes. Real values are computed inside
-#   render_home_dashboard().
-# ============================================================
-motivation = ""
-streak = 0
-goal_sets = 1
-done_total = 0
-pct = 0
-
-motivation = ""
-
-BUILD_STAMP = 'v38.7-hotfix-global-fallbacks 2026-02-20 KST (+09:00)'
+BUILD_STAMP = 'v38.8-clean-dashboard-fix-scope 2026-02-20 KST (+09:00)'
 
 from pathlib import Path
 import os
@@ -533,45 +518,43 @@ def _dots_3(done_sets: int, goal_sets: int) -> str:
 
 
 def render_home_dashboard(sb_authed, user):
-    """Home Hub dashboard: donut + weekly routine + level mini bars + smart CTA."""
+    """Home Hub dashboard (A++): donut + weekly heatmap + level mini bars + rows + smart CTA + compact goal gear."""
+    from datetime import datetime, timezone, timedelta
 
     # ---- data ----
-    attempts_recent = fetch_recent_attempts(sb_authed, user.id, limit=800)
-    attempts_today = fetch_today_attempts(sb_authed, user.id)
+    attempts_recent = fetch_recent_attempts(sb_authed, user.id, limit=500)
+    sm_recent = summarize_attempts(attempts_recent)
 
+    attempts_today = fetch_today_attempts(sb_authed, user.id)
     sm_today = summarize_attempts(attempts_today)
 
-    # ---- goal / progress ----
-    progress_all = st.session_state.get("progress_all", {}) or {}
-    goal_sets = int(progress_all.get("daily_goal_sets") or 3)
-
-    # ---- date helpers (KST) ----
-    kst_now = datetime.now(timezone(timedelta(hours=9)))
-    kst_today = kst_now.date()
-
-    # ---- daily marker (app-like reset) ----
-    today_str = str(kst_today)
-    last_seen = str(progress_all.get("last_seen_date") or "")
-    if last_seen != today_str:
-        progress_all["last_seen_date"] = today_str
-        st.session_state["show_goal_settings"] = False
-        st.session_state["progress_all"] = progress_all
-        try:
-            save_progress(sb_authed, user.id, progress_all)
-        except Exception:
-            pass
-
-    # ---- routine / streak ----
     daily_map = build_daily_sets_map(attempts_recent)
+
+    kst_today = datetime.now(timezone(timedelta(hours=9))).date()
     streak = calc_streak(daily_map, today=kst_today)
 
-    # ---- today summary ----
+    progress_all = st.session_state.get("progress_all", {}) or {}
+    goal_sets = int((progress_all.get("daily_goal_sets") or 3))
+
     done_total = int(sm_today.get("total_sets", 0))
     pct = 0 if goal_sets <= 0 else int(round(min(1.0, done_total / float(goal_sets)) * 100))
 
     w = sm_today["by_kind"]["word"]
     k = sm_today["by_kind"]["kanji"]
     t = sm_today["by_kind"]["talk"]
+
+    # ---- daily auto reset marker (KST) ----
+    last_seen = (progress_all.get("last_seen_date") or "")
+    today_str = str(kst_today)
+    if last_seen != today_str:
+        progress_all["last_seen_date"] = today_str
+        st.session_state["progress_all"] = progress_all
+        # close any open settings panel on day change
+        st.session_state["show_goal_settings"] = False
+        try:
+            save_progress(sb_authed, user.id, progress_all)
+        except Exception:
+            pass
 
     # ---- one-line motivation (stable per day) ----
     remaining_sets = max(0, goal_sets - done_total)
@@ -586,7 +569,7 @@ def render_home_dashboard(sb_authed, user):
     idx = (kst_today.toordinal() + (streak * 3) + remaining_sets) % len(messages)
     motivation = messages[idx]
 
-    # ---- UI helper (3-dot progress) ----
+    # ---- local helper ----
     def _dots_3(done_sets: int, goal_sets_: int) -> str:
         if goal_sets_ <= 0:
             filled = 0
@@ -606,15 +589,18 @@ def render_home_dashboard(sb_authed, user):
         """
 <style>
   .h-wrap{margin-top:.10rem;}
-  .h-top{display:flex;align-items:flex-end;justify-content:space-between;gap:.75rem;margin:.10rem 0 .40rem;}
+  .h-top{display:flex;align-items:flex-end;justify-content:space-between;gap:.75rem;margin:.15rem 0 .45rem;}
   .h-title{font-size:1.28rem;font-weight:850;line-height:1.15;margin:0;}
-  .h-sub{opacity:.70;font-size:.92rem;margin:.16rem 0 0;}
+  .h-sub{opacity:.70;font-size:.92rem;margin:.18rem 0 0;}
   .h-pill{display:inline-flex;align-items:center;gap:.35rem;padding:.20rem .55rem;border-radius:999px;border:1px solid rgba(0,0,0,.10);background:rgba(0,0,0,.02);font-size:.92rem;white-space:nowrap;}
 
-  /* ===== Donut ===== */
-  @property --p { syntax: '<number>'; inherits: false; initial-value: 0; }
+  /* gear */
+  .h-gear-wrap{display:flex;justify-content:flex-end;margin:.10rem 0 .05rem;}
+  div[data-testid="column"] .stButton button{border-radius:14px;}
 
-  .h-center{display:flex;align-items:center;justify-content:center;margin:.50rem 0 .18rem;position:relative;}
+  /* donut */
+  @property --p { syntax: '<number>'; inherits: false; initial-value: 0; }
+  .h-center{display:flex;align-items:center;justify-content:center;margin:.52rem 0 .20rem;position:relative;}
   .donut{
     --p: 0;
     width: 150px; height: 150px; border-radius: 50%;
@@ -657,14 +643,10 @@ def render_home_dashboard(sb_authed, user):
   }
   .donut-pct{font-size:1.62rem;font-weight:900;line-height:1.0;margin-bottom:.15rem;}
   .donut-label{font-size:.86rem;opacity:.72;}
+  @keyframes donutFill{ from { --p: 0; } to { --p: var(--target); } }
 
-  @keyframes donutFill{
-    from { --p: 0; }
-    to   { --p: var(--target); }
-  }
-
-  /* ===== Mini weekly heatmap ===== */
-  .hm-wrap{margin:.05rem 0 .36rem;}
+  /* weekly heatmap */
+  .hm-wrap{margin:.05rem 0 .40rem;}
   .hm-title{display:flex;align-items:center;justify-content:space-between;margin:.06rem 0 .22rem;}
   .hm-title b{font-size:.92rem;}
   .hm-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:.30rem;}
@@ -682,9 +664,9 @@ def render_home_dashboard(sb_authed, user):
   .hm-hi{background: rgba(46,124,246,0.36); border-color: rgba(46,124,246,0.28);}
   .hm-lab{font-size:.78rem; opacity:.68; margin-top:.16rem;}
 
-  /* ===== Level mini bars ===== */
+  /* level bars */
   .lv-wrap{
-    margin:.06rem 0 .38rem;
+    margin:.10rem 0 .42rem;
     padding:.58rem .70rem;
     border-radius:16px;
     border:1px solid rgba(49,51,63,0.14);
@@ -700,7 +682,7 @@ def render_home_dashboard(sb_authed, user):
   .lv-fill{height:100%;border-radius:999px;background:rgba(46,124,246,0.55);}
   .lv-val{font-size:.82rem;opacity:.70;text-align:right;}
 
-  /* ===== Rows ===== */
+  /* rows */
   .h-rows{display:flex;flex-direction:column;gap:.46rem;margin:.05rem 0 .55rem;}
   .row{
     display:flex;align-items:center;justify-content:space-between;gap:.6rem;
@@ -718,6 +700,7 @@ def render_home_dashboard(sb_authed, user):
   .row-right{text-align:right;white-space:nowrap;}
   .row-dots{font-size:1.05rem;letter-spacing:1px;margin:0;}
   .row-goal{font-size:.82rem;opacity:.72;margin-top:.05rem;}
+
   .row-word{background: linear-gradient(90deg, rgba(46,124,246,0.09), rgba(255,255,255,0.02) 55%); border-color: rgba(46,124,246,0.18);}
   .row-kanji{background: linear-gradient(90deg, rgba(76,175,80,0.09), rgba(255,255,255,0.02) 55%); border-color: rgba(76,175,80,0.18);}
   .row-talk{background: linear-gradient(90deg, rgba(156,39,176,0.09), rgba(255,255,255,0.02) 55%); border-color: rgba(156,39,176,0.18);}
@@ -729,15 +712,13 @@ def render_home_dashboard(sb_authed, user):
         unsafe_allow_html=True,
     )
 
-# ---- goal settings toggle (gear) ----
-if "show_goal_settings" not in st.session_state:
-    st.session_state["show_goal_settings"] = False
-
-_g1, _g2 = st.columns([1, 0.18], gap="small")
-with _g2:
-    if st.button("⚙️", key="hub_goal_gear", help="루틴 목표 수정", use_container_width=True):
-        st.session_state["show_goal_settings"] = not st.session_state["show_goal_settings"]
-
+    # ---- gear (top-right, small) ----
+    if "show_goal_settings" not in st.session_state:
+        st.session_state["show_goal_settings"] = False
+    _g1, _g2 = st.columns([1, 0.18], gap="small")
+    with _g2:
+        if st.button("⚙️", key="hub_goal_gear", help="루틴 목표 수정", use_container_width=True):
+            st.session_state["show_goal_settings"] = not st.session_state["show_goal_settings"]
 
     # ---- header ----
     st.markdown(
@@ -770,19 +751,19 @@ with _g2:
         unsafe_allow_html=True,
     )
 
-    # ---- mini weekly heatmap (last 7 days) ----
+    # ---- weekly heatmap ----
     days = []
     for i in range(6, -1, -1):
         d = kst_today - timedelta(days=i)
         s = int(daily_map.get(d, 0))
         days.append((d, s))
 
-    def _hm_class(sets: int) -> str:
-        if sets <= 0:
+    def _hm_class(sets_: int) -> str:
+        if sets_ <= 0:
             return "hm-cell"
-        if sets == 1:
+        if sets_ == 1:
             return "hm-cell hm-on"
-        if sets == 2:
+        if sets_ == 2:
             return "hm-cell hm-mid"
         return "hm-cell hm-hi"
 
@@ -806,18 +787,20 @@ with _g2:
         unsafe_allow_html=True,
     )
 
-    # ---- level mini bars (recent 30 days, sets) ----
+    # ---- level mini progress (recent 30 days, sets) ----
+    kst_now = datetime.now(timezone(timedelta(hours=9)))
     cutoff = kst_now - timedelta(days=30)
-    lvl_sets = {"N5": 0, "N4": 0, "N3": 0, "N2": 0, "N1": 0}
 
+    lvl_sets = {"N5": 0, "N4": 0, "N3": 0, "N2": 0, "N1": 0}
     for a in attempts_recent:
         try:
             lv = str(a.get("level") or "").strip().upper()
             created_at = a.get("created_at")
-            if not isinstance(created_at, str):
+            if isinstance(created_at, str):
+                s = created_at.replace("Z", "+00:00")
+                dt = datetime.fromisoformat(s)
+            else:
                 continue
-            s = created_at.replace("Z", "+00:00")
-            dt = datetime.fromisoformat(s)
             if dt.tzinfo is None:
                 dt = dt.replace(tzinfo=timezone.utc)
             if dt < cutoff:
@@ -855,7 +838,7 @@ with _g2:
         unsafe_allow_html=True,
     )
 
-    # ---- rows ----
+    # ---- rows (clickable) ----
     def _row(href: str, title: str, done: int, q: int, kind: str):
         dots = _dots_3(int(done), int(goal_sets))
         return f"""<a href='{href}' style='text-decoration:none;color:inherit;'>
@@ -878,7 +861,7 @@ with _g2:
         """</div>"""
     st.markdown(rows_html, unsafe_allow_html=True)
 
-    # ---- Smart CTA ----
+    # ---- Smart CTA (button set) ----
     remaining = max(0, goal_sets - done_total)
     kinds = [
         ("word", "📘", "단어", int(w["sets"])),
@@ -903,44 +886,26 @@ with _g2:
         st.query_params["p"] = rec_kind
         st.rerun()
 
-    c1, c2, c3 = st.columns(3, gap="small")
-    with c1:
-        if st.button("📘 단어", use_container_width=True, key="hub_cta_word_small"):
-            st.session_state["p"] = "word"
-            st.query_params["p"] = "word"
-            st.rerun()
-    with c2:
-        if st.button("🈶 한자", use_container_width=True, key="hub_cta_kanji_small"):
-            st.session_state["p"] = "kanji"
-            st.query_params["p"] = "kanji"
-            st.rerun()
-    with c3:
-        if st.button("💬 회화", use_container_width=True, key="hub_cta_talk_small"):
-            st.session_state["p"] = "talk"
-            st.query_params["p"] = "talk"
-            st.rerun()
-
-
-# ---- goal settings (compact expander) ----
-if st.session_state.get("show_goal_settings", False):
-    with st.expander("루틴 목표 수정", expanded=True):
-        new_goal = st.number_input(
-            "하루 목표 세트 수 (1세트=10문항)",
-            min_value=0,
-            max_value=100,
-            value=int(goal_sets),
-            step=1,
-        )
-        csave, cclose = st.columns([1, 1], gap="small")
-        with csave:
-            if st.button("저장", use_container_width=True, key="hub_daily_goal_save"):
-                progress_all["daily_goal_sets"] = int(new_goal)
-                st.session_state["progress_all"] = progress_all
-                save_progress(sb_authed, user.id, progress_all)
-                st.success("저장했습니다.")
-        with cclose:
-            if st.button("닫기", use_container_width=True, key="hub_goal_close"):
-                st.session_state["show_goal_settings"] = False
+    # ---- goal settings (compact expander) ----
+    if st.session_state.get("show_goal_settings", False):
+        with st.expander("루틴 목표 수정", expanded=True):
+            new_goal = st.number_input(
+                "하루 목표 세트 수 (1세트=10문항)",
+                min_value=0,
+                max_value=100,
+                value=int(goal_sets),
+                step=1,
+            )
+            csave, cclose = st.columns([1, 1], gap="small")
+            with csave:
+                if st.button("저장", use_container_width=True, key="hub_daily_goal_save"):
+                    progress_all["daily_goal_sets"] = int(new_goal)
+                    st.session_state["progress_all"] = progress_all
+                    save_progress(sb_authed, user.id, progress_all)
+                    st.success("저장했습니다.")
+            with cclose:
+                if st.button("닫기", use_container_width=True, key="hub_goal_close"):
+                    st.session_state["show_goal_settings"] = False
 
 
 def summarize_attempts(attempts: list[dict]) -> dict:
