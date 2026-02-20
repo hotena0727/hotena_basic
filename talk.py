@@ -536,35 +536,22 @@ def finalize_set_if_ready():
     if callable(rec):
         rec("talk", score, len(qids))
 
+    
     st.session_state[done_key] = True
 
-    st.balloons()
-    st.success(f"🎉 10문제 완주! 점수: {score}/{len(qids)}  ·  오답: {wrong_count}")
-
-
-finalize_set_if_ready()
-
-
-# ------------------------------
-# ✅ Soft Set Complete Card (A안)
-# ------------------------------
-if idx >= len(qids):
-    results = st.session_state.get(f"{NS}_results", {}) or {}
-    total = len(qids)
-    correct_n = sum(1 for q in qids if results.get(str(q), {}).get("correct") is True)
-    wrong_qids = [str(q) for q in qids if results.get(str(q), {}).get("correct") is False]
-    acc = int(round((correct_n / total) * 100)) if total else 0
+    acc = int(round((score / len(qids)) * 100)) if len(qids) else 0
+    wrong_qids = [str(w.get("qid")) for w in wrong_list if w.get("qid") is not None]
 
     st.markdown(
         f"""
 <div style="border:1px solid rgba(0,0,0,0.08); border-radius:16px; padding:14px 14px 12px;
             background: rgba(0,0,0,0.02); box-shadow:0 8px 24px rgba(0,0,0,0.04);">
-  <div style="font-size:1.2rem; font-weight:800; margin-bottom:6px;">🎉 1세트 완료</div>
+  <div style="font-size:1.2rem; font-weight:900; margin-bottom:6px;">🎉 1세트 완료</div>
   <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-    <div style="padding:6px 10px; border-radius:999px; background:#fff; border:1px solid rgba(0,0,0,0.08); font-weight:700;">
-      점수 {correct_n}/{total}
+    <div style="padding:6px 10px; border-radius:999px; background:#fff; border:1px solid rgba(0,0,0,0.08); font-weight:800;">
+      점수 {score}/{len(qids)}
     </div>
-    <div style="padding:6px 10px; border-radius:999px; background:#fff; border:1px solid rgba(0,0,0,0.08); font-weight:700;">
+    <div style="padding:6px 10px; border-radius:999px; background:#fff; border:1px solid rgba(0,0,0,0.08); font-weight:800;">
       정답률 {acc}%
     </div>
     <div style="padding:6px 10px; border-radius:999px; background:#fff; border:1px solid rgba(0,0,0,0.08);">
@@ -577,7 +564,7 @@ if idx >= len(qids):
     )
 
     if acc == 100:
-        st.success("완벽합니다. 다음 세트도 이 페이스로 가시죠 🔥")
+        st.success("완벽합니다. 이 흐름 그대로 한 세트만 더 🔥")
     elif acc >= 80:
         st.info("좋습니다. 오답만 한 번 더 잡고 넘어가면 더 탄탄해져요.")
     else:
@@ -586,10 +573,10 @@ if idx >= len(qids):
     if wrong_qids:
         with st.expander("오답 빠른 확인", expanded=False):
             for n, q in enumerate(wrong_qids, 1):
-                row = pool_df[pool_df["qid"].astype(str) == str(q)]
+                rr = pool_df[pool_df["qid"].astype(str) == str(q)]
                 st.markdown(f"**{n}. QID {q}**")
-                if len(row) > 0:
-                    r0 = row.iloc[0]
+                if len(rr) > 0:
+                    r0 = rr.iloc[0].to_dict()
                     partner = str(r0.get("partner_jp","")).strip()
                     ans = str(r0.get("answer_jp","")).strip()
                     if partner:
@@ -597,21 +584,48 @@ if idx >= len(qids):
                     if ans:
                         st.write(f"정답: {ans}")
 
-    c1, c2, c3 = st.columns([0.42, 0.33, 0.25])
-    with c1:
-        if st.button("➡️ 다음 세트", use_container_width=True, type="primary"):
-            start_new_set()
+    r1, r2, r3 = st.columns([0.42, 0.33, 0.25])
+    with r1:
+        if st.button("➡️ 다음 세트", use_container_width=True, type="primary", key=f"{NS}_cta_nextset"):
+            reset_set()
             st.rerun()
-    with c2:
-        if st.button("🔁 오답만", disabled=(len(wrong_qids)==0), use_container_width=True):
-            start_wrong_set(wrong_qids) if "start_wrong_set" in globals() else start_new_set()
+    with r2:
+        if st.button("🔁 오답만", use_container_width=True, disabled=(len(wrong_qids)==0), key=f"{NS}_cta_wrongsonly"):
+            if wrong_qids:
+                st.session_state[f"{NS}_set_qids"] = wrong_qids
+                st.session_state[f"{NS}_idx"] = 0
+                st.session_state[f"{NS}_answers"] = {qid: {"selected": None, "ok": None, "spoken": False} for qid in wrong_qids}
+                for q in wrong_qids:
+                    st.session_state.pop(f"{NS}_submitted_{q}", None)
+                    st.session_state.pop(f"{NS}_selected_{q}", None)
+                    st.session_state.pop(f"{NS}_opts_{q}", None)
+                st.session_state.pop(f"{NS}_set_done", None)
             st.rerun()
-    with c3:
-        if st.button("🏠 홈", use_container_width=True):
+    with r3:
+        if st.button("🏠 홈", use_container_width=True, key=f"{NS}_cta_home"):
             try:
                 st.query_params["p"] = "home"
             except Exception:
                 pass
             st.rerun()
 
+    st.markdown("### 🔁 다음 훈련 추천")
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("📘 단어 1세트", use_container_width=True, key=f"{NS}_cta_word"):
+            try:
+                st.query_params["p"] = "word"
+            except Exception:
+                pass
+            st.rerun()
+    with c2:
+        if st.button("🈶 한자 1세트", use_container_width=True, key=f"{NS}_cta_kanji"):
+            try:
+                st.query_params["p"] = "kanji"
+            except Exception:
+                pass
+            st.rerun()
+
     st.stop()
+
+finalize_set_if_ready()
