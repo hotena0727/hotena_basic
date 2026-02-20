@@ -89,20 +89,33 @@ st.markdown(
    ========================================================== */
 
 header[data-testid="stHeader"]{
-  display: none !important;
-  height: 0 !important;
-  min-height: 0 !important;
+  display:none !important;
+  height:0 !important;
+  min-height:0 !important;
 }
 
-/* Container spacing */
-/* Ultra-tight top: remove built-in Streamlit top padding */
-section.main > div{ padding-top: 0rem !important; }
+/* Also hide Streamlit toolbar/decoration if present */
+div[data-testid="stToolbar"]{display:none !important; height:0 !important;}
+div[data-testid="stDecoration"]{display:none !important; height:0 !important;}
 
+
+/* Container spacing */
 div[data-testid="stAppViewContainer"] .block-container{
   padding-top: 0rem !important;
   padding-bottom: 5.25rem !important; /* bottom breathing room for mobile */
 }
 
+
+/* ✅ Near-zero top: force main containers to start at top */
+div[data-testid="stAppViewContainer"]{
+  padding-top: 0 !important;
+}
+div[data-testid="stAppViewContainer"] .main{
+  padding-top: 0 !important;
+}
+section.main > div{
+  padding-top: 0 !important;
+}
 /* Headlines: tighter */
 div[data-testid="stAppViewContainer"] h1,
 div[data-testid="stAppViewContainer"] h2{
@@ -162,7 +175,7 @@ div[data-testid="stMetric"]{
   div[data-testid="stAppViewContainer"] .block-container{
     padding-left: 1.0rem !important;
     padding-right: 1.0rem !important;
-    padding-top: 0rem !important;
+    padding-top: 0.15rem !important;
     padding-bottom: 6.0rem !important;
   }
 
