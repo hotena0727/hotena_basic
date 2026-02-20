@@ -726,6 +726,18 @@ def render_home_dashboard(sb_authed, user):
   .h-cta{margin-top:.20rem;margin-bottom:.20rem;}
   .h-cta b{font-size:1.0rem;}
 
+  .hub-msgbox{
+    margin-top:.10rem;
+    margin-bottom:.38rem;
+    padding:0.58rem 0.78rem;
+    border-radius:1.0rem;
+    border:1px solid rgba(255,255,255,0.14);
+    background:rgba(255,255,255,0.04);
+    font-weight:750;
+    font-size:0.98rem;
+    line-height:1.35;
+  }
+
   /* gear icon-only + CTA link button */
   .hub-gear-row{display:flex;justify-content:flex-end;line-height:1;margin:.05rem 0 .35rem;}
   .hub-gear,
@@ -906,7 +918,7 @@ def render_home_dashboard(sb_authed, user):
         """</div>"""
     st.markdown(rows_html, unsafe_allow_html=True)
 
-    # ---- Smart CTA (bottom-right controls) ----
+        # ---- Smart CTA (message + CTA stacked, gear icon only) ----
     remaining = max(0, goal_sets - done_total)
     kinds = [
         ("word", "📘", "단어", int(w["sets"])),
@@ -927,26 +939,12 @@ def render_home_dashboard(sb_authed, user):
     if "show_goal_settings" not in st.session_state:
         st.session_state["show_goal_settings"] = False
 
-    cta_l, cta_r = st.columns([0.64, 0.36], gap="small")
-    with cta_l:
-        st.markdown(f"<div class='h-cta'><b>{msg}</b></div>", unsafe_allow_html=True)
+    # ✅ 메시지(블록) 바로 아래에 CTA가 붙도록 같은 컬럼에 쌓기
+    main_col, gear_col = st.columns([0.82, 0.18], gap="small")
 
-    with cta_r:
-        # (1) Goal gear (icon-only link)
-        from urllib.parse import urlencode
-        _qp = {}
-        try:
-            _qp = dict(st.query_params)
-        except Exception:
-            _qp = {}
-        _qp["toggle_goal"] = "1"
-        _qs = urlencode(_qp, doseq=True)
-        st.markdown(
-            f"<div class='hub-gear-row'><a class='hub-gear' href='?{_qs}' title='루틴 목표 수정'>⚙️</a></div>",
-            unsafe_allow_html=True,
-        )
+    with main_col:
+        st.markdown(f"<div class='hub-msgbox'>{msg}</div>", unsafe_allow_html=True)
 
-        # (2) Smart CTA (start) - link button for larger, cleaner UI
         from urllib.parse import urlencode
         _qp2 = {}
         try:
@@ -962,6 +960,21 @@ def render_home_dashboard(sb_authed, user):
         _qs2 = urlencode(_qp2, doseq=True)
         st.markdown(
             f"<a class='hub-cta-btn' href='?{_qs2}' title='{rec_label} 시작'>{rec_emoji} {rec_label} 시작</a>",
+            unsafe_allow_html=True,
+        )
+
+    with gear_col:
+        # icon-only gear (no underline / no box)
+        from urllib.parse import urlencode
+        _qp = {}
+        try:
+            _qp = dict(st.query_params)
+        except Exception:
+            _qp = {}
+        _qp["toggle_goal"] = "1"
+        _qs = urlencode(_qp, doseq=True)
+        st.markdown(
+            f"<div class='hub-gear-row'><a class='hub-gear' href='?{_qs}' title='루틴 목표 수정'>⚙️</a></div>",
             unsafe_allow_html=True,
         )
 
