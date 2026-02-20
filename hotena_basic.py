@@ -33,12 +33,14 @@ import pandas as pd
 import streamlit as st
 
 # ============================================================
-# ✅ HUB 진입 시 보기 선택 초기화 (키 버전 bump)
-# - 라디오/버튼 key에 quiz_version이 섞여 있으면, version을 +1 하면 선택값이 완전 초기화됩니다.
+# ✅ HUB 진입 시 '보기 선택됨' 초기화 (key를 바꾸는 방식)
+# - 라디오/선택 위젯이 이전 값으로 고정되는 현상을 방지
 # ============================================================
 if st.session_state.get("_entered_word"):
+    # 가장 안전: 문제 위젯 key를 바꾸도록 버전만 올린다.
     st.session_state["quiz_version"] = int(st.session_state.get("quiz_version", 0)) + 1
     st.session_state["_entered_word"] = False
+
 
 import unicodedata
 from supabase import create_client
@@ -55,13 +57,16 @@ import html
 # ============================================================
 # ✅ Page Config + Paths
 # ============================================================
-st.set_page_config(
+if not st.session_state.get('_page_config_set'):
+    st.set_page_config(
     page_title="왕초보탈출 하테나일본어",
     page_icon="static/icon-192.png",   # 또는 "🟦"
     layout="centered",
 )
 
 
+
+    st.session_state['_page_config_set'] = True
 # ============================================================
 # ✅ [HOTFIX] Disable onboarding ("60초 이용안내") block entirely
 # - In case any legacy UI is still rendered, forcibly hide/remove it.
@@ -433,7 +438,7 @@ div.stButton > button{
 
 /* divider 간격(래퍼로만) */
 .tight-divider hr{
-  margin: 6px 0 10px 0 !important;
+  margin: 2px 0 8px 0 !important;
 }
 
 /* Q번호 아래 간격 축소 */
@@ -2533,7 +2538,7 @@ def render_home():
         unsafe_allow_html=True,
     )
 
-    st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+    st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
     st.divider()
 
     c1, c2, c3 = st.columns([5, 3, 3])

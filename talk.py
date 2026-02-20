@@ -8,6 +8,18 @@ import hashlib
 
 import pandas as pd
 import streamlit as st
+
+
+# ============================================================
+# ✅ HUB 진입 시: 선택/제출 상태 초기화 (회화)
+# ============================================================
+if st.session_state.get("_entered_talk"):
+    for k in list(st.session_state.keys()):
+        if k.startswith("talk_") or k in ("submitted", "is_graded", "answers"):
+            st.session_state.pop(k, None)
+    st.session_state["_entered_talk"] = False
+
+
 import streamlit.components.v1 as components
 from supabase import create_client
 

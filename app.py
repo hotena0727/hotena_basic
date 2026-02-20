@@ -142,7 +142,7 @@ div.stButton > button {
   align-items:flex-end;
   justify-content:space-between;
   gap:12px;
-  margin: 10px 0 16px 0;
+  margin: 0px 0 12px 0;
 }
 .headtitle{
   font-size:34px;
@@ -210,7 +210,7 @@ hr{
 }
 */
 .tight-divider hr{
-  margin: 6px 0 10px 0 !important;
+  margin: 2px 0 8px 0 !important;
 }
 /* ✅ Q번호(subheader) 아래 간격만 줄이기 */
 div[data-testid="stMarkdownContainer"] h3{
@@ -1952,7 +1952,7 @@ def render_home():
         unsafe_allow_html=True,
     )
     
-    st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+    st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
     st.divider()
     
     c1, c2, c3 = st.columns([5, 3, 3])
@@ -2095,6 +2095,18 @@ if streak is not None:
 # ============================================================
 if "quiz_version" not in st.session_state:
     st.session_state.quiz_version = 0
+
+
+# ============================================================
+# ✅ HUB 진입 시: 보기 선택(라디오) 초기화 (한자)
+# ============================================================
+if st.session_state.get("_entered_kanji"):
+    st.session_state.quiz_version = int(st.session_state.get("quiz_version", 0)) + 1
+    for k in ("submitted", "is_graded", "answers"):
+        if k in st.session_state:
+            st.session_state.pop(k, None)
+    st.session_state["_entered_kanji"] = False
+
 if "submitted" not in st.session_state:
     st.session_state.submitted = False
 if "wrong_list" not in st.session_state:
