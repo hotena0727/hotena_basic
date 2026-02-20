@@ -1,7 +1,7 @@
 # home.py
 from __future__ import annotations
 
-BUILD_STAMP = 'v39-goalgear-under-cards-fixedscope 2026-02-20 KST (+09:00)'
+BUILD_STAMP = 'v39.1-dupkey-fix-remove-topgear 2026-02-20 KST (+09:00)'
 
 from pathlib import Path
 import os
@@ -715,27 +715,6 @@ def render_home_dashboard(sb_authed, user):
     # ---- gear (top-right, small) ----
     if "show_goal_settings" not in st.session_state:
         st.session_state["show_goal_settings"] = False
-    _g1, _g2 = st.columns([1, 0.18], gap="small")
-    with _g2:
-        if st.button("⚙️", key="hub_goal_gear", help="루틴 목표 수정", use_container_width=True):
-            st.session_state["show_goal_settings"] = not st.session_state["show_goal_settings"]
-
-    # ---- header ----
-    st.markdown(
-        f"""
-<div class="h-wrap">
-  <div class="h-top">
-    <div>
-      <p class="h-title">하테나 학습 허브</p>
-      <p class="h-sub">{motivation}</p>
-      <p class="h-sub" style="opacity:.58;font-size:.86rem;margin:.10rem 0 0;">오늘의 성취율을 확인하고, 바로 이어가세요.</p>
-    </div>
-    <div class="h-pill">🔥 <b>{streak}</b>일</div>
-  </div>
-</div>
-""",
-        unsafe_allow_html=True,
-    )
 
     # ---- donut ----
     st.markdown(
@@ -870,7 +849,7 @@ if "show_goal_settings" not in st.session_state:
 # align the button to the right under cards
 _gs1, _gs2 = st.columns([1, 0.22], gap="small")
 with _gs2:
-    if st.button("⚙️", key="hub_goal_gear", help="루틴 목표 수정", use_container_width=True):
+    if st.button("⚙️", key="hub_goal_gear_uc", help="루틴 목표 수정", use_container_width=True):
         st.session_state["show_goal_settings"] = not st.session_state["show_goal_settings"]
 
 if st.session_state.get("show_goal_settings", False):
