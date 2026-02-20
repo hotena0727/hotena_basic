@@ -769,21 +769,33 @@ def render_float_top_anchor_button():
 
 
 def render_plan_pill():
+    """✅ Hub 상단 플랜 표시(심플) + 클릭 시 안내.
+    - 표시: '✨ PRO' 또는 '🆓 FREE'
+    - 클릭: 플랜 설명(간단)
+    """
     plan = (st.session_state.get("user_plan") or "free").lower()
-    txt = "✨ PRO 이용 중입니다" if plan == "pro" else "🆓 FREE 이용 중"
-    st.markdown(
-        f"""
-<div style="display:flex;justify-content:flex-start;margin-top:0.15rem;margin-bottom:0.2rem;">
-  <div style="
-    display:inline-flex;align-items:center;gap:.45rem;
-    padding:.28rem .55rem;border-radius:999px;
-    border:1px solid rgba(0,0,0,.10);
-    font-size:.86rem;opacity:.92;background:rgba(0,0,0,.02);
-  ">{txt}</div>
-</div>
-""",
-        unsafe_allow_html=True,
-    )
+    label = "✨ PRO" if plan == "pro" else "🆓 FREE"
+
+    # 왼쪽에만 작게 두기
+    c1, c2 = st.columns([1, 6])
+    with c1:
+        # Streamlit 버전에 따라 popover가 없을 수 있어 expander로 폴백
+        try:
+            box = st.popover(label)
+        except Exception:
+            box = st.expander(label, expanded=False)
+
+        with box:
+            st.markdown("#### 플랜 안내")
+            st.markdown(
+                """- **FREE**: 기본 퀴즈/기록 확인
+- **PRO**: 무제한, 추가 기능(예: 상세 리포트/확장 기능 등)
+
+※ 실제 잠금/해제되는 기능은 앱 업데이트에 따라 달라질 수 있어요.
+"""
+            )
+    with c2:
+        st.write("")
 
 def render_daily_goal_home(sb_authed, user_id: str):
     """Home dashboard: daily goal (sets-based). 1 set == 10 questions (quiz_len)."""
@@ -809,23 +821,10 @@ def render_daily_goal_home(sb_authed, user_id: str):
     c2.metric("정답률", f"{acc}%")
     c3.metric("문항 수", f"{done_q}문항")
 
-    # ✅ 종류별 진행(그래픽 카드)
-    k1, k2, k3 = st.columns(3)
-
-    def _mini_card(col, title, done_sets_i: int, goal_sets_i: int, q_cnt_i: int):
-        with col:
-            pct_i = 0 if goal_sets_i <= 0 else min(100, int(round(done_sets_i / goal_sets_i * 100)))
-            st.markdown(f"### {title}")
-            st.progress(pct_i / 100 if goal_sets_i > 0 else 0.0)
-            st.caption(f"{done_sets_i}/{goal_sets_i}세트 · {q_cnt_i}문항")
-
-    w = sm["by_kind"]["word"]
-    k = sm["by_kind"]["kanji"]
-    t = sm["by_kind"]["talk"]
-
-    _mini_card(k1, "📘 단어", int(w.get("sets", 0)), goal_sets, int(w.get("q", 0)))
-    _mini_card(k2, "🈶 한자", int(k.get("sets", 0)), goal_sets, int(k.get("q", 0)))
-    _mini_card(k3, "💬 회화", int(t.get("sets", 0)), goal_sets, int(t.get("q", 0)))
+    b1, b2, b3 = st.columns(3)
+    b1.caption(f"단어: {sm['by_kind']['word']['sets']}세트 · {sm['by_kind']['word']['q']}문항")
+    b2.caption(f"한자: {sm['by_kind']['kanji']['sets']}세트 · {sm['by_kind']['kanji']['q']}문항")
+    b3.caption(f"회화: {sm['by_kind']['talk']['sets']}세트 · {sm['by_kind']['talk']['q']}문항")
 
     with st.expander("목표 수정", expanded=False):
         new_goal = st.number_input("하루 목표 세트 수 (1세트=10문항)", min_value=0, max_value=100, value=goal_sets, step=1)
