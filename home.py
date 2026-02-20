@@ -1234,57 +1234,6 @@ def _hub_build_base_qs() -> str:
         parts.append("at=" + _q(at_enc))
     return ("&".join(parts) + "&") if parts else ""
 
-# ============================================================
-# ✅ HOTENA_GLOBAL_FLOAT_TOP (shared across all pages)
-# - matches Hub dark style (similar vibe to existing floating controls)
-# - rendered BEFORE running subpages so it still appears even if subpage calls st.stop()
-# ============================================================
-def render_global_float_top():
-    # HOTENA_GLOBAL_FLOAT_TOP
-    components.html("""
-    <script>
-    (function(){
-      if (window.__hotenaGlobalTopMounted) return;
-      window.__hotenaGlobalTopMounted = true;
-
-      const btn = document.createElement('button');
-      btn.id = 'hotena-global-top';
-      btn.innerHTML = '⬆︎';
-      btn.setAttribute('aria-label','맨 위로');
-      btn.style.cssText = `
-        position: fixed;
-        right: 14px;
-        bottom: 84px;  /* above mobile bottom nav */
-        z-index: 2147483200;
-        width: 52px;
-        height: 52px;
-        border-radius: 14px;
-        border: 0;
-        background: rgba(20,20,20,0.92);
-        color: #fff;
-        font-size: 20px;
-        line-height: 52px;
-        text-align: center;
-        cursor: pointer;
-        box-shadow: 0 8px 22px rgba(0,0,0,0.22);
-        display: none;
-      `;
-      btn.onclick = () => window.scrollTo({top:0, behavior:'smooth'});
-      document.body.appendChild(btn);
-
-      const onScroll = () => {
-        const y = window.scrollY || document.documentElement.scrollTop || 0;
-        btn.style.display = (y > 420) ? 'block' : 'none';
-      };
-      window.addEventListener('scroll', onScroll, {passive:true});
-      onScroll();
-    })();
-    </script>
-    """, height=0)
-# ✅ Global float-top button (all pages)
-render_global_float_top()
-
-
 def render_bottom_nav(active: str = "home"):
     """Mobile-only bottom nav. Hidden on wide screens."""
     base = _hub_build_base_qs()
