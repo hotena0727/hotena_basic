@@ -31,6 +31,15 @@ from pathlib import Path
 import random
 import pandas as pd
 import streamlit as st
+
+# ============================================================
+# ✅ HUB 진입 시 보기 선택 초기화 (키 버전 bump)
+# - 라디오/버튼 key에 quiz_version이 섞여 있으면, version을 +1 하면 선택값이 완전 초기화됩니다.
+# ============================================================
+if st.session_state.get("_entered_word"):
+    st.session_state["quiz_version"] = int(st.session_state.get("quiz_version", 0)) + 1
+    st.session_state["_entered_word"] = False
+
 import unicodedata
 from supabase import create_client
 from streamlit_cookies_manager import EncryptedCookieManager
@@ -58,7 +67,8 @@ st.set_page_config(
 # - In case any legacy UI is still rendered, forcibly hide/remove it.
 # ============================================================
 try:
-    components.html("""
+    components.html(
+        """
 <script>
 (function(){
   const kill = () => {
@@ -3726,7 +3736,7 @@ if st.session_state.submitted:
             textwrap.dedent(f"""
 {STYLE}
 {html_block}
-""", height=42),
+"""),
             height=h,
         )
 
