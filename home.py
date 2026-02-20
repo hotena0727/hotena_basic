@@ -776,29 +776,60 @@ def render_plan_pill():
     if "sound_enabled" not in st.session_state:
         st.session_state.sound_enabled = False
 
-    c1, c2 = st.columns([8.5, 1.5], vertical_alignment="center")
+    # ✅ Anchor + CSS to keep this bar on ONE line (especially on mobile)
+    st.markdown('<div id="hub_planbar_anchor"></div>', unsafe_allow_html=True)
+    st.markdown(
+        """
+<style>
+/* ✅ Keep the plan pill + sound toggle on one row */
+#hub_planbar_anchor + div[data-testid="stHorizontalBlock"]{
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  gap: 0.55rem !important;
+}
+#hub_planbar_anchor + div[data-testid="stHorizontalBlock"] > div{
+  min-width: 0 !important;
+}
+
+/* ✅ Slightly tighter pill so it doesn't push the toggle to a new line */
+.hotena-plan-pill{
+  display:inline-flex;align-items:center;gap:.45rem;
+  padding:.22rem .50rem;border-radius:999px;
+  border:1px solid rgba(0,0,0,.10);
+  font-size:.84rem;opacity:.92;background:rgba(0,0,0,.02);
+  white-space: nowrap;
+}
+
+/* ✅ Make toggle label stay on one line */
+div[data-testid="stAppViewContainer"] label[data-testid="stWidgetLabel"]{
+  white-space: nowrap !important;
+}
+</style>
+""",
+        unsafe_allow_html=True,
+    )
+
+    # Give the toggle more room so the label won't wrap on mobile.
+    c1, c2 = st.columns([7.2, 2.8], vertical_alignment="center")
     with c1:
         st.markdown(
             f"""
 <div style="display:flex;justify-content:flex-start;margin-top:0.15rem;margin-bottom:0.2rem;">
-  <div style="
-    display:inline-flex;align-items:center;gap:.45rem;
-    padding:.28rem .55rem;border-radius:999px;
-    border:1px solid rgba(0,0,0,.10);
-    font-size:.86rem;opacity:.92;background:rgba(0,0,0,.02);
-  ">{txt}</div>
+  <div class="hotena-plan-pill">{txt}</div>
 </div>
 """,
             unsafe_allow_html=True,
         )
     with c2:
+        # ✅ Label is visible so users immediately understand what this toggle is.
         st.session_state.sound_enabled = st.toggle(
-            "🔊",
+            "소리",
             value=bool(st.session_state.sound_enabled),
-            label_visibility="collapsed",
+            label_visibility="visible",
             key="hub_sound_toggle",
             help="정답/오답 효과음 ON/OFF",
         )
+
 
 def render_daily_goal_home(sb_authed, user_id: str):
     """Home dashboard: daily goal (sets-based). 1 set == 10 questions (quiz_len)."""
