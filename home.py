@@ -770,37 +770,47 @@ def render_float_top_anchor_button():
 
 def render_plan_pill():
     plan = (st.session_state.get("user_plan") or "free").lower()
-    txt = "✨ PRO 이용 중입니다" if plan == "pro" else "🆓 FREE 이용 중"
+    pill_txt = "✨ PRO 이용 중입니다" if plan == "pro" else "🆓 FREE 이용 중"
 
-    # ✅ unified SFX toggle lives here (Hub-level), so child pages won't render their own toggle.
+    # ✅ Unified SFX toggle lives here (Hub-level), so child pages won't render their own toggle.
     if "sound_enabled" not in st.session_state:
         st.session_state.sound_enabled = False
+
+    status_txt = "소리 ON" if bool(st.session_state.sound_enabled) else "소리 OFF"
 
     # ✅ Anchor + CSS to keep this bar on ONE line (especially on mobile)
     st.markdown('<div id="hub_planbar_anchor"></div>', unsafe_allow_html=True)
     st.markdown(
         """
 <style>
-/* ✅ Keep the plan pill + sound toggle on one row */
+/* ✅ Keep the plan pill + sound controls on one row */
 #hub_planbar_anchor + div[data-testid="stHorizontalBlock"]{
   flex-wrap: nowrap !important;
   align-items: center !important;
-  gap: 0.55rem !important;
+  gap: 0.35rem !important;              /* tighter: "바로 오른쪽" 느낌 */
 }
 #hub_planbar_anchor + div[data-testid="stHorizontalBlock"] > div{
   min-width: 0 !important;
 }
 
-/* ✅ Slightly tighter pill so it doesn't push the toggle to a new line */
+/* ✅ Plan pill */
 .hotena-plan-pill{
-  display:inline-flex;align-items:center;gap:.45rem;
+  display:inline-flex;align-items:center;
   padding:.22rem .50rem;border-radius:999px;
   border:1px solid rgba(0,0,0,.10);
   font-size:.84rem;opacity:.92;background:rgba(0,0,0,.02);
   white-space: nowrap;
 }
 
-/* ✅ Make toggle label stay on one line */
+/* ✅ Sound status text */
+.hotena-sound-status{
+  font-size: .86rem;
+  opacity: .80;
+  white-space: nowrap;
+  margin-left: 0.05rem;
+}
+
+/* ✅ Make widget label never wrap (defensive) */
 div[data-testid="stAppViewContainer"] label[data-testid="stWidgetLabel"]{
   white-space: nowrap !important;
 }
@@ -809,23 +819,24 @@ div[data-testid="stAppViewContainer"] label[data-testid="stWidgetLabel"]{
         unsafe_allow_html=True,
     )
 
-    # Give the toggle more room so the label won't wrap on mobile.
-    c1, c2 = st.columns([7.2, 2.8], vertical_alignment="center")
+    c1, c2, c3 = st.columns([6.6, 2.2, 1.2], vertical_alignment="center")
     with c1:
         st.markdown(
             f"""
-<div style="display:flex;justify-content:flex-start;margin-top:0.15rem;margin-bottom:0.2rem;">
-  <div class="hotena-plan-pill">{txt}</div>
+<div style="display:flex;align-items:center;justify-content:flex-start;margin-top:0.10rem;margin-bottom:0.10rem;">
+  <div class="hotena-plan-pill">{pill_txt}</div>
 </div>
 """,
             unsafe_allow_html=True,
         )
     with c2:
-        # ✅ Label is visible so users immediately understand what this toggle is.
+        st.markdown(f'<div class="hotena-sound-status">{status_txt}</div>', unsafe_allow_html=True)
+    with c3:
+        # ✅ Toggle itself: label collapsed (we show status text instead)
         st.session_state.sound_enabled = st.toggle(
             "소리",
             value=bool(st.session_state.sound_enabled),
-            label_visibility="visible",
+            label_visibility="collapsed",
             key="hub_sound_toggle",
             help="정답/오답 효과음 ON/OFF",
         )
@@ -1379,26 +1390,38 @@ def render_training_header(sb_authed, user, kind: str, title: str, subtitle: str
     if goal_sets > 0:
         pct = min(1.0, done_sets_total / float(goal_sets))
 
-    st.markdown(
-        f"""
-<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:0.75rem;margin-top:0.25rem;margin-bottom:0.45rem;">
-  <div>
-    <div style="font-size:1.35rem;font-weight:800;line-height:1.2;">{title}</div>
-    <div style="opacity:0.72;font-size:0.95rem; margin-top:0.15rem;">{subtitle}</div>
-  </div>
+    # ✅ words/kanji: 제목 옆 "오늘의 목표" 배지 제거 (단어 훈련처럼 깔끔하게)
+    show_kind_badge = kind not in ("words", "kanji")
+
+    badge_html = ""
+    if show_kind_badge:
+        badge_html = f"""
   <div style="text-align:right;">
     <div style="display:inline-flex;align-items:center;gap:.35rem;padding:.22rem .55rem;border-radius:999px;border:1px solid rgba(0,0,0,.10);background:rgba(0,0,0,.02);font-size:.88rem;">
       오늘 {done_sets_kind}세트
     </div>
+  </div>"""
+
+    st.markdown(
+        f"""
+<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:0.75rem;margin-top:0.15rem;margin-bottom:0.35rem;">
+  <div>
+    <div style="font-size:1.35rem;font-weight:800;line-height:1.2;">{title}</div>
+    <div style="opacity:0.72;font-size:0.95rem; margin-top:0.12rem;">{subtitle}</div>
   </div>
+  {badge_html}
 </div>
 """,
         unsafe_allow_html=True,
     )
 
-    # compact progress
+    # compact progress (overall daily goal)
     st.progress(pct)
-    st.caption(f"오늘 완료: {done_sets_total}/{goal_sets}세트 · 현재 페이지: {kind}")
+
+    # ✅ words/kanji: "오늘 완료/목표" 캡션도 생략해서 상단을 더 타이트하게
+    if kind not in ("words", "kanji"):
+        st.caption(f"오늘 완료: {done_sets_total}/{goal_sets}세트 · 현재 페이지: {kind}")
+
     st.markdown("---")
 
 def run_script(filename: str):
