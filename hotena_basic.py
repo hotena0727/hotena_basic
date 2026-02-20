@@ -33,19 +33,14 @@ import pandas as pd
 import streamlit as st
 
 # ============================================================
-# ✅ HUB 모드: 디바이더 바로 아래로 타이틀/첫 블록 끌어올리기
-# - (home 허브에서 이미 상단을 정리하므로) 중복 여백만 제거
+# ✅ HUB 진입 시 '보기 선택됨' 초기화 (key를 바꾸는 방식)
+# - 라디오/선택 위젯이 이전 값으로 고정되는 현상을 방지
 # ============================================================
-if st.session_state.get("HUB_MODE", False):
-    st.markdown(
-        """<style>
-/* hub → word title gap killer */
-div[data-testid="stAppViewContainer"] .block-container{ padding-top:0 !important; margin-top:0 !important; }
-div[data-testid="stAppViewContainer"] .block-container > div:first-child{ margin-top:0 !important; padding-top:0 !important; }
-.headbar, .topbar, .headerbar{ margin-top:0 !important; padding-top:0 !important; }
-</style>""",
-        unsafe_allow_html=True,
-    )
+if st.session_state.get("_entered_word"):
+    # 가장 안전: 문제 위젯 key를 바꾸도록 버전만 올린다.
+    st.session_state["quiz_version"] = int(st.session_state.get("quiz_version", 0)) + 1
+    st.session_state["_entered_word"] = False
+
 
 import unicodedata
 from supabase import create_client
@@ -62,13 +57,16 @@ import html
 # ============================================================
 # ✅ Page Config + Paths
 # ============================================================
-st.set_page_config(
+if not st.session_state.get('_page_config_set'):
+    st.set_page_config(
     page_title="왕초보탈출 하테나일본어",
     page_icon="static/icon-192.png",   # 또는 "🟦"
     layout="centered",
 )
 
 
+
+    st.session_state['_page_config_set'] = True
 # ============================================================
 # ✅ [HOTFIX] Disable onboarding ("60초 이용안내") block entirely
 # - In case any legacy UI is still rendered, forcibly hide/remove it.
@@ -3090,21 +3088,6 @@ if not st.session_state.get("HUB_MODE", False):
 
 if "quiz_version" not in st.session_state:
     st.session_state.quiz_version = 0
-
-
-# ============================================================
-# ✅ HUB 진입 시: 보기 선택(라디오) 초기화
-# - 이 앱은 보기 라디오 key가 quiz_version에 묶여있어서,
-#   진입 순간 quiz_version을 1 올리면 "선택됨" 상태가 사라집니다.
-# ============================================================
-if st.session_state.get("_entered_word"):
-    st.session_state.quiz_version = int(st.session_state.get("quiz_version", 0)) + 1
-    # 제출/채점 상태도 초기화(있을 때만)
-    for k in ("submitted", "is_graded", "answers"):
-        if k in st.session_state:
-            st.session_state.pop(k, None)
-    st.session_state["_entered_word"] = False
-
 if "submitted" not in st.session_state:
     st.session_state.submitted = False
 if "wrong_list" not in st.session_state:
