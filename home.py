@@ -89,27 +89,20 @@ st.markdown(
    ========================================================== */
 
 header[data-testid="stHeader"]{
-  display: none !important;
-  height: 0 !important;
-  min-height: 0 !important;
-  margin: 0 !important;
-  padding: 0 !important;
-}
-div[data-testid="stToolbar"]{
   display:none !important;
   height:0 !important;
+  min-height:0 !important;
 }
+
+div[data-testid="stToolbar"]{ display:none !important; height:0 !important; }
 div[data-testid="stDecoration"]{ display:none !important; height:0 !important; }
+section.main > div{ padding-top: 0rem !important; }
+
 
 /* Container spacing */
 div[data-testid="stAppViewContainer"] .block-container{
   padding-top: 0rem !important;
-  margin-top: 0rem !important;
   padding-bottom: 5.25rem !important; /* bottom breathing room for mobile */
-}
-div[data-testid="stAppViewContainer"] .block-container > div:first-child{
-  margin-top: 0rem !important;
-  padding-top: 0rem !important;
 }
 
 /* Headlines: tighter */
@@ -230,24 +223,6 @@ div[data-testid="stMetric"]{
   color: rgba(0,0,0,0.55);
 }
 
-
-/* ✅ ULTRA: Streamlit versions vary, so override multiple containers */
-html, body { margin:0 !important; padding:0 !important; }
-div[data-testid="stAppViewContainer"]{ padding-top:0 !important; }
-div[data-testid="stAppViewContainer"] > div:first-child{ margin-top:0 !important; padding-top:0 !important; }
-section.main{ padding-top:0 !important; }
-section.main > div{ padding-top:0 !important; margin-top:0 !important; }
-div[data-testid="stMain"]{ padding-top:0 !important; margin-top:0 !important; }
-div[data-testid="stMainBlockContainer"]{ padding-top:0 !important; margin-top:0 !important; }
-
-
-/* ✅ Kill Streamlit wrapper spacing for the very first (anchor) element + top block */
-div[data-testid="stVerticalBlock"] > div:first-child,
-div[data-testid="stVerticalBlock"] > div:first-child > div{
-  margin-top: 0rem !important;
-  padding-top: 0rem !important;
-}
-div[data-testid="stElementContainer"]{ margin-top: 0rem !important; }
 </style>
 """,
     unsafe_allow_html=True,
@@ -1237,13 +1212,6 @@ def render_float_top_anchor_button():
   font-size: 18px;
   box-shadow: 0 12px 26px rgba(0,0,0,0.22);
 }
-
-/* ✅ Final override: always start at the very top */
-div[data-testid="stAppViewContainer"] .main,
-section.main{
-  padding-top: 0rem !important;
-  margin-top: 0rem !important;
-}
 </style>
 <a class="hotena-float-top" href="#hotena-top" aria-label="맨 위로">⬆︎</a>
         """,
@@ -1256,7 +1224,7 @@ def render_plan_pill():
     txt = "✨ PRO 이용 중입니다" if plan == "pro" else "🆓 FREE 이용 중"
     st.markdown(
         f"""
-<div style="display:flex;justify-content:flex-start;margin-top:0rem;margin-bottom:0rem;">
+<div style="display:flex;justify-content:flex-start;margin-top:0.15rem;margin-bottom:0.2rem;">
   <div style="
     display:inline-flex;align-items:center;gap:.45rem;
     padding:.28rem .55rem;border-radius:999px;
