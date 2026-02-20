@@ -262,9 +262,15 @@ def render_pattern_cards():
 }
 .pat-title{ font-weight:900; font-size:16px; margin-bottom:6px; }
 .pat-main{ font-size:14px; line-height:1.5; }
-.pat-sub{ opacity:.75; font-size:13px; margin-top:6px; }
-.pat-ex{ margin-top:10px; font-size:13px; line-height:1.55; }
+.pat-sub{ opacity:.75; font-size:13px; margin-top:0; }
+.pat-ex{ margin-top:0; font-size:13px; line-height:1.55; }
 .pat-ex b{ font-weight:900; }
+
+/* ✅ ULTRA: bring the word-app title right under the hub divider */
+div[data-testid="stAppViewContainer"] .block-container{ padding-top:0; margin-top:0; }
+div[data-testid="stAppViewContainer"] .block-container > div:first-child{ margin-top:0; padding-top:0; }
+.headbar, .topbar, .headerbar{ margin-top:0; padding-top:0; }
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -326,7 +332,7 @@ st.markdown(
 
 /* 메인 컨테이너 위쪽 여백 줄이기 */
 div[data-testid="stAppViewContainer"] .block-container{
-  padding-top: 1.0rem !important;   /* 0.5~1.5rem 사이로 취향 조절 */
+  padding-top:0;   /* 0.5~1.5rem 사이로 취향 조절 */
 }
 
 /* Streamlit 상단 헤더(투명 영역 포함) 자체를 더 얇게 */
@@ -345,7 +351,7 @@ div[data-testid="stToolbar"]{
 div[data-testid="stMarkdownContainer"] h2,
 div[data-testid="stMarkdownContainer"] h3,
 div[data-testid="stMarkdownContainer"] h4{
-  margin-top: 10px !important;
+  margin-top:0;
   margin-bottom: 8px !important;
 }
 
@@ -417,7 +423,7 @@ div.stButton > button{
 .qtype_hint{
   font-size: 15px;
   opacity: .70;
-  margin-top: 2px;
+  margin-top:0;
   margin-bottom: 10px;
   line-height: 1.2;
 }
@@ -1546,7 +1552,7 @@ def require_login():
     <div style="font-weight:900; font-size:22px; line-height:1.15;">
       ✨ 왕초보 탈출 하테나일본어
     </div>
-    <div style="margin-top:6px; opacity:.85; font-size:13px; line-height:1.55;">
+    <div style="margin-top:0; opacity:.85; font-size:13px; line-height:1.55;">
       하루 10문항으로 가볍게 루틴을 만들어요.<br/>
       정답은 저장되고, 오답은 다시 풀 수 있어요.
     </div>
@@ -1613,7 +1619,7 @@ def render_naver_talk():
   font-size: 12px;
   font-weight: 600;
   opacity: 0.95;
-  margin-top: 2px;
+  margin-top:0;
 }}
 .badge {{
   position: absolute;
@@ -2304,13 +2310,13 @@ def render_my_dashboard():
       line-height:1.2;
     }}
     .stat-value{{
-      margin-top:6px;
+      margin-top:0;
       font-size:22px;
       font-weight:900;
       line-height:1.1;
     }}
     .stat-sub{{
-      margin-top:6px;
+      margin-top:0;
       font-size:12px;
       opacity:.70;
       line-height:1.2;
@@ -2511,12 +2517,12 @@ def render_home():
     st.markdown(
         f"""
 <div class="jp" style="
-  margin-top:1px;
+  margin-top:0;
   border:1px solid rgba(120,120,120,0.18);
   border-radius:18px; padding:16px; background:rgba(255,255,255,0.03);">
   <div style="font-weight:900; font-size:14px; opacity:.75;">오늘의 말</div>
-  <div style="margin-top:6px; font-weight:900; font-size:20px; line-height:1.3;">{q}</div>
-  <div style="margin-top:10px; opacity:.80; font-size:13px; line-height:1.55;">
+  <div style="margin-top:0; font-weight:900; font-size:20px; line-height:1.3;">{q}</div>
+  <div style="margin-top:0; opacity:.80; font-size:13px; line-height:1.55;">
     품사 하나씩만 잡아도, 말이 빨라집니다.
   </div>
 </div>
@@ -2712,7 +2718,7 @@ def render_today_report_db_only(sb_authed, user_id: str):
   margin: 6px 0 10px 0;
 ">
   <div style="font-weight:900; font-size:14px; opacity:.75;">📈 오늘의 학습 리포트</div>
-  <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
+  <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:0;">
     <div style="flex:1 1 120px; min-width:120px;">
       <div style="font-size:12px; opacity:.7; font-weight:800;">오늘 푼 문항</div>
       <div style="font-size:22px; font-weight:900; line-height:1.1;">{mask_value(total)}</div>
@@ -2730,7 +2736,7 @@ def render_today_report_db_only(sb_authed, user_id: str):
       <div style="font-size:22px; font-weight:900; line-height:1.1;">{mask_value(streak, "일")}</div>
     </div>
   </div>
-  <div style="margin-top:8px; font-size:12px; opacity:.78; line-height:1.4;">
+  <div style="margin-top:0; font-size:12px; opacity:.78; line-height:1.4;">
     오늘 가장 많이 틀린 모드: <b>{html.escape(str(top_mode))}</b>
   </div>
 </div>
@@ -3038,7 +3044,7 @@ if not st.session_state.get("HUB_MODE", False):
         </div>
       </div>
 
-      <div style="margin-top:10px; display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
+      <div style="margin-top:0; display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
         <div style="font-size:13px; font-weight:800; opacity:.85;">
           목표: <b>{target_questions}</b>문항
         </div>
@@ -3050,12 +3056,12 @@ if not st.session_state.get("HUB_MODE", False):
         </div>
       </div>
 
-      <div style="margin-top:10px;">
+      <div style="margin-top:0;">
         <div style="height:10px; border-radius:999px; background: rgba(0,0,0,0.07); overflow:hidden;">
           <div style="height:100%; width:{goal_percent}%; background: rgba(0,0,0,0.25);"></div>
         </div>
 
-        <div style="margin-top:10px; font-size:12.5px; opacity:.72; font-weight:700;">
+        <div style="margin-top:0; font-size:12.5px; opacity:.72; font-weight:700;">
           {goal_msg}
         </div>
       </div>
@@ -3692,7 +3698,7 @@ if st.session_state.submitted:
   display:grid;
   grid-template-columns: 72px 1fr;
   gap:10px;
-  margin-top:6px;
+  margin-top:0;
   font-size: 13px;
 }
 .ans-k{ opacity: 0.7; font-weight: 700; }
@@ -3814,6 +3820,4 @@ if st.session_state.get("submitted", False):
     show_naver_talk = (SHOW_NAVER_TALK == "N") or is_admin()
     if show_naver_talk:
         render_naver_talk()
-
-
 
