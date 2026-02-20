@@ -1,7 +1,7 @@
 # home.py
 from __future__ import annotations
 
-BUILD_STAMP = 'v41-homehub-gear-under-cards-clean 2026-02-20 KST (+09:00)'
+BUILD_STAMP = 'home-min-clean-v2 (replace dashboard) 2026-02-20 KST (+09:00)'
 
 from pathlib import Path
 import os
@@ -712,7 +712,6 @@ def render_home_dashboard(sb_authed, user):
         unsafe_allow_html=True,
     )
 
-
     # ---- header ----
     st.markdown(
         f"""
@@ -854,40 +853,7 @@ def render_home_dashboard(sb_authed, user):
         """</div>"""
     st.markdown(rows_html, unsafe_allow_html=True)
 
-# ---- goal settings (under cards, right aligned) ----
-st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
-
-if "show_goal_settings" not in st.session_state:
-    st.session_state["show_goal_settings"] = False
-
-_gs1, _gs2 = st.columns([1, 0.18], gap="small")
-with _gs2:
-    if st.button("⚙️", key="hub_goal_gear_uc", help="루틴 목표 수정", use_container_width=True):
-        st.session_state["show_goal_settings"] = not st.session_state["show_goal_settings"]
-
-if st.session_state.get("show_goal_settings", False):
-    with st.expander("루틴 목표 수정", expanded=True):
-        new_goal = st.number_input(
-            "하루 목표 세트 수 (1세트=10문항)",
-            min_value=0,
-            max_value=100,
-            value=int(goal_sets),
-            step=1,
-        )
-        csave, cclose = st.columns([1, 1], gap="small")
-        with csave:
-            if st.button("저장", use_container_width=True, key="hub_daily_goal_save"):
-                progress_all["daily_goal_sets"] = int(new_goal)
-                st.session_state["progress_all"] = progress_all
-                save_progress(sb_authed, user.id, progress_all)
-                st.success("저장했습니다.")
-        with cclose:
-            if st.button("닫기", use_container_width=True, key="hub_goal_close"):
-                st.session_state["show_goal_settings"] = False
-
-
-
-    # ---- Smart CTA (button set) ----
+    # ---- Smart CTA (bottom-right controls) ----
     remaining = max(0, goal_sets - done_total)
     kinds = [
         ("word", "📘", "단어", int(w["sets"])),
@@ -905,12 +871,45 @@ if st.session_state.get("show_goal_settings", False):
     else:
         msg = f"오늘 {remaining}세트만 더 하면 목표 달성! ({rec_label} 추천)"
 
-    st.markdown(f"<div class='h-cta'><b>{msg}</b></div>", unsafe_allow_html=True)
+    if "show_goal_settings" not in st.session_state:
+        st.session_state["show_goal_settings"] = False
 
-    if st.button(f"{rec_emoji} {rec_label} 시작", use_container_width=True, key="hub_cta_primary"):
-        st.session_state["p"] = rec_kind
-        st.query_params["p"] = rec_kind
-        st.rerun()
+    cta_l, cta_r = st.columns([0.70, 0.30], gap="small")
+    with cta_l:
+        st.markdown(f"<div class='h-cta'><b>{msg}</b></div>", unsafe_allow_html=True)
+
+    with cta_r:
+        # (1) Goal gear (toggle)
+        if st.button("⚙️ 목표", key="hub_goal_gear_bottom", help="루틴 목표 수정", use_container_width=True):
+            st.session_state["show_goal_settings"] = not st.session_state["show_goal_settings"]
+
+        # (2) Smart CTA (start)
+        if st.button(f"{rec_emoji} {rec_label} 시작", use_container_width=True, key="hub_cta_primary"):
+            st.session_state["p"] = rec_kind
+            st.query_params["p"] = rec_kind
+            st.rerun()
+
+    # ---- goal settings (compact expander) ----
+    if st.session_state.get("show_goal_settings", False):
+        with st.expander("루틴 목표 수정", expanded=True):
+            new_goal = st.number_input(
+                "하루 목표 세트 수 (1세트=10문항)",
+                min_value=0,
+                max_value=100,
+                value=int(goal_sets),
+                step=1,
+            )
+            csave, cclose = st.columns([1, 1], gap="small")
+            with csave:
+                if st.button("저장", use_container_width=True, key="hub_daily_goal_save"):
+                    progress_all["daily_goal_sets"] = int(new_goal)
+                    st.session_state["progress_all"] = progress_all
+                    save_progress(sb_authed, user.id, progress_all)
+                    st.success("저장했습니다.")
+            with cclose:
+                if st.button("닫기", use_container_width=True, key="hub_goal_close"):
+                    st.session_state["show_goal_settings"] = False
+
 
 def summarize_attempts(attempts: list[dict]) -> dict:
     out = {
