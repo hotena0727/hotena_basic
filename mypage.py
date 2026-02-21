@@ -94,4 +94,3 @@ def render():
             unsafe_allow_html=True,
         )
 
-render()

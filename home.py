@@ -1203,6 +1203,7 @@ def render_floating_menu():
                 .replace("__HREF_REM__", href_rem)
                 .replace("__HREF_OUT__", href_out))
 
+    html = html.replace("__ADMIN_LINK__", admin_link_html)
     st.markdown(html, unsafe_allow_html=True)
 
 
@@ -1709,6 +1710,7 @@ def render_floating_menu():
                 .replace("__HREF_REM__", href_rem)
                 .replace("__HREF_OUT__", href_out))
 
+    html = html.replace("__ADMIN_LINK__", admin_link_html)
     st.markdown(html, unsafe_allow_html=True)
 
 # ============================================================
@@ -1797,6 +1799,7 @@ def render_bottom_nav(active: str = "home"):
     {admin_btn}
   </div>
 </div>"""
+    html = html.replace("__ADMIN_LINK__", admin_link_html)
     st.markdown(html, unsafe_allow_html=True)
 
 def render_training_header(sb_authed, user, kind: str, title: str, subtitle: str):
@@ -1868,7 +1871,7 @@ def render_admin_page():
     st.markdown("## 🛠 관리자 페이지")
     st.caption("최근 퀴즈 기록(최대 200개)")
 
-    sb = st.session_state.get("sb")
+    sb = st.session_state.get("sb_authed") or st.session_state.get("sb")
     if not sb:
         st.error("Supabase 클라이언트를 찾을 수 없습니다. 로그인 상태를 확인해주세요.")
         return
