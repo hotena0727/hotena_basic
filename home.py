@@ -87,6 +87,7 @@ try {{
 
 from supabase import create_client
 from streamlit_cookies_manager import EncryptedCookieManager
+import html as html_module  # ✅ for html escaping in admin cards
 
 # ============================================================
 # ✅ Page Config (Hub only)
@@ -2659,7 +2660,6 @@ def render_admin_dashboard(sb_authed):
             d2 = d[keep].head(int(max_rows)).copy() if keep else d.head(int(max_rows)).copy()
             # card view (Hatena style)
             # card view (Hatena style)
-import html as html_module  # ✅ for html escaping in admin cards
             st.markdown('<div class="ha-log">', unsafe_allow_html=True)
             for _, r in d2.head(200).iterrows():
                 # raw values (may be None)
