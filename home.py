@@ -2483,7 +2483,7 @@ def render_admin_dashboard(sb_authed):
             st.caption("※ '관리자 작업 로그(플랜 변경 이력)'까지 원하시면, 별도 admin_audit_logs 테이블/RPC를 추가해 붙일 수 있습니다.")
             st.markdown("</div>", unsafe_allow_html=True)
 
-with tab_backup:
+    with tab_backup:
         st.markdown('<div class="ha-section"><div class="ha-title">백업 · 버전</div><div class="ha-sub">현재 핵심 파일을 ZIP으로 백업합니다.</div>', unsafe_allow_html=True)
         tag = st.text_input("버전 태그", value="stable", key="admin_backup_tag")
         if st.button("백업 ZIP 만들기", type="primary", key="admin_backup_make"):
