@@ -3534,6 +3534,32 @@ if st.session_state.submitted:
             })
 
     st.session_state.wrong_list = wrong_list
+        # ============================================================
+        # ✅ 오답 상세 저장 (wrong_notes) — 3회 이상 반복오답/Top10 복습용
+        # - 홈/마이페이지에서 '단어/정답/내답' 카드 복원을 위해 필요
+        # ============================================================
+        try:
+            sb_authed = get_authed_sb()
+            u_now = getattr(sb_authed.auth.get_user(), "user", None) if sb_authed else None
+            uid_now = getattr(u_now, "id", None) if u_now else None
+            if sb_authed and uid_now and wrong_list:
+                rows = []
+                for w in wrong_list:
+                    # question: 단어(우선) → 문제 문장
+                    q_text = (w.get("단어") or w.get("문제") or "").strip()
+                    rows.append({
+                        "user_id": uid_now,
+                        "quiz_type": "word",
+                        "question": q_text if q_text else (w.get("문제") or ""),
+                        "correct_answer": str(w.get("정답") or ""),
+                        "user_answer": str(w.get("내 답") or ""),
+                        "level": str(st.session_state.get("level", "") or ""),
+                    })
+                # batch insert
+                sb_authed.table("wrong_notes").insert(rows).execute()
+        except Exception:
+            pass
+
 
     st.success(f"점수: {score} / {quiz_len}")
 

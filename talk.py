@@ -429,6 +429,24 @@ with cc3:
 if submitted:
     correct = str(row.get("answer_jp", "")).strip()
     ok = (selected == correct)
+        # ============================================================
+        # ✅ 오답 상세 저장 (wrong_notes) — 회화도 '단어/정답/내답' 기록
+        # ============================================================
+        if not ok:
+            try:
+                sb2 = st.session_state.get("sb_authed") or sb  # hub에서 공유되면 sb_authed 우선
+                if sb2 and USER_ID:
+                    q_text = (str(row.get("q_jp", "")) or str(row.get("situation_kr",""))).strip()
+                    sb2.table("wrong_notes").insert({
+                        "user_id": USER_ID,
+                        "quiz_type": "talk",
+                        "question": q_text if q_text else str(row.get("id", "")),
+                        "correct_answer": str(correct),
+                        "user_answer": str(selected),
+                        "level": "talk",
+                    }).execute()
+            except Exception:
+                pass
 
     # 저장(answers)
     answers.setdefault(qid, {})

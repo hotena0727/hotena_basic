@@ -79,6 +79,8 @@ def _css():
 .ha-wrong {color:#c0392b; font-weight:700;}
 .ha-correct {color:#2e7d32; font-weight:700;}
 .ha-divider {height:1px; background:#eef2f7; margin:10px 0;}
+
+.ha-badge-warn{background:#d97706;color:#fff;}
 </style>
         """,
         unsafe_allow_html=True,
@@ -87,13 +89,13 @@ def _css():
 
 def _nav_back_and_logout():
     # Keep visual balance: two pill buttons with same style.
-    left, right = st.columns([1, 1], vertical_alignment="center")
+    left, right = st.columns([4, 1], vertical_alignment="center")
     with left:
-        if st.button("← 홈허브", key="mypage_back_hub", use_container_width=True):
+        if st.button("← 홈허브", key="mypage_back_hub", use_container_width=False, type="secondary"):
             st.session_state["hub_page"] = "home"
             st.rerun()
     with right:
-        if st.button("로그아웃", key="mypage_logout", use_container_width=True):
+        if st.button("로그아웃", key="mypage_logout", use_container_width=False, type="secondary"):
             # rely on existing logout handler in home.py if present
             # minimal: clear session
             for k in ["user", "sb_authed", "access_token", "refresh_token", "hub_page"]:
@@ -146,26 +148,59 @@ def _format_dt(v: Any) -> str:
         return str(v)
 
 
+
 def _wrong_cards_ui(wrongs: List[Dict[str, Any]]):
     st.markdown('<div class="ha-card">', unsafe_allow_html=True)
-    st.markdown("<h4>📚 오답카드</h4>", unsafe_allow_html=True)
+    st.markdown("<h4>📚 오답카드 · 복습</h4>", unsafe_allow_html=True)
 
     if not wrongs:
         st.info("아직 저장된 오답 상세가 없습니다. (앞으로 틀린 문제는 자동으로 오답카드에 쌓입니다.)")
         st.markdown("</div>", unsafe_allow_html=True)
         return
 
+    # ✅ 반복 오답 카운트(최근 불러온 범위 기준)
+    counts: Dict[tuple, int] = {}
+    for w in wrongs:
+        key = (w.get("quiz_type") or "", w.get("question") or "", w.get("correct_answer") or "")
+        counts[key] = counts.get(key, 0) + 1
+
     total = len(wrongs)
-    recent7 = sum(1 for w in wrongs[:200] if (str(w.get("created_at") or "")[:10] >= str(datetime.utcnow().date())))
-    # recent7 is approximate; avoid heavy date math without timezone issues
+    stubborn_cnt = sum(1 for _, v in counts.items() if v >= 3)
 
     st.markdown(
         f'<div class="ha-row"><span class="ha-badge">총 {total}개</span>'
-        f'<span class="ha-badge">최근 {min(30,total)}개 표시</span></div>',
+        f'<span class="ha-badge">최근 {min(30,total)}개 표시</span>'
+        f'<span class="ha-badge ha-badge-warn">3회+ 반복오답 {stubborn_cnt}개</span></div>',
         unsafe_allow_html=True,
     )
     st.markdown('<div class="ha-divider"></div>', unsafe_allow_html=True)
 
+    # ✅ 반복오답(3회+) 우선 노출 (중복 제거)
+    stubborn_items = [(k, v) for k, v in counts.items() if v >= 3]
+    stubborn_items.sort(key=lambda kv: kv[1], reverse=True)
+
+    if stubborn_items:
+        st.markdown(
+            "<div style='margin:6px 0 10px;'><b>🔥 반복오답(3회+)</b> — 먼저 잡으면 성취율이 급상승합니다.</div>",
+            unsafe_allow_html=True,
+        )
+        for (qt, q, ca), v in stubborn_items[:8]:
+            st.markdown(
+                f"""<div class="ha-card" style="box-shadow:none; padding:10px 12px; border-radius:12px;">
+  <div class="ha-row">
+    <span class="ha-badge">{(qt or "QUIZ").upper()}</span>
+    <span class="ha-badge ha-badge-warn">{v}회</span>
+  </div>
+  <div style="margin-top:6px; font-size:14px;">
+    <div><span class="ha-muted">문제</span> <b>{q}</b></div>
+    <div style="margin-top:2px;"><span class="ha-muted">정답</span> <span class="ha-correct">{ca}</span></div>
+  </div>
+</div>""",
+                unsafe_allow_html=True,
+            )
+        st.markdown('<div class="ha-divider"></div>', unsafe_allow_html=True)
+
+    # ✅ 최근 오답 카드
     for w in wrongs[:30]:
         q = w.get("question", "")
         ca = w.get("correct_answer", "")
@@ -173,11 +208,16 @@ def _wrong_cards_ui(wrongs: List[Dict[str, Any]]):
         qt = (w.get("quiz_type") or "").upper()
         lv = w.get("level") or ""
         when = _format_dt(w.get("created_at"))
+
+        c = counts.get((w.get("quiz_type") or "", w.get("question") or "", w.get("correct_answer") or ""), 1)
+        repeat_badge = f'<span class="ha-badge ha-badge-warn">{c}회</span>' if c >= 3 else ""
+
         st.markdown(
             f"""
 <div class="ha-card" style="box-shadow:none; padding:12px; border-radius:12px;">
   <div class="ha-row">
     <span class="ha-badge">{qt or "QUIZ"}</span>
+    {repeat_badge}
     {f'<span class="ha-badge">{lv}</span>' if lv else ''}
     {f'<span class="ha-badge">{when}</span>' if when else ''}
   </div>
@@ -192,6 +232,7 @@ def _wrong_cards_ui(wrongs: List[Dict[str, Any]]):
         )
 
     st.markdown("</div>", unsafe_allow_html=True)
+
 
 
 def _build_mcq_choices(correct: str, pool: List[str], k: int = 4) -> List[str]:
