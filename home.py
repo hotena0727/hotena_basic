@@ -1234,15 +1234,26 @@ def render_float_top_anchor_button():
 def render_plan_pill():
     plan = (st.session_state.get("user_plan") or "free").lower()
     txt = "✨ PRO 이용 중입니다" if plan == "pro" else "🆓 FREE 이용 중"
+
+    is_admin = bool(st.session_state.get("is_admin", False))
+    base = _hub_build_base_qs()
+    href_admin = "?" + base + "p=admin"
+    gear = f'<a href="{href_admin}" target="_self" class="hub-gear" title="관리자">⚙️</a>' if is_admin else ""
+
     st.markdown(
         f"""
-<div style="display:flex;justify-content:flex-start;margin-top:0.15rem;margin-bottom:0.2rem;">
-  <div style="
-    display:inline-flex;align-items:center;gap:.45rem;
-    padding:.28rem .55rem;border-radius:999px;
-    border:1px solid rgba(0,0,0,.10);
-    font-size:.86rem;opacity:.92;background:rgba(0,0,0,.02);
-  ">{txt}</div>
+<style>
+  .hub-plan-wrap{{display:flex;justify-content:flex-start;margin-top:0.15rem;margin-bottom:0.2rem;}}
+  .hub-plan-pill{{display:inline-flex;align-items:center;gap:.45rem;padding:.28rem .55rem;border-radius:999px;
+    border:1px solid rgba(0,0,0,.10);font-size:.86rem;opacity:.92;background:rgba(0,0,0,.02);}}
+  .hub-gear{{display:inline-flex;align-items:center;justify-content:center;
+    margin-left:8px;width:28px;height:28px;border-radius:999px;text-decoration:none;
+    border:1px solid rgba(0,0,0,.10);background:rgba(0,0,0,.02);font-size:16px;line-height:1;
+    pointer-events:auto;}}
+  .hub-gear:hover{{background:rgba(0,0,0,.04);}}
+</style>
+<div class="hub-plan-wrap">
+  <div class="hub-plan-pill">{txt}{gear}</div>
 </div>
 """,
         unsafe_allow_html=True,
@@ -1841,10 +1852,7 @@ if action == "logout":
     hub_logout()
 
 if isinstance(p, str) and p:
-    allowed = {"home", "word", "kanji", "talk", "my", "reminder"}
-    if st.session_state.get("is_admin"):
-        allowed.add("admin")
-    if p in allowed:
+    if p in {"home", "word", "kanji", "talk", "my", "reminder"}:
         st.session_state["hub_page"] = p
 
 # ✅ Always render floating menu + plan pill in hub mode (after auth)
@@ -1896,15 +1904,13 @@ def _admin_load_attempts(sb_authed):
     return rows, used
 
 
-def _admin_kst_date_series(created_at_series):
+def _admin_kst(created_at_series):
     import pandas as pd
     ts = pd.to_datetime(created_at_series, errors="coerce", utc=True)
-    kst = ts.dt.tz_convert("Asia/Seoul")
-    return kst
+    return ts.dt.tz_convert("Asia/Seoul")
 
 
 def _admin_infer_module(row: dict) -> str:
-    """Heuristic: try to infer word/kanji/talk from pos_mode or other fields."""
     s = ""
     for k in ("pos_mode", "mode", "kind", "app", "module"):
         v = row.get(k)
@@ -1917,7 +1923,6 @@ def _admin_infer_module(row: dict) -> str:
         return "kanji"
     if "talk" in s or "회화" in s or "speech" in s:
         return "talk"
-    # Most records are word quiz attempts
     if s:
         return "word"
     return "unknown"
@@ -1928,13 +1933,11 @@ def _admin_update_profile(sb_authed, user_id: str, payload: dict):
 
 
 def _admin_set_pro_until(sb_authed, user_id: str, date_value: str):
-    """Try common column names for pro expiry."""
     candidates = ["pro_until", "pro_expires_at", "expires_at", "pro_expiry"]
     last_err = None
     for col in candidates:
         try:
-            payload = {col: date_value}
-            _admin_update_profile(sb_authed, user_id, payload)
+            _admin_update_profile(sb_authed, user_id, {col: date_value})
             return col
         except Exception as e:
             last_err = e
@@ -1943,7 +1946,7 @@ def _admin_set_pro_until(sb_authed, user_id: str, date_value: str):
 
 
 def _admin_make_backup_zip(version_tag: str = "") -> tuple[bytes, str]:
-    import io, zipfile, os
+    import io, zipfile, json, datetime
     from pathlib import Path
 
     ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -1952,18 +1955,15 @@ def _admin_make_backup_zip(version_tag: str = "") -> tuple[bytes, str]:
 
     buf = io.BytesIO()
     with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as z:
-        # These files exist in the same folder as home.py in your deployment.
         for name in ["home.py", "app.py", "hotena_basic.py", "talk.py", "mypage.py"]:
-            p = Path(__file__).parent / name  # Streamlit runs from script dir
+            p = Path(__file__).parent / name
             if p.exists():
                 z.write(str(p), arcname=name)
-        # Save a tiny manifest
-        manifest = {
+        z.writestr("manifest.json", json.dumps({
             "created_at": ts,
             "version_tag": tag,
             "files": [zi.filename for zi in z.infolist()],
-        }
-        z.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False, indent=2))
+        }, ensure_ascii=False, indent=2))
     return buf.getvalue(), filename
 
 
@@ -1977,9 +1977,7 @@ def render_admin_page(sb_authed):
         st.error("Supabase 클라이언트를 찾을 수 없습니다. 로그인 상태를 확인해주세요.")
         return
 
-    # --- Load data ---
-    profiles, profiles_sel = [], ""
-    attempts, attempts_sel = [], ""
+    profiles, profiles_sel, attempts, attempts_sel = [], "", [], ""
     profiles_err = attempts_err = None
 
     try:
@@ -1995,11 +1993,11 @@ def render_admin_page(sb_authed):
     dfp = pd.DataFrame(profiles) if profiles else pd.DataFrame()
     dfa = pd.DataFrame(attempts) if attempts else pd.DataFrame()
 
-    # --- Top cards ---
+    # 카드형 상단 요약
     st.markdown("""
 <style>
 .admin-cards{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:8px 0 12px;}
-.admin-card{border:1px solid rgba(0,0,0,.08);border-radius:16px;padding:12px 12px;background:rgba(0,0,0,.02);}
+.admin-card{border:1px solid rgba(0,0,0,.08);border-radius:16px;padding:12px;background:rgba(0,0,0,.02);}
 .admin-k{font-size:12px;opacity:.7;margin-bottom:6px;}
 .admin-v{font-size:22px;font-weight:700;line-height:1.1;}
 .admin-s{font-size:12px;opacity:.65;margin-top:6px;}
@@ -2011,24 +2009,23 @@ def render_admin_page(sb_authed):
     pro_users = int((dfp.get("plan") == "pro").sum()) if (not dfp.empty and "plan" in dfp.columns) else 0
     admin_users = int((dfp.get("is_admin") == True).sum()) if (not dfp.empty and "is_admin" in dfp.columns) else 0
 
-    today_attempts = 0
-    last_7_attempts = 0
+    today_attempts = last7_attempts = 0
     if not dfa.empty and "created_at" in dfa.columns:
         try:
-            kst = _admin_kst_date_series(dfa["created_at"])
+            kst = _admin_kst(dfa["created_at"])
             today = pd.Timestamp.now(tz="Asia/Seoul").date()
             today_attempts = int((kst.dt.date == today).sum())
             last7 = (pd.Timestamp.now(tz="Asia/Seoul") - pd.Timedelta(days=7)).date()
-            last_7_attempts = int((kst.dt.date >= last7).sum())
+            last7_attempts = int((kst.dt.date >= last7).sum())
         except Exception:
             pass
 
     st.markdown(f"""
 <div class="admin-cards">
   <div class="admin-card"><div class="admin-k">총 회원</div><div class="admin-v">{total_users:,}</div><div class="admin-s">profiles: {profiles_sel or 'N/A'}</div></div>
-  <div class="admin-card"><div class="admin-k">PRO 회원</div><div class="admin-v">{pro_users:,}</div><div class="admin-s">plan == pro</div></div>
-  <div class="admin-card"><div class="admin-k">관리자</div><div class="admin-v">{admin_users:,}</div><div class="admin-s">is_admin == true</div></div>
-  <div class="admin-card"><div class="admin-k">오늘 퀴즈</div><div class="admin-v">{today_attempts:,}</div><div class="admin-s">최근 7일: {last_7_attempts:,}</div></div>
+  <div class="admin-card"><div class="admin-k">PRO 회원</div><div class="admin-v">{pro_users:,}</div><div class="admin-s">plan==pro</div></div>
+  <div class="admin-card"><div class="admin-k">관리자</div><div class="admin-v">{admin_users:,}</div><div class="admin-s">is_admin==true</div></div>
+  <div class="admin-card"><div class="admin-k">오늘 퀴즈</div><div class="admin-v">{today_attempts:,}</div><div class="admin-s">최근7일: {last7_attempts:,}</div></div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -2039,107 +2036,79 @@ def render_admin_page(sb_authed):
         st.error("quiz_attempts 조회 실패 (RLS/권한/컬럼 확인 필요)")
         st.exception(attempts_err)
 
-    tab_dash, tab_users, tab_attempts, tab_backup = st.tabs(["📊 통계", "👥 회원", "🕒 기록", "🗂 백업/버전"])
+    tab_stats, tab_users, tab_logs, tab_backup = st.tabs(["📊 통계", "👥 회원", "🕒 기록", "🗂 백업/버전"])
 
-    # ---------- STATISTICS ----------
-    with tab_dash:
-        st.markdown("### 1) 레벨별 사용량")
+    with tab_stats:
+        st.markdown("### 레벨별 사용량 · 단어/한자 비율 · 최근 30일")
         if dfa.empty:
             st.info("quiz_attempts 데이터가 없거나 RLS로 차단되었습니다.")
         else:
-            dfa2 = dfa.copy()
-            if "level" in dfa2.columns:
-                lvl = dfa2["level"].astype(str).str.strip().replace({"": "unknown"})
-            else:
-                lvl = pd.Series(["unknown"] * len(dfa2))
-            dfa2["level_norm"] = lvl
-
-            # module inference
-            dfa2["module"] = [ _admin_infer_module(r) for r in dfa2.to_dict("records") ]
+            d = dfa.copy()
+            d["module"] = [ _admin_infer_module(r) for r in d.to_dict("records") ]
+            d["level_norm"] = d.get("level", pd.Series(["unknown"]*len(d))).astype(str).str.strip().replace({"":"unknown"})
 
             c1, c2 = st.columns(2)
             with c1:
-                by_level = dfa2.groupby("level_norm").size().reset_index(name="attempts").sort_values("attempts", ascending=False)
+                by_level = d.groupby("level_norm").size().reset_index(name="attempts").sort_values("attempts", ascending=False)
                 st.dataframe(by_level, use_container_width=True, hide_index=True)
             with c2:
-                # module split
-                by_mod = dfa2.groupby("module").size().reset_index(name="attempts").sort_values("attempts", ascending=False)
+                by_mod = d.groupby("module").size().reset_index(name="attempts").sort_values("attempts", ascending=False)
                 st.dataframe(by_mod, use_container_width=True, hide_index=True)
 
-            st.markdown("### 2) 최근 30일 추이")
-            if "created_at" in dfa2.columns:
+            if "created_at" in d.columns:
                 try:
-                    kst = _admin_kst_date_series(dfa2["created_at"])
-                    dfa2["date"] = kst.dt.date
-                    daily = dfa2.groupby(["date"]).size().reset_index(name="attempts").sort_values("date")
-                    if len(daily) > 30:
-                        daily = daily.tail(30)
+                    kst = _admin_kst(d["created_at"])
+                    d["date"] = kst.dt.date
+                    daily = d.groupby("date").size().reset_index(name="attempts").sort_values("date")
+                    daily = daily.tail(30) if len(daily) > 30 else daily
                     st.line_chart(daily.set_index("date")["attempts"])
+                    daily_mod = d.groupby(["date","module"]).size().unstack(fill_value=0).sort_index()
+                    daily_mod = daily_mod.tail(30) if len(daily_mod) > 30 else daily_mod
+                    st.area_chart(daily_mod)
+                    st.caption("※ 모듈 구분은 pos_mode 기반 추정입니다. 정확히 하려면 quiz_attempts에 module 컬럼 추가를 권장합니다.")
                 except Exception as e:
                     st.error("차트 생성 실패")
                     st.exception(e)
 
-            st.markdown("### 3) 단어 vs 한자(추정) 최근 30일")
-            if "created_at" in dfa2.columns:
-                try:
-                    kst = _admin_kst_date_series(dfa2["created_at"])
-                    dfa2["date"] = kst.dt.date
-                    daily_mod = dfa2.groupby(["date", "module"]).size().unstack(fill_value=0).sort_index()
-                    if len(daily_mod) > 30:
-                        daily_mod = daily_mod.tail(30)
-                    st.area_chart(daily_mod)
-                    st.caption("※ quiz_attempts에 모듈 구분 컬럼이 없어서 pos_mode 기반으로 추정합니다. 필요하면 명확한 컬럼(app/kind)을 추가해 정확히 분리할 수 있습니다.")
-                except Exception:
-                    pass
-
-    # ---------- USERS ----------
     with tab_users:
-        st.markdown("### 회원 검색/필터")
+        st.markdown("### 회원 검색/필터 + 등급/권한/만료일 관리")
         if dfp.empty:
             st.info("profiles 데이터가 없거나 RLS로 차단되었습니다.")
         else:
-            # normalize fields
-            dfu = dfp.copy()
-            if "email" in dfu.columns:
-                dfu["email"] = dfu["email"].fillna("").astype(str)
-            if "plan" in dfu.columns:
-                dfu["plan"] = dfu["plan"].fillna("free").astype(str).str.lower()
+            u = dfp.copy()
+            if "email" in u.columns:
+                u["email"] = u["email"].fillna("").astype(str)
+            if "plan" in u.columns:
+                u["plan"] = u["plan"].fillna("free").astype(str).str.lower()
 
             q = st.text_input("이메일 검색", placeholder="예: gmail / @naver / abc ...")
-            col1, col2, col3 = st.columns(3)
-            with col1:
+            f1, f2, f3 = st.columns(3)
+            with f1:
                 plan_filter = st.multiselect("플랜", options=["free","pro"], default=["free","pro"])
-            with col2:
-                admin_filter = st.selectbox("관리자", options=["전체", "관리자만", "일반만"], index=0)
-            with col3:
+            with f2:
+                admin_filter = st.selectbox("관리자", options=["전체","관리자만","일반만"], index=0)
+            with f3:
                 limit = st.selectbox("표시 개수", options=[50,100,200,500,1000], index=2)
 
-            mask = pd.Series([True]*len(dfu))
-            if q and "email" in dfu.columns:
-                mask &= dfu["email"].str.contains(q, case=False, na=False)
-            if "plan" in dfu.columns:
-                mask &= dfu["plan"].isin(plan_filter)
-            if admin_filter != "전체" and "is_admin" in dfu.columns:
+            mask = pd.Series([True]*len(u))
+            if q and "email" in u.columns:
+                mask &= u["email"].str.contains(q, case=False, na=False)
+            if "plan" in u.columns:
+                mask &= u["plan"].isin(plan_filter)
+            if admin_filter != "전체" and "is_admin" in u.columns:
                 want = (admin_filter == "관리자만")
-                mask &= (dfu["is_admin"].fillna(False).astype(bool) == want)
+                mask &= (u["is_admin"].fillna(False).astype(bool) == want)
 
-            filtered = dfu[mask].copy()
-            st.caption(f"검색 결과: {len(filtered):,}명 / 전체: {len(dfu):,}명")
-            show_cols = [c for c in ["email","plan","pro_until","pro_expires_at","expires_at","is_admin","created_at","id"] if c in filtered.columns]
-            st.dataframe(filtered[show_cols].head(int(limit)), use_container_width=True, hide_index=True)
+            uf = u[mask].copy()
+            st.caption(f"검색 결과: {len(uf):,}명 / 전체: {len(u):,}명")
+
+            show_cols = [c for c in ["email","plan","pro_until","pro_expires_at","expires_at","is_admin","created_at","id"] if c in uf.columns]
+            st.dataframe(uf[show_cols].head(int(limit)), use_container_width=True, hide_index=True)
 
             st.divider()
-            st.markdown("### 등급/권한/만료일 변경")
-
-            # choose user
-            if "email" in dfu.columns:
-                options = filtered["email"].tolist() if "email" in filtered.columns and len(filtered) else dfu["email"].tolist()
-                selected_email = st.selectbox("대상 이메일", options=options[:2000] if options else [""])
-                row = dfu[dfu["email"] == selected_email].head(1)
-            else:
-                options = filtered["id"].astype(str).tolist() if "id" in filtered.columns and len(filtered) else dfu["id"].astype(str).tolist()
-                selected_id = st.selectbox("대상 ID", options=options[:2000] if options else [""])
-                row = dfu[dfu["id"].astype(str) == str(selected_id)].head(1)
+            target_list = uf["email"].tolist() if ("email" in uf.columns and len(uf)) else (u["email"].tolist() if "email" in u.columns else u["id"].astype(str).tolist())
+            target = st.selectbox("대상 사용자", options=target_list[:2000] if target_list else [""])
+            row = u[u["email"] == target].head(1) if ("email" in u.columns) else u[u["id"].astype(str) == str(target)].head(1)
 
             if row.empty:
                 st.warning("대상 사용자를 찾지 못했습니다.")
@@ -2154,38 +2123,27 @@ def render_admin_page(sb_authed):
                 with c2:
                     new_admin = st.selectbox("관리자 여부", options=[False, True], index=1 if current_admin else 0)
                 with c3:
-                    pro_until = st.date_input("PRO 만료일", value=None, help="관리자만 설정 가능. 컬럼이 없으면 DB에 추가가 필요합니다.")
+                    pro_until = st.date_input("PRO 만료일", value=None)
 
-                note = st.caption("※ 업데이트 실패 시 대부분 Supabase RLS에서 profiles update 권한이 막혀있습니다.")
                 if st.button("변경 적용", type="primary"):
-                    if not user_id:
-                        st.error("user_id를 찾지 못했습니다.")
-                    else:
-                        try:
-                            payload = {}
-                            if "plan" in dfu.columns:
-                                payload["plan"] = new_plan
-                            if "is_admin" in dfu.columns:
-                                payload["is_admin"] = bool(new_admin)
+                    try:
+                        payload = {}
+                        if "plan" in u.columns: payload["plan"] = new_plan
+                        if "is_admin" in u.columns: payload["is_admin"] = bool(new_admin)
+                        if payload:
+                            _admin_update_profile(sb_authed, user_id, payload)
 
-                            # apply plan/admin first
-                            if payload:
-                                _admin_update_profile(sb_authed, user_id, payload)
+                        if pro_until is not None:
+                            used = _admin_set_pro_until(sb_authed, user_id, str(pro_until))
+                            st.success(f"완료! (만료일 컬럼: {used})")
+                        else:
+                            st.success("완료!")
+                    except Exception as e:
+                        st.error("변경 실패 (RLS/권한/컬럼 확인 필요)")
+                        st.exception(e)
+                        st.info("만료일 컬럼이 없으면 DB에 컬럼 추가가 필요합니다.")
 
-                            # apply pro until (try best effort)
-                            if pro_until is not None:
-                                date_str = str(pro_until)  # YYYY-MM-DD
-                                used_col = _admin_set_pro_until(sb_authed, user_id, date_str)
-                                st.success(f"변경 완료! (만료일 컬럼: {used_col}) 새로고침하면 반영됩니다.")
-                            else:
-                                st.success("변경 완료! 새로고침하면 반영됩니다.")
-                        except Exception as e:
-                            st.error("변경 실패 (RLS/권한/컬럼 확인 필요)")
-                            st.exception(e)
-                            st.info("DB에 pro_until(pro_expires_at) 컬럼이 없으면 추가가 필요합니다. 원하시면 제가 SQL까지 바로 써드릴게요.")
-
-    # ---------- ATTEMPTS ----------
-    with tab_attempts:
+    with tab_logs:
         st.markdown("### 최근 기록")
         if dfa.empty:
             st.info("quiz_attempts 데이터가 없거나 RLS로 차단되었습니다.")
@@ -2193,38 +2151,17 @@ def render_admin_page(sb_authed):
             d = dfa.copy()
             if "created_at" in d.columns:
                 try:
-                    kst = _admin_kst_date_series(d["created_at"])
-                    d["kst"] = kst.dt.strftime("%Y-%m-%d %H:%M")
+                    d["kst"] = _admin_kst(d["created_at"]).dt.strftime("%Y-%m-%d %H:%M")
                 except Exception:
                     pass
+            st.dataframe(d.head(500), use_container_width=True, hide_index=True)
 
-            # filters
-            col1, col2, col3 = st.columns(3)
-            with col1:
-                lvl = st.multiselect("레벨", options=sorted(d.get("level", pd.Series(["unknown"])).astype(str).unique().tolist())[:50], default=[])
-            with col2:
-                email_q = st.text_input("이메일 포함", value="")
-            with col3:
-                n = st.selectbox("표시 개수", options=[100,200,500,1000], index=1)
-
-            mask = pd.Series([True]*len(d))
-            if lvl and "level" in d.columns:
-                mask &= d["level"].astype(str).isin(lvl)
-            if email_q and "user_email" in d.columns:
-                mask &= d["user_email"].fillna("").astype(str).str.contains(email_q, case=False, na=False)
-
-            view = d[mask].head(int(n))
-            st.dataframe(view, use_container_width=True, hide_index=True)
-
-    # ---------- BACKUP / VERSION ----------
     with tab_backup:
         st.markdown("### 안정판 백업 + 버전 태그")
-        st.caption("현재 배포 폴더의 핵심 파일(home/app/hotena_basic/talk/mypage)을 ZIP으로 묶어서 내려받습니다.")
-
-        vtag = st.text_input("버전 태그", value="stable")
+        tag = st.text_input("버전 태그", value="stable")
         if st.button("백업 ZIP 만들기", type="primary"):
             try:
-                data, fname = _admin_make_backup_zip(vtag)
+                data, fname = _admin_make_backup_zip(tag)
                 st.download_button("다운로드", data=data, file_name=fname, mime="application/zip")
                 st.success("백업 ZIP 생성 완료!")
             except Exception as e:
