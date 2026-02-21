@@ -87,7 +87,6 @@ try {{
 
 from supabase import create_client
 from streamlit_cookies_manager import EncryptedCookieManager
-import html as html_module  # ✅ for html escaping in admin cards
 
 # ============================================================
 # ✅ Page Config (Hub only)
@@ -446,7 +445,6 @@ def load_profile(sb_authed, user_id: str):
         st.session_state["progress_all"] = progress
         st.session_state["user_plan"] = plan
         st.session_state["is_admin"] = is_admin
-        st.session_state["user_id"] = user_id
     except Exception:
         st.session_state["progress_all"] = st.session_state.get("progress_all", {}) or {}
         st.session_state["user_plan"] = st.session_state.get("user_plan", "free")
@@ -459,10 +457,48 @@ def save_progress(sb_authed, user_id: str, progress: dict):
         pass
 
 
+HATENA_QUOTES_30 = [
+    "오늘 20분이면 충분합니다.",
+    "꾸준함은 재능을 이깁니다.",
+    "작은 차이가 1년을 바꿉니다.",
+    "루틴은 의지를 대신합니다.",
+    "느려도 괜찮습니다. 계속하면 됩니다.",
+    "매일 조금씩이 가장 빠른 길입니다.",
+    "오늘을 채우면 내일이 편해집니다.",
+    "공부는 감정이 아니라 구조입니다.",
+    "포기하지 않는 사람이 결국 이깁니다.",
+    "하테나는 루틴을 만듭니다.",
+    "어제보다 1%만 나아지면 됩니다.",
+    "오늘 한 문제라도 의미 있습니다.",
+    "멈추지 않으면 쌓입니다.",
+    "실력은 조용히 올라갑니다.",
+    "반복이 결국 차이를 만듭니다.",
+    "몰아서 하지 말고, 매일 하세요.",
+    "오늘의 기록이 내일의 자신감입니다.",
+    "성장은 보이지 않게 진행됩니다.",
+    "공부는 자신과의 약속입니다.",
+    "매일 하는 사람이 강합니다.",
+    "완벽하지 않아도 괜찮습니다.",
+    "오늘을 넘기지 마세요.",
+    "시작이 가장 쉽습니다.",
+    "루틴은 배신하지 않습니다.",
+    "하루는 짧지만, 1년은 깁니다.",
+    "꾸준함이 가장 큰 무기입니다.",
+    "오늘을 버티면 실력이 됩니다.",
+    "계속하는 사람이 결국 남습니다.",
+    "지금 시작하는 것이 가장 빠릅니다.",
+    "하테나는 오늘도 쌓입니다.",
+]
+
+
 def daily_message(user_id: str) -> str:
+    # ✅ 하루 고정(날짜 기반) "오늘의 한마디"
+    # - 기존 구현(세션 REMINDER_MESSAGES)을 유지하되, 비어있으면 하테나 기본 30개를 사용합니다.
     messages = st.session_state.get("REMINDER_MESSAGES", [])
     if not messages:
-        return "오늘도 5분만, 시작해볼까요?"
+        messages = HATENA_QUOTES_30
+        st.session_state["REMINDER_MESSAGES"] = messages
+
     seed = f"{user_id}:{date.today().isoformat()}"
     h = hashlib.sha256(seed.encode("utf-8")).hexdigest()
     idx = int(h[:8], 16) % len(messages)
@@ -659,6 +695,18 @@ def render_home_dashboard(sb_authed, user):
   .h-top{display:flex;align-items:flex-end;justify-content:space-between;gap:.75rem;margin:.15rem 0 .45rem;}
   .h-title{font-size:1.28rem;font-weight:850;line-height:1.15;margin:0;}
   .h-sub{opacity:.70;font-size:.92rem;margin:.18rem 0 0;}
+.h-quote{
+  margin:.24rem 0 .04rem;
+  background: rgba(244,247,251,0.85);
+  border: 1px solid rgba(227,232,240,0.95);
+  padding: 9px 12px;
+  border-radius: 12px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.h-dot{width:6px;height:6px;border-radius:50%;background: rgba(46,124,246,0.95);flex-shrink:0;}
+.h-quote-t{font-size:.94rem;font-weight:600;opacity:.92;line-height:1.25;}
   .h-pill{display:inline-flex;align-items:center;gap:.35rem;padding:.20rem .55rem;border-radius:999px;border:1px solid rgba(0,0,0,.10);background:rgba(0,0,0,.02);font-size:.92rem;white-space:nowrap;}
 
   /* gear */
@@ -822,8 +870,8 @@ def render_home_dashboard(sb_authed, user):
 <div class="h-wrap">
   <div class="h-top">
     <div>
-      <p class="h-title">하테나 학습 허브</p>
-      <p class="h-sub">{motivation}</p>
+      <p class="h-title">하테나일본어</p>
+      <div class="h-quote"><div class="h-dot"></div><div class="h-quote-t">{motivation}</div></div>
       <p class="h-sub" style="opacity:.58;font-size:.86rem;margin:.10rem 0 0;">오늘의 성취율을 확인하고, 바로 이어가세요.</p>
     </div>
     <div class="h-pill">🔥 <b>{streak}</b>일</div>
@@ -883,6 +931,135 @@ def render_home_dashboard(sb_authed, user):
         unsafe_allow_html=True,
     )
 
+
+
+    # ---- inbox + wrong review (HomeHub) ----
+    def _fmt_kst(ts: str) -> str:
+        try:
+            s = ts.replace("Z", "+00:00")
+            dt = datetime.fromisoformat(s)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            dt_kst = dt.astimezone(KST)
+            return dt_kst.strftime("%m/%d %H:%M")
+        except Exception:
+            return ts[:16]
+
+    st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
+
+    with st.expander("📩 받은 메시지", expanded=False):
+        try:
+            msgs_res = (
+                sb_authed.table("user_messages")
+                .select("id,title,body,created_at,read_at")
+                .eq("user_id", str(user_id))
+                .order("created_at", desc=True)
+                .limit(50)
+                .execute()
+            )
+            msgs = msgs_res.data or []
+        except Exception as e:
+            msgs = []
+            st.info("메시지를 불러오지 못했습니다. (테이블/RLS/권한을 확인해주세요.)")
+            st.caption(str(e))
+
+        if not msgs:
+            st.caption("받은 메시지가 없습니다.")
+        else:
+            unread = [m for m in msgs if not m.get("read_at")]
+            if unread:
+                st.markdown(f"**읽지 않은 메시지:** {len(unread)}개")
+            else:
+                st.caption("모든 메시지를 읽었습니다.")
+
+            for m in msgs[:10]:
+                title = (m.get("title") or "").strip() or "메시지"
+                body = (m.get("body") or "").strip()
+                when = _fmt_kst(str(m.get("created_at") or ""))
+                is_unread = not m.get("read_at")
+
+                with st.container():
+                    st.markdown(f"**{title}**  ·  {when}" + ("  ·  🔵 미확인" if is_unread else ""))
+                    st.write(body)
+
+                    c1, c2 = st.columns([1, 5])
+                    with c1:
+                        if is_unread and st.button("읽음", key=f"msg_read_{m.get('id')}"):
+                            try:
+                                sb_authed.table("user_messages").update({"read_at": datetime.now(KST).isoformat()}).eq("id", m["id"]).execute()
+                                st.success("읽음 처리되었습니다.")
+                                st.rerun()
+                            except Exception as e:
+                                st.error("읽음 처리 실패")
+                                st.caption(str(e))
+                    with c2:
+                        st.markdown("---")
+
+    with st.expander("🧾 오답카드 · TOP10", expanded=False):
+        # ✅ Best-effort: try common tables used in earlier builds.
+        candidate_tables = ["wrong_notes", "wrong_cards", "wrongs", "mistakes", "wrong_items"]
+        rows = None
+        used_table = None
+        for tname in candidate_tables:
+            try:
+                r = (
+                    sb_authed.table(tname)
+                    .select("*")
+                    .eq("user_id", str(user_id))
+                    .order("created_at", desc=True)
+                    .limit(200)
+                    .execute()
+                )
+                data = r.data or []
+                if data:
+                    rows = data
+                    used_table = tname
+                    break
+            except Exception:
+                continue
+
+        if not rows:
+            st.info("오답 상세(카드) 데이터를 찾지 못했습니다. 예전 오답카드가 저장되던 테이블명이 다른 경우가 많습니다.")
+            st.caption("가능성: wrong_notes(권장) / quiz_attempts에 JSONB 저장 / 단어·한자 앱 각각 별도 저장")
+        else:
+            st.caption(f"오답 데이터 소스: `{used_table}` · 최근 {min(len(rows),200)}개")
+
+            # Guess key names
+            def _pick(d, keys):
+                for k in keys:
+                    if k in d and d.get(k) not in (None, ""):
+                        return d.get(k)
+                return None
+
+            # Render recent cards
+            show = rows[:10]
+            for i, r0 in enumerate(show, start=1):
+                word = _pick(r0, ["jp_word", "word", "term", "question", "prompt"])
+                correct = _pick(r0, ["correct", "answer", "correct_answer"])
+                chosen = _pick(r0, ["chosen", "user_answer", "picked"])
+                meaning = _pick(r0, ["meaning", "kr_meaning", "definition"])
+                created = _pick(r0, ["created_at", "at", "ts"])
+
+                st.markdown(f"**#{i}**  ·  {_fmt_kst(str(created or ''))}")
+                if word: st.write(f"문제: {word}")
+                if meaning and not correct: st.write(f"뜻: {meaning}")
+                if correct: st.write(f"정답: {correct}")
+                if chosen: st.write(f"내 답: {chosen}")
+                st.markdown("---")
+
+            # TOP10 (frequency by word-like key)
+            words = []
+            for r0 in rows:
+                w = _pick(r0, ["jp_word", "word", "term", "question", "prompt"])
+                if w:
+                    words.append(str(w))
+            if words:
+                from collections import Counter
+                top10 = Counter(words).most_common(10)
+                st.markdown("**TOP10 (가장 자주 틀린 항목)**")
+                st.table([{"순위": i+1, "항목": w, "횟수": c} for i,(w,c) in enumerate(top10)])
+            else:
+                st.caption("TOP10 계산을 위한 '단어/항목' 필드를 찾지 못했습니다.")
     # ---- level mini progress (recent 30 days, sets) ----
     kst_now = datetime.now(timezone(timedelta(hours=9)))
     cutoff = kst_now - timedelta(days=30)
@@ -1068,14 +1245,6 @@ def summarize_attempts(attempts: list[dict]) -> dict:
         out["by_kind"][kind]["q"] += q
         out["by_kind"][kind]["score"] += s
     return out
-
-# ✅ show unread message popup once per session
-try:
-    uid_now = st.session_state.get("user_id") or getattr(user, "id", None)
-    if uid_now and sb_authed:
-        um_popup_unread_once(sb_authed, str(uid_now))
-except Exception:
-    pass
 
 def render_floating_menu():
     """✅ Floating hamburger menu (Hub)
@@ -1854,132 +2023,6 @@ def run_script(filename: str):
 # ============================================================
 
 
-
-# ============================================================
-# ✅ User Messages (Admin DM / Broadcast) utilities
-# ============================================================
-
-def _um_table_ready(sb) -> bool:
-    try:
-        sb.table("user_messages").select("id").limit(1).execute()
-        return True
-    except Exception:
-        return False
-
-def _um_safe_toast(msg: str):
-    # Streamlit toast exists in newer versions; fallback to info
-    try:
-        st.toast(msg)
-    except Exception:
-        st.info(msg)
-
-def um_unread_user_set(sb, limit: int = 10000) -> set[str]:
-    """Return set of user_id strings that have at least 1 unread message."""
-    try:
-        r = (sb.table("user_messages")
-              .select("user_id")
-              .is_("read_at", "null")
-              .limit(limit)
-              .execute())
-        rows = r.data or []
-        return {str(x.get("user_id") or "") for x in rows if x.get("user_id")}
-    except Exception:
-        return set()
-
-def um_unread_count(sb, user_id: str) -> int:
-    try:
-        r = (sb.table("user_messages")
-              .select("id", count="exact")
-              .eq("user_id", user_id)
-              .is_("read_at", "null")
-              .execute())
-        return int(getattr(r, "count", 0) or 0)
-    except Exception:
-        return 0
-
-def um_send_to_user(sb, *, to_user_id: str, sender_admin_id: str | None, title: str | None, body: str):
-    payload = {
-        "user_id": to_user_id,
-        "sender_admin_id": sender_admin_id,
-        "title": title or None,
-        "body": body,
-    }
-    return sb.table("user_messages").insert(payload).execute()
-
-def um_bulk_send(sb, payloads: list[dict]):
-    # Supabase python supports bulk insert (list of dicts)
-    return sb.table("user_messages").insert(payloads).execute()
-
-def um_fetch_inbox(sb, user_id: str, limit: int = 50):
-    r = (sb.table("user_messages")
-          .select("id,title,body,created_at,read_at")
-          .eq("user_id", user_id)
-          .order("created_at", desc=True)
-          .limit(limit)
-          .execute())
-    return r.data or []
-
-def um_mark_read(sb, ids: list[str]):
-    if not ids:
-        return
-    return (sb.table("user_messages")
-              .update({"read_at": dt.datetime.utcnow().isoformat()})
-              .in_("id", ids)
-              .execute())
-
-def um_popup_unread_once(sb, user_id: str):
-    """Show a small popup once per session if there are unread messages."""
-    if st.session_state.get("_um_popup_shown"):
-        return
-    n = um_unread_count(sb, user_id)
-    if n > 0:
-        _um_safe_toast(f"🔔 읽지 않은 메시지 {n}개가 있어요. 마이페이지에서 확인해 주세요.")
-    st.session_state["_um_popup_shown"] = True
-
-def um_template_set(title: str, body: str):
-    st.session_state["admin_msg_title"] = title
-    st.session_state["admin_msg_body"] = body
-
-
-
-def render_user_inbox_section(sb_authed, user_id: str):
-    """Render inbox UI (safe) - can be placed on My page."""
-    st.markdown("## 📩 관리자 메시지")
-    if not _um_table_ready(sb_authed):
-        st.info("메시지함이 아직 준비되지 않았습니다.")
-        return
-    msgs = um_fetch_inbox(sb_authed, user_id, limit=50)
-    if not msgs:
-        st.info("받은 메시지가 없습니다.")
-        return
-
-    unread_ids = []
-    for m in msgs:
-        unread = (m.get("read_at") is None)
-        if unread:
-            unread_ids.append(str(m.get("id")))
-        title = (m.get("title") or "메시지").strip()
-        header = f"{'🟡 ' if unread else ''}{title}"
-        with st.expander(header, expanded=unread):
-            st.write(m.get("body") or "")
-            st.caption(str(m.get("created_at") or ""))
-            if unread and st.button("읽음 처리", key=f"um_read_{m.get('id')}"):
-                try:
-                    um_mark_read(sb_authed, [str(m.get("id"))])
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"읽음 처리 실패: {e}")
-
-    # optional: mark all as read with one click
-    if unread_ids:
-        if st.button("모두 읽음 처리", use_container_width=True, key="um_read_all"):
-            try:
-                um_mark_read(sb_authed, unread_ids)
-                st.rerun()
-            except Exception as e:
-                st.error(f"읽음 처리 실패: {e}")
-
-
 def render_admin_dashboard(sb_authed):
     """
     Hatena-style admin dashboard.
@@ -2047,7 +2090,7 @@ def render_admin_dashboard(sb_authed):
     # ---------- Hatena UI skin ----------
     st.markdown("""
 <style>
-.ha-wrap{max-width:none;width:100%;margin:0;box-sizing:border-box;}
+.ha-wrap{max-width:980px;margin:0 auto;}
 .ha-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:10px 0 14px;}
 .ha-card{background:linear-gradient(180deg, rgba(0,0,0,.035), rgba(0,0,0,.015));
   border:1px solid rgba(0,0,0,.08);border-radius:18px;padding:14px 14px 12px;}
@@ -2300,27 +2343,7 @@ def render_admin_dashboard(sb_authed):
 
     # ---------- tab: users ----------
     with tab_users:
-        st.markdown("""
-        <div class="ha-section">
-          <div class="ha-title">회원 관리</div>
-          <div class="ha-sub">검색/필터 · 등급/만료일 · 기록 초기화</div>
-        </div>
-        <style>
-        .ha-card{background:rgba(255,255,255,0.72);border:1px solid rgba(0,0,0,0.06);border-radius:16px;padding:16px 16px 10px;margin:0 0 14px 0;box-shadow:0 6px 18px rgba(0,0,0,0.04);}
-        .ha-card h4{margin:0 0 10px 0;}
-        .ha-card .stCaption{margin-top:0;}
-        </style>
-        """, unsafe_allow_html=True)
-        st.markdown("""
-        <style>
-        /* Admin tab layout tuning */
-        div[data-testid="stHorizontalBlock"] { align-items: flex-start; }
-        /* Make right panel inputs not overshoot */
-        .ha-card .stSelectbox, .ha-card .stTextInput, .ha-card .stDateInput { width: 100%; }
-        /* Ensure dataframe uses full width of its column */
-        section.main div[data-testid="stDataFrame"] { max-width: 100%; }
-        </style>
-        """, unsafe_allow_html=True)
+        st.markdown('<div class="ha-section"><div class="ha-title">회원 관리</div><div class="ha-sub">검색/필터 · 등급/만료일 · 기록 초기화</div>', unsafe_allow_html=True)
 
         def _rpc(name: str, params: dict | None = None):
             try:
@@ -2371,17 +2394,9 @@ def render_admin_dashboard(sb_authed):
 
             # --- filters ---
             q = st.text_input("회원 검색", placeholder="이메일/이름(ID 포함)로 검색", key="admin_user_q")
-
-            # ✅ 1) 플랜은 단독 full width
-            plan_filter = st.multiselect(
-                "플랜",
-                options=["free", "pro"],
-                default=["free", "pro"],
-                key="admin_user_plan_filter",
-            )
-
-            # ✅ 2) 나머지(관리자/활동/표시)는 한 줄 full width
-            c2, c3, c4 = st.columns([1.0, 1.0, 0.7], gap="medium")
+            c1, c2, c3, c4 = st.columns([1.2, 1.0, 1.0, 1.0])
+            with c1:
+                plan_filter = st.multiselect("플랜", options=["free","pro"], default=["free","pro"], key="admin_user_plan_filter")
             with c2:
                 admin_filter = st.selectbox("관리자", options=["전체","관리자만","일반만"], index=0, key="admin_user_admin_filter")
             with c3:
@@ -2418,13 +2433,8 @@ def render_admin_dashboard(sb_authed):
 
             uf = u[mask].copy().sort_values(by=["last_seen_kst","created_at"], ascending=[False, False], na_position="last")
 
-            # --- layout: list + detail (✅ full width) ---
-
-
-            left = st.container()
-
-
-            right = st.container()
+            # --- layout: list + detail ---
+            left, right = st.columns([1.25, 1.0], gap="large")
 
             with left:
                 st.caption(f"검색 결과: {len(uf):,}명 / 전체: {len(u):,}명")
@@ -2447,397 +2457,138 @@ def render_admin_dashboard(sb_authed):
                     except Exception:
                         pass
 
-                
-                # ✅ Pretty user list (cards) instead of dataframe
-                st.markdown("""
-                <style>
-                .ha-userlist{display:flex;flex-direction:column;gap:10px;margin-top:6px;}
-                .ha-urow{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;
-                  padding:12px 14px;border-radius:16px;border:1px solid rgba(0,0,0,0.06);
-                  background:rgba(255,255,255,0.75);box-shadow:0 6px 16px rgba(0,0,0,0.03);}
-                .ha-uleft{min-width:0;}
-                .ha-uemail{font-weight:850;letter-spacing:-0.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-                .ha-umeta{font-size:12px;opacity:.68;margin-top:2px;display:flex;flex-wrap:wrap;gap:10px;}
-                .ha-badges{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;}
-                .ha-b{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;
-                  font-size:12px;background:rgba(0,0,0,0.04);border:1px solid rgba(0,0,0,0.08);opacity:.92;}
-                .ha-b.pro{background:rgba(0,128,0,0.07);border-color:rgba(0,128,0,0.18);}
-                .ha-b.free{background:rgba(0,0,0,0.03);}
-                .ha-b.admin{background:rgba(0,0,0,0.06);border-color:rgba(0,0,0,0.12);}
-                </style>
-                """, unsafe_allow_html=True)
-
-                # --- filter: users with unread messages ---
-                unread_only = st.checkbox("📩 읽지 않은 메시지 있는 학생만", value=False, key="admin_filter_unread_only")
-                if unread_only:
-                    if _um_table_ready(sb_authed):
-                        _uset = um_unread_user_set(sb_authed)
-                        if _uset:
-                            _keycol = "id_str" if "id_str" in uf.columns else ("id" if "id" in uf.columns else None)
-                            if _keycol:
-                                uf = uf[uf[_keycol].astype(str).isin(_uset)].copy()
-                        else:
-                            st.info("읽지 않은 메시지가 있는 학생이 없습니다.")
-                    else:
-                        st.warning("메시지 기능(DB: user_messages)이 아직 준비되지 않았습니다. 먼저 Supabase에 테이블/RLS를 추가하세요.")
-
-                list_df = uf.head(int(limit)).copy()
-
-                def _fmt_dt(v):
-                    try:
-                        vv = pd.to_datetime(v, errors="coerce")
-                        if pd.isna(vv):
-                            return "-"
-                        if getattr(vv, "tzinfo", None) is not None:
-                            vv = vv.tz_convert("Asia/Seoul")
-                        return vv.strftime("%Y-%m-%d %H:%M")
-                    except Exception:
-                        return "-"
-
-                st.markdown('<div class="ha-userlist">', unsafe_allow_html=True)
-                for _, rr in list_df.iterrows():
-                    em = str(rr.get("email","") or "").strip() or "(no email)"
-                    fn = str(rr.get("full_name","") or "").strip()
-                    uid = str(rr.get("id_str","") or rr.get("id","") or "").strip()
-                    pl = str(rr.get("plan","free") or "free").lower().strip()
-                    adm = bool(rr.get("is_admin", False))
-                    last_seen = rr.get("last_seen_kst", None)
-                    created = rr.get("created_at", None)
-
-                    meta_parts = []
-                    if fn:
-                        meta_parts.append(f"이름: {html_module.escape(fn)}")
-                    if created is not None and str(created).strip():
-                        meta_parts.append(f"가입: {_fmt_dt(created)}")
-                    if last_seen is not None and str(last_seen).strip():
-                        meta_parts.append(f"최근 학습: {_fmt_dt(last_seen)}")
-                    if uid:
-                        meta_parts.append(f"ID: {html_module.escape(uid)}")
-
-                    meta_html = " · ".join(meta_parts) if meta_parts else ""
-
-                    badges = []
-                    badges.append(f"<span class='ha-b { 'pro' if pl=='pro' else 'free' }'>{html_module.escape(pl)}</span>")
-                    if adm:
-                        badges.append("<span class='ha-b admin'>관리자</span>")
-
-                    card = f"""
-                    <div class='ha-urow'>
-                      <div class='ha-uleft'>
-                        <div class='ha-uemail'>{html_module.escape(em)}</div>
-                        <div class='ha-umeta'>{meta_html}</div>
-                      </div>
-                      <div class='ha-badges'>{''.join(badges)}</div>
-                    </div>
-                    """
-                    st.markdown(card, unsafe_allow_html=True)
-                st.markdown('</div>', unsafe_allow_html=True)
+                st.dataframe(
+                    table_df,
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        "email": st.column_config.TextColumn("이메일"),
+                        "full_name": st.column_config.TextColumn("이름"),
+                        "plan": st.column_config.TextColumn("플랜"),
+                        "is_admin": st.column_config.CheckboxColumn("관리자"),
+                        "last_seen_kst": st.column_config.TextColumn("최근 학습"),
+                        "created_at": st.column_config.TextColumn("가입일"),
+                        "id_str": st.column_config.TextColumn("ID"),
+                    },
+                )
 
             # pick target user for detail actions
             with right:
-                # ✅ Right panel: compact cards (info / plan / purge)
-                if not uf.empty:
-                    with st.container():
-                        st.markdown('<div class="ha-card">', unsafe_allow_html=True)
-                        st.markdown("#### 선택 회원")
-
-                        options = uf["email"].tolist() if "email" in uf.columns and uf["email"].astype(str).str.len().sum() > 0 else uf["id_str"].tolist()
-                        options = [o for o in options if str(o).strip()]
-
-                        if not options:
-                            st.info("오른쪽 패널을 사용하려면 검색 결과가 있어야 합니다.")
-                            st.markdown("</div>", unsafe_allow_html=True)
-                        else:
-                            sel = st.selectbox("대상", options=options[:2000], key="admin_user_detail_sel")
-
-                            if "email" in uf.columns and sel in uf["email"].values:
-                                row = uf[uf["email"] == sel].head(1)
-                            else:
-                                row = uf[uf["id_str"] == str(sel)].head(1)
-
-                            if row.empty:
-                                st.warning("대상 사용자를 찾지 못했습니다.")
-                                st.markdown("</div>", unsafe_allow_html=True)
-                            else:
-                                r0 = row.iloc[0]
-                                user_id = str(r0.get("id_str", ""))
-                                cur_plan = str(r0.get("plan", "free")).lower()
-                                cur_admin = bool(r0.get("is_admin", False))
-
-                                # find existing expiry column
-                                exp_col = None
-                                for c in ["pro_until", "pro_expires_at", "expires_at", "pro_expiry"]:
-                                    if c in uf.columns:
-                                        exp_col = c
-                                        break
-                                cur_until = r0.get(exp_col) if exp_col else None
-                                try:
-                                    cur_until_dt = pd.to_datetime(cur_until, errors="coerce")
-                                    cur_until_date = cur_until_dt.date() if pd.notna(cur_until_dt) else None
-                                except Exception:
-                                    cur_until_date = None
-
-                                st.markdown(f'<div class="ha-pill">ID: {user_id}</div>', unsafe_allow_html=True)
-                                if r0.get("email"):
-                                    st.caption(str(r0.get("email")))
-                                # optional meta
-                                meta1, meta2 = st.columns([1,1])
-                                with meta1:
-                                    if "last_seen_kst" in r0.index and pd.notna(r0.get("last_seen_kst")):
-                                        try:
-                                            st.caption("최근 학습: " + pd.to_datetime(r0.get("last_seen_kst")).strftime("%Y-%m-%d %H:%M"))
-                                        except Exception:
-                                            pass
-                                with meta2:
-                                    if "created_at" in r0.index and pd.notna(r0.get("created_at")):
-                                        try:
-                                            st.caption("가입: " + pd.to_datetime(r0.get("created_at")).strftime("%Y-%m-%d"))
-                                        except Exception:
-                                            pass
-
-                                st.markdown("</div>", unsafe_allow_html=True)
-
-                                # --- Card: plan / admin / expiry ---
-                                st.markdown('<div class="ha-card">', unsafe_allow_html=True)
-                                st.markdown("#### 플랜 · 권한 · 만료일")
-
-                                new_plan = st.selectbox("플랜", options=["free", "pro"], index=1 if cur_plan == "pro" else 0, key="admin_detail_plan")
-                                new_admin = st.selectbox("관리자", options=[False, True], index=1 if cur_admin else 0, key="admin_detail_admin")
-                                new_until = st.date_input("PRO 만료일", value=cur_until_date, key="admin_detail_until")
-
-                                b1, b2, b3 = st.columns(3)
-                                with b1:
-                                    if st.button("+30일", key="admin_until_plus30"):
-                                        try:
-                                            base = new_until or date.today()
-                                            st.session_state["admin_detail_until"] = base + timedelta(days=30)
-                                            st.rerun()
-                                        except Exception:
-                                            pass
-                                with b2:
-                                    if st.button("+90일", key="admin_until_plus90"):
-                                        try:
-                                            base = new_until or date.today()
-                                            st.session_state["admin_detail_until"] = base + timedelta(days=90)
-                                            st.rerun()
-                                        except Exception:
-                                            pass
-                                with b3:
-                                    if st.button("만료일 제거", key="admin_until_clear"):
-                                        st.session_state["admin_detail_until"] = None
-                                        st.rerun()
-
-                                # save action (re-uses existing rpc if available)
-                                confirm_save = st.checkbox("변경사항 저장 전 확인", value=False, key="admin_detail_confirm_save")
-                                if st.button("저장", type="primary", use_container_width=True, disabled=not confirm_save, key="admin_detail_save_btn"):
-                                    try:
-                                        _ = _rpc("admin_update_profile_plan", {
-                                            "p_user_id": user_id,
-                                            "p_plan": new_plan,
-                                            "p_is_admin": bool(new_admin),
-                                            "p_pro_until": (str(new_until) if new_until else None),
-                                        })
-                                        st.success("저장 완료")
-                                    except Exception:
-                                        st.warning("저장 RPC(admin_update_profile_plan)가 없거나 권한이 없습니다. (플랜/관리자 저장은 기존 구현을 사용하거나 RPC를 추가하세요.)")
-
-                                st.markdown("</div>", unsafe_allow_html=True)
-
-                                # --- Card: purge ---
-                                st.markdown('<div class="ha-card">', unsafe_allow_html=True)
-                                st.markdown("#### 회원 기록 정리 (기간 선택)")
-
-                                st.caption("N일 이전 기록을 삭제합니다.  (이 회원만 / 전체)  •  예: 30일 → 30일 이전 기록 삭제")
-
-                                dcol1, dcol2 = st.columns([1.0, 1.0])
-                                with dcol1:
-                                    days_opt = st.selectbox("기준 기간", options=["10일", "30일", "90일", "직접 입력"], index=1, key="admin_purge_days_opt")
-                                with dcol2:
-                                    days_custom = st.number_input("직접 입력(일)", min_value=1, max_value=3650, value=30, step=1, key="admin_purge_days_custom")
-
-                                purge_days = int(days_custom) if days_opt == "직접 입력" else int(days_opt.replace("일", ""))
-                                scope = st.radio("대상", options=["이 회원만", "전체 회원(공통 정리)"], horizontal=True, index=0, key="admin_purge_scope")
-
-                                st.caption("✅ 안전장치: 먼저 **미리보기(삭제될 개수)**를 확인한 뒤 실행하세요.")
-                                puid = user_id if scope == "이 회원만" else None
-
-                                pc1, pc2, pc3 = st.columns([1.0, 1.0, 1.2])
-                                with pc1:
-                                    if st.button("삭제 미리보기", key="admin_purge_preview_btn"):
-                                        try:
-                                            resp = _rpc("admin_preview_purge_quiz_attempts", {"p_user_id": puid, "p_days": purge_days})
-                                            data = getattr(resp, "data", None) if resp is not None else None
-                                            n = None
-                                            if isinstance(data, list) and data:
-                                                if isinstance(data[0], dict):
-                                                    n = data[0].get("count") or data[0].get("cnt") or data[0].get("n")
-                                                else:
-                                                    n = data[0]
-                                            elif isinstance(data, dict):
-                                                n = data.get("count") or data.get("cnt") or data.get("n")
-                                            if n is None:
-                                                st.info("미리보기 결과를 파싱하지 못했습니다. (RPC 반환 형식 확인 필요)")
-                                            else:
-                                                st.session_state["admin_purge_preview_n"] = int(n)
-                                                who = "이 회원" if puid else "전체 회원"
-                                                st.success(f"미리보기: {who}의 **{purge_days}일 이전** 기록 {int(n):,}건이 삭제 대상입니다.")
-                                        except Exception:
-                                            st.error("미리보기 실패: admin_preview_purge_quiz_attempts RPC가 없거나 권한이 없습니다.")
-
-                                with pc2:
-                                    confirm = st.checkbox("삭제 실행 확인", value=False, key="admin_purge_confirm")
-                                with pc3:
-                                    if st.button("삭제 실행", type="primary", use_container_width=True, disabled=not confirm, key="admin_purge_run_btn"):
-                                        try:
-                                            resp = _rpc("admin_run_purge_quiz_attempts", {"p_user_id": puid, "p_days": purge_days})
-                                            data = getattr(resp, "data", None) if resp is not None else None
-                                            n = None
-                                            if isinstance(data, list) and data:
-                                                if isinstance(data[0], dict):
-                                                    n = data[0].get("count") or data[0].get("cnt") or data[0].get("n")
-                                                else:
-                                                    n = data[0]
-                                            elif isinstance(data, dict):
-                                                n = data.get("count") or data.get("cnt") or data.get("n")
-                                            if n is None:
-                                                st.success("삭제 실행 완료 (삭제 건수는 RPC 반환 형식 확인 필요)")
-                                            else:
-                                                who = "이 회원" if puid else "전체 회원"
-                                                st.success(f"삭제 완료: {who}의 **{purge_days}일 이전** 기록 {int(n):,}건 삭제")
-                                        except Exception:
-                                            st.error("삭제 실행 실패: admin_run_purge_quiz_attempts RPC가 없거나 권한이 없습니다.")
-
-                                with st.expander("Supabase RPC(SQL) 예시 (미리보기/삭제)"):
-                                    st.code("""                        -- ✅ 미리보기 (삭제 대상 건수)
-                        create or replace function public.admin_preview_purge_quiz_attempts(p_user_id uuid, p_days int)
-                        returns table(count bigint)
-                        language plpgsql
-                        security definer
-                        as $$
-                        begin
-                          return query
-                          select count(*)::bigint
-                            from public.quiz_attempts
-                           where (p_user_id is null or user_id = p_user_id)
-                             and created_at < now() - make_interval(days => p_days);
-                        end;
-                        $$;
-
-                        -- ✅ 삭제 실행 (삭제된 건수 반환)
-                        create or replace function public.admin_run_purge_quiz_attempts(p_user_id uuid, p_days int)
-                        returns table(count bigint)
-                        language plpgsql
-                        security definer
-                        as $$
-                        declare n bigint;
-                        begin
-                          delete from public.quiz_attempts
-                           where (p_user_id is null or user_id = p_user_id)
-                             and created_at < now() - make_interval(days => p_days);
-
-                          get diagnostics n = row_count;
-                          return query select n;
-                        end;
-                        $$;
-
-                        -- ✅ 중요: security definer 함수는 관리자 체크를 넣는 것을 강력 권장합니다.
-                        -- 예: profiles.is_admin=true 인지 확인 후 아니면 exception.
-                                    """, language="sql")
-
-                                st.markdown("</div>", unsafe_allow_html=True)
-
-                                # --- Card: messages ---
-                                st.markdown('<div class="ha-card">', unsafe_allow_html=True)
-                                st.markdown("#### ✉️ 학생에게 메시지 보내기")
-
-                                if not _um_table_ready(sb_authed):
-                                    st.warning("메시지 기능(user_messages)이 아직 준비되지 않았습니다. Supabase SQL(Editor)에서 테이블/RLS를 먼저 추가해 주세요.")
-                                else:
-                                    # ✅ message compose state (must run BEFORE widgets)
-                                    if "admin_msg_title" not in st.session_state:
-                                        st.session_state["admin_msg_title"] = ""
-                                    if "admin_msg_body" not in st.session_state:
-                                        st.session_state["admin_msg_body"] = ""
-                                    # clear request (set on successful send)
-                                    if st.session_state.pop("_admin_msg_clear", False):
-                                        st.session_state["_admin_msg_clear"] = True
-                                    # templates
-                                    t1, t2, t3 = st.columns(3)
-                                    with t1:
-                                        if st.button("시험 독려", use_container_width=True, key="tpl_exam"):
-                                            um_template_set("JLPT 시험 대비", "이번 주는 ‘실전 루틴’으로 갑시다.\n- 매일 1세트(10문제)\n- 오답만 다시 풀기\n- 주말엔 독해 1지문\n오늘도 10분만 같이 가요.")
-                                            st.rerun()
-                                    with t2:
-                                        if st.button("루틴 독려", use_container_width=True, key="tpl_routine"):
-                                            um_template_set("오늘도 루틴 체크", "딱 10분만 해도 루틴은 살아 있습니다.\n오늘 1세트만 하고 ‘완료’ 찍고 가요.\n하테나가 계속 옆에서 밀어드릴게요.")
-                                            st.rerun()
-                                    with t3:
-                                        if st.button("합격 축하", use_container_width=True, key="tpl_congrats"):
-                                            um_template_set("합격 축하합니다!", "정말 고생 많으셨습니다.\n이번 결과는 실력 + 루틴이 만든 성과예요.\n이제 다음 단계도 하테나랑 같이 가요 🙂")
-                                            st.rerun()
-
-                                    msg_title = st.text_input("제목(선택)", key="admin_msg_title")
-                                    msg_body  = st.text_area("내용", height=140, key="admin_msg_body", placeholder="학생에게 보낼 메시지를 입력하세요.")
-
-                                    send_c1, send_c2 = st.columns([1.0, 1.0])
-                                    with send_c1:
-                                        send_mode = st.radio("전송 대상", ["선택 회원에게", "특정 플랜 전체"], horizontal=True, index=0, key="admin_msg_mode")
-                                    with send_c2:
-                                        target_plan = st.selectbox("플랜 선택", options=["free","pro"], index=1 if str(cur_plan).lower()=="pro" else 0, key="admin_msg_target_plan")
-
-                                    confirm_send = st.checkbox("전송 확인", value=False, key="admin_msg_confirm")
-                                    if st.button("메시지 전송", type="primary", use_container_width=True, disabled=not confirm_send, key="admin_msg_send_btn"):
-                                        if not msg_body.strip():
-                                            st.warning("내용을 입력해 주세요.")
-                                        else:
-                                            sender_id = st.session_state.get("user_id")
-                                            if send_mode == "선택 회원에게":
-                                                try:
-                                                    um_send_to_user(
-                                                        sb_authed,
-                                                        to_user_id=user_id,
-                                                        sender_admin_id=sender_id,
-                                                        title=(msg_title.strip() if msg_title.strip() else None),
-                                                        body=msg_body.strip(),
-                                                    )
-                                                    st.success("보냈습니다.")
-                                                    st.session_state["_admin_msg_clear"] = True
-                                                    st.rerun()
-                                                except Exception as e:
-                                                    st.error(f"전송 실패: {e}")
-                                            else:
-                                                # broadcast by plan (insert per user)
-                                                try:
-                                                    prof = (sb_authed.table("profiles")
-                                                              .select("id")
-                                                              .eq("plan", target_plan)
-                                                              .limit(5000)
-                                                              .execute()).data or []
-                                                    ids = [str(x.get("id") or "") for x in prof if x.get("id")]
-                                                    if not ids:
-                                                        st.warning("대상 플랜 회원이 없습니다.")
-                                                    else:
-                                                        payloads = [{
-                                                            "user_id": uid,
-                                                            "sender_admin_id": sender_id,
-                                                            "title": (msg_title.strip() if msg_title.strip() else None),
-                                                            "body": msg_body.strip(),
-                                                        } for uid in ids]
-                                                        # chunk to avoid payload size issues
-                                                        chunk = 500
-                                                        for i in range(0, len(payloads), chunk):
-                                                            um_bulk_send(sb_authed, payloads[i:i+chunk])
-                                                        st.success(f"플랜({target_plan}) 회원 {len(ids)}명에게 발송했습니다.")
-                                                        st.session_state["_admin_msg_clear"] = True
-                                                        st.rerun()
-                                                except Exception as e:
-                                                    st.error(f"전체 발송 실패: {e}")
-
-                                st.markdown("</div>", unsafe_allow_html=True)
-
+                st.markdown("**선택 회원**")
+                options = uf["email"].tolist() if "email" in uf.columns and uf["email"].str.len().sum() > 0 else uf["id_str"].tolist()
+                options = [o for o in options if str(o).strip()]
+                if not options:
+                    st.info("오른쪽 패널을 사용하려면 검색 결과가 있어야 합니다.")
                 else:
-                    st.info("검색 결과가 없습니다.")
+                    sel = st.selectbox("대상", options=options[:2000], key="admin_user_detail_sel")
+                    if "email" in uf.columns and sel in uf["email"].values:
+                        row = uf[uf["email"] == sel].head(1)
+                    else:
+                        row = uf[uf["id_str"] == str(sel)].head(1)
 
+                    if row.empty:
+                        st.warning("대상 사용자를 찾지 못했습니다.")
+                    else:
+                        r0 = row.iloc[0]
+                        user_id = str(r0.get("id_str",""))
+                        cur_plan = str(r0.get("plan","free")).lower()
+                        cur_admin = bool(r0.get("is_admin", False))
+
+                        # find existing expiry column
+                        exp_col = None
+                        for c in ["pro_until","pro_expires_at","expires_at","pro_expiry"]:
+                            if c in uf.columns:
+                                exp_col = c
+                                break
+                        cur_until = r0.get(exp_col) if exp_col else None
+                        try:
+                            cur_until_dt = pd.to_datetime(cur_until, errors="coerce")
+                            cur_until_date = cur_until_dt.date() if pd.notna(cur_until_dt) else None
+                        except Exception:
+                            cur_until_date = None
+
+                        st.markdown(f'<div class="ha-pill">ID: {user_id}</div>', unsafe_allow_html=True)
+                        if r0.get("email"):
+                            st.caption(str(r0.get("email")))
+
+                        st.divider()
+
+                        # --- controls ---
+                        new_plan = st.selectbox("플랜", options=["free","pro"], index=1 if cur_plan=="pro" else 0, key="admin_detail_plan")
+                        new_admin = st.selectbox("관리자", options=[False, True], index=1 if cur_admin else 0, key="admin_detail_admin")
+                        new_until = st.date_input("PRO 만료일", value=cur_until_date, key="admin_detail_until")
+
+                        quick = st.columns(3)
+                        with quick[0]:
+                            if st.button("+30일", key="admin_detail_plus30"):
+                                if new_until:
+                                    st.session_state["admin_detail_until"] = (new_until + timedelta(days=30))
+                                    st.rerun()
+                        with quick[1]:
+                            if st.button("+90일", key="admin_detail_plus90"):
+                                if new_until:
+                                    st.session_state["admin_detail_until"] = (new_until + timedelta(days=90))
+                                    st.rerun()
+                        with quick[2]:
+                            if st.button("만료일 제거", key="admin_detail_clear_until"):
+                                st.session_state["admin_detail_until"] = None
+                                st.rerun()
+
+                        # --- apply updates ---
+                        if st.button("저장", type="primary", key="admin_detail_save"):
+                            try:
+                                # plan: prefer RPC if exists
+                                if "admin_set_user_plan" in str(sb_authed):
+                                    pass
+                                try:
+                                    _rpc("admin_set_user_plan", {"p_user_id": user_id, "p_plan": new_plan})
+                                except Exception:
+                                    _admin_update_profile(user_id, {"plan": new_plan})
+
+                                # admin flag (best effort)
+                                try:
+                                    _admin_update_profile(user_id, {"is_admin": bool(new_admin)})
+                                except Exception:
+                                    pass
+
+                                # expiry (best effort; prefer RPC if exists)
+                                if new_until is not None:
+                                    iso = datetime.combine(new_until, datetime.min.time()).isoformat()
+                                    try:
+                                        _rpc("admin_set_pro_until", {"p_user_id": user_id, "p_until": iso})
+                                    except Exception:
+                                        try:
+                                            used_col = _admin_set_pro_until(user_id, iso)
+                                            st.caption(f"만료일 저장 컬럼: {used_col}")
+                                        except Exception:
+                                            st.warning("만료일 저장 실패 (컬럼/정책/RPC 확인 필요)")
+                                else:
+                                    # try clear
+                                    try:
+                                        if exp_col:
+                                            _admin_update_profile(user_id, {exp_col: None})
+                                    except Exception:
+                                        pass
+
+                                st.success("저장 완료!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error("저장 실패 (RLS/권한/RPC 확인 필요)")
+                                st.exception(e)
+
+                        st.divider()
+                        st.markdown("**회원 기록 초기화(위험)**")
+                        st.caption("퀴즈 기록/출석/단어 통계를 초기화합니다. 되돌릴 수 없습니다.")
+                        sure = st.checkbox("네, 초기화 위험을 이해했습니다.", key="admin_reset_confirm")
+                        if st.button("이 회원 기록 초기화", disabled=not sure, key="admin_reset_btn"):
+                            try:
+                                _rpc("admin_reset_user_data", {"p_user_id": user_id})
+                                st.success("초기화 완료!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error("초기화 실패: admin_reset_user_data RPC가 없거나 권한이 없습니다.")
+                                st.exception(e)
+                                st.info("필요 시 DB에 'admin_reset_user_data' SECURITY DEFINER RPC를 추가해야 합니다.")
         st.markdown("</div>", unsafe_allow_html=True)
 
     # ---------- tab: logs ----------
@@ -2899,6 +2650,7 @@ def render_admin_dashboard(sb_authed):
             d2 = d[keep].head(int(max_rows)).copy() if keep else d.head(int(max_rows)).copy()
             # card view (Hatena style)
             # card view (Hatena style)
+            import html as _html
             st.markdown('<div class="ha-log">', unsafe_allow_html=True)
             for _, r in d2.head(200).iterrows():
                 # raw values (may be None)
@@ -2940,26 +2692,6 @@ def render_admin_dashboard(sb_authed):
                     "jp2kr": "일→한",
                 }
 
-
-                # ✅ handle legacy combined code like "noun meaning" stored in a single column
-                _raw_pos = (pos_code or "").replace("\u00a0", " ").strip()
-                _raw_quiz = (quiz_code or "").replace("\u00a0", " ").strip()
-
-                # If quiz_code is empty but pos_code contains both (e.g., "noun meaning"), split it.
-                if (not _raw_quiz) and (" " in _raw_pos):
-                    _parts = _raw_pos.split()
-                    if len(_parts) >= 2:
-                        _p, _q = _parts[0], _parts[1]
-                        if _q.lower() in {"meaning", "reading", "kr2jp", "jp2kr"}:
-                            pos_code, quiz_code = _p, _q
-
-                # If quiz_code itself is combined (rare), also split it.
-                if _raw_quiz and (" " in _raw_quiz):
-                    _parts = _raw_quiz.split()
-                    if len(_parts) >= 2:
-                        _q = _parts[0]
-                        if _q.lower() in {"meaning", "reading", "kr2jp", "jp2kr"}:
-                            quiz_code = _q
                 import re as _re
 
                 def _norm_code(s: str) -> str:
@@ -2993,32 +2725,11 @@ def render_admin_dashboard(sb_authed):
                 pct = int(round((score / quiz_len) * 100)) if quiz_len else 0
                 pct = max(0, min(100, pct))
 
-                email_html = html_module.escape(email)
-                when_html = html_module.escape(when)
-                # level badge: show JLPT level if present; if it looks like POS code, show Korean label
-                _lvl_raw = (level or "").replace("\u00a0", " ").strip()
-                _lvl_key = _lvl_raw.lower()
-                if " " in _lvl_key:
-                    _lvl_key = _lvl_key.split()[0]
-                if _lvl_key in POS_LABELS:
-                    level_html = html_module.escape(POS_LABELS[_lvl_key])
-                else:
-                    level_html = html_module.escape(_lvl_raw or "-")
-                pos_html = html_module.escape(pos)
-                quiz_html = html_module.escape(quiz)
-
-                # ✅ record label: show "훈련 모드" summary instead of raw codes (noun/meaning etc.)
-                try:
-                    kind = _infer_kind(level, pos_code)
-                except Exception:
-                    kind = "word"
-                MODE_LABELS = {
-                    "word": "발음 · 뜻 · 한→일",
-                    "kanji": "읽기 · 뜻 · 복습",
-                    "talk": "상황 판단 · 정답 선택",
-                }
-                mode_label = MODE_LABELS.get(kind, "발음 · 뜻 · 한→일")
-                mode_html = html_module.escape(mode_label)
+                email_html = _html.escape(email)
+                when_html = _html.escape(when)
+                level_html = _html.escape(level)
+                pos_html = _html.escape(pos)
+                quiz_html = _html.escape(quiz)
 
                 html = f"""
 <div class='ha-logcard'>
@@ -3029,7 +2740,8 @@ def render_admin_dashboard(sb_authed):
     </div>
     <div class='ha-badges'>
       <span class='ha-badge'>{level_html}</span>
-      <span class='ha-badge'>{mode_html}</span>
+      <span class='ha-badge'>{pos_html}</span>
+      <span class='ha-badge'>{quiz_html}</span>
       <span class='ha-badge ok'>✅ {score}/{quiz_len} · {pct}%</span>
       <span class='ha-badge bad'>❌ {wrong}</span>
     </div>
@@ -3097,16 +2809,8 @@ if page == "home":
     # ✅ Home Hub: dashboard view
     render_home_dashboard(sb_authed, user)
 elif page == "my":
-    # ✅ 마이페이지: (1) 받은 메시지(알림) 먼저 노출 → (2) 기존 mypage 모듈 실행
+    # ✅ 독립 마이페이지: 한자(app.py) 안에 있던 대시보드를 그대로 분리한 mypage.py를 실행
     st.session_state['HUB_MODE'] = True
-    try:
-        uid_now = st.session_state.get("user_id") or getattr(user, "id", None)
-        if uid_now and sb_authed:
-            render_user_inbox_section(sb_authed, str(uid_now))
-            st.markdown("---")
-    except Exception:
-        pass
-
     run_module('mypage')
     st.stop()
 
