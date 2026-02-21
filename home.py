@@ -2495,39 +2495,39 @@ def render_admin_dashboard(sb_authed):
                 if mask_email:
                     email = _mask_mail(email)
 
-                # code → label mapping (normalize)
-                def _norm(code: str) -> str:
-                    return (code or "").strip().lower().replace(" ", "").replace("-", "_")
+                # code → label mapping (normalize codes before mapping)
+                def _norm_code(s: str) -> str:
+                    s = (s or "").strip().lower()
+                    # common separators / variants
+                    s = s.replace(" ", "").replace("-", "_")
+                    return s
 
                 POS_LABELS = {
                     "noun": "명사",
                     "verb": "동사",
                     "adj_i": "い형용사",
                     "adj_na": "な형용사",
-                    "adjective_i": "い형용사",
-                    "adjective_na": "な형용사",
                     "adverb": "부사",
                     "particle": "조사",
-                    "conjunction": "접속사",
                     "conj": "접속사",
-                    "interjection": "감탄사",
+                    "conjunction": "접속사",
                     "interj": "감탄사",
+                    "interjection": "감탄사",
                 }
                 QUIZ_LABELS = {
                     "meaning": "뜻",
-                    "read": "발음",
                     "reading": "발음",
-                    "yomi": "발음",
                     "kr2jp": "한→일",
-                    "han2jp": "한→일",
                     "jp2kr": "일→한",
-                    "jp2ko": "일→한",
-                    "kanji_reading": "한자읽기",
+                    "hanja_reading": "한자읽기",
+                    "context": "문맥",
                 }
 
-                pos = POS_LABELS.get(_norm(pos_code), (pos_code or "-").strip() or "-")
-                quiz = QUIZ_LABELS.get(_norm(quiz_code), (quiz_code or "-").strip() or "-")
+                _pk = _norm_code(pos_code)
+                _qk = _norm_code(quiz_code)
 
+                pos = POS_LABELS.get(_pk, pos_code.strip() or "-")
+                quiz = QUIZ_LABELS.get(_qk, quiz_code.strip() or "-")
                 def _to_int(v, default=0):
                     try:
                         return int(float(v))
