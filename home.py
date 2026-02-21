@@ -16,6 +16,52 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 # ============================================================
+# ✅ 오늘의 한마디 (하루 1문장 고정, KST)
+# - 홈허브 2번째 줄 + 훈련 완료 팝업 등에서 재사용
+# ============================================================
+HATENA_QUOTES = [
+    "오늘 20분이면 충분합니다.",
+    "꾸준함은 재능을 이깁니다.",
+    "작은 차이가 1년을 바꿉니다.",
+    "루틴은 의지를 대신합니다.",
+    "느려도 괜찮습니다. 계속하면 됩니다.",
+    "매일 조금씩이 가장 빠른 길입니다.",
+    "오늘을 채우면 내일이 편해집니다.",
+    "공부는 감정이 아니라 구조입니다.",
+    "포기하지 않는 사람이 결국 이깁니다.",
+    "하테나는 루틴을 만듭니다.",
+    "어제보다 1%만 나아지면 됩니다.",
+    "오늘 한 문제라도 의미 있습니다.",
+    "멈추지 않으면 쌓입니다.",
+    "실력은 조용히 올라갑니다.",
+    "반복이 결국 차이를 만듭니다.",
+    "몰아서 하지 말고, 매일 하세요.",
+    "오늘의 기록이 내일의 자신감입니다.",
+    "성장은 보이지 않게 진행됩니다.",
+    "공부는 자신과의 약속입니다.",
+    "매일 하는 사람이 강합니다.",
+    "완벽하지 않아도 괜찮습니다.",
+    "오늘을 넘기지 마세요.",
+    "시작이 가장 쉽습니다.",
+    "루틴은 배신하지 않습니다.",
+    "하루는 짧지만, 1년은 깁니다.",
+    "꾸준함이 가장 큰 무기입니다.",
+    "오늘을 버티면 실력이 됩니다.",
+    "계속하는 사람이 결국 남습니다.",
+    "지금 시작하는 것이 가장 빠릅니다.",
+    "하테나는 오늘도 쌓입니다.",
+]
+
+def get_today_quote_kst() -> str:
+    try:
+        kst = timezone(timedelta(hours=9))
+        today = datetime.now(kst).date()
+        idx = int(today.toordinal()) % len(HATENA_QUOTES)
+        return HATENA_QUOTES[idx]
+    except Exception:
+        return HATENA_QUOTES[0]
+
+# ============================================================
 # ✅ Module runner (NO runpy/run_path)
 # - Import (or reload) a module by name so it renders in the SAME Streamlit flow
 # ============================================================
@@ -31,6 +77,61 @@ def run_module(module_name: str):
         st.exception(e)
         raise
 
+
+# ============================================================
+# ✅ Hub navigation helper (keeps rt/at in query string)
+# ============================================================
+def hub_href(p: str | None = None, action: str | None = None, **extra) -> str:
+    try:
+        import urllib.parse
+        def _q(s: str) -> str:
+            return urllib.parse.quote(s or "", safe="")
+        rt_enc = st.query_params.get("rt")
+        at_enc = st.query_params.get("at")
+        base = ""
+        if isinstance(rt_enc, str) and rt_enc:
+            base += "rt=" + _q(rt_enc) + "&"
+        if isinstance(at_enc, str) and at_enc:
+            base += "at=" + _q(at_enc) + "&"
+        if action:
+            base += "action=" + _q(action) + "&"
+        if p:
+            base += "p=" + _q(p) + "&"
+        for k, v in (extra or {}).items():
+            if v is None:
+                continue
+            base += _q(str(k)) + "=" + _q(str(v)) + "&"
+        if base.endswith("&"):
+            base = base[:-1]
+        return "?" + base if base else "?"
+    except Exception:
+        if action:
+            return f"?action={action}" + (f"&p={p}" if p else "")
+        return f"?p={p}" if p else "?"
+
+# ============================================================
+# ✅ Messages (Inbox) for users
+# - public.user_messages table
+# ============================================================
+def fetch_user_messages(sb_authed, user_id: str, limit: int = 20) -> list[dict]:
+    try:
+        res = (
+            sb_authed.table("user_messages")
+            .select("id, title, body, created_at, read_at, sender_admin_id")
+            .eq("user_id", str(user_id))
+            .order("created_at", desc=True)
+            .limit(int(limit))
+            .execute()
+        )
+        return res.data or []
+    except Exception:
+        return []
+
+def mark_message_read(sb_authed, msg_id: str):
+    try:
+        sb_authed.table("user_messages").update({"read_at": datetime.now(timezone.utc).isoformat()}).eq("id", str(msg_id)).execute()
+    except Exception:
+        pass
 # ============================================================
 # ✅ LocalStorage / QueryParam persistence helpers
 # ============================================================
@@ -632,8 +733,7 @@ def render_home_dashboard(sb_authed, user):
         "오늘의 성취는 ‘시작’에서 결정돼요.",
     ]
     idx = (kst_today.toordinal() + (streak * 3) + remaining_sets) % len(messages)
-    today_quote = get_today_quote()
-    motivation = messages[idx]  # legacy (unused in header)
+    motivation = messages[idx]
 
     # ---- local helper ----
     def _dots_3(done_sets: int, goal_sets_: int) -> str:
@@ -657,7 +757,9 @@ def render_home_dashboard(sb_authed, user):
   .h-wrap{margin-top:.10rem;}
   .h-top{display:flex;align-items:flex-end;justify-content:space-between;gap:.75rem;margin:.15rem 0 .45rem;}
   .h-title{font-size:1.28rem;font-weight:850;line-height:1.15;margin:0;}
-  .h-sub{opacity:.70;font-size:.92rem;margin:.18rem 0 0;}
+  .h-quote-card{background:#f4f7fb;border:1px solid #e3e8f0;padding:10px 14px;border-radius:10px;display:flex;align-items:center;gap:8px;margin:6px 0 10px 0;}
+.h-quote-dot{width:6px;height:6px;background:#4a6cf7;border-radius:50%;flex-shrink:0;}
+.h-sub{opacity:.70;font-size:.92rem;margin:.18rem 0 0;}
   .h-pill{display:inline-flex;align-items:center;gap:.35rem;padding:.20rem .55rem;border-radius:999px;border:1px solid rgba(0,0,0,.10);background:rgba(0,0,0,.02);font-size:.92rem;white-space:nowrap;}
 
   /* gear */
@@ -810,14 +912,12 @@ def render_home_dashboard(sb_authed, user):
   .st-key-hub_goal_gear_icon button:active{outline:none !important;box-shadow:none !important;}
   .st-key-hub_goal_gear_icon button p{font-size:18px !important;margin:0 !important;}
 
-.h-quote{margin-top:6px;display:flex;align-items:center;gap:8px;background:#f4f7fb;border:1px solid #e3e8f0;border-radius:12px;padding:8px 10px;}
-.h-dot{width:6px;height:6px;border-radius:999px;background:#4a6cf7;display:inline-block;flex-shrink:0;}
-.h-quote-t{font-weight:600;opacity:.92;}
-
 </style>
         """,
         unsafe_allow_html=True,
     )
+
+    today_quote = get_today_quote_kst()
 
     # ---- header ----
     st.markdown(
@@ -826,7 +926,7 @@ def render_home_dashboard(sb_authed, user):
   <div class="h-top">
     <div>
       <p class="h-title">하테나일본어</p>
-      <div class="h-quote"><span class="h-dot"></span><span class="h-quote-t">{today_quote}</span></div>
+      <div class="h-quote-card"><span class="h-quote-dot"></span><span>{today_quote}</span></div>
       <p class="h-sub" style="opacity:.58;font-size:.86rem;margin:.10rem 0 0;">오늘의 성취율을 확인하고, 바로 이어가세요.</p>
     </div>
     <div class="h-pill">🔥 <b>{streak}</b>일</div>
@@ -1302,64 +1402,39 @@ def render_daily_goal_home(sb_authed, user_id: str):
             st.success("저장했습니다.")
 
 
+    # ---- Inbox + Review shortcuts (Home Hub) ----
+    with st.expander("📩 받은 메시지", expanded=False):
+        msgs = fetch_user_messages(sb_authed, str(user_id), limit=20)
+        if not msgs:
+            st.caption("받은 메시지가 없습니다.")
+        else:
+            unread = [m for m in msgs if not m.get("read_at")]
+            st.caption(f"읽지 않은 메시지: {len(unread)}개 · 최근 {min(len(msgs), 20)}개 표시")
+            for m_ in msgs[:10]:
+                title = (m_.get("title") or "알림").strip()
+                body = (m_.get("body") or "").strip()
+                created = str(m_.get("created_at") or "")
+                is_unread = (m_.get("read_at") is None)
+                badge = " (NEW)" if is_unread else ""
+                with st.container():
+                    st.markdown(f"**{title}{badge}**")
+                    if created:
+                        st.caption(created)
+                    st.write(body)
+                    if is_unread and m_.get("id"):
+                        if st.button("읽음 처리", key=f"msg_read_{m_['id']}"):
+                            mark_message_read(sb_authed, m_["id"])
+                            st.rerun()
+                    st.divider()
 
-    # ---- My (in-hub) : inbox + review shortcuts ----
-    st.markdown("---")
-    colA, colB = st.columns([2, 1])
-    with colA:
-        with st.expander("📩 받은 메시지", expanded=False):
-            try:
-                rows = (
-                    sb_authed.table("user_messages")
-                    .select("id,title,body,created_at,read_at")
-                    .eq("user_id", user.id)
-                    .order("created_at", desc=True)
-                    .limit(30)
-                    .execute()
-                )
-                msgs = rows.data if rows and rows.data else []
-                unread = sum(1 for r in msgs if not r.get("read_at"))
-                st.caption(f"읽지 않은 메시지: {unread}개")
-                if not msgs:
-                    st.info("받은 메시지가 없습니다.")
-                else:
-                    for r in msgs[:10]:
-                        mid = r.get("id")
-                        title = (r.get("title") or "(제목 없음)").strip()
-                        body = (r.get("body") or "").strip()
-                        created = r.get("created_at")
-                        read_at = r.get("read_at")
-                        head = f"{title}"
-                        if created:
-                            head += f" · {str(created)[:16]}"
-                        if not read_at:
-                            head = "🔵 " + head
-                        with st.container():
-                            st.markdown(f"**{head}**")
-                            if body:
-                                st.write(body)
-                            if not read_at and mid:
-                                if st.button("읽음", key=f"msg_read_{mid}"):
-                                    try:
-                                        sb_authed.table("user_messages").update({"read_at": datetime.now(timezone.utc).isoformat()}).eq("id", mid).execute()
-                                    except Exception:
-                                        # fallback: set explicit timestamp
-                                        sb_authed.table("user_messages").update({"read_at": datetime.now(timezone.utc).isoformat()}).eq("id", mid).execute()
-                                    st.rerun()
-                            st.markdown("---")
-            except Exception as e:
-                st.error("메시지를 불러오지 못했습니다.")
-                st.caption(str(e))
+    with st.expander("🧾 오답 · TOP10", expanded=False):
+        st.caption("예전 마이페이지의 오답카드/Top10 기능을 그대로 사용합니다.")
+        c1, c2 = st.columns(2)
+        with c1:
+            st.link_button("오답카드 보기", hub_href("my", focus="wrongs"), use_container_width=True)
+        with c2:
+            st.link_button("TOP10 다시풀기", hub_href("my", focus="top10"), use_container_width=True)
 
-    with colB:
-        st.caption("복습")
-        if st.button("🧾 오답카드/Top10", use_container_width=True):
-            # ✅ 기존 mypage.py(오답카드/Top10)로 이동
-            try:
-                st.query_params["p"] = "my"
-            except Exception:
-                st.session_state["hub_page"] = "my"
-            st.rerun()
 def render_reminder_settings(sb_authed, user):
     """Render reminder settings UI (toggle + time) and persist to profiles.progress.reminder."""
     progress_all = st.session_state.get("progress_all", {}) or {}
@@ -1499,51 +1574,6 @@ REMINDER_MESSAGES = [
 st.session_state["REMINDER_MESSAGES"] = REMINDER_MESSAGES
 
 # ============================================================
-# ✅ Brand: 오늘의 한마디 (하루 1개 고정)
-# ============================================================
-HATENA_QUOTES = [
-  "오늘 20분이면 충분합니다.",
-  "꾸준함은 재능을 이깁니다.",
-  "작은 차이가 1년을 바꿉니다.",
-  "루틴은 의지를 대신합니다.",
-  "느려도 괜찮습니다. 계속하면 됩니다.",
-  "매일 조금씩이 가장 빠른 길입니다.",
-  "오늘을 채우면 내일이 편해집니다.",
-  "공부는 감정이 아니라 구조입니다.",
-  "포기하지 않는 사람이 결국 이깁니다.",
-  "하테나는 루틴을 만듭니다.",
-  "어제보다 1%만 나아지면 됩니다.",
-  "오늘 한 문제라도 의미 있습니다.",
-  "멈추지 않으면 쌓입니다.",
-  "실력은 조용히 올라갑니다.",
-  "반복이 결국 차이를 만듭니다.",
-  "몰아서 하지 말고, 매일 하세요.",
-  "오늘의 기록이 내일의 자신감입니다.",
-  "성장은 보이지 않게 진행됩니다.",
-  "공부는 자신과의 약속입니다.",
-  "매일 하는 사람이 강합니다.",
-  "완벽하지 않아도 괜찮습니다.",
-  "오늘을 넘기지 마세요.",
-  "시작이 가장 쉽습니다.",
-  "루틴은 배신하지 않습니다.",
-  "하루는 짧지만, 1년은 깁니다.",
-  "꾸준함이 가장 큰 무기입니다.",
-  "오늘을 버티면 실력이 됩니다.",
-  "계속하는 사람이 결국 남습니다.",
-  "지금 시작하는 것이 가장 빠릅니다.",
-  "하테나는 오늘도 쌓입니다.",
-]
-
-
-def get_today_quote() -> str:
-    try:
-        idx = date.today().toordinal() % len(HATENA_QUOTES)
-        return HATENA_QUOTES[idx]
-    except Exception:
-        return "오늘 20분이면 충분합니다."
-
-
-# ============================================================
 # ✅ UI: Login (single)
 # ============================================================
 refresh_session_from_cookie_if_needed(force=False)
@@ -1552,49 +1582,6 @@ user = st.session_state.get("user")
 sb_authed = st.session_state.get("sb_authed")
 
 if not user:
-    # ✅ 첫 진입(로그인 전) 브랜드 히어로
-    st.markdown(
-        """
-<style>
-.ha-pre{
-  max-width: 780px;
-  margin: 0 auto 14px auto;
-  padding: 14px 14px 0 14px;
-}
-.ha-pre .ha-logo{
-  width: 56px; height: 56px;
-  border-radius: 16px;
-  display:flex; align-items:center; justify-content:center;
-  background: rgba(20,20,20,0.92);
-  color:#fff;
-  font-size: 28px;
-  box-shadow: 0 10px 28px rgba(0,0,0,0.14);
-}
-.ha-pre .ha-h1{font-size: 1.25rem; font-weight: 800; margin: 12px 0 4px;}
-.ha-pre .ha-h2{opacity:.78; margin: 0 0 10px;}
-.ha-pre .ha-quote{
-  background: #f4f7fb;
-  border: 1px solid #e3e8f0;
-  border-radius: 12px;
-  padding: 10px 12px;
-  display:flex; gap: 8px; align-items:center;
-}
-.ha-pre .ha-dot{width:6px;height:6px;border-radius:999px;background:#4a6cf7;flex-shrink:0;}
-.ha-pre .ha-quote-t{font-weight:600;}
-.ha-pre .ha-slogan{margin-top:10px; font-weight:800;}
-</style>
-<div class="ha-pre">
-  <div class="ha-logo">は</div>
-  <div class="ha-h1">하테나일본어</div>
-  <div class="ha-h2">짧게라도 괜찮아요. 지금 시작이 제일 쉬워요.</div>
-  <div class="ha-quote"><div class="ha-dot"></div><div class="ha-quote-t">""" + get_today_quote() + """</div></div>
-  <div class="ha-slogan">99,000원으로 2026년 일본어 완성</div>
-  <div style="opacity:.78;margin-top:2px;">오늘 20분이 1년을 바꿉니다</div>
-</div>
-""",
-        unsafe_allow_html=True,
-    )
-
     st.subheader("로그인")
     with st.form("login_form", clear_on_submit=False):
         email = st.text_input("이메일", key="hub_email")
