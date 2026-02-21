@@ -1231,58 +1231,23 @@ def render_float_top_anchor_button():
     )
 
 
-def render_admin_page(sb_authed):
-    st.markdown("## 🛠 관리자 페이지")
-    st.caption("최근 퀴즈 기록(최대 200개)")
-
-    if not sb_authed:
-        st.error("Supabase 클라이언트를 찾을 수 없습니다. 로그인 상태를 확인해주세요.")
-        return
-
-    try:
-        res = (sb_authed.table("quiz_attempts")
-                 .select("created_at,user_email,level,pos_mode,quiz_len,score,wrong_count")
-                 .order("created_at", desc=True)
-                 .limit(200)
-                 .execute())
-        rows = res.data or []
-        if not rows:
-            st.warning("조회 결과가 0건입니다. (RLS 정책으로 막혔거나 데이터가 없을 수 있어요)")
-            return
-        import pandas as pd
-        df = pd.DataFrame(rows)
-        st.dataframe(df, use_container_width=True, hide_index=True)
-    except Exception as e:
-        st.error("관리자 조회에 실패했습니다. RLS 정책/권한을 확인해야 합니다.")
-        st.exception(e)
-
 def render_plan_pill():
     plan = (st.session_state.get("user_plan") or "free").lower()
     txt = "✨ PRO 이용 중입니다" if plan == "pro" else "🆓 FREE 이용 중"
-
-    is_admin = bool(st.session_state.get("is_admin", False))
-    base = _hub_build_base_qs()
-    href_admin = "?" + base + "p=admin"
-    gear = f'<a href="{href_admin}" target="_self" class="hub-gear" title="관리자">⚙️</a>' if is_admin else ""
-
     st.markdown(
         f"""
-<style>
-  .hub-plan-wrap{{display:flex;justify-content:flex-start;margin-top:0.15rem;margin-bottom:0.2rem;}}
-  .hub-plan-pill{{display:inline-flex;align-items:center;gap:.45rem;padding:.28rem .55rem;border-radius:999px;
-    border:1px solid rgba(0,0,0,.10);font-size:.86rem;opacity:.92;background:rgba(0,0,0,.02);}}
-  .hub-gear{{display:inline-flex;align-items:center;justify-content:center;
-    margin-left:8px;width:28px;height:28px;border-radius:999px;text-decoration:none;
-    border:1px solid rgba(0,0,0,.10);background:rgba(0,0,0,.02);font-size:16px;line-height:1;
-    pointer-events:auto;}}
-  .hub-gear:hover{{background:rgba(0,0,0,.04);}}
-</style>
-<div class="hub-plan-wrap">
-  <div class="hub-plan-pill">{txt}{gear}</div>
+<div style="display:flex;justify-content:flex-start;margin-top:0.15rem;margin-bottom:0.2rem;">
+  <div style="
+    display:inline-flex;align-items:center;gap:.45rem;
+    padding:.28rem .55rem;border-radius:999px;
+    border:1px solid rgba(0,0,0,.10);
+    font-size:.86rem;opacity:.92;background:rgba(0,0,0,.02);
+  ">{txt}</div>
 </div>
 """,
         unsafe_allow_html=True,
     )
+
 def render_daily_goal_home(sb_authed, user_id: str):
     """Home dashboard: daily goal (sets-based). 1 set == 10 questions (quiz_len)."""
     progress_all = st.session_state.get("progress_all", {}) or {}
@@ -1886,6 +1851,194 @@ if isinstance(p, str) and p:
 render_floating_menu()
 render_plan_pill()
 
+
+def _admin_safe_select_profiles(sb_authed):
+    """Try common column sets; return list[dict]."""
+    candidates = [
+        "id, email, plan, is_admin, created_at",
+        "id, email, plan, is_admin",
+        "id, plan, is_admin",
+        "id, plan",
+    ]
+    last_err = None
+    for sel in candidates:
+        try:
+            res = sb_authed.table("profiles").select(sel).order("created_at", desc=True).limit(500).execute()
+            return res.data or []
+        except Exception as e:
+            last_err = e
+            continue
+    raise last_err
+
+
+def _admin_safe_select_attempts(sb_authed, limit=1000):
+    candidates = [
+        "created_at, user_email, level, pos_mode, quiz_len, score, wrong_count",
+        "created_at, user_email, level, pos_mode, score, wrong_count",
+        "created_at, user_email, score",
+        "created_at, user_id, score",
+        "created_at",
+    ]
+    last_err = None
+    for sel in candidates:
+        try:
+            res = sb_authed.table("quiz_attempts").select(sel).order("created_at", desc=True).limit(limit).execute()
+            return res.data or []
+        except Exception as e:
+            last_err = e
+            continue
+    raise last_err
+
+
+def render_admin_page(sb_authed):
+    st.markdown("## 🛠 관리자")
+    st.caption("회원/등급 관리 · 퀴즈 사용량 통계 · 최근 기록")
+
+    if not sb_authed:
+        st.error("Supabase 클라이언트를 찾을 수 없습니다. 로그인 상태를 확인해주세요.")
+        return
+
+    # --- Load data ---
+    try:
+        profiles = _admin_safe_select_profiles(sb_authed)
+    except Exception as e:
+        st.error("profiles 조회 실패 (RLS/컬럼/권한 확인 필요)")
+        st.exception(e)
+        profiles = []
+
+    try:
+        attempts = _admin_safe_select_attempts(sb_authed, limit=2000)
+    except Exception as e:
+        st.error("quiz_attempts 조회 실패 (RLS/컬럼/권한 확인 필요)")
+        st.exception(e)
+        attempts = []
+
+    import pandas as pd
+    dfp = pd.DataFrame(profiles) if profiles else pd.DataFrame()
+    dfa = pd.DataFrame(attempts) if attempts else pd.DataFrame()
+
+    # --- Metrics (cards) ---
+    c1, c2, c3, c4 = st.columns(4)
+    total_users = int(len(dfp)) if not dfp.empty else 0
+    pro_users = int((dfp.get("plan") == "pro").sum()) if (not dfp.empty and "plan" in dfp.columns) else 0
+    admin_users = int((dfp.get("is_admin") == True).sum()) if (not dfp.empty and "is_admin" in dfp.columns) else 0
+
+    # attempts today (KST)
+    today_attempts = 0
+    if not dfa.empty and "created_at" in dfa.columns:
+        try:
+            ts = pd.to_datetime(dfa["created_at"], errors="coerce", utc=True)
+            kst = ts.dt.tz_convert("Asia/Seoul")
+            today = pd.Timestamp.now(tz="Asia/Seoul").date()
+            today_attempts = int((kst.dt.date == today).sum())
+        except Exception:
+            today_attempts = 0
+
+    c1.metric("총 회원", f"{total_users:,}")
+    c2.metric("PRO 회원", f"{pro_users:,}")
+    c3.metric("관리자", f"{admin_users:,}")
+    c4.metric("오늘 퀴즈 시도", f"{today_attempts:,}")
+
+    st.divider()
+
+    tab_dash, tab_users, tab_attempts = st.tabs(["대시보드", "회원 관리", "최근 기록"])
+
+    with tab_dash:
+        st.markdown("### 📈 사용량 추이")
+        if dfa.empty or "created_at" not in dfa.columns:
+            st.info("표시할 데이터가 없습니다. (quiz_attempts가 비어있거나 RLS로 차단됨)")
+        else:
+            try:
+                ts = pd.to_datetime(dfa["created_at"], errors="coerce", utc=True)
+                kst = ts.dt.tz_convert("Asia/Seoul")
+                dfa2 = dfa.copy()
+                dfa2["date"] = kst.dt.date
+                daily = dfa2.groupby("date").size().reset_index(name="attempts").sort_values("date")
+                # 최근 30일만
+                if len(daily) > 30:
+                    daily = daily.tail(30)
+                st.line_chart(daily.set_index("date")["attempts"])
+                st.caption("최근 30일 기준")
+            except Exception as e:
+                st.error("차트 생성 실패")
+                st.exception(e)
+
+        st.markdown("### 🧾 요약")
+        if not dfa.empty:
+            st.dataframe(dfa.head(20), use_container_width=True, hide_index=True)
+        else:
+            st.info("최근 기록 데이터가 없습니다.")
+
+    with tab_users:
+        st.markdown("### 👥 회원 목록")
+        if dfp.empty:
+            st.info("profiles 데이터가 없습니다. (RLS/권한/테이블 확인 필요)")
+        else:
+            # Display
+            show_cols = [c for c in ["email", "plan", "is_admin", "created_at", "id"] if c in dfp.columns]
+            st.dataframe(dfp[show_cols].copy(), use_container_width=True, hide_index=True)
+
+            st.markdown("### ✏️ 등급/권한 변경")
+            # Choose user by email if possible else by id
+            if "email" in dfp.columns:
+                choices = dfp["email"].fillna("").astype(str).tolist()
+                label = "대상 이메일"
+                selected = st.selectbox(label, options=choices, index=0)
+                row = dfp[dfp["email"].astype(str) == str(selected)].head(1)
+            else:
+                choices = dfp["id"].fillna("").astype(str).tolist()
+                label = "대상 ID"
+                selected = st.selectbox(label, options=choices, index=0)
+                row = dfp[dfp["id"].astype(str) == str(selected)].head(1)
+
+            if row.empty:
+                st.warning("대상 사용자를 찾지 못했습니다.")
+            else:
+                user_id = str(row.iloc[0].get("id", ""))
+                current_plan = str(row.iloc[0].get("plan", "free"))
+                current_admin = bool(row.iloc[0].get("is_admin", False))
+
+                cc1, cc2 = st.columns(2)
+                with cc1:
+                    new_plan = st.selectbox("플랜", options=["free", "pro"], index=0 if current_plan != "pro" else 1)
+                with cc2:
+                    new_admin = st.selectbox("관리자 여부", options=[False, True], index=1 if current_admin else 0)
+
+                btn1, btn2 = st.columns([1, 2])
+                with btn1:
+                    do_update = st.button("변경 적용", type="primary")
+                with btn2:
+                    st.caption("※ 업데이트가 실패하면 Supabase RLS 정책에서 관리자에게 update 권한이 막혀있을 가능성이 큽니다.")
+
+                if do_update:
+                    if not user_id:
+                        st.error("user_id를 찾지 못했습니다.")
+                    else:
+                        try:
+                            payload = {}
+                            if "plan" in dfp.columns:
+                                payload["plan"] = new_plan
+                            if "is_admin" in dfp.columns:
+                                payload["is_admin"] = bool(new_admin)
+                            if not payload:
+                                st.error("profiles 테이블에 plan/is_admin 컬럼이 없습니다.")
+                            else:
+                                sb_authed.table("profiles").update(payload).eq("id", user_id).execute()
+                                st.success("변경 완료! (새로고침하면 목록에 반영됩니다)")
+                        except Exception as e:
+                            st.error("변경 실패 (RLS/권한/컬럼 확인 필요)")
+                            st.exception(e)
+
+    with tab_attempts:
+        st.markdown("### 🕒 최근 퀴즈 기록")
+        if dfa.empty:
+            st.info("quiz_attempts 데이터가 없습니다.")
+        else:
+            st.dataframe(dfa.head(200), use_container_width=True, hide_index=True)
+
+
+
+
 page = st.session_state.get("hub_page", "home")
 render_bottom_nav(active=page)
 
@@ -1916,13 +2069,13 @@ elif page == "talk":
     st.session_state["hub_target"] = "talk"
     render_training_header(sb_authed, user, kind="talk", title="💬 회화 훈련", subtitle="상황 판단 · 정답 선택 · 발음 연습")
     run_module('talk')
+
 elif page == "admin":
     if not st.session_state.get("is_admin"):
         st.warning("관리자만 접근할 수 있습니다.")
         st.stop()
     render_admin_page(sb_authed)
     st.stop()
-
 else:
     # ✅ Fallback: unknown page -> go home
     st.session_state["hub_page"] = "home"
