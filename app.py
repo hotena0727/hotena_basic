@@ -142,7 +142,7 @@ div.stButton > button {
   align-items:flex-end;
   justify-content:space-between;
   gap:12px;
-  margin: 0px 0 12px 0;
+  margin: 10px 0 16px 0;
 }
 .headtitle{
   font-size:34px;
@@ -210,7 +210,7 @@ hr{
 }
 */
 .tight-divider hr{
-  margin: 2px 0 8px 0 !important;
+  margin: 6px 0 10px 0 !important;
 }
 /* ✅ Q번호(subheader) 아래 간격만 줄이기 */
 div[data-testid="stMarkdownContainer"] h3{
@@ -1952,7 +1952,7 @@ def render_home():
         unsafe_allow_html=True,
     )
     
-    st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
+    st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
     st.divider()
     
     c1, c2, c3 = st.columns([5, 3, 3])
@@ -2093,572 +2093,567 @@ if streak is not None:
 # ============================================================
 # ✅ 세션 초기화
 # ============================================================
-if "quiz_version" not in st.session_state:
-    st.session_state.quiz_version = 0
 
-
-# ============================================================
-# ✅ HUB 진입 시: 보기 선택(라디오) 초기화 (한자)
-# ============================================================
-if st.session_state.get("_entered_kanji"):
-    st.session_state.quiz_version = int(st.session_state.get("quiz_version", 0)) + 1
-    for k in ("submitted", "is_graded", "answers"):
-        if k in st.session_state:
-            st.session_state.pop(k, None)
-    st.session_state["_entered_kanji"] = False
-
-if "submitted" not in st.session_state:
-    st.session_state.submitted = False
-if "wrong_list" not in st.session_state:
-    st.session_state.wrong_list = []
-if "saved_this_attempt" not in st.session_state:
-    st.session_state.saved_this_attempt = False
-if "stats_saved_this_attempt" not in st.session_state:
-    st.session_state.stats_saved_this_attempt = False
-if "session_stats_applied_this_attempt" not in st.session_state:
-    st.session_state.session_stats_applied_this_attempt = False
-if "history" not in st.session_state:
-    st.session_state.history = []
-if "progress_dirty" not in st.session_state:
-    st.session_state.progress_dirty = False
-if "wrong_counter" not in st.session_state:
-    st.session_state.wrong_counter = {}
-if "total_counter" not in st.session_state:
-    st.session_state.total_counter = {}
-
-ensure_mastered_words_shape()
-ensure_excluded_wrong_words_shape()
-ensure_mastery_banner_shape()
-
-# ============================================================
-# ✅ 상단 UI: 레벨 버튼(N5~N1) → 유형 버튼(카드형) → 캡션 → divider
-# ============================================================
-
-def on_pick_level(lv: str):
-    lv = str(lv).strip().upper()
-    if lv == st.session_state.level:
-        return
-    st.session_state.level = lv
-
-    clear_question_widget_keys()
-    new_quiz = build_quiz(st.session_state.quiz_type, st.session_state.level)
-    start_quiz_state(new_quiz, st.session_state.quiz_type, clear_wrongs=True)
-
-    st.session_state["_scroll_top_once"] = True
-    
-def on_pick_qtype(qt: str):
-    qt = str(qt).strip()
-    if qt == st.session_state.quiz_type:
-        return
-    st.session_state.quiz_type = qt
-
-    clear_question_widget_keys()
-    new_quiz = build_quiz(st.session_state.quiz_type, st.session_state.level)
-    start_quiz_state(new_quiz, st.session_state.quiz_type, clear_wrongs=True)
-
-    st.session_state["_scroll_top_once"] = True
-  
-st.markdown('<div class="qtypewrap">', unsafe_allow_html=True)
-
-# ----------------------------
-# 1) 레벨 버튼(N5~N1) 먼저
-# ----------------------------
-level_cols = st.columns(len(LEVEL_OPTIONS), gap="small")
-for i, lv in enumerate(LEVEL_OPTIONS):
-    is_selected_lv = (lv == st.session_state.level)
-    btn_lv_type = "primary" if is_selected_lv else "secondary"
-    icon_lv = "✅ " if is_selected_lv else ""
-    label_lv = LEVEL_LABEL_MAP.get(lv, lv)
-
-    with level_cols[i]:
-        st.button(
-            f"{icon_lv}{label_lv}",
-            use_container_width=True,
-            type=btn_lv_type,
-            key=f"btn_level_{lv}",
-            on_click=on_pick_level,
-            args=(lv,),
-        )
-
-st.markdown('<div class="qtype_hint jp">✨레벨을 선택하세요</div>', unsafe_allow_html=True)
-
-# ----------------------------
-# 2) 유형 버튼(발음/뜻/한→일)
-# ----------------------------
-type_cols = st.columns(len(available_types), gap="small")
-for i, qt in enumerate(available_types):
-    is_selected = (qt == st.session_state.quiz_type)
-    btn_type = "primary" if is_selected else "secondary"
-    icon = "✅ " if is_selected else ""
-    label = quiz_label_map.get(qt, qt)
-
-    with type_cols[i]:
-        st.button(
-            f"{icon}{label}",
-            use_container_width=True,
-            type=btn_type,
-            key=f"btn_qtype_{qt}",
-            on_click=on_pick_qtype,
-            args=(qt,),
-        )
-
-st.markdown('<div class="qtype_hint jp">✨유형을 선택하세요</div>', unsafe_allow_html=True)
-
-st.markdown('</div>', unsafe_allow_html=True)
-
-# ✅ divider 간격은 tight-divider 래퍼로
-st.markdown('<div class="tight-divider">', unsafe_allow_html=True)
-st.divider()
-st.markdown('</div>', unsafe_allow_html=True)
-
-# ============================================================
-# ✅ 버튼: 새 문제 / 맞힌 단어 제외 초기화
-# ============================================================
-cbtn1, cbtn2 = st.columns(2)
-
-with cbtn1:
-    if st.button("🔄 새 문제(랜덤 10문항)", use_container_width=True, key="btn_new_random_10"):
-        k_now = mastery_key()
-        if st.session_state.get("mastery_done", {}).get(k_now, False):
-            st.session_state["_scroll_top_once"] = True
-            st.rerun()
-
-        clear_question_widget_keys()
-        new_quiz = build_quiz(st.session_state.quiz_type, st.session_state.level)
-        start_quiz_state(new_quiz, st.session_state.quiz_type, clear_wrongs=True)
-        st.session_state["_scroll_top_once"] = True
-        st.rerun()
-
-with cbtn2:
-    if st.button("✅ 맞힌 단어 제외 초기화", use_container_width=True, key="btn_reset_mastered_current_type"):
-        ensure_mastered_words_shape()
-        k_now = mastery_key()
-        st.session_state.mastered_words[k_now] = set()
-        st.session_state.mastery_banner_shown[k_now] = False
-        st.session_state.mastery_done[k_now] = False
-
-        clear_question_widget_keys()
-        new_quiz = build_quiz(st.session_state.quiz_type, st.session_state.level)
-        start_quiz_state(new_quiz, st.session_state.quiz_type, clear_wrongs=True)
-
-        st.success(f"초기화 완료 (유형: {quiz_label_map[st.session_state.quiz_type]})")
-        st.session_state["_scroll_top_once"] = True
-        st.rerun()
-
-# 정복 안내
-k_now = mastery_key()
-if st.session_state.get("mastery_done", {}).get(k_now, False):
-    st.success("🏆 이 유형을 완전히 정복했어요!")
-    st.caption("👉 다른 유형을 선택하거나, '맞힌 단어 제외 초기화'로 다시 시작할 수 있어요.")
-
-# ============================================================
-# ✅ (중요) UI는 먼저 보여주고, 퀴즈가 없으면 여기서만 멈춘다
-# ============================================================
-if "quiz" not in st.session_state or not isinstance(st.session_state.quiz, list):
-    st.session_state.quiz = []
-
-# 아직 퀴즈가 없다면 1회만 생성 시도 (UI는 이미 위에서 다 보여준 상태)
-k_now = mastery_key()
-is_mastered_done = bool(st.session_state.get("mastery_done", {}).get(k_now, False))
-
-if (not is_mastered_done) and len(st.session_state.quiz) == 0:
-    clear_question_widget_keys()
-    st.session_state.quiz = build_quiz(st.session_state.quiz_type, st.session_state.level) or []
-    st.session_state.submitted = False
-
-# 그래도 0개면: 버튼은 이미 보이는 상태 → 안내만 하고 멈춤
-if len(st.session_state.quiz) == 0:
-    st.info("이 레벨에 출제할 단어가 없어요. 다른 레벨을 선택하거나, CSV의 level 값을 확인해 주세요.")
-    st.stop()
-
-# ============================================================
-# ✅ answers 길이 자동 맞춤
-# ============================================================
-if "quiz" not in st.session_state or not isinstance(st.session_state.quiz, list):
-    st.session_state.quiz = []
-
-if len(st.session_state.quiz) == 0:
-    st.session_state.quiz = build_quiz(st.session_state.quiz_type, st.session_state.level) or []
-
-quiz_len = len(st.session_state.quiz)
-if "answers" not in st.session_state or not isinstance(st.session_state.answers, list) or len(st.session_state.answers) != quiz_len:
-    st.session_state.answers = [None] * quiz_len
-
-# 정복 상태면 문제 영역 차단
-k_now = mastery_key()
-if bool(st.session_state.get("mastery_done", {}).get(k_now, False)):
-    st.stop()
-
-# ============================================================
-# ✅ 문제 표시 (동그란 배지: ① ② ③ ... + 같은 줄)
-# ============================================================
-circled_nums = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳㉑㉒㉓㉔㉕㉖㉗㉘㉙㉚㉛㉜㉝㉞㉟㊱㊲㊳㊴㊵㊶㊷㊸㊹㊺㊻㊼㊽㊾㊿"
-
-for idx, q in enumerate(st.session_state.quiz):
-    badge = circled_nums[idx] if idx < len(circled_nums) else f"({idx+1})"
-
-    st.markdown(
-        f"""
-<div class="jp" style="display:flex; align-items:baseline; gap:5px; margin: 10px 0 8px 0;">
-  <div style="
-    flex:0 0 auto;
-    font-size:20px;
-    line-height:1;
-    font-weight:900;   /* ← 이 줄 추가 */
-    /* ✅ 미세 보정 (필요 시 숫자만 조절) */
-    transform: translateY(1px);
-  ">{badge}</div>
-
-  <div style="
-    flex:1 1 auto;
-    font-size:18px;
-    font-weight:500;
-    line-height:1.35;
-  ">{q["prompt"]}</div>
-</div>
-""",
-    unsafe_allow_html=True
-)
-    widget_key = f"q_{st.session_state.quiz_version}_{idx}"
-
-    prev = st.session_state.answers[idx]
-    default_index = None
-    if prev is not None and prev in q["choices"]:
-        default_index = q["choices"].index(prev)
-
-    choice = st.radio(
-        label="보기",
-        options=q["choices"],
-        index=default_index,
-        key=widget_key,
-        label_visibility="collapsed",
-        on_change=mark_progress_dirty,
-    )
-    st.session_state.answers[idx] = choice
-
-sync_answers_from_widgets()
-
-# ============================================================
-# ✅ 제출/채점
-# ============================================================
-quiz_len = len(st.session_state.quiz)
-all_answered = (quiz_len > 0) and all(a is not None for a in st.session_state.answers)
-
-if st.button("✅ 제출하고 채점하기", disabled=not all_answered, type="primary", use_container_width=True, key="btn_submit"):
-    st.session_state.submitted = True
-    st.session_state.session_stats_applied_this_attempt = False
-
-if not all_answered:
-    st.info("모든 문제에 답을 선택하면 제출 버튼이 활성화됩니다.")
-
-# ============================================================
-# ✅ 제출 후 화면
-# ============================================================
-if st.session_state.submitted:
-    show_post_ui = (SHOW_POST_SUBMIT_UI == "Y") or is_admin()
+def render_kanji_hub(HUB_MODE: bool = False):
+    if HUB_MODE: st.session_state['HUB_MODE']=True
+    if "quiz_version" not in st.session_state:
+        st.session_state.quiz_version = 0
+    if "submitted" not in st.session_state:
+        st.session_state.submitted = False
+    if "wrong_list" not in st.session_state:
+        st.session_state.wrong_list = []
+    if "saved_this_attempt" not in st.session_state:
+        st.session_state.saved_this_attempt = False
+    if "stats_saved_this_attempt" not in st.session_state:
+        st.session_state.stats_saved_this_attempt = False
+    if "session_stats_applied_this_attempt" not in st.session_state:
+        st.session_state.session_stats_applied_this_attempt = False
+    if "history" not in st.session_state:
+        st.session_state.history = []
+    if "progress_dirty" not in st.session_state:
+        st.session_state.progress_dirty = False
+    if "wrong_counter" not in st.session_state:
+        st.session_state.wrong_counter = {}
+    if "total_counter" not in st.session_state:
+        st.session_state.total_counter = {}
 
     ensure_mastered_words_shape()
     ensure_excluded_wrong_words_shape()
+    ensure_mastery_banner_shape()
 
-    current_type = st.session_state.quiz_type
-    k_now = mastery_key()
+    # ============================================================
+    # ✅ 상단 UI: 레벨 버튼(N5~N1) → 유형 버튼(카드형) → 캡션 → divider
+    # ============================================================
 
-    score = 0
-    wrong_list = []
+    def on_pick_level(lv: str):
+        lv = str(lv).strip().upper()
+        if lv == st.session_state.level:
+            return
+        st.session_state.level = lv
 
-    for idx, q in enumerate(st.session_state.quiz):
-        picked = st.session_state.answers[idx]
-        correct = q["correct_text"]
-        word_key = str(q.get("jp_word", "")).strip()
-
-        if picked == correct:
-            score += 1
-            if word_key:
-                st.session_state.mastered_words.setdefault(k_now, set()).add(word_key)
-        else:
-            # ✅ 오답노트 채우기
-            wrong_list.append({
-                "No": idx + 1,
-                "문제": str(q.get("prompt", "")),
-                "내 답": "" if picked is None else str(picked),
-                "정답": str(correct),
-                "단어": str(q.get("jp_word", "")).strip(),
-                "읽기": str(q.get("reading", "")).strip(),
-                "뜻": str(q.get("meaning", "")).strip(),
-                "유형": current_type,
-            })
-
-    st.session_state.wrong_list = wrong_list
-
-    quiz_len = len(st.session_state.quiz)
-    st.success(f"점수: {score} / {quiz_len}")
-    ratio = score / quiz_len if quiz_len else 0
-
-    # ✅ 점수 기반 SFX (제출 직후 1회)
-    if ratio == 1:
-        sfx("perfect")
-    elif ratio < 1:
-        sfx("wrong")  # (부분오답이 있으면 '삐~' 한 번)
-    
-    if ratio == 1:
-        st.balloons()
-        st.success("🎉 완벽해요! 전부 정답입니다. 정말 잘했어요!")
-        st.caption("※ 정복 판정은 ‘더 이상 출제할 단어가 없을 때’ 자동으로 표시됩니다.")
-    elif ratio >= 0.7:
-        st.info("👍 잘하고 있어요! 조금만 더 다듬으면 완벽해질 거예요.")
-    else:
-        st.warning("💪 괜찮아요! 틀린 문제는 성장의 재료예요. 다시 한 번 도전해봐요.")
-
-    # ✅ DB 저장
-    sb_authed_local = get_authed_sb()
-    if sb_authed_local is None:
-        if show_post_ui:
-            st.warning("DB 저장/조회용 토큰이 없습니다. 다시 로그인해 주세요.")
-    else:
-        if not st.session_state.saved_this_attempt:
-            def _save():
-                return save_attempt_to_db(
-                    sb_authed=sb_authed_local,
-                    user_id=user_id,
-                    user_email=user_email,
-                    level=st.session_state.level,
-                    quiz_type=current_type,
-                    quiz_len=quiz_len,
-                    score=score,
-                    wrong_list=wrong_list,
-                )
-            try:
-                run_db(_save)
-                st.session_state.saved_this_attempt = True
-            except Exception as e:
-                if show_post_ui:
-                    st.warning("DB 저장에 실패했습니다. (테이블/컬럼/권한/RLS 정책 확인 필요)")
-                    st.write(str(e))
-
-        if not st.session_state.stats_saved_this_attempt:
-            def _save_stats_bulk():
-                sync_answers_from_widgets()
-                items = build_word_results_bulk_payload(
-                    quiz=st.session_state.quiz,
-                    answers=st.session_state.answers,
-                    quiz_type=current_type,
-                    level=st.session_state.level,
-                )
-                if not items:
-                    return None
-                return sb_authed_local.rpc("record_word_results_bulk", {"p_items": items}).execute()
-
-            try:
-                run_db(_save_stats_bulk)
-                st.session_state.stats_saved_this_attempt = True
-                if show_post_ui:
-                    st.success("✅ 단어 통계(bulk) 저장 성공")
-            except Exception as e:
-                if show_post_ui:
-                    st.error("❌ 단어 통계(bulk) 저장 실패")
-                    st.exception(e)
-
-        if show_post_ui:
-            st.subheader("📌 내 최근 기록")
-            def _fetch_hist():
-                return fetch_recent_attempts(sb_authed_local, user_id, limit=10)
-
-            try:
-                res = run_db(_fetch_hist)
-                if not res.data:
-                    st.info("아직 저장된 기록이 없습니다. 문제를 풀고 제출하면 기록이 쌓여요.")
-                else:
-                    hist = pd.DataFrame(res.data).copy()
-                    hist["created_at"] = to_kst_naive(hist["created_at"])
-                    hist["유형"] = hist["pos_mode"].map(lambda x: quiz_label_for_table.get(x, x))
-                    hist["정답률"] = (hist["score"] / hist["quiz_len"]).fillna(0.0)
-
-                    avg_rate = float(hist["정답률"].mean() * 100)
-                    best = int(hist["score"].max())
-                    last_score = int(hist.iloc[0]["score"])
-                    last_total = int(hist.iloc[0]["quiz_len"])
-
-                    # ✅ 마이페이지 상단 3카드 (components.html로 강제 렌더링)
-                    dashboard_html = f"""
-                    <style>
-                    .stat-grid{{
-                      display:grid;
-                      grid-template-columns: repeat(3, 1fr);
-                      gap:12px;
-                      margin: 6px 0 6px 0;
-                    }}
-                    .stat-card{{
-                      border:1px solid rgba(120,120,120,0.25);
-                      border-radius:18px;
-                      padding:14px 14px;
-                      background: rgba(255,255,255,0.02);
-                    }}
-                    .stat-label{{
-                      font-size:12px;
-                      font-weight:800;
-                      opacity:.72;
-                      line-height:1.2;
-                    }}
-                    .stat-value{{
-                      margin-top:6px;
-                      font-size:22px;
-                      font-weight:900;
-                      line-height:1.1;
-                    }}
-                    .stat-sub{{
-                      margin-top:6px;
-                      font-size:12px;
-                      opacity:.70;
-                      line-height:1.2;
-                    }}
-                    @media (max-width: 520px){{
-                      .stat-grid{{ grid-template-columns: 1fr; }}
-                      .stat-value{{ font-size:24px; }}
-                    }}
-                    </style>
-
-                    <div class="jp">
-                      <div class="stat-grid">
-                        <div class="stat-card">
-                          <div class="stat-label">최근 평균(최대 50회)</div>
-                          <div class="stat-value">{avg_rate:.0f}%</div>
-                          <div class="stat-sub">정답률 기준</div>
-                        </div>
-
-                        <div class="stat-card">
-                          <div class="stat-label">최고 점수</div>
-                          <div class="stat-value">{best} / {last_total}</div>
-                          <div class="stat-sub">최근 기록 중 최고</div>
-                        </div>
-
-                        <div class="stat-card">
-                          <div class="stat-label">최근 점수</div>
-                          <div class="stat-value">{last_score} / {last_total}</div>
-                          <div class="stat-sub">가장 최근 1회</div>
-                        </div>
-                      </div>
-                    </div>
-                    """
-    
-                    components.html(dashboard_html, height=330)
-
-            except Exception as e:
-                st.info("기록을 불러오지 못했습니다.")
-                st.write(str(e))
-
-    # ✅ 세션 통계(로컬 카운터) 적용은 '1번만'
-    if not st.session_state.session_stats_applied_this_attempt:
-        st.session_state.history.append({"type": current_type, "score": score, "total": quiz_len})
-
-        for idx, q in enumerate(st.session_state.quiz):
-            word_key = str(q.get("jp_word", "")).strip()
-            if word_key:
-                st.session_state.total_counter[word_key] = st.session_state.total_counter.get(word_key, 0) + 1
-                if st.session_state.answers[idx] != q["correct_text"]:
-                    st.session_state.wrong_counter[word_key] = st.session_state.wrong_counter.get(word_key, 0) + 1
-
-        st.session_state.session_stats_applied_this_attempt = True
-
-# ============================================================
-# ✅ 오답노트 + 다시풀기
-# ============================================================
-if st.session_state.submitted and st.session_state.wrong_list:
-    st.subheader("❌ 오답 노트")
-
-    st.markdown(
-        """
-<style>
-.wrong-card{
-  border: 1px solid rgba(120,120,120,0.25);
-  border-radius: 16px;
-  padding: 14px 14px;
-  margin-bottom: 10px;
-  background: rgba(255,255,255,0.02);
-}
-.wrong-top{
-  display:flex;
-  align-items:flex-start;
-  justify-content:space-between;
-  gap:12px;
-  margin-bottom: 8px;
-}
-.wrong-title{ font-weight: 900; font-size: 15px; margin-bottom: 4px; }
-.wrong-sub{ opacity: 0.8; font-size: 12px; }
-.tag{
-  display:inline-flex;
-  align-items:center;
-  gap:6px;
-  padding: 5px 9px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 700;
-  border: 1px solid rgba(120,120,120,0.25);
-  background: rgba(255,255,255,0.03);
-  white-space: nowrap;
-}
-.ans-row{
-  display:grid;
-  grid-template-columns: 72px 1fr;
-  gap:10px;
-  margin-top:6px;
-  font-size: 13px;
-}
-.ans-k{ opacity: 0.7; font-weight: 700; }
-</style>
-""",
-        unsafe_allow_html=True,
-    )
-
-    def _s(v):
-        return "" if v is None else str(v)
-
-    for w in st.session_state.wrong_list:
-        no = _s(w.get("No"))
-        qtext = _s(w.get("문제"))
-        picked = _s(w.get("내 답"))
-        correct = _s(w.get("정답"))
-        word = _s(w.get("단어"))
-        reading = _s(w.get("읽기"))
-        meaning = _s(w.get("뜻"))
-        mode = quiz_label_map.get(w.get("유형"), w.get("유형", ""))
-
-        st.markdown(
-            f"""
-        <div class="jp">
-          <div class="wrong-card">
-            <div class="wrong-top">
-              <div>
-              <div class="wrong-title">Q{no}. {word}</div>
-              <div class="wrong-sub">{qtext} · 유형: {mode}</div>
-            </div>
-            <div class="tag">오답</div>
-          </div>
-
-          <div class="ans-row"><div class="ans-k">내 답</div><div>{picked}</div></div>
-          <div class="ans-row"><div class="ans-k">정답</div><div><b>{correct}</b></div></div>
-          <div class="ans-row"><div class="ans-k">발음</div><div>{reading}</div></div>
-          <div class="ans-row"><div class="ans-k">뜻</div><div>{meaning}</div></div>
-        </div>
-        """,
-           unsafe_allow_html=True,
-        )
-
-    if st.button("❌ 틀린 문제만 다시 풀기", type="primary", use_container_width=True, key="btn_retry_wrongs_bottom"):
-        clear_question_widget_keys()
-        retry_quiz = build_quiz_from_wrongs(st.session_state.wrong_list, st.session_state.quiz_type)
-        start_quiz_state(retry_quiz, st.session_state.quiz_type, clear_wrongs=True)
-        st.session_state["_scroll_top_once"] = True
-        st.rerun()
-
-# 다음 10문항
-if st.session_state.submitted:
-    if st.button("✅ 다음 10문항 시작하기", type="primary", use_container_width=True, key="btn_next_10"):
         clear_question_widget_keys()
         new_quiz = build_quiz(st.session_state.quiz_type, st.session_state.level)
         start_quiz_state(new_quiz, st.session_state.quiz_type, clear_wrongs=True)
-        st.session_state["_scroll_top_once"] = True
-        st.rerun()
 
-    show_naver_talk = (SHOW_NAVER_TALK == "N") or is_admin()
-    if show_naver_talk:
-        render_naver_talk()
+        st.session_state["_scroll_top_once"] = True
+    
+    def on_pick_qtype(qt: str):
+        qt = str(qt).strip()
+        if qt == st.session_state.quiz_type:
+            return
+        st.session_state.quiz_type = qt
+
+        clear_question_widget_keys()
+        new_quiz = build_quiz(st.session_state.quiz_type, st.session_state.level)
+        start_quiz_state(new_quiz, st.session_state.quiz_type, clear_wrongs=True)
+
+        st.session_state["_scroll_top_once"] = True
+  
+    st.markdown('<div class="qtypewrap">', unsafe_allow_html=True)
+
+    # ----------------------------
+    # 1) 레벨 버튼(N5~N1) 먼저
+    # ----------------------------
+    level_cols = st.columns(len(LEVEL_OPTIONS), gap="small")
+    for i, lv in enumerate(LEVEL_OPTIONS):
+        is_selected_lv = (lv == st.session_state.level)
+        btn_lv_type = "primary" if is_selected_lv else "secondary"
+        icon_lv = "✅ " if is_selected_lv else ""
+        label_lv = LEVEL_LABEL_MAP.get(lv, lv)
+
+        with level_cols[i]:
+            st.button(
+                f"{icon_lv}{label_lv}",
+                use_container_width=True,
+                type=btn_lv_type,
+                key=f"btn_level_{lv}",
+                on_click=on_pick_level,
+                args=(lv,),
+            )
+
+    st.markdown('<div class="qtype_hint jp">✨레벨을 선택하세요</div>', unsafe_allow_html=True)
+
+    # ----------------------------
+    # 2) 유형 버튼(발음/뜻/한→일)
+    # ----------------------------
+    type_cols = st.columns(len(available_types), gap="small")
+    for i, qt in enumerate(available_types):
+        is_selected = (qt == st.session_state.quiz_type)
+        btn_type = "primary" if is_selected else "secondary"
+        icon = "✅ " if is_selected else ""
+        label = quiz_label_map.get(qt, qt)
+
+        with type_cols[i]:
+            st.button(
+                f"{icon}{label}",
+                use_container_width=True,
+                type=btn_type,
+                key=f"btn_qtype_{qt}",
+                on_click=on_pick_qtype,
+                args=(qt,),
+            )
+
+    st.markdown('<div class="qtype_hint jp">✨유형을 선택하세요</div>', unsafe_allow_html=True)
+
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # ✅ divider 간격은 tight-divider 래퍼로
+    st.markdown('<div class="tight-divider">', unsafe_allow_html=True)
+    st.divider()
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    # ============================================================
+    # ✅ 버튼: 새 문제 / 맞힌 단어 제외 초기화
+    # ============================================================
+    cbtn1, cbtn2 = st.columns(2)
+
+    with cbtn1:
+        if st.button("🔄 새 문제(랜덤 10문항)", use_container_width=True, key="btn_new_random_10"):
+            k_now = mastery_key()
+            if st.session_state.get("mastery_done", {}).get(k_now, False):
+                st.session_state["_scroll_top_once"] = True
+                st.rerun()
+
+            clear_question_widget_keys()
+            new_quiz = build_quiz(st.session_state.quiz_type, st.session_state.level)
+            start_quiz_state(new_quiz, st.session_state.quiz_type, clear_wrongs=True)
+            st.session_state["_scroll_top_once"] = True
+            st.rerun()
+
+    with cbtn2:
+        if st.button("✅ 맞힌 단어 제외 초기화", use_container_width=True, key="btn_reset_mastered_current_type"):
+            ensure_mastered_words_shape()
+            k_now = mastery_key()
+            st.session_state.mastered_words[k_now] = set()
+            st.session_state.mastery_banner_shown[k_now] = False
+            st.session_state.mastery_done[k_now] = False
+
+            clear_question_widget_keys()
+            new_quiz = build_quiz(st.session_state.quiz_type, st.session_state.level)
+            start_quiz_state(new_quiz, st.session_state.quiz_type, clear_wrongs=True)
+
+            st.success(f"초기화 완료 (유형: {quiz_label_map[st.session_state.quiz_type]})")
+            st.session_state["_scroll_top_once"] = True
+            st.rerun()
+
+    # 정복 안내
+    k_now = mastery_key()
+    if st.session_state.get("mastery_done", {}).get(k_now, False):
+        st.success("🏆 이 유형을 완전히 정복했어요!")
+        st.caption("👉 다른 유형을 선택하거나, '맞힌 단어 제외 초기화'로 다시 시작할 수 있어요.")
+
+    # ============================================================
+    # ✅ (중요) UI는 먼저 보여주고, 퀴즈가 없으면 여기서만 멈춘다
+    # ============================================================
+    if "quiz" not in st.session_state or not isinstance(st.session_state.quiz, list):
+        st.session_state.quiz = []
+
+    # 아직 퀴즈가 없다면 1회만 생성 시도 (UI는 이미 위에서 다 보여준 상태)
+    k_now = mastery_key()
+    is_mastered_done = bool(st.session_state.get("mastery_done", {}).get(k_now, False))
+
+    if (not is_mastered_done) and len(st.session_state.quiz) == 0:
+        clear_question_widget_keys()
+        st.session_state.quiz = build_quiz(st.session_state.quiz_type, st.session_state.level) or []
+        st.session_state.submitted = False
+
+    # 그래도 0개면: 버튼은 이미 보이는 상태 → 안내만 하고 멈춤
+    if len(st.session_state.quiz) == 0:
+        st.info("이 레벨에 출제할 단어가 없어요. 다른 레벨을 선택하거나, CSV의 level 값을 확인해 주세요.")
+        st.stop()
+
+    # ============================================================
+    # ✅ answers 길이 자동 맞춤
+    # ============================================================
+    if "quiz" not in st.session_state or not isinstance(st.session_state.quiz, list):
+        st.session_state.quiz = []
+
+    if len(st.session_state.quiz) == 0:
+        st.session_state.quiz = build_quiz(st.session_state.quiz_type, st.session_state.level) or []
+
+    quiz_len = len(st.session_state.quiz)
+    if "answers" not in st.session_state or not isinstance(st.session_state.answers, list) or len(st.session_state.answers) != quiz_len:
+        st.session_state.answers = [None] * quiz_len
+
+    # 정복 상태면 문제 영역 차단
+    k_now = mastery_key()
+    if bool(st.session_state.get("mastery_done", {}).get(k_now, False)):
+        st.stop()
+
+    # ============================================================
+    # ✅ 문제 표시 (동그란 배지: ① ② ③ ... + 같은 줄)
+    # ============================================================
+    circled_nums = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳㉑㉒㉓㉔㉕㉖㉗㉘㉙㉚㉛㉜㉝㉞㉟㊱㊲㊳㊴㊵㊶㊷㊸㊹㊺㊻㊼㊽㊾㊿"
+
+    for idx, q in enumerate(st.session_state.quiz):
+        badge = circled_nums[idx] if idx < len(circled_nums) else f"({idx+1})"
+
+        st.markdown(
+            f"""
+    <div class="jp" style="display:flex; align-items:baseline; gap:5px; margin: 10px 0 8px 0;">
+      <div style="
+        flex:0 0 auto;
+        font-size:20px;
+        line-height:1;
+        font-weight:900;   /* ← 이 줄 추가 */
+        /* ✅ 미세 보정 (필요 시 숫자만 조절) */
+        transform: translateY(1px);
+      ">{badge}</div>
+
+      <div style="
+        flex:1 1 auto;
+        font-size:18px;
+        font-weight:500;
+        line-height:1.35;
+      ">{q["prompt"]}</div>
+    </div>
+    """,
+        unsafe_allow_html=True
+    )
+        widget_key = f"q_{st.session_state.quiz_version}_{idx}"
+
+        prev = st.session_state.answers[idx]
+        default_index = None
+        if prev is not None and prev in q["choices"]:
+            default_index = q["choices"].index(prev)
+
+        choice = st.radio(
+            label="보기",
+            options=q["choices"],
+            index=default_index,
+            key=widget_key,
+            label_visibility="collapsed",
+            on_change=mark_progress_dirty,
+        )
+        st.session_state.answers[idx] = choice
+
+    sync_answers_from_widgets()
+
+    # ============================================================
+    # ✅ 제출/채점
+    # ============================================================
+    quiz_len = len(st.session_state.quiz)
+    all_answered = (quiz_len > 0) and all(a is not None for a in st.session_state.answers)
+
+    if st.button("✅ 제출하고 채점하기", disabled=not all_answered, type="primary", use_container_width=True, key="btn_submit"):
+        st.session_state.submitted = True
+        st.session_state.session_stats_applied_this_attempt = False
+
+    if not all_answered:
+        st.info("모든 문제에 답을 선택하면 제출 버튼이 활성화됩니다.")
+
+    # ============================================================
+    # ✅ 제출 후 화면
+    # ============================================================
+    if st.session_state.submitted:
+        show_post_ui = (SHOW_POST_SUBMIT_UI == "Y") or is_admin()
+
+        ensure_mastered_words_shape()
+        ensure_excluded_wrong_words_shape()
+
+        current_type = st.session_state.quiz_type
+        k_now = mastery_key()
+
+        score = 0
+        wrong_list = []
+
+        for idx, q in enumerate(st.session_state.quiz):
+            picked = st.session_state.answers[idx]
+            correct = q["correct_text"]
+            word_key = str(q.get("jp_word", "")).strip()
+
+            if picked == correct:
+                score += 1
+                if word_key:
+                    st.session_state.mastered_words.setdefault(k_now, set()).add(word_key)
+            else:
+                # ✅ 오답노트 채우기
+                wrong_list.append({
+                    "No": idx + 1,
+                    "문제": str(q.get("prompt", "")),
+                    "내 답": "" if picked is None else str(picked),
+                    "정답": str(correct),
+                    "단어": str(q.get("jp_word", "")).strip(),
+                    "읽기": str(q.get("reading", "")).strip(),
+                    "뜻": str(q.get("meaning", "")).strip(),
+                    "유형": current_type,
+                })
+
+        st.session_state.wrong_list = wrong_list
+
+        quiz_len = len(st.session_state.quiz)
+        st.success(f"점수: {score} / {quiz_len}")
+        ratio = score / quiz_len if quiz_len else 0
+
+        # ✅ 점수 기반 SFX (제출 직후 1회)
+        if ratio == 1:
+            sfx("perfect")
+        elif ratio < 1:
+            sfx("wrong")  # (부분오답이 있으면 '삐~' 한 번)
+    
+        if ratio == 1:
+            st.balloons()
+            st.success("🎉 완벽해요! 전부 정답입니다. 정말 잘했어요!")
+            st.caption("※ 정복 판정은 ‘더 이상 출제할 단어가 없을 때’ 자동으로 표시됩니다.")
+        elif ratio >= 0.7:
+            st.info("👍 잘하고 있어요! 조금만 더 다듬으면 완벽해질 거예요.")
+        else:
+            st.warning("💪 괜찮아요! 틀린 문제는 성장의 재료예요. 다시 한 번 도전해봐요.")
+
+        # ✅ DB 저장
+        sb_authed_local = get_authed_sb()
+        if sb_authed_local is None:
+            if show_post_ui:
+                st.warning("DB 저장/조회용 토큰이 없습니다. 다시 로그인해 주세요.")
+        else:
+            if not st.session_state.saved_this_attempt:
+                def _save():
+                    return save_attempt_to_db(
+                        sb_authed=sb_authed_local,
+                        user_id=user_id,
+                        user_email=user_email,
+                        level=st.session_state.level,
+                        quiz_type=current_type,
+                        quiz_len=quiz_len,
+                        score=score,
+                        wrong_list=wrong_list,
+                    )
+                try:
+                    run_db(_save)
+                    st.session_state.saved_this_attempt = True
+                except Exception as e:
+                    if show_post_ui:
+                        st.warning("DB 저장에 실패했습니다. (테이블/컬럼/권한/RLS 정책 확인 필요)")
+                        st.write(str(e))
+
+            if not st.session_state.stats_saved_this_attempt:
+                def _save_stats_bulk():
+                    sync_answers_from_widgets()
+                    items = build_word_results_bulk_payload(
+                        quiz=st.session_state.quiz,
+                        answers=st.session_state.answers,
+                        quiz_type=current_type,
+                        level=st.session_state.level,
+                    )
+                    if not items:
+                        return None
+                    return sb_authed_local.rpc("record_word_results_bulk", {"p_items": items}).execute()
+
+                try:
+                    run_db(_save_stats_bulk)
+                    st.session_state.stats_saved_this_attempt = True
+                    if show_post_ui:
+                        st.success("✅ 단어 통계(bulk) 저장 성공")
+                except Exception as e:
+                    if show_post_ui:
+                        st.error("❌ 단어 통계(bulk) 저장 실패")
+                        st.exception(e)
+
+            if show_post_ui:
+                st.subheader("📌 내 최근 기록")
+                def _fetch_hist():
+                    return fetch_recent_attempts(sb_authed_local, user_id, limit=10)
+
+                try:
+                    res = run_db(_fetch_hist)
+                    if not res.data:
+                        st.info("아직 저장된 기록이 없습니다. 문제를 풀고 제출하면 기록이 쌓여요.")
+                    else:
+                        hist = pd.DataFrame(res.data).copy()
+                        hist["created_at"] = to_kst_naive(hist["created_at"])
+                        hist["유형"] = hist["pos_mode"].map(lambda x: quiz_label_for_table.get(x, x))
+                        hist["정답률"] = (hist["score"] / hist["quiz_len"]).fillna(0.0)
+
+                        avg_rate = float(hist["정답률"].mean() * 100)
+                        best = int(hist["score"].max())
+                        last_score = int(hist.iloc[0]["score"])
+                        last_total = int(hist.iloc[0]["quiz_len"])
+
+                        # ✅ 마이페이지 상단 3카드 (components.html로 강제 렌더링)
+                        dashboard_html = f"""
+                        <style>
+                        .stat-grid{{
+                          display:grid;
+                          grid-template-columns: repeat(3, 1fr);
+                          gap:12px;
+                          margin: 6px 0 6px 0;
+                        }}
+                        .stat-card{{
+                          border:1px solid rgba(120,120,120,0.25);
+                          border-radius:18px;
+                          padding:14px 14px;
+                          background: rgba(255,255,255,0.02);
+                        }}
+                        .stat-label{{
+                          font-size:12px;
+                          font-weight:800;
+                          opacity:.72;
+                          line-height:1.2;
+                        }}
+                        .stat-value{{
+                          margin-top:6px;
+                          font-size:22px;
+                          font-weight:900;
+                          line-height:1.1;
+                        }}
+                        .stat-sub{{
+                          margin-top:6px;
+                          font-size:12px;
+                          opacity:.70;
+                          line-height:1.2;
+                        }}
+                        @media (max-width: 520px){{
+                          .stat-grid{{ grid-template-columns: 1fr; }}
+                          .stat-value{{ font-size:24px; }}
+                        }}
+                        </style>
+
+                        <div class="jp">
+                          <div class="stat-grid">
+                            <div class="stat-card">
+                              <div class="stat-label">최근 평균(최대 50회)</div>
+                              <div class="stat-value">{avg_rate:.0f}%</div>
+                              <div class="stat-sub">정답률 기준</div>
+                            </div>
+
+                            <div class="stat-card">
+                              <div class="stat-label">최고 점수</div>
+                              <div class="stat-value">{best} / {last_total}</div>
+                              <div class="stat-sub">최근 기록 중 최고</div>
+                            </div>
+
+                            <div class="stat-card">
+                              <div class="stat-label">최근 점수</div>
+                              <div class="stat-value">{last_score} / {last_total}</div>
+                              <div class="stat-sub">가장 최근 1회</div>
+                            </div>
+                          </div>
+                        </div>
+                        """
+    
+                        components.html(dashboard_html, height=330)
+
+                except Exception as e:
+                    st.info("기록을 불러오지 못했습니다.")
+                    st.write(str(e))
+
+        # ✅ 세션 통계(로컬 카운터) 적용은 '1번만'
+        if not st.session_state.session_stats_applied_this_attempt:
+            st.session_state.history.append({"type": current_type, "score": score, "total": quiz_len})
+
+            for idx, q in enumerate(st.session_state.quiz):
+                word_key = str(q.get("jp_word", "")).strip()
+                if word_key:
+                    st.session_state.total_counter[word_key] = st.session_state.total_counter.get(word_key, 0) + 1
+                    if st.session_state.answers[idx] != q["correct_text"]:
+                        st.session_state.wrong_counter[word_key] = st.session_state.wrong_counter.get(word_key, 0) + 1
+
+            st.session_state.session_stats_applied_this_attempt = True
+
+    # ============================================================
+    # ✅ 오답노트 + 다시풀기
+    # ============================================================
+    if st.session_state.submitted and st.session_state.wrong_list:
+        st.subheader("❌ 오답 노트")
+
+        st.markdown(
+            """
+    <style>
+    .wrong-card{
+      border: 1px solid rgba(120,120,120,0.25);
+      border-radius: 16px;
+      padding: 14px 14px;
+      margin-bottom: 10px;
+      background: rgba(255,255,255,0.02);
+    }
+    .wrong-top{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:12px;
+      margin-bottom: 8px;
+    }
+    .wrong-title{ font-weight: 900; font-size: 15px; margin-bottom: 4px; }
+    .wrong-sub{ opacity: 0.8; font-size: 12px; }
+    .tag{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      padding: 5px 9px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 700;
+      border: 1px solid rgba(120,120,120,0.25);
+      background: rgba(255,255,255,0.03);
+      white-space: nowrap;
+    }
+    .ans-row{
+      display:grid;
+      grid-template-columns: 72px 1fr;
+      gap:10px;
+      margin-top:6px;
+      font-size: 13px;
+    }
+    .ans-k{ opacity: 0.7; font-weight: 700; }
+    </style>
+    """,
+            unsafe_allow_html=True,
+        )
+
+        def _s(v):
+            return "" if v is None else str(v)
+
+        for w in st.session_state.wrong_list:
+            no = _s(w.get("No"))
+            qtext = _s(w.get("문제"))
+            picked = _s(w.get("내 답"))
+            correct = _s(w.get("정답"))
+            word = _s(w.get("단어"))
+            reading = _s(w.get("읽기"))
+            meaning = _s(w.get("뜻"))
+            mode = quiz_label_map.get(w.get("유형"), w.get("유형", ""))
+
+            st.markdown(
+                f"""
+            <div class="jp">
+              <div class="wrong-card">
+                <div class="wrong-top">
+                  <div>
+                  <div class="wrong-title">Q{no}. {word}</div>
+                  <div class="wrong-sub">{qtext} · 유형: {mode}</div>
+                </div>
+                <div class="tag">오답</div>
+              </div>
+
+              <div class="ans-row"><div class="ans-k">내 답</div><div>{picked}</div></div>
+              <div class="ans-row"><div class="ans-k">정답</div><div><b>{correct}</b></div></div>
+              <div class="ans-row"><div class="ans-k">발음</div><div>{reading}</div></div>
+              <div class="ans-row"><div class="ans-k">뜻</div><div>{meaning}</div></div>
+            </div>
+            """,
+               unsafe_allow_html=True,
+            )
+
+        if st.button("❌ 틀린 문제만 다시 풀기", type="primary", use_container_width=True, key="btn_retry_wrongs_bottom"):
+            clear_question_widget_keys()
+            retry_quiz = build_quiz_from_wrongs(st.session_state.wrong_list, st.session_state.quiz_type)
+            start_quiz_state(retry_quiz, st.session_state.quiz_type, clear_wrongs=True)
+            st.session_state["_scroll_top_once"] = True
+            st.rerun()
+
+    # 다음 10문항
+    if st.session_state.submitted:
+        if st.button("✅ 다음 10문항 시작하기", type="primary", use_container_width=True, key="btn_next_10"):
+            clear_question_widget_keys()
+            new_quiz = build_quiz(st.session_state.quiz_type, st.session_state.level)
+            start_quiz_state(new_quiz, st.session_state.quiz_type, clear_wrongs=True)
+            st.session_state["_scroll_top_once"] = True
+            st.rerun()
+
+        show_naver_talk = (SHOW_NAVER_TALK == "N") or is_admin()
+        if show_naver_talk:
+            render_naver_talk()
+
+
+if __name__ == '__main__':
+    render_kanji_hub(HUB_MODE=False)
