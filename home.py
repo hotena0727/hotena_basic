@@ -2572,6 +2572,19 @@ def render_admin_dashboard(sb_authed):
                 pos_html = _html.escape(pos)
                 quiz_html = _html.escape(quiz)
 
+                # ✅ record label: show "훈련 모드" summary instead of raw codes (noun/meaning etc.)
+                try:
+                    kind = _infer_kind(level, pos_code)
+                except Exception:
+                    kind = "word"
+                MODE_LABELS = {
+                    "word": "발음 · 뜻 · 한→일",
+                    "kanji": "읽기 · 뜻 · 복습",
+                    "talk": "상황 판단 · 정답 선택",
+                }
+                mode_label = MODE_LABELS.get(kind, "발음 · 뜻 · 한→일")
+                mode_html = _html.escape(mode_label)
+
                 html = f"""
 <div class='ha-logcard'>
   <div class='ha-logtop'>
@@ -2581,8 +2594,7 @@ def render_admin_dashboard(sb_authed):
     </div>
     <div class='ha-badges'>
       <span class='ha-badge'>{level_html}</span>
-      <span class='ha-badge'>{pos_html}</span>
-      <span class='ha-badge'>{quiz_html}</span>
+      <span class='ha-badge'>{mode_html}</span>
       <span class='ha-badge ok'>✅ {score}/{quiz_len} · {pct}%</span>
       <span class='ha-badge bad'>❌ {wrong}</span>
     </div>
