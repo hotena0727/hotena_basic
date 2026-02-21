@@ -1,29 +1,24 @@
 from __future__ import annotations
 
 import random
-from datetime import datetime
-from typing import Any, Dict, List, Optional
+from datetime import datetime, timedelta, timezone
+from typing import Any, Dict, List, Optional, Tuple
 
-import pandas as pd
 import streamlit as st
 
 
 # ============================================================
-# ✅ MyPage (Refactor v6 - Polished)
-# - HomeHub style, but less "dev" and more dashboard-like
-# - Tabs: 오답·TOP10 / 학습 기록 / 받은 메시지
-# - Charts: uses Streamlit built-ins (no custom colors)
-# - wrong_notes + quiz_attempts + user_messages
+# ✅ MyPage (Refactor v8 - Hatena Blue Lounge)
+# - "개발자 느낌" 제거: 표/기본차트/엑셀형 UI 지양
+# - 위계: 숫자(KPI) → 흐름(상태) → 행동(CTA) → 상세(카드)
+# - 색: 하테나 블루(강조/액션) + 중립 톤
+# - 기능: wrong_notes(오답 상세) / quiz_attempts(학습 기록) / user_messages(메시지)
 # ============================================================
 
 
+# ---------- Supabase helpers ----------
 def _sb() -> Any:
-    """Return authed Supabase client if available.
-
-    Assumes home.py stores:
-      - st.session_state['sb_authed'] or ['sb']
-      - st.session_state['access_token']
-    """
+    """Return Supabase client with JWT bound for RLS (if available)."""
     sb = st.session_state.get("sb_authed") or st.session_state.get("sb")
     token = st.session_state.get("access_token")
     if sb and token:
@@ -70,147 +65,131 @@ def _user_email(user: Any) -> Optional[str]:
     return None
 
 
-
-def _kind_label(kind: str) -> str:
-    k = (kind or "").strip().lower()
-    if k in ("word", "words", "noun", "vocab"):
-        return "단어"
-    if k in ("kanji", "hanja", "character"):
-        return "한자"
-    if k in ("talk", "speech", "conversation"):
-        return "회화"
-    # already korean?
-    if kind in ("단어","한자","회화"):
-        return kind
-    return (kind or "기타").upper()
+def _safe_select(table: str, cols: str = "*", order_col: str = "created_at", limit: int = 200) -> List[Dict[str, Any]]:
+    sb = _sb()
+    if not sb:
+        return []
+    try:
+        r = sb.table(table).select(cols).order(order_col, desc=True).limit(limit).execute()
+        return getattr(r, "data", None) or []
+    except Exception:
+        return []
 
 
-def _sparkline_svg(values: List[float], width: int = 240, height: int = 48) -> str:
-    vals = [float(v) for v in values if v is not None]
-    if not vals:
-        vals = [0.0]
-    mn, mx = min(vals), max(vals)
-    if mx == mn:
-        mx = mn + 1.0
-    # normalize
-    pts = []
-    for i, v in enumerate(vals):
-        x = i * (width / max(1, (len(vals)-1)))
-        y = height - ((v - mn) / (mx - mn) * height)
-        pts.append((x, y))
-    d = "M " + " L ".join(f"{x:.1f},{y:.1f}" for x, y in pts)
-    return f'<svg viewBox="0 0 {width} {height}" width="{width}" height="{height}" xmlns="http://www.w3.org/2000/svg">' \
-           f'<path d="{d}" fill="none" stroke="currentColor" stroke-width="2" opacity="0.85"/>' \
-           f'</svg>'
+def _safe_update(table: str, values: Dict[str, Any], where_col: str, where_val: Any):
+    sb = _sb()
+    if not sb:
+        return
+    try:
+        sb.table(table).update(values).eq(where_col, where_val).execute()
+    except Exception:
+        pass
 
 
-def _stacked_bar_html(parts: List[Dict[str, Any]]) -> str:
-    # parts: [{"label":..., "count":...}, ...]
-    total = sum(int(p.get("count", 0)) for p in parts) or 1
-    segs = []
-    for p in parts:
-        cnt = int(p.get("count", 0))
-        pct = cnt / total * 100
-        label = str(p.get("label", ""))
-        segs.append(
-            f'<div class="ha-seg" style="width:{pct:.2f}%"><span>{label} {cnt}</span></div>'
-        )
-    return '<div class="ha-stack">' + "".join(segs) + '</div>'
+# ---------- formatting / parsing ----------
+def _fmt_dt(v: Any) -> str:
+    if not v:
+        return ""
+    s = str(v).replace("T", " ")
+    return s[:16]
 
 
+def _parse_dt(v: Any) -> Optional[datetime]:
+    if not v:
+        return None
+    try:
+        s = str(v)
+        # Supabase ISO: 2026-02-21T14:29:00+00:00
+        # datetime.fromisoformat handles offset.
+        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        return dt
+    except Exception:
+        return None
+
+
+def _now_utc() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+# ---------- UI CSS ----------
 def _css():
     st.markdown(
         """
 <style>
-/* ---------- layout ---------- */
-.ha-wrap {max-width: 1040px; margin: 0 auto; padding-bottom: 18px;}
-.ha-head {display:flex; align-items:flex-start; justify-content:space-between; gap:14px; margin: 8px 0 14px;}
-.ha-title {font-size: 22px; font-weight: 900; letter-spacing: -0.2px; margin: 0;}
-.ha-sub {opacity: .72; margin-top: 4px; line-height: 1.35;}
+:root{
+  --ha-blue: #2F6BFF;    /* Hatena Blue (keep bright) */
+  --ha-text: #0f172a;
+  --ha-muted: rgba(15, 23, 42, .60);
+  --ha-line: #e7edf6;
+  --ha-bg: #ffffff;
+  --ha-soft: #f6f8fc;
+}
 
-/* ---------- actions ---------- */
-.ha-actions {display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:flex-end;}
-.ha-pill button {border-radius: 999px !important; padding: .34rem .78rem !important; font-weight: 750 !important;}
-.ha-pill button[kind="secondary"] {opacity: .95;}
+/* container */
+.ha-wrap{max-width: 980px; margin: 0 auto; padding-bottom: 10px;}
+.ha-center{display:flex; flex-direction:column; align-items:center; text-align:center;}
+.ha-title{font-size: 22px; font-weight: 850; color: var(--ha-text); letter-spacing:-0.2px; margin: 4px 0 0;}
+.ha-sub{margin-top:6px; font-size: 13px; color: var(--ha-muted);}
 
-/* ---------- KPI cards ---------- */
-.ha-kpi-grid {display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin: 10px 0 12px;}
-@media (max-width: 820px){ .ha-kpi-grid{grid-template-columns:1fr;} }
-.ha-kpi {background: linear-gradient(180deg, #ffffff 0%, #fbfcff 100%); border: 1px solid #e8edf5; border-radius: 18px; padding: 14px 14px 12px; box-shadow: 0 10px 28px rgba(18,38,63,.06);}
-.ha-kpi .k {font-size: 12px; opacity: .72; font-weight: 700; letter-spacing: -.1px;}
-.ha-kpi .v {font-size: 24px; font-weight: 900; letter-spacing: -.4px; margin-top: 4px;}
-.ha-kpi .s {font-size: 12px; opacity: .70; margin-top: 2px;}
+/* top mini nav */
+.ha-topnav{width:100%; display:flex; gap:10px; justify-content:center; margin: 10px 0 12px;}
+.ha-topnav button{border-radius:999px !important; padding:.40rem .85rem !important;}
 
-/* ---------- cards ---------- */
-.ha-card {background: #fff; border: 1px solid #e8edf5; border-radius: 18px; padding: 16px; box-shadow: 0 10px 28px rgba(18,38,63,.06);}
-.ha-card + .ha-card {margin-top: 12px;}
-.ha-card h4 {margin: 0 0 8px 0; font-size: 16px;}
-.ha-muted {opacity: .7;}
-.ha-divider {height:1px; background:#eef2f7; margin:12px 0;}
+/* KPI row */
+.ha-kpi{width:100%; background: var(--ha-bg); border: 1px solid var(--ha-line); border-radius: 18px; padding: 14px 14px; }
+.ha-kpi-row{display:flex; gap:8px; justify-content:space-between; align-items:stretch; flex-wrap:wrap;}
+.ha-kpi-item{flex:1; min-width: 160px; padding: 10px 10px; border-radius: 14px; background: #fff;}
+.ha-kpi-num{font-size: 40px; font-weight: 900; line-height: 1.0; letter-spacing:-0.8px; color: var(--ha-text);}
+.ha-kpi-num .blue{color: var(--ha-blue);}
+.ha-kpi-lbl{margin-top: 6px; font-size: 12px; color: var(--ha-muted);}
 
-/* list items */
-.ha-item {border: 1px solid #eef2f7; background: #fbfcff; border-radius: 16px; padding: 12px 12px;}
-.ha-item + .ha-item {margin-top: 10px;}
-.ha-item .meta {font-size:12px; opacity:.72; margin-bottom:6px;}
-.ha-item .q {font-weight: 900;}
-.ha-tag {display:inline-block; padding: 3px 10px; border-radius: 999px; background:#f6f8fc; border:1px solid #e8edf5; font-size:12px; margin-right:6px;}
+/* flow */
+.ha-flow{width:100%; margin-top: 12px; border:1px solid var(--ha-line); border-radius: 18px; padding: 14px 14px; background:#fff;}
+.ha-flow-title{font-weight:800; font-size:14px; color: var(--ha-text); margin:0;}
+.ha-flow-sub{font-size:12px; color: var(--ha-muted); margin: 6px 0 0;}
+.ha-bar{width:100%; height: 8px; background: var(--ha-soft); border:1px solid var(--ha-line); border-radius: 999px; overflow:hidden; margin-top:10px;}
+.ha-bar > div{height:100%; background: var(--ha-blue); border-radius: 999px;}
 
-/* charts wrapper */
-.ha-chart {border:1px solid #eef2f7; background:#ffffff; border-radius: 18px; padding: 12px;}
+/* section switch */
+.ha-switch{width:100%; margin-top: 12px;}
+.ha-switch .stRadio div[role="radiogroup"]{justify-content:center;}
+.ha-switch label{font-size: 13px;}
+/* reduce default radio spacing */
+.ha-switch .stRadio div[role="radiogroup"] > label{background: #fff; border: 1px solid var(--ha-line); border-radius: 999px; padding: 6px 12px; margin-right: 8px;}
+.ha-switch .stRadio div[role="radiogroup"] > label:has(input:checked){border-color: rgba(47,107,255,.55); box-shadow: 0 0 0 3px rgba(47,107,255,.12);}
 
-/* Streamlit tweaks: make tabs breathe a bit */
-div[data-testid="stTabs"] button {font-weight: 750;}
+/* card list */
+.ha-card{background:#fff; border: 1px solid var(--ha-line); border-radius: 18px; padding: 14px 14px;}
+.ha-card + .ha-card{margin-top:10px;}
+.ha-card h4{margin:0 0 8px 0; font-size: 15px; font-weight: 850; letter-spacing:-0.1px;}
+.ha-meta{font-size:12px; color: var(--ha-muted);}
+.ha-divider{height:1px; background: var(--ha-line); margin: 10px 0;}
+.ha-pill{display:inline-flex; align-items:center; gap:6px; border: 1px solid var(--ha-line); background: var(--ha-soft); padding: 3px 10px; border-radius: 999px; font-size: 12px; color: var(--ha-muted);}
+.ha-dot{display:inline-block; width:8px; height:8px; border-radius:999px; background: var(--ha-blue);}
 
-/* mini charts */
-.ha-chart {background:#fff; border:1px solid #e8edf5; border-radius:18px; padding:14px; box-shadow: 0 10px 28px rgba(18,38,63,.06);}
-.ha-stack {display:flex; width:100%; height:38px; border-radius:14px; overflow:hidden; border:1px solid #eef2f7; background:#f6f8fc;}
-.ha-seg {display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:800; opacity:.9; border-right:1px solid rgba(255,255,255,.7);}
-.ha-seg span{padding:0 8px; white-space:nowrap;}
-.ha-spark {display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border:1px solid #eef2f7; border-radius:16px; background:#fbfcff;}
-.ha-spark .lbl{font-size:12px; font-weight:800; opacity:.75;}
-.ha-spark .val{font-size:18px; font-weight:900; line-height:1;}
+/* wrong card */
+.ha-wq{font-size: 15px; font-weight: 800; color: var(--ha-text); margin: 6px 0 0;}
+.ha-ans{margin-top: 8px; font-size: 13px; line-height: 1.35;}
+.ha-ans .k{color: var(--ha-muted);}
+.ha-ans .ok{font-weight:800; color: #0f7a44;}
+.ha-ans .bad{font-weight:800; color: #b42318;}
+
+/* segment bar */
+.ha-seg{width:100%; height: 10px; background: var(--ha-soft); border:1px solid var(--ha-line); border-radius: 999px; overflow:hidden;}
+.ha-seg > span{display:block; height:100%; float:left;}
+.ha-seg .w1{background: rgba(47,107,255,.90);}
+.ha-seg .w2{background: rgba(47,107,255,.65);}
+.ha-seg .w3{background: rgba(47,107,255,.40);}
+
 </style>
         """,
         unsafe_allow_html=True,
     )
 
 
-def _nav_back_and_logout():
-    st.markdown('<div class="ha-actions ha-pill">', unsafe_allow_html=True)
-    c1, c2 = st.columns([1,1], vertical_alignment="center")
-    with c1:
-        if st.button("← 홈허브", key="mypage_back_hub", help="학습 허브로 돌아가기"):
-            st.session_state["hub_page"] = "home"
-            st.rerun()
-    with c2:
-        if st.button("로그아웃", key="mypage_logout", help="로그아웃"):
-            for k in ["user", "sb_authed", "access_token", "refresh_token", "hub_page"]:
-                st.session_state.pop(k, None)
-            st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
-
-
-def _safe_select(table: str, cols: str = "*", limit: int = 200) -> List[Dict[str, Any]]:
-    sb = _sb()
-    if not sb:
-        return []
-    try:
-        r = sb.table(table).select(cols).order("created_at", desc=True).limit(limit).execute()
-        return getattr(r, "data", None) or []
-    except Exception:
-        return []
-
-
-def _mark_message_read(msg_id: str):
-    sb = _sb()
-    if not sb:
-        return
-    try:
-        sb.table("user_messages").update({"read_at": datetime.utcnow().isoformat()}).eq("id", msg_id).execute()
-    except Exception:
-        pass
-
-
+# ---------- data ----------
 def _load_wrong_notes(limit: int = 300) -> List[Dict[str, Any]]:
     sb = _sb()
     if not sb:
@@ -222,144 +201,239 @@ def _load_wrong_notes(limit: int = 300) -> List[Dict[str, Any]]:
         return []
 
 
-def _format_dt(v: Any) -> str:
-    if not v:
-        return ""
-    s = str(v)
-    return s.replace("T", " ")[:16]
+def _load_attempts(limit: int = 80) -> Tuple[List[Dict[str, Any]], Optional[str]]:
+    """Load quiz_attempts with flexible columns. Returns (data, err_msg)."""
+    sb = _sb()
+    if not sb:
+        return [], "로그인 후 이용 가능합니다."
 
+    candidates = [
+        "created_at,kind,level,quiz_len,score",
+        "created_at,kind,level,total,correct,score",
+        "created_at,kind,level,correct_count,wrong_count,score",
+        "created_at,kind,level,score",
+        "created_at,kind,level",
+        "created_at,kind",
+        "created_at",
+    ]
+    last_err = None
+    for cols in candidates:
+        try:
+            r = sb.table("quiz_attempts").select(cols).order("created_at", desc=True).limit(limit).execute()
+            data = getattr(r, "data", None) or []
+            return data, None
+        except Exception as e:
+            last_err = e
 
-def _to_date(v: Any) -> Optional[pd.Timestamp]:
-    if not v:
-        return None
+    # last fallback
     try:
-        return pd.to_datetime(v)
+        r = sb.table("quiz_attempts").select("*").order("created_at", desc=True).limit(min(30, limit)).execute()
+        data = getattr(r, "data", None) or []
+        return data, None if data is not None else "학습 기록을 불러올 수 없습니다. (quiz_attempts 테이블/RLS 확인)"
     except Exception:
-        return None
+        return [], "학습 기록을 불러올 수 없습니다. (RLS 또는 테이블 확인)"
 
 
-def _type_label(kind_raw: str) -> str:
+def _type_label(raw: str) -> str:
     m = {"word": "단어", "kanji": "한자", "talk": "회화"}
-    k = (kind_raw or "").strip().lower()
-    return m.get(k, (kind_raw or "").upper() or "기타")
-
-def _kpi_cards(items: List[Dict[str, str]]):
-    # items: [{"k": "라벨", "v": "값", "s": "서브"}]
-    html = ['<div class="ha-kpi-grid">']
-    for it in items[:3]:
-        k = str(it.get("k",""))
-        v = str(it.get("v",""))
-        s = str(it.get("s",""))
-        html.append('<div class="ha-kpi">')
-        html.append(f'<div class="k">{k}</div>')
-        html.append(f'<div class="v">{v}</div>')
-        if s:
-            html.append(f'<div class="s">{s}</div>')
-        html.append('</div>')
-    html.append("</div>")
-    st.markdown("".join(html), unsafe_allow_html=True)
+    return m.get((raw or "").lower(), (raw or "").upper() or "QUIZ")
 
 
-def _wrong_summary(wrongs: List[Dict[str, Any]]):
-    if not wrongs:
-        _kpi_cards([
-            {"k":"오답", "v":"0", "s":""},
-            {"k":"반복오답(3회+)", "v":"0", "s":""},
-            {"k":"최근 7일", "v":"0", "s":""},
-        ])
-        return
+# ---------- KPI / flow ----------
+def _kpi(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, Any]]) -> Dict[str, Any]:
+    now = _now_utc()
+    w7 = 0
+    for w in wrongs:
+        dt = _parse_dt(w.get("created_at"))
+        if dt and (now - dt) <= timedelta(days=7):
+            w7 += 1
 
-    df = pd.DataFrame(wrongs)
-    df["dt"] = df["created_at"].apply(_to_date)
-    total = int(len(df))
+    scores = []
+    for a in attempts:
+        sc = a.get("score")
+        if isinstance(sc, (int, float)):
+            scores.append(float(sc))
+    avg_score = (sum(scores) / len(scores)) if scores else None
 
-    key = (df.get("question", "").astype(str) + "||" + df.get("correct_answer", "").astype(str))
-    rep_counts = key.value_counts()
-    rep3 = int((rep_counts >= 3).sum())
+    # attempts last 7 days
+    a7 = 0
+    a30 = 0
+    for a in attempts:
+        dt = _parse_dt(a.get("created_at"))
+        if not dt:
+            continue
+        if (now - dt) <= timedelta(days=7):
+            a7 += 1
+        if (now - dt) <= timedelta(days=30):
+            a30 += 1
 
-    last7 = 0
-    if df["dt"].notna().any():
-        cutoff = pd.Timestamp.utcnow() - pd.Timedelta(days=7)
-        last7 = int((df["dt"] >= cutoff).sum())
+    # monthly flow target: 30회(일 단위가 아니라 "학습 이벤트" 기준)
+    target = 30
+    pct = 0
+    if target > 0:
+        pct = max(0, min(100, int(round((a30 / target) * 100))))
+    return {
+        "wrong_total": len(wrongs),
+        "wrong_7d": w7,
+        "avg_score": avg_score,
+        "attempt_7d": a7,
+        "attempt_30d": a30,
+        "flow_pct": pct,
+        "flow_target": target,
+    }
 
-    _kpi_cards([
-        {"k":"오답", "v":f"{total:,}", "s":"최근 100개 기준"},
-        {"k":"반복오답(3회+)", "v":f"{rep3:,}", "s":"같은 문제 기준"},
-        {"k":"최근 7일", "v":f"{last7:,}", "s":"최근 7일 누적"},
-    ])
+
+def _segment_counts(wrongs: List[Dict[str, Any]]) -> Dict[str, int]:
+    c = {"단어": 0, "한자": 0, "회화": 0}
+    for w in wrongs:
+        c[_type_label(str(w.get("quiz_type") or ""))] = c.get(_type_label(str(w.get("quiz_type") or "")), 0) + 1
+    # normalize keys to ensure order
+    return {"단어": c.get("단어", 0), "한자": c.get("한자", 0), "회화": c.get("회화", 0)}
 
 
-def _wrong_cards_ui(wrongs: List[Dict[str, Any]]):
+def _segment_bar_html(counts: Dict[str, int]) -> str:
+    total = sum(counts.values()) or 1
+    w = int(round(counts.get("단어", 0) / total * 100))
+    k = int(round(counts.get("한자", 0) / total * 100))
+    t = max(0, 100 - w - k)
+    return f"""
+<div class="ha-seg" title="단어/한자/회화 비율">
+  <span class="w1" style="width:{w}%;"></span>
+  <span class="w2" style="width:{k}%;"></span>
+  <span class="w3" style="width:{t}%;"></span>
+</div>
+"""
+
+
+# ---------- message ----------
+def _mark_message_read(msg_id: str):
+    _safe_update("user_messages", {"read_at": datetime.utcnow().isoformat()}, "id", msg_id)
+
+
+# ---------- components ----------
+def _nav_back_and_logout():
+    c1, c2 = st.columns([1, 1], vertical_alignment="center")
+    with c1:
+        if st.button("← 홈허브", key="mypage_back_hub", use_container_width=True):
+            st.session_state["hub_page"] = "home"
+            st.rerun()
+    with c2:
+        if st.button("로그아웃", key="mypage_logout", use_container_width=True):
+            for k in ["user", "sb_authed", "access_token", "refresh_token", "hub_page"]:
+                st.session_state.pop(k, None)
+            st.rerun()
+
+
+def _card_open(title: str, subtitle: str = ""):
     st.markdown('<div class="ha-card">', unsafe_allow_html=True)
-    st.markdown("<h4>📚 오답 · TOP10</h4>", unsafe_allow_html=True)
+    st.markdown(f"<h4>{title}</h4>", unsafe_allow_html=True)
+    if subtitle:
+        st.markdown(f'<div class="ha-meta">{subtitle}</div>', unsafe_allow_html=True)
 
+
+def _card_close():
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+# ---------- sections ----------
+def _section_wrongs(wrongs: List[Dict[str, Any]]):
     if not wrongs:
-        st.info("아직 저장된 오답 상세가 없습니다. (틀린 문제는 자동으로 오답카드에 쌓입니다.)")
-        st.markdown("</div>", unsafe_allow_html=True)
+        _card_open("📚 오답", "아직 저장된 오답 상세가 없습니다.")
+        st.info("틀린 문제는 자동으로 오답카드에 쌓입니다.")
+        _card_close()
         return
 
-    # KPIs
-    _wrong_summary(wrongs)
+    counts = _segment_counts(wrongs)
+    _card_open("📚 오답", "한눈에 보기 (단어/한자/회화)")
+    st.markdown(_segment_bar_html(counts), unsafe_allow_html=True)
+    st.markdown(
+        f'<div style="margin-top:10px; display:flex; justify-content:center; gap:10px; flex-wrap:wrap;">'
+        f'<span class="ha-pill"><span class="ha-dot"></span> 단어 {counts.get("단어",0)}</span>'
+        f'<span class="ha-pill"><span class="ha-dot" style="opacity:.65;"></span> 한자 {counts.get("한자",0)}</span>'
+        f'<span class="ha-pill"><span class="ha-dot" style="opacity:.40;"></span> 회화 {counts.get("회화",0)}</span>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+    _card_close()
 
-    # prepare df
-    df = pd.DataFrame(wrongs).copy()
-    df["when"] = df["created_at"].apply(_format_dt)
-    df["kind"] = df.get("quiz_type", "").astype(str).apply(_type_label)
-    df["key"] = df.get("question", "").astype(str) + "||" + df.get("correct_answer", "").astype(str)
-    rep_counts = df["key"].value_counts()
-    df["rep"] = df["key"].map(rep_counts).fillna(1).astype(int)
+    # 추천 복습(반복 오답)
+    key_counts: Dict[str, int] = {}
+    by_key: Dict[str, Dict[str, Any]] = {}
+    for w in wrongs:
+        q = str(w.get("question") or "")
+        ca = str(w.get("correct_answer") or "")
+        qt = str(w.get("quiz_type") or "")
+        k = f"{qt}||{q}||{ca}"
+        key_counts[k] = key_counts.get(k, 0) + 1
+        if k not in by_key:
+            by_key[k] = w
+    repeats = sorted(key_counts.items(), key=lambda x: (-x[1], x[0]))[:4]
 
-    st.markdown('<div class="ha-divider"></div>', unsafe_allow_html=True)
+    _card_open("🔥 오늘 복습 추천", "반복해서 틀린 문제부터 정리해요.")
+    if repeats and repeats[0][1] >= 2:
+        for k, cnt in repeats:
+            w = by_key.get(k, {})
+            q = str(w.get("question") or "")
+            ca = str(w.get("correct_answer") or "")
+            ua = str(w.get("user_answer") or "")
+            qt = _type_label(str(w.get("quiz_type") or ""))
+            lv = str(w.get("level") or "")
+            when = _fmt_dt(w.get("created_at"))
+            meta = " · ".join([p for p in [qt, lv, f"{cnt}회", when] if p])
+            st.markdown('<div class="ha-card" style="border-radius:16px; box-shadow:none;">', unsafe_allow_html=True)
+            st.markdown(f'<div class="ha-meta">{meta}</div>', unsafe_allow_html=True)
+            st.markdown(f'<div class="ha-wq">{q}</div>', unsafe_allow_html=True)
+            st.markdown(
+                f"""
+<div class="ha-ans">
+  <div><span class="k">정답</span> <span class="ok">{ca}</span></div>
+  <div><span class="k">내 답</span> <span class="bad">{ua}</span></div>
+</div>
+""",
+                unsafe_allow_html=True,
+            )
+            st.markdown("</div>", unsafe_allow_html=True)
+    else:
+        st.caption("아직 반복 오답이 쌓이지 않았어요. 최근 오답을 먼저 정리해볼까요?")
+    _card_close()
 
-    # Charts + lists
-    left, right = st.columns([1, 1], vertical_alignment="top")
-    with left:
-        st.markdown('<div class="ha-chart">', unsafe_allow_html=True)
-        st.caption("오답 유형 분포")
-        kind_counts = df["kind"].map(_kind_label).value_counts().rename_axis("kind").reset_index(name="count")
-        parts = [{"label": r["kind"], "count": int(r["count"])} for _, r in kind_counts.iterrows()]
-        st.markdown(_stacked_bar_html(parts), unsafe_allow_html=True)
-        st.caption("최근 14일 오답 추이")
-        ddf = df.copy()
-        ddf["day"] = ddf["created_at"].apply(_to_date).dt.date
-        daily = ddf.groupby("day").size().reset_index(name="count").tail(14)
-        if not daily.empty:
-            vals = daily["count"].tolist()
-            svg = _sparkline_svg(vals)
-            st.markdown(f'<div class="ha-spark"><div><div class="lbl">최근 14일</div><div class="val">{int(vals[-1])}</div></div>{svg}</div>', unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
+    # 최근 오답 카드 (compact)
+    _card_open("🗂 최근 오답", "최근 10개")
+    for w in wrongs[:10]:
+        q = str(w.get("question") or "")
+        ca = str(w.get("correct_answer") or "")
+        ua = str(w.get("user_answer") or "")
+        qt = _type_label(str(w.get("quiz_type") or ""))
+        lv = str(w.get("level") or "")
+        when = _fmt_dt(w.get("created_at"))
+        meta = " · ".join([p for p in [qt, lv, when] if p])
 
-    with right:
-        # Repeated wrongs
-        rep = df[df["rep"] >= 3].sort_values(["rep", "created_at"], ascending=[False, False]).head(12)
-        if not rep.empty:
-            st.caption("🔥 반복오답(3회+) TOP")
-            for _, w in rep.iterrows():
-                meta = " · ".join([p for p in [str(w.get("kind","")), str(w.get("level") or ""), str(w.get("when",""))] if p])
-                st.markdown('<div class="ha-item">', unsafe_allow_html=True)
-                st.markdown(f'<div class="meta">{meta} · <span class="ha-tag">반복 {int(w.get("rep"))}회</span></div>', unsafe_allow_html=True)
-                st.write(f"**{str(w.get('question') or '')}**")
-                st.write(f"정답: **{w.get('correct_answer','')}**")
-                st.write(f"내 답: **{w.get('user_answer','')}**")
-                st.markdown("</div>", unsafe_allow_html=True)
-        else:
-            st.caption("반복오답(3회+)이 아직 없습니다. 👍")
-
-    st.markdown('<div class="ha-divider"></div>', unsafe_allow_html=True)
-    st.caption("최근 오답")
-    for _, w in df.sort_values("created_at", ascending=False).head(20).iterrows():
-        meta = " · ".join([p for p in [str(w.get("kind","")), str(w.get("level") or ""), str(w.get("when",""))] if p])
-        st.markdown('<div class="ha-item">', unsafe_allow_html=True)
-        st.markdown(f'<div class="meta">{meta}</div>', unsafe_allow_html=True)
-        st.write(f"**{str(w.get('question') or '')}**")
-        c1, c2 = st.columns(2)
-        with c1:
-            st.write(f"정답: **{w.get('correct_answer','')}**")
-        with c2:
-            st.write(f"내 답: **{w.get('user_answer','')}**")
+        st.markdown('<div class="ha-card" style="border-radius:16px; box-shadow:none; padding:12px;">', unsafe_allow_html=True)
+        st.markdown(f'<div class="ha-meta">{meta}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="ha-wq">{q}</div>', unsafe_allow_html=True)
+        st.markdown(
+            f"""
+<div class="ha-ans">
+  <div><span class="k">정답</span> <span class="ok">{ca}</span></div>
+  <div><span class="k">내 답</span> <span class="bad">{ua}</span></div>
+</div>
+""",
+            unsafe_allow_html=True,
+        )
         st.markdown("</div>", unsafe_allow_html=True)
 
-    st.markdown("</div>", unsafe_allow_html=True)
+    with st.expander("전체 오답 (최근 30개)"):
+        for w in wrongs[:30]:
+            qt = _type_label(str(w.get("quiz_type") or ""))
+            lv = str(w.get("level") or "")
+            when = _fmt_dt(w.get("created_at"))
+            q = str(w.get("question") or "")
+            ca = str(w.get("correct_answer") or "")
+            ua = str(w.get("user_answer") or "")
+            st.markdown(f"- {when} · {qt} {('· '+lv) if lv else ''} · **{q}** / 정답 {ca} / 내답 {ua}")
+    _card_close()
+
+    _top10_block(wrongs)
 
 
 def _build_mcq_choices(correct: str, pool: List[str], k: int = 4) -> List[str]:
@@ -373,52 +447,58 @@ def _build_mcq_choices(correct: str, pool: List[str], k: int = 4) -> List[str]:
     return choices
 
 
-def _top10_quiz_ui(wrongs: List[Dict[str, Any]]):
-    st.markdown('<div class="ha-card">', unsafe_allow_html=True)
-    st.markdown("<h4>🧪 TOP10 재시험</h4>", unsafe_allow_html=True)
-
+def _top10_block(wrongs: List[Dict[str, Any]]):
+    _card_open("🧪 TOP10 재시험", "오답카드 기반으로 10문항을 다시 풀어봅니다.")
     if not wrongs:
         st.info("오답 상세 데이터가 없어서 TOP10 재시험을 시작할 수 없습니다.")
-        st.markdown("</div>", unsafe_allow_html=True)
+        _card_close()
         return
 
+    # CTA row
+    c1, c2 = st.columns([1.2, 1])
+    with c1:
+        start = st.button("TOP10 재시험 시작", type="primary", use_container_width=True, key="top10_start_btn")
+    with c2:
+        mode = st.selectbox("방식", ["4지선다", "단답"], index=0, key="top10_mode_sel")
+
+    if start:
+        st.session_state["top10_running"] = True
+        st.session_state["top10_mode"] = mode
+        st.session_state["top10_items"] = wrongs[:10]
+        st.session_state["top10_answers"] = {}
+        st.session_state["top10_submitted"] = False
+        st.rerun()
+
     if st.session_state.get("top10_running") is not True:
-        c1, c2 = st.columns([1, 1])
-        with c1:
-            start = st.button("TOP10 재시험 시작", type="primary", use_container_width=True, key="top10_start_btn")
-        with c2:
-            mode = st.selectbox("문항 방식", ["4지선다", "단답"], index=0, key="top10_mode_sel")
-        if start:
-            st.session_state["top10_running"] = True
-            st.session_state["top10_mode"] = mode
-            st.session_state["top10_items"] = wrongs[:10]
-            st.session_state["top10_answers"] = {}
-            st.session_state["top10_submitted"] = False
-            st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
+        st.caption("원할 때만 시작하세요. 시험은 마이페이지 안에서 진행됩니다.")
+        _card_close()
         return
 
     items: List[Dict[str, Any]] = st.session_state.get("top10_items", wrongs[:10])
     mode = st.session_state.get("top10_mode", "4지선다")
     answers: Dict[str, Any] = st.session_state.get("top10_answers", {})
-    all_correct_answers = [str(w.get("correct_answer") or "") for w in wrongs[:300] if w.get("correct_answer")]
+    pool = [str(w.get("correct_answer") or "") for w in wrongs[:200] if w.get("correct_answer")]
 
-    st.caption("오답카드에 저장된 정답을 기준으로 다시 풀어봅니다.")
     st.markdown('<div class="ha-divider"></div>', unsafe_allow_html=True)
-
     for i, w in enumerate(items, start=1):
         qid = str(w.get("id") or f"q{i}")
         q = str(w.get("question") or "")
         ca = str(w.get("correct_answer") or "")
-
         st.markdown(f"**{i}. {q}**")
+
         if mode == "단답":
-            answers[qid] = st.text_input("정답 입력", value=str(answers.get(qid, "")), key=f"top10_in_{qid}")
+            answers[qid] = st.text_input("정답", value=str(answers.get(qid, "")), key=f"top10_in_{qid}")
         else:
-            choices = _build_mcq_choices(ca, all_correct_answers, k=4)
+            choices = _build_mcq_choices(ca, pool, k=4)
             default = choices.index(answers.get(qid)) if answers.get(qid) in choices else 0
             answers[qid] = st.radio("보기", choices, index=default, key=f"top10_mc_{qid}")
 
+        if st.session_state.get("top10_submitted"):
+            ua = str(answers.get(qid, "")).strip()
+            if ua == ca:
+                st.success("정답")
+            else:
+                st.error(f"정답: {ca}")
         st.markdown('<div class="ha-divider"></div>', unsafe_allow_html=True)
 
     st.session_state["top10_answers"] = answers
@@ -427,6 +507,7 @@ def _top10_quiz_ui(wrongs: List[Dict[str, Any]]):
     with c1:
         if st.button("제출", type="primary", use_container_width=True, key="top10_submit_btn"):
             st.session_state["top10_submitted"] = True
+            st.rerun()
     with c2:
         if st.button("시험 재시작", use_container_width=True, key="top10_restart_btn"):
             st.session_state["top10_running"] = False
@@ -445,226 +526,128 @@ def _top10_quiz_ui(wrongs: List[Dict[str, Any]]):
                 correct += 1
         st.success(f"점수: {correct} / {len(items)}")
 
-    st.markdown("</div>", unsafe_allow_html=True)
+    _card_close()
 
 
-def _records_ui():
-    sb = _sb()
-    st.markdown('<div class="ha-card">', unsafe_allow_html=True)
-    st.markdown("<h4>📊 학습 기록</h4>", unsafe_allow_html=True)
-
-    if not sb:
-        st.info("로그인 후 이용 가능합니다.")
-        st.markdown("</div>", unsafe_allow_html=True)
+def _section_records(attempts: List[Dict[str, Any]], err: Optional[str]):
+    if err:
+        _card_open("📈 학습 기록", err)
+        st.info(err)
+        _card_close()
+        return
+    if not attempts:
+        _card_open("📈 학습 기록", "기록이 아직 없습니다.")
+        st.info("학습을 진행하면 여기에 기록이 쌓입니다.")
+        _card_close()
         return
 
-    candidates = [
-        "created_at,kind,level,quiz_len,score",
-        "created_at,kind,level,total,correct,score",
-        "created_at,kind,level,correct_count,wrong_count,score",
-        "created_at,kind,level,score",
-        "created_at,kind,level",
-        "created_at,kind",
-        "created_at",
-    ]
+    # Summary pills
+    scores = [float(a["score"]) for a in attempts if isinstance(a.get("score"), (int, float))]
+    avg = (sum(scores) / len(scores)) if scores else None
+    total = len(attempts)
 
-    data: List[Dict[str, Any]] = []
-    for cols in candidates:
-        try:
-            r = sb.table("quiz_attempts").select(cols).order("created_at", desc=True).limit(200).execute()
-            data = getattr(r, "data", None) or []
-            if data:
-                break
-        except Exception:
-            continue
-
-    if not data:
-        try:
-            r = sb.table("quiz_attempts").select("*").order("created_at", desc=True).limit(200).execute()
-            data = getattr(r, "data", None) or []
-        except Exception:
-            st.info("학습 기록을 불러올 수 없습니다. (quiz_attempts 테이블/RLS 확인)")
-            st.markdown("</div>", unsafe_allow_html=True)
-            return
-
-    if not data:
-        st.info("기록이 아직 없습니다.")
-        st.markdown("</div>", unsafe_allow_html=True)
-        return
-
-    df = pd.DataFrame(data)
-    df["dt"] = df["created_at"].apply(_to_date) if "created_at" in df.columns else None
-    df["kind_label"] = df["kind"].astype(str).apply(_type_label) if "kind" in df.columns else "기타"
-
-    total = int(len(df))
-    scores = pd.to_numeric(df.get("score"), errors="coerce") if "score" in df.columns else pd.Series([], dtype=float)
-    avg = float(scores.dropna().mean()) if len(scores.dropna()) else None
-
-    last7 = 0
-    if df["dt"].notna().any():
-        cutoff = pd.Timestamp.utcnow() - pd.Timedelta(days=7)
-        last7 = int((df["dt"] >= cutoff).sum())
-
-    _kpi_cards([
-        {"k":"시도", "v":f"{total:,}", "s":"최근 200건 기준"},
-        {"k":"평균 점수", "v":"-" if avg is None else f"{avg:.1f}", "s":"점수 컬럼 기준"},
-        {"k":"최근 7일", "v":f"{last7:,}", "s":"최근 7일 누적"},
-    ])
-
+    _card_open("📈 학습 기록", "최근 기록 요약")
+    pill_parts = [f"최근 {min(50,total)}건"]
+    if avg is not None:
+        pill_parts.append(f"평균 {avg:.1f}점")
+    st.markdown('<div style="display:flex; justify-content:center; gap:10px; flex-wrap:wrap; margin-top:6px;">' +
+                "".join([f'<span class="ha-pill">{p}</span>' for p in pill_parts]) +
+                "</div>", unsafe_allow_html=True)
     st.markdown('<div class="ha-divider"></div>', unsafe_allow_html=True)
 
-    left, right = st.columns([1,1], vertical_alignment="top")
-    with left:
-        st.markdown('<div class="ha-chart">', unsafe_allow_html=True)
-        st.caption("점수 추이(최근 30회)")
-        if "dt" in df.columns and df["dt"].notna().any() and "score" in df.columns:
-            tmp = df[["dt", "score"]].copy()
-            tmp["score"] = pd.to_numeric(tmp["score"], errors="coerce")
-            tmp = tmp.dropna(subset=["dt", "score"]).sort_values("dt").tail(30)
-            if len(tmp) >= 2:
-                vals = tmp["score"].tolist()
-                svg = _sparkline_svg(vals)
-                st.markdown(f'<div class="ha-spark"><div><div class="lbl">최근 30회 점수</div><div class="val">{int(vals[-1])}</div></div>{svg}</div>', unsafe_allow_html=True)
-            else:
-                st.caption("점수 데이터가 더 쌓이면 그래프가 표시됩니다.")
-        else:
-            st.caption("점수/날짜 컬럼이 없어 그래프를 표시할 수 없습니다.")
-        st.markdown('</div>', unsafe_allow_html=True)
+    # Compact card list (no table)
+    for a in attempts[:12]:
+        when = _fmt_dt(a.get("created_at"))
+        kind = _type_label(str(a.get("kind") or ""))
+        level = str(a.get("level") or "")
+        quiz_len = a.get("quiz_len") or a.get("total") or a.get("question_count") or ""
+        score = a.get("score")
+        meta = " · ".join([p for p in [when, kind, level] if p])
+        right = " · ".join([p for p in [f"{quiz_len}문" if quiz_len else "", f"{score}점" if score not in (None, "") else ""] if p])
 
-    with right:
-        st.markdown('<div class="ha-chart">', unsafe_allow_html=True)
-        st.caption("유형별 시도")
-        kind_counts = df["kind_label"].value_counts().rename_axis("kind").reset_index(name="count")
-        parts = [{"label": _kind_label(k), "count": int(kind_counts.loc[k, "count"])} for k in kind_counts.index]
-        st.markdown(_stacked_bar_html(parts), unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    st.markdown('<div class="ha-divider"></div>', unsafe_allow_html=True)
-
-    st.caption("최근 기록")
-    for d in df.sort_values("created_at", ascending=False).head(12).to_dict("records"):
-        when = _format_dt(d.get("created_at"))
-        kind = _type_label(str(d.get("kind") or ""))
-        level = str(d.get("level") or "")
-        quiz_len = d.get("quiz_len") or d.get("total") or d.get("question_count") or d.get("n_questions") or ""
-        score = d.get("score")
-
-        tags = []
-        if kind: tags.append(kind)
-        if level: tags.append(level)
-        if quiz_len: tags.append(f"{quiz_len}문")
-        if score not in (None, ""): tags.append(f"{score}점")
-
-        st.markdown('<div class="ha-item">', unsafe_allow_html=True)
-        st.markdown(f'<div class="meta">{when}</div>', unsafe_allow_html=True)
-        st.write(" · ".join([t for t in tags if t]))
+        st.markdown('<div class="ha-card" style="border-radius:16px; box-shadow:none; padding:12px;">', unsafe_allow_html=True)
+        st.markdown(f'<div class="ha-meta">{meta}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="margin-top:6px; font-size:15px; font-weight:850; color:var(--ha-text);">{right or "기록"}</div>', unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
-    st.markdown("</div>", unsafe_allow_html=True)
+    with st.expander("최근 50건 더 보기"):
+        for a in attempts[:50]:
+            when = _fmt_dt(a.get("created_at"))
+            kind = _type_label(str(a.get("kind") or ""))
+            level = str(a.get("level") or "")
+            quiz_len = a.get("quiz_len") or a.get("total") or a.get("question_count") or ""
+            score = a.get("score")
+            parts = [p for p in [when, kind, level] if p]
+            if quiz_len:
+                parts.append(f"{quiz_len}문")
+            if score not in (None, ""):
+                parts.append(f"{score}점")
+            st.markdown("- " + " · ".join(parts))
+
+    _card_close()
 
 
-def _messages_ui():
-    sb = _sb()
-    uid = _user_id()
-
-    st.markdown('<div class="ha-card">', unsafe_allow_html=True)
-    st.markdown("<h4>📩 받은 메시지</h4>", unsafe_allow_html=True)
-
-    if not sb or not uid:
-        st.info("로그인 후 이용 가능합니다.")
-        st.markdown("</div>", unsafe_allow_html=True)
-        return
-
-    try:
-        r = sb.table("user_messages").select("*").order("created_at", desc=True).limit(200).execute()
-        msgs = getattr(r, "data", None) or []
-    except Exception:
-        st.info("메시지함을 불러올 수 없습니다. (user_messages 테이블/RLS 확인)")
-        st.markdown("</div>", unsafe_allow_html=True)
-        return
-
+def _section_messages():
+    msgs = _safe_select("user_messages", cols="id,title,body,created_at,read_at", limit=120)
     if not msgs:
-        st.info("받은 메시지가 없습니다.")
-        st.markdown("</div>", unsafe_allow_html=True)
+        _card_open("📩 받은 메시지", "받은 메시지가 없습니다.")
+        st.info("관리자 메시지가 도착하면 여기에 표시됩니다.")
+        _card_close()
         return
 
-    df = pd.DataFrame(msgs)
-    df["dt"] = df["created_at"].apply(_to_date)
-    unread = int(df["read_at"].isna().sum()) if "read_at" in df.columns else 0
-
-    last7 = 0
-    if df["dt"].notna().any():
-        cutoff = pd.Timestamp.utcnow() - pd.Timedelta(days=7)
-        last7 = int((df["dt"] >= cutoff).sum())
-
-    _kpi_cards([
-        {"k":"전체", "v":f"{len(df):,}", "s":"최근 200건 기준"},
-        {"k":"읽지 않음", "v":f"{unread:,}", "s":"안 읽은 메시지"},
-        {"k":"최근 7일", "v":f"{last7:,}", "s":"최근 7일 누적"},
-    ])
-
+    unread = [m for m in msgs if not m.get("read_at")]
+    _card_open("📩 받은 메시지", "중요 공지와 안내를 확인하세요.")
+    st.markdown(
+        f'<div style="display:flex; justify-content:center; gap:10px; flex-wrap:wrap; margin-top:6px;">'
+        f'<span class="ha-pill">전체 {len(msgs)}</span>'
+        f'<span class="ha-pill"><span class="ha-dot"></span> 읽지 않음 {len(unread)}</span>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
     st.markdown('<div class="ha-divider"></div>', unsafe_allow_html=True)
 
-    left, right = st.columns([1,1], vertical_alignment="top")
-    with left:
-        st.markdown('<div class="ha-chart">', unsafe_allow_html=True)
-        st.caption("최근 14일 메시지 수")
-        ddf = df.copy()
-        ddf["day"] = ddf["dt"].dt.date
-        daily = ddf.groupby("day").size().reset_index(name="count").tail(14)
-        if not daily.empty:
-            vals = daily["count"].tolist()
-            svg = _sparkline_svg(vals)
-            st.markdown(f'<div class="ha-spark"><div><div class="lbl">최근 14일</div><div class="val">{int(vals[-1])}</div></div>{svg}</div>', unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
+    show_unread_only = st.toggle("읽지 않은 메시지만 보기", value=False, key="msg_unread_only")
+    show = unread if show_unread_only else msgs
 
-    with right:
-        st.markdown('<div class="ha-chart">', unsafe_allow_html=True)
-        st.caption("읽지 않은 메시지만 보기")
-        only_unread = st.toggle("읽지 않은 메시지만", value=False, key="mypage_msg_only_unread")
-        st.markdown('</div>', unsafe_allow_html=True)
+    for m in show[:25]:
+        mid = m.get("id")
+        title = m.get("title") or "메시지"
+        body = m.get("body") or ""
+        when = _fmt_dt(m.get("created_at"))
+        is_unread = not m.get("read_at")
 
-    st.markdown('<div class="ha-divider"></div>', unsafe_allow_html=True)
-
-    show = df
-    if only_unread and "read_at" in show.columns:
-        show = show[show["read_at"].isna()]
-
-    for m in show.sort_values("created_at", ascending=False).head(20).to_dict("records"):
-        title = str(m.get("title") or "메시지")
-        body = str(m.get("body") or "")
-        when = _format_dt(m.get("created_at"))
-        is_unread = (m.get("read_at") in (None, ""))
-
-        st.markdown('<div class="ha-item">', unsafe_allow_html=True)
-        badge = '· <span class="ha-tag">읽지 않음</span>' if is_unread else ""
-        st.markdown(f'<div class="meta">{when} {badge}</div>', unsafe_allow_html=True)
-        st.write(f"**{title}**")
-        st.write(body)
-        if is_unread:
-            if st.button("읽음 처리", key=f"msg_read_{m.get('id')}"):
-                _mark_message_read(str(m.get("id")))
+        st.markdown('<div class="ha-card" style="border-radius:16px; box-shadow:none; padding:12px;">', unsafe_allow_html=True)
+        head = f'<span class="ha-dot"></span> ' if is_unread else ''
+        st.markdown(f'<div style="display:flex; justify-content:space-between; gap:10px; align-items:center;">'
+                    f'<div style="text-align:left;">{head}<span style="font-weight:850; color:var(--ha-text);">{title}</span>'
+                    f'<div class="ha-meta" style="margin-top:2px;">{when}</div></div>'
+                    f'</div>', unsafe_allow_html=True)
+        st.markdown(f'<div style="margin-top:10px; text-align:left; color:var(--ha-text); opacity:.92; white-space:pre-wrap;">{body}</div>',
+                    unsafe_allow_html=True)
+        if is_unread and mid:
+            if st.button("읽음 처리", key=f"msg_read_{mid}"):
+                _mark_message_read(mid)
                 st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
 
-    st.markdown("</div>", unsafe_allow_html=True)
+    _card_close()
 
 
+# ---------- main ----------
 def render():
     _css()
     user = _user()
+    uid = _user_id(user)
     email = _user_email(user)
 
     st.markdown('<div class="ha-wrap">', unsafe_allow_html=True)
 
-    # Header
+    # Header center
     st.markdown(
         f"""
-<div class="ha-head">
-  <div>
-    <div class="ha-title">🧾 복습 · 기록 관리</div>
-    <div class="ha-sub">{email or ""}</div>
-  </div>
+<div class="ha-center">
+  <div class="ha-title">복습 · 기록</div>
+  <div class="ha-sub">{email or ""}</div>
 </div>
         """,
         unsafe_allow_html=True,
@@ -672,19 +655,85 @@ def render():
 
     _nav_back_and_logout()
 
-    st.markdown('<div style="height:10px;"></div>', unsafe_allow_html=True)
+    # Load data once
+    wrongs = _load_wrong_notes(limit=350)
+    attempts, attempts_err = _load_attempts(limit=80)
 
-    tab1, tab2, tab3 = st.tabs(["오답 · TOP10", "학습 기록", "받은 메시지"])
+    k = _kpi(wrongs, attempts if not attempts_err else [])
 
-    with tab1:
-        wrongs = _load_wrong_notes(limit=500)
-        _wrong_cards_ui(wrongs)
-        _top10_quiz_ui(wrongs)
+    # KPI block (A)
+    st.markdown('<div class="ha-kpi">', unsafe_allow_html=True)
+    st.markdown('<div class="ha-kpi-row">', unsafe_allow_html=True)
 
-    with tab2:
-        _records_ui()
+    avg_txt = f"{k['avg_score']:.0f}" if isinstance(k.get("avg_score"), (int, float)) else "—"
+    # KPI 1: wrong total
+    st.markdown(
+        f"""
+<div class="ha-kpi-item">
+  <div class="ha-kpi-num"><span class="blue">{k['wrong_total']}</span></div>
+  <div class="ha-kpi-lbl">오답</div>
+</div>
+        """,
+        unsafe_allow_html=True,
+    )
+    # KPI 2: average score
+    st.markdown(
+        f"""
+<div class="ha-kpi-item">
+  <div class="ha-kpi-num">{avg_txt}<span style="font-size:18px; font-weight:800; margin-left:4px; color:var(--ha-muted);">점</span></div>
+  <div class="ha-kpi-lbl">평균 점수</div>
+</div>
+        """,
+        unsafe_allow_html=True,
+    )
+    # KPI 3: last 7 days activity
+    st.markdown(
+        f"""
+<div class="ha-kpi-item">
+  <div class="ha-kpi-num"><span class="blue">{k['attempt_7d']}</span></div>
+  <div class="ha-kpi-lbl">최근 7일 학습</div>
+</div>
+        """,
+        unsafe_allow_html=True,
+    )
 
-    with tab3:
-        _messages_ui()
+    st.markdown("</div></div>", unsafe_allow_html=True)
+
+    # Flow block (B)
+    st.markdown(
+        f"""
+<div class="ha-flow ha-center">
+  <div style="width:100%;">
+    <div class="ha-flow-title">이번 달 학습 흐름</div>
+    <div class="ha-flow-sub">최근 30일 학습 {k['attempt_30d']}회 · 목표 {k['flow_target']}회</div>
+    <div class="ha-bar"><div style="width:{k['flow_pct']}%;"></div></div>
+    <div class="ha-flow-sub" style="margin-top:8px;">{k['flow_pct']}% 진행 중</div>
+  </div>
+</div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    # Actions (C) - keep minimal, no routing. Focus switch via section.
+    st.markdown('<div style="height:6px;"></div>', unsafe_allow_html=True)
+
+    st.markdown('<div class="ha-switch">', unsafe_allow_html=True)
+    section = st.radio(
+        "",
+        ["오답", "학습 기록", "받은 메시지"],
+        horizontal=True,
+        key="mypage_section",
+        label_visibility="collapsed",
+    )
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown('<div style="height:6px;"></div>', unsafe_allow_html=True)
+
+    if section == "오답":
+        _section_wrongs(wrongs)
+    elif section == "학습 기록":
+        _section_records(attempts, attempts_err)
+    else:
+        _section_messages()
 
     st.markdown("</div>", unsafe_allow_html=True)
