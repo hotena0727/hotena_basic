@@ -49,6 +49,8 @@ import html
 # ============================================================
 # ✅ Page Config + Paths
 # ============================================================
+st.session_state.pop("plan_cached", None)
+
 if not st.session_state.get('_page_config_set'):
     st.set_page_config(
     page_title="왕초보탈출 하테나일본어",
