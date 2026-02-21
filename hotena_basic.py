@@ -55,6 +55,26 @@ if not st.session_state.get('_page_config_set'):
     page_icon="static/icon-192.png",   # 또는 "🟦"
     layout="centered",
 )
+
+# ============================================================
+# ✅ HIDE STREAMLIT DEFAULT HEADER/FOOTER (chrome)
+# ============================================================
+st.markdown("""
+<style>
+/* Streamlit 기본 헤더/푸터/메뉴 제거 */
+#MainMenu {visibility: hidden;}
+header {visibility: hidden;}
+footer {visibility: hidden;}
+
+/* 최신 Streamlit에서 가끔 살아나는 요소들까지 추가 차단 */
+[data-testid="stHeader"] {display: none;}
+[data-testid="stToolbar"] {display: none;}
+[data-testid="stDecoration"] {display: none;}
+[data-testid="stStatusWidget"] {display: none;}
+[data-testid="stFooter"] {display: none;}
+</style>
+""", unsafe_allow_html=True)
+
     st.session_state['_page_config_set'] = True
 # ============================================================
 # ✅ [HOTFIX] Disable onboarding ("60초 이용안내") block entirely

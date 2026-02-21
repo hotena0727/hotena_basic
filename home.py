@@ -92,6 +92,26 @@ from streamlit_cookies_manager import EncryptedCookieManager
 # ✅ Page Config (Hub only)
 # ============================================================
 st.set_page_config(page_title="Hotena Hub", layout="centered")
+
+# ============================================================
+# ✅ HIDE STREAMLIT DEFAULT HEADER/FOOTER (chrome)
+# ============================================================
+st.markdown("""
+<style>
+/* Streamlit 기본 헤더/푸터/메뉴 제거 */
+#MainMenu {visibility: hidden;}
+header {visibility: hidden;}
+footer {visibility: hidden;}
+
+/* 최신 Streamlit에서 가끔 살아나는 요소들까지 추가 차단 */
+[data-testid="stHeader"] {display: none;}
+[data-testid="stToolbar"] {display: none;}
+[data-testid="stDecoration"] {display: none;}
+[data-testid="stStatusWidget"] {display: none;}
+[data-testid="stFooter"] {display: none;}
+</style>
+""", unsafe_allow_html=True)
+
 # ✅ TOP anchor for floating button (no-JS)
 st.markdown('<div id="hotena-top"></div>', unsafe_allow_html=True)
 
