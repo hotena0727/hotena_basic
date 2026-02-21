@@ -1962,7 +1962,7 @@ def render_admin_dashboard(sb_authed):
         st.error("quiz_attempts 조회 실패 (RLS/권한/컬럼 확인 필요)")
         st.exception(att_err)
 
-    tab_stats, tab_users, tab_logs = st.tabs(["📊 통계", "👥 회원", "🕒 기록"])
+    tab_stats, tab_users, tab_logs, tab_backup = st.tabs(["📊 통계", "👥 회원", "🕒 기록", "🗂 백업/버전"])
 
     # ---------- Charts helpers ----------
     def donut_chart(data_df, name_col, value_col, title):
@@ -2021,6 +2021,92 @@ def render_admin_dashboard(sb_authed):
 
     # ---------- tab: stats ----------
     with tab_stats:
+        # ============================================================
+        # 👤 회원별 통계 (검색/선택)
+        # ============================================================
+        st.markdown('<div class="ha-section"><div class="ha-title">회원별 통계</div><div class="ha-sub">이메일로 검색해서 개인 사용량/추이를 확인합니다</div>', unsafe_allow_html=True)
+
+        if dfp.empty:
+            st.info("profiles 데이터가 없거나 RLS로 차단되었습니다.")
+        else:
+            _emails = []
+            try:
+                if "email" in dfp.columns:
+                    _emails = sorted([e for e in dfp["email"].fillna("").astype(str).tolist() if e])
+            except Exception:
+                _emails = []
+
+            q_user = st.text_input("회원 이메일 검색", key="admin_user_stats_q", placeholder="예: @gmail / abc ...")
+            options = _emails
+            if q_user:
+                options = [e for e in options if q_user.lower() in e.lower()]
+            # 너무 길면 상위 200개만
+            if len(options) > 200:
+                options = options[:200]
+
+            sel_email = st.selectbox("대상 회원 선택", options=["(선택 안 함)"] + options, index=0, key="admin_user_stats_sel")
+
+            if sel_email and sel_email != "(선택 안 함)" and (not dfa.empty):
+                du = dfa.copy()
+                # user_email 우선, 없으면 profiles.id와 매칭
+                if "user_email" in du.columns:
+                    du = du[du["user_email"].astype(str).str.lower().eq(str(sel_email).lower())].copy()
+                elif "user_id" in du.columns and "id" in dfp.columns and "email" in dfp.columns:
+                    try:
+                        uid = dfp.loc[dfp["email"].astype(str).str.lower().eq(str(sel_email).lower()), "id"].iloc[0]
+                        du = du[du["user_id"].astype(str).eq(str(uid))].copy()
+                    except Exception:
+                        pass
+
+                st.caption(f"선택 회원 기록: {len(du):,}건")
+
+                if du.empty:
+                    st.info("해당 회원의 quiz_attempts 기록이 없습니다.")
+                else:
+                    # 레벨(또는 모듈) 분포
+                    lvl_u = du.get("level", pd.Series(["unknown"]*len(du))).astype(str).str.strip().replace({"":"unknown"})
+                    by_level_u = lvl_u.value_counts().reset_index()
+                    by_level_u.columns = ["level", "attempts"]
+                    donut_chart(by_level_u, "level", "attempts", "회원 레벨별 시도 비율")
+
+                    # 모듈 추정
+                    def _infer_u(row):
+                        s = ""
+                        for k in ("pos_mode", "mode", "kind", "app", "module"):
+                            v = row.get(k)
+                            if v is None:
+                                continue
+                            s = str(v).lower()
+                            if s:
+                                break
+                        if "kanji" in s or "한자" in s:
+                            return "한자"
+                        if "talk" in s or "회화" in s:
+                            return "회화"
+                        return "단어"
+
+                    mods_u = pd.Series([_infer_u(r) for r in du.to_dict("records")])
+                    by_mod_u = mods_u.value_counts().reset_index()
+                    by_mod_u.columns = ["module", "attempts"]
+                    donut_chart(by_mod_u, "module", "attempts", "회원 모듈별 시도 비율")
+
+                    # 최근 30일
+                    if "created_at" in du.columns:
+                        try:
+                            tsu = pd.to_datetime(du["created_at"], errors="coerce", utc=True).dt.tz_convert("Asia/Seoul")
+                            dailyu = tsu.dt.date.value_counts().sort_index().reset_index()
+                            dailyu.columns = ["date", "attempts"]
+                            if len(dailyu) > 30:
+                                dailyu = dailyu.tail(30)
+                            line_chart(dailyu, "date", "attempts", "회원 최근 30일 퀴즈 시도")
+                        except Exception:
+                            pass
+
+            elif sel_email and sel_email != "(선택 안 함)" and dfa.empty:
+                st.info("quiz_attempts 데이터가 없어서 개인 통계를 표시할 수 없습니다.")
+
+        st.markdown("</div>", unsafe_allow_html=True)
+
         st.markdown('<div class="ha-section"><div class="ha-title">레벨별 사용량</div><div class="ha-sub">최근 기록 기준(quiz_attempts)</div>', unsafe_allow_html=True)
         if dfa.empty:
             st.info("quiz_attempts 데이터가 없거나 RLS로 차단되었습니다.")
@@ -2107,6 +2193,73 @@ def render_admin_dashboard(sb_authed):
             st.caption(f"검색 결과: {len(uf):,}명 / 전체: {len(u):,}명")
             show_cols = [c for c in ["email","plan","pro_until","pro_expires_at","expires_at","is_admin","created_at","id"] if c in uf.columns]
             st.dataframe(uf[show_cols].head(int(limit)), use_container_width=True, hide_index=True)
+
+            st.markdown("---")
+            st.markdown("#### ✏️ 선택 회원 등급/권한/만료일 변경")
+            st.caption("※ RLS 정책에 따라 업데이트가 막힐 수 있습니다. (관리자 업데이트 정책/Service Role 권장)")
+
+            if "email" in uf.columns and len(uf) > 0:
+                sel2 = st.selectbox("수정할 회원(이메일)", options=sorted(uf["email"].fillna("").astype(str).unique().tolist()), key="admin_edit_user_email")
+                row = uf.loc[uf["email"].astype(str) == str(sel2)].head(1)
+                if not row.empty:
+                    # 현재값
+                    cur_plan = (row["plan"].iloc[0] if "plan" in row.columns else "free") or "free"
+                    cur_admin = bool(row["is_admin"].iloc[0]) if "is_admin" in row.columns else False
+
+                    # 만료 컬럼 후보
+                    expire_cols = [c for c in ["pro_until","pro_expires_at","expires_at"] if c in row.columns]
+                    cur_exp = None
+                    if expire_cols:
+                        c0 = expire_cols[0]
+                        try:
+                            cur_exp = row[c0].iloc[0] or None
+                        except Exception:
+                            cur_exp = None
+
+                    cA, cB, cC = st.columns([2,2,2])
+                    with cA:
+                        new_plan = st.selectbox("플랜", options=["free","pro"], index=0 if str(cur_plan).lower()=="free" else 1, key="admin_edit_plan")
+                    with cB:
+                        new_admin = st.checkbox("관리자 권한(is_admin)", value=cur_admin, key="admin_edit_is_admin")
+                    with cC:
+                        # 날짜만 관리 (없으면 None)
+                        new_exp_date = st.date_input("PRO 만료일", value=None, key="admin_edit_exp_date", help="없으면 공란(미설정)")
+
+                    if st.button("변경 저장", type="primary", key="admin_save_user_changes"):
+                        try:
+                            payload = {}
+                            if "plan" in dfp.columns:
+                                payload["plan"] = str(new_plan)
+                            if "is_admin" in dfp.columns:
+                                payload["is_admin"] = bool(new_admin)
+
+                            # 만료 컬럼들 동시 업데이트(있는 것만)
+                            if new_exp_date:
+                                iso_date = new_exp_date.isoformat()
+                                if "pro_until" in dfp.columns:
+                                    payload["pro_until"] = iso_date
+                                # timestamp 컬럼은 ISO 문자열로 넣기 (DB 타입에 따라 변환됨)
+                                if "pro_expires_at" in dfp.columns:
+                                    payload["pro_expires_at"] = iso_date + "T23:59:59+09:00"
+                                if "expires_at" in dfp.columns:
+                                    payload["expires_at"] = iso_date + "T23:59:59+09:00"
+                            else:
+                                # 만료일 제거(있는 컬럼만)
+                                for c in ("pro_until","pro_expires_at","expires_at"):
+                                    if c in dfp.columns:
+                                        payload[c] = None
+
+                            # 업데이트 키: id 우선, 없으면 email
+                            if "id" in row.columns and row["id"].iloc[0]:
+                                sb_authed.table("profiles").update(payload).eq("id", row["id"].iloc[0]).execute()
+                            else:
+                                sb_authed.table("profiles").update(payload).eq("email", sel2).execute()
+
+                            st.success("저장 완료! (화면 새로고침 시 반영)")
+                        except Exception as e:
+                            st.error("업데이트 실패 (RLS/권한/컬럼 타입 확인)")
+                            st.exception(e)
+
             st.markdown("</div>", unsafe_allow_html=True)
 
     # ---------- tab: logs ----------
@@ -2124,6 +2277,41 @@ def render_admin_dashboard(sb_authed):
                     pass
             st.dataframe(d.head(500), use_container_width=True, hide_index=True)
         st.markdown("</div>", unsafe_allow_html=True)
+
+
+with tab_backup:
+        st.markdown('<div class="ha-section"><div class="ha-title">안정판 백업 & 버전 관리</div><div class="ha-sub">현재 실행 중인 핵심 파일을 ZIP으로 백업합니다</div>', unsafe_allow_html=True)
+
+        st.markdown("**추천 규칙(간단 버전)**")
+        st.markdown("- 파일명: `hotena_stable_YYYYMMDD_vNN.zip`")
+        st.markdown("- 변경 단위가 크면 vNN 올리고, 작은 UI 수정은 vNN+1로 관리")
+        st.markdown("- 배포 전에 항상 **Stable ZIP**을 1개 남기기")
+
+        tag = st.text_input("백업 태그(선택)", value="", placeholder="예: stable_v42 / before_admin_refactor")
+        if st.button("📦 현재 안정판 ZIP 만들기", key="admin_make_backup_zip"):
+            import io, zipfile, datetime, os
+            base = Path(__file__).resolve().parent
+            targets = ["home.py", "hotena_basic.py", "app.py", "talk.py", "mypage.py"]
+            buf = io.BytesIO()
+            with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as z:
+                stamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                for fn in targets:
+                    fp = base / fn
+                    if fp.exists():
+                        z.write(fp, arcname=fn)
+                # build stamp 메모
+                meta = f"BUILD_STAMP={BUILD_STAMP}\ncreated={stamp}\ntag={tag}\n"
+                z.writestr("BACKUP_INFO.txt", meta)
+            buf.seek(0)
+            fname = f"hotena_stable_{datetime.datetime.now().strftime('%Y%m%d')}"
+            if tag.strip():
+                fname += f"_{tag.strip()}"
+            fname += ".zip"
+            st.download_button("⬇️ ZIP 다운로드", data=buf.getvalue(), file_name=fname, mime="application/zip", use_container_width=True)
+
+        st.markdown("</div>", unsafe_allow_html=True)
+
+
 
 try:
     action = st.query_params.get("action")
