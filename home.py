@@ -16,53 +16,6 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 # ============================================================
-# ✅ 오늘의 한마디 (하루 고정)
-# - DB 없이 날짜 기반으로 30개 문구를 순환
-# ============================================================
-
-import datetime as _dt
-
-HATENA_TODAY_QUOTES = [
-    "오늘 20분이면 충분합니다.",
-    "꾸준함은 재능을 이깁니다.",
-    "작은 차이가 1년을 바꿉니다.",
-    "루틴은 의지를 대신합니다.",
-    "느려도 괜찮습니다. 계속하면 됩니다.",
-    "매일 조금씩이 가장 빠른 길입니다.",
-    "오늘을 채우면 내일이 편해집니다.",
-    "공부는 감정이 아니라 구조입니다.",
-    "포기하지 않는 사람이 결국 이깁니다.",
-    "하테나는 루틴을 만듭니다.",
-    "어제보다 1%만 나아지면 됩니다.",
-    "오늘 한 문제라도 의미 있습니다.",
-    "멈추지 않으면 쌓입니다.",
-    "실력은 조용히 올라갑니다.",
-    "반복이 결국 차이를 만듭니다.",
-    "몰아서 하지 말고, 매일 하세요.",
-    "오늘의 기록이 내일의 자신감입니다.",
-    "성장은 보이지 않게 진행됩니다.",
-    "공부는 자신과의 약속입니다.",
-    "매일 하는 사람이 강합니다.",
-    "완벽하지 않아도 괜찮습니다.",
-    "오늘을 넘기지 마세요.",
-    "시작이 가장 쉽습니다.",
-    "루틴은 배신하지 않습니다.",
-    "하루는 짧지만, 1년은 깁니다.",
-    "꾸준함이 가장 큰 무기입니다.",
-    "오늘을 버티면 실력이 됩니다.",
-    "계속하는 사람이 결국 남습니다.",
-    "지금 시작하는 것이 가장 빠릅니다.",
-    "하테나는 오늘도 쌓입니다.",
-]
-
-def get_today_quote_kst() -> str:
-    # KST 기준 날짜로 고정
-    today = _dt.datetime.now(_dt.timezone(_dt.timedelta(hours=9))).date()
-    idx = today.toordinal() % max(1, len(HATENA_TODAY_QUOTES))
-    return HATENA_TODAY_QUOTES[idx]
-
-
-# ============================================================
 # ✅ Module runner (NO runpy/run_path)
 # - Import (or reload) a module by name so it renders in the SAME Streamlit flow
 # ============================================================
@@ -683,8 +636,42 @@ def render_home_dashboard(sb_authed, user):
     idx = (kst_today.toordinal() + (streak * 3) + remaining_sets) % len(messages)
     motivation = messages[idx]
 
-    
-    today_quote = get_today_quote_kst()# ---- local helper ----
+    # ---- 오늘의 한마디 (하루 고정) ----
+    HATENA_QUOTES = [
+        "오늘 20분이면 충분합니다.",
+        "꾸준함은 재능을 이깁니다.",
+        "작은 차이가 1년을 바꿉니다.",
+        "루틴은 의지를 대신합니다.",
+        "느려도 괜찮습니다. 계속하면 됩니다.",
+        "매일 조금씩이 가장 빠른 길입니다.",
+        "오늘을 채우면 내일이 편해집니다.",
+        "공부는 감정이 아니라 구조입니다.",
+        "포기하지 않는 사람이 결국 이깁니다.",
+        "하테나는 루틴을 만듭니다.",
+        "어제보다 1%만 나아지면 됩니다.",
+        "오늘 한 문제라도 의미 있습니다.",
+        "멈추지 않으면 쌓입니다.",
+        "실력은 조용히 올라갑니다.",
+        "반복이 결국 차이를 만듭니다.",
+        "몰아서 하지 말고, 매일 하세요.",
+        "오늘의 기록이 내일의 자신감입니다.",
+        "성장은 보이지 않게 진행됩니다.",
+        "공부는 자신과의 약속입니다.",
+        "매일 하는 사람이 강합니다.",
+        "완벽하지 않아도 괜찮습니다.",
+        "오늘을 넘기지 마세요.",
+        "시작이 가장 쉽습니다.",
+        "루틴은 배신하지 않습니다.",
+        "하루는 짧지만, 1년은 깁니다.",
+        "꾸준함이 가장 큰 무기입니다.",
+        "오늘을 버티면 실력이 됩니다.",
+        "계속하는 사람이 결국 남습니다.",
+        "지금 시작하는 것이 가장 빠릅니다.",
+        "하테나는 오늘도 쌓입니다.",
+    ]
+    today_quote = HATENA_QUOTES[kst_today.toordinal() % len(HATENA_QUOTES)]
+
+    # ---- local helper ----
     def _dots_3(done_sets: int, goal_sets_: int) -> str:
         if goal_sets_ <= 0:
             filled = 0
@@ -860,30 +847,9 @@ def render_home_dashboard(sb_authed, user):
   .st-key-hub_goal_gear_icon button p{font-size:18px !important;margin:0 !important;}
 
 
-  .h-quote{
-    display:flex;
-    align-items:center;
-    gap:8px;
-    background:#f4f7fb;
-    border:1px solid #e3e8f0;
-    padding:10px 14px;
-    border-radius:12px;
-    margin:.35rem 0 .10rem;
-  }
-  .h-dot{
-    width:6px;
-    height:6px;
-    background:var(--ha-blue,#4a6cf7);
-    border-radius:50%;
-    flex:0 0 auto;
-  }
-  .h-quote-t{
-    font-size:.98rem;
-    font-weight:500;
-    color:var(--ha-text,#2c3e50);
-    line-height:1.35;
-  }
-
+  .ha-quote-card{display:flex;align-items:center;gap:8px;margin:.20rem 0 0;padding:.45rem .65rem;background:#f4f7fb;border:1px solid #e3e8f0;border-radius:10px;}
+  .ha-quote-dot{width:6px;height:6px;background:#4a6cf7;border-radius:50%;flex:0 0 auto;display:inline-block;}
+  .ha-quote-text{font-size:.95rem;font-weight:600;opacity:.90;line-height:1.25;}
 </style>
         """,
         unsafe_allow_html=True,
@@ -896,7 +862,7 @@ def render_home_dashboard(sb_authed, user):
   <div class="h-top">
     <div>
       <p class="h-title">하테나일본어</p>
-      <div class="h-quote"><span class="h-dot"></span><span class="h-quote-t">{today_quote}</span></div>
+      <div class='ha-quote-card'><span class='ha-quote-dot'></span><span class='ha-quote-text'>{today_quote}</span></div>
       <p class="h-sub" style="opacity:.58;font-size:.86rem;margin:.10rem 0 0;">오늘의 성취율을 확인하고, 바로 이어가세요.</p>
     </div>
     <div class="h-pill">🔥 <b>{streak}</b>일</div>
@@ -1119,6 +1085,121 @@ def render_home_dashboard(sb_authed, user):
 
 
 
+# ---- My Hub (inbox + wrong cards) : placed at bottom ----
+st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
+
+with st.expander("📩 받은 메시지", expanded=False):
+    try:
+        uid = str(getattr(user, "id", "") or st.session_state.get("user_id") or "")
+        if not uid or not sb_authed:
+            st.info("로그인 후 확인할 수 있어요.")
+        elif not _um_table_ready(sb_authed):
+            st.info("메시지함이 아직 준비되지 않았습니다.")
+        else:
+            msgs = um_fetch_inbox(sb_authed, uid, limit=30)
+            if not msgs:
+                st.info("받은 메시지가 없습니다.")
+            else:
+                unread = [m for m in msgs if m.get("read_at") is None]
+                if unread:
+                    st.caption(f"읽지 않은 메시지 {len(unread)}개")
+                for m in msgs[:15]:
+                    is_unread = (m.get("read_at") is None)
+                    title = (m.get("title") or "메시지").strip()
+                    head = f"{'🟡 ' if is_unread else ''}{title}"
+                    with st.expander(head, expanded=is_unread):
+                        st.write(m.get("body") or "")
+                        st.caption(str(m.get("created_at") or ""))
+                        if is_unread and st.button("읽음 처리", key=f"hub_um_read_{m.get('id')}"):
+                            um_mark_read(sb_authed, [str(m.get("id"))])
+                            st.rerun()
+                if unread and st.button("모두 읽음 처리", use_container_width=True, key="hub_um_read_all"):
+                    um_mark_read(sb_authed, [str(m.get("id")) for m in unread if m.get("id")])
+                    st.rerun()
+    except Exception as e:
+        st.error(f"메시지함 로딩 실패: {e}")
+
+with st.expander("🧾 오답카드 · 복습", expanded=False):
+    try:
+        uid = str(getattr(user, "id", "") or st.session_state.get("user_id") or "")
+        if not uid or not sb_authed:
+            st.info("로그인 후 확인할 수 있어요.")
+        else:
+            candidates = [
+                "wrong_notes","wrong_cards","wrongs","mistakes","wrong_items",
+                "user_wrongs","wrong_words","wrong_card_items","wrong_answers"
+            ]
+            found = None
+            found_name = None
+            last_err = None
+
+            for tname in candidates:
+                try:
+                    r = (sb_authed.table(tname)
+                         .select("*")
+                         .eq("user_id", uid)
+                         .order("created_at", desc=True)
+                         .limit(50)
+                         .execute())
+                    data = r.data or []
+                    if data:
+                        found = data
+                        found_name = tname
+                        break
+                except Exception as ee:
+                    last_err = ee
+                    continue
+
+            if not found:
+                st.info("오답 상세 데이터 테이블을 찾지 못했습니다. (현재는 요약만 표시 가능)")
+                if last_err:
+                    st.caption(f"참고: {last_err}")
+                # fallback: show recent attempts (summary)
+                recent = fetch_recent_attempts(sb_authed, uid, limit=30)
+                if recent:
+                    st.markdown("**최근 학습 기록(요약)**")
+                    for a in recent[:10]:
+                        kind = _infer_kind(str(a.get("level") or ""), str(a.get("pos_mode") or ""))
+                        q = int(a.get("quiz_len") or 0)
+                        s = int(a.get("score") or 0)
+                        st.write(f"- {kind} · {s}/{q} · {a.get('created_at')}")
+                else:
+                    st.caption("최근 기록이 없습니다.")
+            else:
+                st.caption(f"오답 데이터 소스: {found_name}")
+                # Try to infer a word/term field
+                def _pick_word(item: dict) -> str:
+                    for k in ("jp_word","word","term","question","prompt","target","vocab"):
+                        v = item.get(k)
+                        if v:
+                            return str(v)
+                    return "오답 항목"
+                # Cards
+                for it in found[:10]:
+                    title = _pick_word(it)
+                    with st.expander(title, expanded=False):
+                        # show best known fields first
+                        for k in ("correct","answer","user_answer","choice","meaning","reading","level","pos_mode","kind","created_at"):
+                            if k in it and it.get(k) is not None:
+                                st.write(f"**{k}**: {it.get(k)}")
+                        # raw preview (collapsed)
+                        with st.expander("원본 데이터 보기", expanded=False):
+                            st.json(it)
+                # simple top10
+                from collections import Counter
+                words = [_pick_word(it) for it in found if isinstance(it, dict)]
+                c = Counter(words)
+                top10 = c.most_common(10)
+                if top10:
+                    st.markdown("**TOP10 (가장 많이 틀린 항목)**")
+                    for i,(w,n) in enumerate(top10,1):
+                        st.write(f"{i}. {w}  ({n}회)")
+                    st.caption("TOP10 '재시험 시작' 버튼은 기존 퀴즈 페이지와 연결 규칙을 확인한 뒤 붙여드릴게요.")
+    except Exception as e:
+        st.error(f"오답카드 로딩 실패: {e}")
+
+
+
 def summarize_attempts(attempts: list[dict]) -> dict:
     out = {
         "total_sets": 0,
@@ -1149,22 +1230,6 @@ try:
         um_popup_unread_once(sb_authed, str(uid_now))
 except Exception:
     pass
-
-
-
-    # ---- Inbox / Wrongs (compact) ----
-    st.markdown("")
-    with st.expander("📩 받은 메시지", expanded=False):
-        try:
-            render_user_inbox_compact(sb_authed, str(user.id))
-        except Exception as e:
-            st.error(f"메시지함 로딩 실패: {e}")
-
-    with st.expander("🧾 오답카드 · 복습", expanded=False):
-        try:
-            render_wrongs_compact(sb_authed, str(user.id))
-        except Exception as e:
-            st.error(f"오답카드 로딩 실패: {e}")
 
 def render_floating_menu():
     """✅ Floating hamburger menu (Hub)
@@ -2067,98 +2132,6 @@ def render_user_inbox_section(sb_authed, user_id: str):
                 st.rerun()
             except Exception as e:
                 st.error(f"읽음 처리 실패: {e}")
-
-
-# ============================================================
-# ✅ Home Hub: compact sections (Inbox / Wrongs)
-# - 안전하게 조회하고, 없으면 안내만 표시
-# ============================================================
-
-def render_user_inbox_compact(sb_authed, user_id: str):
-    """Compact inbox for Home Hub."""
-    if not _um_table_ready(sb_authed):
-        st.info("메시지함이 아직 준비되지 않았습니다.")
-        return
-    msgs = um_fetch_inbox(sb_authed, user_id, limit=20)
-    if not msgs:
-        st.caption("받은 메시지가 없습니다.")
-        return
-
-    unread = sum(1 for m in msgs if m.get("read_at") is None)
-    st.caption(f"읽지 않음 {unread}개 · 최근 {min(20, len(msgs))}개")
-    for m in msgs[:10]:
-        is_unread = (m.get("read_at") is None)
-        title = (m.get("title") or "메시지").strip()
-        header = f"{'🟡 ' if is_unread else ''}{title}"
-        with st.expander(header, expanded=False):
-            st.write(m.get("body") or "")
-            st.caption(str(m.get("created_at") or ""))
-
-            # 읽음 처리
-            if is_unread and st.button("읽음으로 표시", key=f"um_read_{m.get('id')}"):
-                try:
-                    um_mark_read(sb_authed, user_id, [str(m.get("id"))])
-                    st.success("처리했습니다.")
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"처리 실패: {e}")
-
-
-def _try_fetch_wrongs(sb_authed, user_id: str, limit: int = 50):
-    """Best-effort wrong cards fetch from common table names."""
-    candidates = [
-        ("wrong_notes", ["id", "created_at", "title", "question", "answer", "chosen", "meta"]),
-        ("wrong_cards", ["id", "created_at", "title", "question", "answer", "chosen", "meta"]),
-        ("wrongs", ["id", "created_at", "quiz_type", "jp_word", "reading", "meaning", "chosen", "answer", "meta"]),
-        ("mistakes", ["id", "created_at", "quiz_type", "jp_word", "reading", "meaning", "chosen", "answer", "meta"]),
-        ("wrong_items", ["id", "created_at", "quiz_type", "jp_word", "reading", "meaning", "chosen", "answer", "meta"]),
-    ]
-    last_err = None
-    for table, cols in candidates:
-        try:
-            q = sb_authed.table(table).select(",".join(cols)).eq("user_id", user_id).order("created_at", desc=True).limit(limit)
-            r = q.execute()
-            data = getattr(r, "data", None) or []
-            if data:
-                return table, data
-        except Exception as e:
-            last_err = e
-            continue
-    return None, []
-
-
-def render_wrongs_compact(sb_authed, user_id: str):
-    """Compact wrong cards preview + Top10 placeholder."""
-    table, rows = _try_fetch_wrongs(sb_authed, user_id, limit=30)
-    if not rows:
-        st.caption("오답 상세 카드 데이터를 찾지 못했습니다. (현재는 요약 기록만 저장 중일 수 있어요)")
-        st.caption("예전처럼 '틀린 단어/정답/내가 고른 답'을 복원하려면, 오답을 저장하는 테이블/컬럼 이름을 확인해야 합니다.")
-        return
-
-    st.caption(f"오답 데이터 소스: {table} · 최근 {min(30, len(rows))}개")
-    for i, row in enumerate(rows[:10], start=1):
-        # 다양한 스키마 대응
-        title = (row.get("title") or row.get("jp_word") or row.get("question") or "오답").strip()
-        created = str(row.get("created_at") or "")
-        with st.expander(f"{i}. {title}", expanded=False):
-            # 기본 필드들
-            if row.get("reading"):
-                st.caption(f"읽기: {row.get('reading')}")
-            if row.get("meaning"):
-                st.caption(f"뜻: {row.get('meaning')}")
-            if row.get("question"):
-                st.write(row.get("question"))
-            ans = row.get("answer") or row.get("correct")
-            chosen = row.get("chosen")
-            if ans:
-                st.write(f"정답: {ans}")
-            if chosen:
-                st.write(f"선택: {chosen}")
-            if row.get("meta"):
-                st.caption(str(row.get("meta")))
-            st.caption(created)
-
-    st.info("Top10 재시험 버튼은 '오답 데이터 구조'가 확인되면 바로 붙일 수 있습니다. (지금은 오답 상세 저장 위치가 불명확해 자동 실행을 보류했습니다.)")
 
 
 def render_admin_dashboard(sb_authed):
