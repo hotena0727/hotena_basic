@@ -1,22 +1,46 @@
 from __future__ import annotations
 
-from datetime import datetime
 import random
-from typing import Any, Dict, List, Optional, Tuple
+from datetime import datetime
+from typing import Any, Dict, List, Optional
 
 import streamlit as st
 
 
 # ============================================================
-# ✅ My Page (Refactor B)
-# - Home Hub 스타일과 톤을 맞춘 "복습 센터" UI
-# - 홈허브 → 마이페이지로 올 때 돌아가기 버튼 제공
-# - 오답(상세) 테이블이 있으면 카드로 표시(여러 후보 테이블 자동 탐색)
-# - 메시지함(user_messages) 표시 + 읽음 처리
-# - 학습 기록(quiz_attempts) 요약 + 최근 세트 리스트
+# ✅ MyPage (Refactor v3)
+# - HomeHub style cards
+# - Tabs: 오답·TOP10 / 학습 기록 / 받은 메시지
+# - No top "admin message" summary (messages only in tab)
+# - Uses wrong_notes table for detailed wrong cards + TOP10 test
 # ============================================================
 
-def _get_email(user: Any) -> Optional[str]:
+
+def _sb() -> Any:
+    return st.session_state.get("sb_authed") or st.session_state.get("sb")
+
+
+def _user() -> Any:
+    return st.session_state.get("user")
+
+
+def _user_id(user: Any) -> Optional[str]:
+    if not user:
+        return None
+    if isinstance(user, dict):
+        return user.get("id") or (user.get("user") or {}).get("id")
+    if hasattr(user, "id"):
+        return getattr(user, "id")
+    if hasattr(user, "user") and getattr(user, "user") is not None:
+        u = getattr(user, "user")
+        if isinstance(u, dict):
+            return u.get("id")
+        if hasattr(u, "id"):
+            return getattr(u, "id", None)
+    return None
+
+
+def _user_email(user: Any) -> Optional[str]:
     if not user:
         return None
     if isinstance(user, dict):
@@ -32,540 +56,331 @@ def _get_email(user: Any) -> Optional[str]:
     return None
 
 
-def _dt_str(v: Any) -> str:
-    s = str(v or "")
-    if "T" in s:
-        s = s.replace("T", " ")
-    if "." in s:
-        s = s.split(".")[0]
-    return s
-
-
-def _safe_int(x: Any, default: int = 0) -> int:
-    try:
-        return int(x)
-    except Exception:
-        return default
-
-
-def _inject_css() -> None:
+def _css():
     st.markdown(
         """
 <style>
-/* layout */
-.ha-page { max-width: 980px; margin: 0 auto; }
-.ha-top {
-  display:flex; align-items:flex-start; justify-content:space-between; gap:12px;
-  margin: 4px 0 10px 0;
-}
-.ha-h1 { font-size: 1.15rem; font-weight: 900; margin: 0; }
-.ha-sub { opacity: .75; margin-top: 4px; font-size: .93rem; }
-.ha-actions { display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
-.ha-chip {
-  display:inline-flex; align-items:center; gap:6px;
-  padding: 6px 10px; border-radius: 999px;
-  background: rgba(0,0,0,.04); border: 1px solid rgba(0,0,0,.06);
-  font-size: .85rem; font-weight: 700;
-}
+/* page */
+.ha-wrap {max-width: 980px; margin: 0 auto;}
+.ha-head {display:flex; align-items:center; justify-content:space-between; gap:12px; margin: 6px 0 12px;}
+.ha-title {font-size: 22px; font-weight: 800; margin: 0;}
+.ha-sub {opacity: .75; margin-top: 4px;}
 
+/* pills */
+.ha-actions {display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
+.ha-pill button {border-radius: 999px !important; padding: .35rem .75rem !important;}
 /* cards */
-.ha-card {
-  border: 1px solid rgba(0,0,0,0.08);
-  border-radius: 16px;
-  padding: 14px 16px;
-  background: #fff;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.04);
-  margin-bottom: 12px;
-}
-.ha-card-title { font-weight: 900; font-size: 1.02rem; margin: 0; }
-.ha-card-sub { opacity:.72; margin-top: 4px; font-size: .92rem; }
-
-.ha-metrics { display:flex; gap:10px; flex-wrap:wrap; margin-top:10px; }
-.ha-pill {
-  padding: 6px 10px; border-radius: 999px;
-  background: rgba(0,0,0,.04);
-  border: 1px solid rgba(0,0,0,.05);
-  font-weight: 800; font-size: .88rem;
-}
-
-/* wrong card list */
-.ha-wrong {
-  border: 1px solid rgba(0,0,0,.08);
-  border-radius: 14px;
-  padding: 12px 14px;
-  background: #fff;
-  box-shadow: 0 6px 18px rgba(0,0,0,.04);
-  margin: 10px 0;
-}
-.ha-wrong-top { display:flex; justify-content:space-between; align-items:center; gap:12px; }
-.ha-wrong-q { font-weight: 900; }
-.ha-wrong-meta { opacity:.72; font-size:.88rem; white-space:nowrap; }
-.ha-wrong-body { margin-top: 8px; opacity:.92; line-height:1.45; }
-
-/* message list */
-.ha-msg { border:1px solid rgba(0,0,0,.08); border-radius:14px; padding:12px 14px; background:#fff;
-  box-shadow:0 6px 18px rgba(0,0,0,.04); margin:10px 0; }
-.ha-msg-top { display:flex; justify-content:space-between; align-items:center; gap:10px; }
-.ha-msg-title { font-weight: 900; }
-.ha-msg-date { opacity:.7; font-size:.86rem; white-space:nowrap; }
-.ha-msg-body { margin-top: 8px; white-space: pre-wrap; opacity: .92; line-height: 1.5; }
+.ha-card {background: #fff; border: 1px solid #e8edf5; border-radius: 14px; padding: 14px 14px; box-shadow: 0 6px 18px rgba(18,38,63,.04);}
+.ha-card + .ha-card {margin-top: 10px;}
+.ha-card h4 {margin: 0 0 6px 0; font-size: 16px;}
+.ha-muted {opacity: .7;}
+.ha-row {display:flex; gap:10px; flex-wrap:wrap; align-items:center;}
+.ha-badge {display:inline-block; padding: 2px 8px; border-radius: 999px; background:#f4f7fb; border:1px solid #e8edf5; font-size:12px;}
+.ha-wrong {color:#c0392b; font-weight:700;}
+.ha-correct {color:#2e7d32; font-weight:700;}
+.ha-divider {height:1px; background:#eef2f7; margin:10px 0;}
 </style>
-""",
+        """,
         unsafe_allow_html=True,
     )
 
 
-def _go_home() -> None:
-    # home.py routing uses hub_page + query param p
-    st.session_state["hub_page"] = "home"
+def _nav_back_and_logout():
+    # Keep visual balance: two pill buttons with same style.
+    left, right = st.columns([1, 1], vertical_alignment="center")
+    with left:
+        if st.button("← 홈허브", key="mypage_back_hub", use_container_width=True):
+            st.session_state["hub_page"] = "home"
+            st.rerun()
+    with right:
+        if st.button("로그아웃", key="mypage_logout", use_container_width=True):
+            # rely on existing logout handler in home.py if present
+            # minimal: clear session
+            for k in ["user", "sb_authed", "access_token", "refresh_token", "hub_page"]:
+                if k in st.session_state:
+                    st.session_state.pop(k, None)
+            st.rerun()
+
+
+def _safe_select(table: str, cols: str = "*", limit: int = 200) -> List[Dict[str, Any]]:
+    sb = _sb()
+    if not sb:
+        return []
     try:
-        st.query_params["p"] = "home"
-    except Exception:
-        pass
-    st.rerun()
-
-
-def _try_fetch_wrongs(sb: Any, email: str, limit: int = 30) -> Tuple[Optional[str], List[Dict[str, Any]]]:
-    """
-    Best-effort: 여러 후보 테이블에서 '오답 상세'를 자동 탐색합니다.
-    - 반환: (table_name or None, rows)
-    """
-    candidates = [
-        ("wrong_notes", ["created_at", "level", "pos_mode", "question", "your_answer", "correct_answer", "note", "meta", "item"]),
-        ("wrong_cards", ["created_at", "level", "pos_mode", "question", "user_answer", "correct_answer", "jp_word", "reading", "meaning", "extra"]),
-        ("wrongs", ["created_at", "level", "pos_mode", "question", "user_answer", "correct_answer", "jp_word", "reading", "meaning"]),
-        ("mistakes", ["created_at", "level", "pos_mode", "question", "user_answer", "correct_answer", "jp_word", "reading", "meaning"]),
-        ("wrong_items", ["created_at", "level", "pos_mode", "question", "user_answer", "correct_answer", "jp_word", "reading", "meaning"]),
-    ]
-
-    # where column guess
-    where_cols = ["user_email", "email"]
-
-    for t, cols in candidates:
-        for w in where_cols:
-            try:
-                # 일부 테이블은 컬럼이 없어도 에러가 날 수 있어 try
-                q = sb.table(t).select(",".join(cols))
-                q = q.eq(w, email)
-                q = q.order("created_at", desc=True).limit(limit)
-                rows = q.execute().data or []
-                if rows:
-                    return t, rows
-            except Exception:
-                continue
-
-    return None, []
-
-
-def _fetch_attempts(sb: Any, email: str, limit: int = 200) -> List[Dict[str, Any]]:
-    try:
-        rows = (
-            sb.table("quiz_attempts")
-            .select("created_at,level,pos_mode,quiz_len,score,wrong_count")
-            .eq("user_email", email)
-            .order("created_at", desc=True)
-            .limit(limit)
-            .execute()
-            .data
-        )
-        return rows or []
+        r = sb.table(table).select(cols).order("created_at", desc=True).limit(limit).execute()
+        data = getattr(r, "data", None)
+        return data or []
     except Exception:
         return []
 
 
-def _fetch_messages(sb: Any, uid: str, limit: int = 30) -> List[Dict[str, Any]]:
-    try:
-        rows = (
-            sb.table("user_messages")
-            .select("id,title,body,created_at,read_at")
-            .eq("user_id", uid)
-            .order("created_at", desc=True)
-            .limit(limit)
-            .execute()
-            .data
-        )
-        return rows or []
-    except Exception:
-        return []
-
-
-def _mark_message_read(sb: Any, msg_id: str) -> bool:
+def _mark_message_read(msg_id: str):
+    sb = _sb()
+    if not sb:
+        return
     try:
         sb.table("user_messages").update({"read_at": datetime.utcnow().isoformat()}).eq("id", msg_id).execute()
-        return True
-    except Exception:
-        return False
-
-
-
-def _pick_field(row: Dict[str, Any], keys: List[str]) -> str:
-    for k in keys:
-        v = row.get(k)
-        if v is None:
-            continue
-        s = str(v).strip()
-        if s:
-            return s
-    return ""
-
-
-def _build_top10_quiz(wrong_rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-    """Build a 10-question quiz from wrong_rows.
-    Each item: {q, correct, choices(optional)}.
-    - Prefer multiple-choice when we can form 4 unique options.
-    - Fallback to short-answer when options are insufficient.
-    """
-    items: List[Dict[str, Any]] = []
-    if not wrong_rows:
-        return items
-
-    # Normalize candidates (need both question and correct answer)
-    pool: List[Tuple[str, str]] = []
-    for r in wrong_rows:
-        q = _pick_field(r, ["question", "jp_word", "item"])
-        ca = _pick_field(r, ["correct_answer", "answer"])
-        if q and ca:
-            pool.append((q, ca))
-
-    # Unique by question
-    seen = set()
-    uniq: List[Tuple[str, str]] = []
-    for q, ca in pool:
-        if q in seen:
-            continue
-        seen.add(q)
-        uniq.append((q, ca))
-
-    # Take up to 10
-    uniq = uniq[:10]
-
-    # Distractor pool from correct answers
-    answers = list({ca for _, ca in uniq})
-    for q, ca in uniq:
-        # Try build 4 choices
-        choices = []
-        if len(answers) >= 4:
-            distractors = [a for a in answers if a != ca]
-            random.shuffle(distractors)
-            choices = [ca] + distractors[:3]
-            random.shuffle(choices)
-        items.append({"q": q, "correct": ca, "choices": choices})
-
-    return items
-
-
-def _render_top10_quiz_ui() -> None:
-    """Render in-page TOP10 quiz UI using st.session_state['top10_quiz']"""
-    quiz = st.session_state.get("top10_quiz") or []
-    if not quiz:
-        st.info("TOP10 재시험 데이터를 만들 수 없습니다. (오답 상세 데이터가 필요합니다.)")
-        return
-
-    st.markdown("#### 🧪 TOP10 재시험")
-    st.caption("오답카드 기반으로 10문항을 즉석에서 재시험합니다. (정답은 기존 오답 데이터의 정답 필드를 사용합니다.)")
-
-    # answers state
-    if "top10_answers" not in st.session_state:
-        st.session_state["top10_answers"] = {}
-
-    score = 0
-    answered = 0
-
-    for i, it in enumerate(quiz, start=1):
-        q = it.get("q", "")
-        ca = it.get("correct", "")
-        choices = it.get("choices") or []
-        st.markdown(f"**Q{i}.** {q}")
-
-        key = f"top10_q_{i}"
-        if choices:
-            sel = st.radio("보기", options=choices, key=key, horizontal=False, label_visibility="collapsed")
-            st.session_state["top10_answers"][key] = sel
-            answered += 1
-            if sel == ca:
-                score += 1
-        else:
-            ans = st.text_input("정답 입력", key=key, label_visibility="collapsed")
-            st.session_state["top10_answers"][key] = ans
-            if ans:
-                answered += 1
-                if ans.strip() == ca.strip():
-                    score += 1
-
-        with st.expander("정답 보기", expanded=False):
-            st.write(f"정답: {ca}")
-
-        st.divider()
-
-    st.markdown(f"### 점수: {score} / {len(quiz)}")
-    cols = st.columns([0.5, 0.5])
-    with cols[0]:
-        if st.button("🔁 다시 풀기", key="top10_retry"):
-            st.session_state.pop("top10_answers", None)
-            st.rerun()
-    with cols[1]:
-        if st.button("✅ 시험 종료", key="top10_end"):
-            st.session_state["top10_active"] = False
-            st.rerun()
-
-
-def render() -> None:
-    _inject_css()
-
-    user = st.session_state.get("user")
-    sb = st.session_state.get("sb_authed") or st.session_state.get("sb")
-    email = _get_email(user) or st.session_state.get("user_email")
-
-    uid_now = st.session_state.get("user_id") or getattr(user, "id", None)
-    uid = str(uid_now) if uid_now else None
-
-    # focus hint from hub buttons
-    focus = st.session_state.get("my_focus")
-    try:
-        qp_my = st.query_params.get("my")
-        if isinstance(qp_my, str) and qp_my:
-            focus = qp_my
     except Exception:
         pass
 
-    st.markdown('<div class="ha-page">', unsafe_allow_html=True)
 
-    # Top header
-    left, right = st.columns([0.72, 0.28], vertical_alignment="top")
-    with left:
-        st.markdown('<div class="ha-top">', unsafe_allow_html=True)
-        st.markdown(
-            """
-<div>
-  <div class="ha-h1">🧾 복습 · 기록 관리</div>
-  <div class="ha-sub">오답을 정리하고, TOP10으로 다시 도전하세요.</div>
-</div>
-""",
-            unsafe_allow_html=True,
-        )
-        st.markdown("</div>", unsafe_allow_html=True)
+def _load_wrong_notes(limit: int = 200) -> List[Dict[str, Any]]:
+    sb = _sb()
+    if not sb:
+        return []
+    try:
+        r = sb.table("wrong_notes").select("*").order("created_at", desc=True).limit(limit).execute()
+        return getattr(r, "data", None) or []
+    except Exception:
+        return []
 
-    with right:
-        st.markdown('<div class="ha-actions">', unsafe_allow_html=True)
-        if st.button("← 홈허브", key="my_back_home"):
-            _go_home()
-        # 로그아웃은 home.py가 action=logout 처리
-        st.markdown('<a class="ha-chip" href="?action=logout" target="_self">🚪 로그아웃</a>', unsafe_allow_html=True)
-        st.markdown("</div>", unsafe_allow_html=True)
 
-    # Guard
-    if not sb or not email:
-        st.info("로그인 정보를 불러오는 중입니다. 홈에서 다시 들어오면 자동으로 연결됩니다.")
+def _format_dt(v: Any) -> str:
+    if not v:
+        return ""
+    try:
+        # Supabase returns ISO string
+        s = str(v)
+        return s.replace("T", " ")[:16]
+    except Exception:
+        return str(v)
+
+
+def _wrong_cards_ui(wrongs: List[Dict[str, Any]]):
+    st.markdown('<div class="ha-card">', unsafe_allow_html=True)
+    st.markdown("<h4>📚 오답카드</h4>", unsafe_allow_html=True)
+
+    if not wrongs:
+        st.info("아직 저장된 오답 상세가 없습니다. (앞으로 틀린 문제는 자동으로 오답카드에 쌓입니다.)")
         st.markdown("</div>", unsafe_allow_html=True)
         return
 
-    # Pull data
-    attempts = _fetch_attempts(sb, email, limit=200)
-    total_attempts = len(attempts)
-    total_q = sum(_safe_int(r.get("quiz_len")) for r in attempts)
-    total_score = sum(_safe_int(r.get("score")) for r in attempts)
-    total_wrong = sum(_safe_int(r.get("wrong_count")) for r in attempts)
-    acc = int(round((total_score / total_q) * 100)) if total_q else 0
+    total = len(wrongs)
+    recent7 = sum(1 for w in wrongs[:200] if (str(w.get("created_at") or "")[:10] >= str(datetime.utcnow().date())))
+    # recent7 is approximate; avoid heavy date math without timezone issues
 
-    # Overview card (email only, no plan line)
     st.markdown(
-        f"""
-<div class="ha-card">
-  <div class="ha-card-title">{email}</div>
-  <div class="ha-card-sub">내 학습 데이터를 한곳에서 정리합니다.</div>
-  <div class="ha-metrics">
-    <div class="ha-pill">학습 세트 {total_attempts}회</div>
-    <div class="ha-pill">풀어본 문항 {total_q}문</div>
-    <div class="ha-pill">정답률 {acc}%</div>
-    <div class="ha-pill">오답 {total_wrong}개</div>
+        f'<div class="ha-row"><span class="ha-badge">총 {total}개</span>'
+        f'<span class="ha-badge">최근 {min(30,total)}개 표시</span></div>',
+        unsafe_allow_html=True,
+    )
+    st.markdown('<div class="ha-divider"></div>', unsafe_allow_html=True)
+
+    for w in wrongs[:30]:
+        q = w.get("question", "")
+        ca = w.get("correct_answer", "")
+        ua = w.get("user_answer", "")
+        qt = (w.get("quiz_type") or "").upper()
+        lv = w.get("level") or ""
+        when = _format_dt(w.get("created_at"))
+        st.markdown(
+            f"""
+<div class="ha-card" style="box-shadow:none; padding:12px; border-radius:12px;">
+  <div class="ha-row">
+    <span class="ha-badge">{qt or "QUIZ"}</span>
+    {f'<span class="ha-badge">{lv}</span>' if lv else ''}
+    {f'<span class="ha-badge">{when}</span>' if when else ''}
+  </div>
+  <div style="margin-top:8px; font-size:15px;">
+    <div><span class="ha-muted">문제</span> <b>{q}</b></div>
+    <div style="margin-top:4px;"><span class="ha-muted">정답</span> <span class="ha-correct">{ca}</span></div>
+    <div style="margin-top:2px;"><span class="ha-muted">내 답</span> <span class="ha-wrong">{ua}</span></div>
   </div>
 </div>
-""",
+            """,
+            unsafe_allow_html=True,
+        )
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+def _build_mcq_choices(correct: str, pool: List[str], k: int = 4) -> List[str]:
+    pool = [p for p in pool if p and p != correct]
+    random.shuffle(pool)
+    choices = [correct] + pool[: max(0, k - 1)]
+    # if insufficient distractors, pad with blanks? better: de-dup and maybe shrink
+    choices = list(dict.fromkeys(choices))
+    while len(choices) < 2:
+        choices.append("…")
+    random.shuffle(choices)
+    return choices
+
+
+def _top10_quiz_ui(wrongs: List[Dict[str, Any]]):
+    st.markdown('<div class="ha-card">', unsafe_allow_html=True)
+    st.markdown("<h4>🧪 TOP10 재시험</h4>", unsafe_allow_html=True)
+    if not wrongs:
+        st.info("오답 상세 데이터가 없어서 TOP10 재시험을 시작할 수 없습니다.")
+        st.markdown("</div>", unsafe_allow_html=True)
+        return
+
+    if st.session_state.get("top10_running") is not True:
+        c1, c2 = st.columns([1, 1])
+        with c1:
+            start = st.button("TOP10 재시험 시작", type="primary", use_container_width=True, key="top10_start_btn")
+        with c2:
+            mode = st.selectbox(
+                "문항 방식",
+                ["4지선다", "단답"],
+                index=0,
+                key="top10_mode_sel",
+                help="오답카드에 저장된 ‘정답’ 기준으로 다시 풀어봅니다.",
+            )
+        if start:
+            st.session_state["top10_running"] = True
+            st.session_state["top10_mode"] = mode
+            st.session_state["top10_items"] = wrongs[:10]
+            st.session_state["top10_answers"] = {}
+            st.session_state["top10_submitted"] = False
+            st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+        return
+
+    items: List[Dict[str, Any]] = st.session_state.get("top10_items", wrongs[:10])
+    mode = st.session_state.get("top10_mode", "4지선다")
+    answers: Dict[str, Any] = st.session_state.get("top10_answers", {})
+    all_correct_answers = [str(w.get("correct_answer") or "") for w in wrongs[:200] if w.get("correct_answer")]
+
+    for i, w in enumerate(items, start=1):
+        qid = str(w.get("id") or f"q{i}")
+        q = str(w.get("question") or "")
+        ca = str(w.get("correct_answer") or "")
+        st.markdown(f"**{i}. {q}**")
+        if mode == "단답":
+            answers[qid] = st.text_input("정답", value=str(answers.get(qid, "")), key=f"top10_in_{qid}")
+        else:
+            choices = _build_mcq_choices(ca, all_correct_answers, k=4)
+            default = choices.index(answers.get(qid)) if answers.get(qid) in choices else 0
+            answers[qid] = st.radio("보기", choices, index=default, key=f"top10_mc_{qid}")
+        st.caption(f"정답: {ca}")
+
+        st.markdown('<div class="ha-divider"></div>', unsafe_allow_html=True)
+
+    st.session_state["top10_answers"] = answers
+
+    c1, c2 = st.columns([1, 1])
+    with c1:
+        if st.button("제출", type="primary", use_container_width=True, key="top10_submit_btn"):
+            st.session_state["top10_submitted"] = True
+    with c2:
+        if st.button("시험 재시작", use_container_width=True, key="top10_restart_btn"):
+            st.session_state["top10_running"] = False
+            st.session_state.pop("top10_items", None)
+            st.session_state.pop("top10_answers", None)
+            st.session_state["top10_submitted"] = False
+            st.rerun()
+
+    if st.session_state.get("top10_submitted"):
+        correct = 0
+        for w in items:
+            qid = str(w.get("id") or "")
+            ca = str(w.get("correct_answer") or "")
+            ua = str(answers.get(qid, "")).strip()
+            if ua == ca:
+                correct += 1
+        st.success(f"점수: {correct} / {len(items)}")
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+def _records_ui():
+    # Lightweight: show recent quiz_attempts if available (keeps MyPage focused)
+    sb = _sb()
+    st.markdown('<div class="ha-card">', unsafe_allow_html=True)
+    st.markdown("<h4>📊 학습 기록</h4>", unsafe_allow_html=True)
+    if not sb:
+        st.info("로그인 후 이용 가능합니다.")
+        st.markdown("</div>", unsafe_allow_html=True)
+        return
+    try:
+        r = sb.table("quiz_attempts").select("created_at,kind,level,quiz_len,score").order("created_at", desc=True).limit(50).execute()
+        data = getattr(r, "data", None) or []
+        if not data:
+            st.info("기록이 아직 없습니다.")
+        else:
+            # quick summary
+            total = len(data)
+            avg = sum((d.get("score") or 0) for d in data) / max(1, total)
+            st.markdown(f'<div class="ha-row"><span class="ha-badge">최근 {total}건</span><span class="ha-badge">평균 점수 {avg:.1f}</span></div>', unsafe_allow_html=True)
+            st.markdown('<div class="ha-divider"></div>', unsafe_allow_html=True)
+            for d in data[:15]:
+                when = _format_dt(d.get("created_at"))
+                kind = (d.get("kind") or "").upper()
+                level = d.get("level") or ""
+                ql = d.get("quiz_len") or ""
+                sc = d.get("score")
+                st.markdown(f"- {when} · {kind} {level} · {ql}문 · {sc}점")
+    except Exception:
+        st.info("학습 기록을 불러올 수 없습니다. (RLS 또는 테이블 확인)")
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+def _messages_ui():
+    st.markdown('<div class="ha-card">', unsafe_allow_html=True)
+    st.markdown("<h4>📩 받은 메시지</h4>", unsafe_allow_html=True)
+
+    msgs = _safe_select("user_messages", cols="id,title,body,created_at,read_at", limit=100)
+    if not msgs:
+        st.info("받은 메시지가 없습니다.")
+        st.markdown("</div>", unsafe_allow_html=True)
+        return
+
+    unread = [m for m in msgs if not m.get("read_at")]
+    st.markdown(f'<div class="ha-row"><span class="ha-badge">읽지 않음 {len(unread)}개</span><span class="ha-badge">최근 {min(20,len(msgs))}개 표시</span></div>', unsafe_allow_html=True)
+    st.markdown('<div class="ha-divider"></div>', unsafe_allow_html=True)
+
+    for m in msgs[:20]:
+        mid = m.get("id")
+        title = m.get("title") or "메시지"
+        body = m.get("body") or ""
+        when = _format_dt(m.get("created_at"))
+        is_unread = not m.get("read_at")
+        with st.expander(("🆕 " if is_unread else "") + f"{title}  ·  {when}", expanded=False):
+            st.write(body)
+            if is_unread and mid:
+                if st.button("읽음 처리", key=f"msg_read_{mid}"):
+                    _mark_message_read(mid)
+                    st.rerun()
+
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+def render():
+    _css()
+    user = _user()
+    uid = _user_id(user)
+    email = _user_email(user)
+
+    st.markdown('<div class="ha-wrap">', unsafe_allow_html=True)
+
+    # Header
+    st.markdown(
+        f"""
+<div class="ha-head">
+  <div>
+    <div class="ha-title">🧾 복습 · 기록 관리</div>
+    <div class="ha-sub">{email or ""}</div>
+  </div>
+</div>
+        """,
         unsafe_allow_html=True,
     )
 
-    # Tabs (structure B)
-    tab_names = ["오답 · TOP10", "학습 기록", "받은 메시지"]
-    default_idx = 0
-    if focus in ("records", "log", "history"):
-        default_idx = 1
-    elif focus in ("inbox", "messages", "msg"):
-        default_idx = 2
+    _nav_back_and_logout()
 
-    tabs = st.tabs(tab_names)
-    # Streamlit tabs don't accept default index directly; we use focus for UI hints inside sections.
+    st.markdown('<div style="height:8px;"></div>', unsafe_allow_html=True)
 
-    # 1) Wrong / Top10
-    with tabs[0]:
-        st.markdown(
-            """
-<div class="ha-card">
-  <div class="ha-card-title">📚 오답카드</div>
-  <div class="ha-card-sub">틀린 항목을 모아 복습합니다. (오답 상세 저장 테이블이 있으면 카드로 표시됩니다.)</div>
-</div>
-""",
-            unsafe_allow_html=True,
-        )
+    tab1, tab2, tab3 = st.tabs(["오답 · TOP10", "학습 기록", "받은 메시지"])
 
-        # Pull wrong details first (needed for TOP10)
-        table_name, wrong_rows = _try_fetch_wrongs(sb, email, limit=30)
+    with tab1:
+        wrongs = _load_wrong_notes(limit=300)
+        _wrong_cards_ui(wrongs)
+        _top10_quiz_ui(wrongs)
 
-        # Actions row
-        a1, a2, a3 = st.columns([0.34, 0.33, 0.33])
-        with a1:
-            if st.button("🔎 오답카드 새로고침", key="my_wrongs_refresh"):
-                st.rerun()
-        with a2:
-            # In-page TOP10 quiz (no dependency on other modules)
-            disabled = not bool(wrong_rows)
-            if st.button("🧪 TOP10 재시험 시작", type="primary", key="my_top10_start", disabled=disabled):
-                st.session_state["top10_quiz"] = _build_top10_quiz(wrong_rows)
-                st.session_state["top10_active"] = True
-                st.rerun()
-        with a3:
-            if st.button("➡️ 단어 훈련으로 이동", key="my_go_word"):
-                st.session_state["hub_page"] = "word"
-                try:
-                    st.query_params["p"] = "word"
-                except Exception:
-                    pass
-                st.rerun()
+    with tab2:
+        _records_ui()
 
-        if not wrong_rows:
-            st.info(
-                "오답 상세 데이터를 찾지 못했습니다. (quiz_attempts에는 오답 개수만 저장될 수 있어요.)\n\n"
-                "예전처럼 ‘단어/정답/내답’ 카드가 나오게 하려면, 오답 상세를 저장하는 테이블(예: wrong_notes)이 필요합니다."
-            )
-        else:
-            st.success(f"오답 상세 테이블: {table_name} (최근 {min(len(wrong_rows), 30)}개)")
-            for r in wrong_rows[:30]:
-                dt = _dt_str(r.get("created_at"))
-                level = str(r.get("level") or "")
-                mode = str(r.get("pos_mode") or "")
-                q = r.get("question") or r.get("jp_word") or r.get("item") or "오답 항목"
-                ua = r.get("your_answer") or r.get("user_answer") or r.get("selected") or ""
-                ca = r.get("correct_answer") or r.get("answer") or ""
-
-                body_lines = []
-                if ua or ca:
-                    body_lines.append(f"내 답: {ua}")
-                    body_lines.append(f"정답: {ca}")
-                meaning = r.get("meaning")
-                reading = r.get("reading")
-                if reading:
-                    body_lines.append(f"발음: {reading}")
-                if meaning:
-                    body_lines.append(f"뜻: {meaning}")
-
-                body = "\n".join(body_lines) if body_lines else "상세 정보가 부족합니다."
-
-                st.markdown(
-                    f"""
-<div class="ha-wrong">
-  <div class="ha-wrong-top">
-    <div class="ha-wrong-q">{q}</div>
-    <div class="ha-wrong-meta">{level} · {mode} · {dt}</div>
-  </div>
-  <div class="ha-wrong-body">{body}</div>
-</div>
-""",
-                    unsafe_allow_html=True,
-                )
-
-    # 2) Attempts / history
-    with tabs[1]:
-        st.markdown(
-            """
-<div class="ha-card">
-  <div class="ha-card-title">🗂️ 학습 기록</div>
-  <div class="ha-card-sub">최근 학습 세트를 카드로 정리합니다.</div>
-</div>
-""",
-            unsafe_allow_html=True,
-        )
-
-        if not attempts:
-            st.write("아직 기록이 없습니다. 훈련을 시작하면 자동으로 기록이 쌓입니다.")
-        else:
-            for r in attempts[:20]:
-                dt = _dt_str(r.get("created_at"))
-                level = str(r.get("level") or "")
-                mode = str(r.get("pos_mode") or "")
-                qlen = _safe_int(r.get("quiz_len"))
-                score = _safe_int(r.get("score"))
-                wrong = _safe_int(r.get("wrong_count"))
-                pct = int(round((score / qlen) * 100)) if qlen else 0
-
-                st.markdown(
-                    f"""
-<div class="ha-wrong">
-  <div class="ha-wrong-top">
-    <div class="ha-wrong-q">{level} · {mode}</div>
-    <div class="ha-wrong-meta">{dt}</div>
-  </div>
-  <div class="ha-metrics" style="margin-top:8px;">
-    <div class="ha-pill">점수 {score}/{qlen}</div>
-    <div class="ha-pill">정답률 {pct}%</div>
-    <div class="ha-pill">오답 {wrong}개</div>
-  </div>
-</div>
-""",
-                    unsafe_allow_html=True,
-                )
-
-    # 3) Inbox / messages
-    with tabs[2]:
-        st.markdown(
-            """
-<div class="ha-card">
-  <div class="ha-card-title">📩 받은 메시지</div>
-  <div class="ha-card-sub">관리자가 보낸 공지/독려 메시지를 확인합니다.</div>
-</div>
-""",
-            unsafe_allow_html=True,
-        )
-
-        if not uid:
-            st.info("메시지함을 열려면 사용자 ID가 필요합니다. 홈에서 다시 로그인 후 들어와 주세요.")
-        else:
-            msgs = _fetch_messages(sb, uid, limit=30)
-            if not msgs:
-                st.write("받은 메시지가 없습니다.")
-            else:
-                unread = sum(1 for m in msgs if not m.get("read_at"))
-                st.markdown(f'<div class="ha-chip">읽지 않음 {unread}개</div>', unsafe_allow_html=True)
-
-                for m in msgs[:30]:
-                    mid = str(m.get("id") or "")
-                    title = m.get("title") or "메시지"
-                    body = m.get("body") or ""
-                    dt = _dt_str(m.get("created_at"))
-                    read_at = m.get("read_at")
-
-                    top_cols = st.columns([0.75, 0.25])
-                    with top_cols[0]:
-                        st.markdown(
-                            f"""
-<div class="ha-msg">
-  <div class="ha-msg-top">
-    <div class="ha-msg-title">{title}</div>
-    <div class="ha-msg-date">{dt}</div>
-  </div>
-  <div class="ha-msg-body">{body}</div>
-</div>
-""",
-                            unsafe_allow_html=True,
-                        )
-                    with top_cols[1]:
-                        if read_at:
-                            st.caption("읽음")
-                        else:
-                            if st.button("읽음 처리", key=f"msg_read_{mid}"):
-                                ok = _mark_message_read(sb, mid)
-                                if ok:
-                                    st.success("처리 완료")
-                                    st.rerun()
-                                else:
-                                    st.error("처리 실패")
+    with tab3:
+        _messages_ui()
 
     st.markdown("</div>", unsafe_allow_html=True)
