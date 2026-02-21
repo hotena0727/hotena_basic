@@ -446,6 +446,7 @@ def load_profile(sb_authed, user_id: str):
         st.session_state["progress_all"] = progress
         st.session_state["user_plan"] = plan
         st.session_state["is_admin"] = is_admin
+        st.session_state["user_id"] = user_id
     except Exception:
         st.session_state["progress_all"] = st.session_state.get("progress_all", {}) or {}
         st.session_state["user_plan"] = st.session_state.get("user_plan", "free")
@@ -1067,6 +1068,14 @@ def summarize_attempts(attempts: list[dict]) -> dict:
         out["by_kind"][kind]["q"] += q
         out["by_kind"][kind]["score"] += s
     return out
+
+# ✅ show unread message popup once per session
+try:
+    uid_now = st.session_state.get("user_id") or getattr(user, "id", None)
+    if uid_now and sb_authed:
+        um_popup_unread_once(sb_authed, str(uid_now))
+except Exception:
+    pass
 
 def render_floating_menu():
     """✅ Floating hamburger menu (Hub)
@@ -1845,6 +1854,132 @@ def run_script(filename: str):
 # ============================================================
 
 
+
+# ============================================================
+# ✅ User Messages (Admin DM / Broadcast) utilities
+# ============================================================
+
+def _um_table_ready(sb) -> bool:
+    try:
+        sb.table("user_messages").select("id").limit(1).execute()
+        return True
+    except Exception:
+        return False
+
+def _um_safe_toast(msg: str):
+    # Streamlit toast exists in newer versions; fallback to info
+    try:
+        st.toast(msg)
+    except Exception:
+        st.info(msg)
+
+def um_unread_user_set(sb, limit: int = 10000) -> set[str]:
+    """Return set of user_id strings that have at least 1 unread message."""
+    try:
+        r = (sb.table("user_messages")
+              .select("user_id")
+              .is_("read_at", "null")
+              .limit(limit)
+              .execute())
+        rows = r.data or []
+        return {str(x.get("user_id") or "") for x in rows if x.get("user_id")}
+    except Exception:
+        return set()
+
+def um_unread_count(sb, user_id: str) -> int:
+    try:
+        r = (sb.table("user_messages")
+              .select("id", count="exact")
+              .eq("user_id", user_id)
+              .is_("read_at", "null")
+              .execute())
+        return int(getattr(r, "count", 0) or 0)
+    except Exception:
+        return 0
+
+def um_send_to_user(sb, *, to_user_id: str, sender_admin_id: str | None, title: str | None, body: str):
+    payload = {
+        "user_id": to_user_id,
+        "sender_admin_id": sender_admin_id,
+        "title": title or None,
+        "body": body,
+    }
+    return sb.table("user_messages").insert(payload).execute()
+
+def um_bulk_send(sb, payloads: list[dict]):
+    # Supabase python supports bulk insert (list of dicts)
+    return sb.table("user_messages").insert(payloads).execute()
+
+def um_fetch_inbox(sb, user_id: str, limit: int = 50):
+    r = (sb.table("user_messages")
+          .select("id,title,body,created_at,read_at")
+          .eq("user_id", user_id)
+          .order("created_at", desc=True)
+          .limit(limit)
+          .execute())
+    return r.data or []
+
+def um_mark_read(sb, ids: list[str]):
+    if not ids:
+        return
+    return (sb.table("user_messages")
+              .update({"read_at": dt.datetime.utcnow().isoformat()})
+              .in_("id", ids)
+              .execute())
+
+def um_popup_unread_once(sb, user_id: str):
+    """Show a small popup once per session if there are unread messages."""
+    if st.session_state.get("_um_popup_shown"):
+        return
+    n = um_unread_count(sb, user_id)
+    if n > 0:
+        _um_safe_toast(f"🔔 읽지 않은 메시지 {n}개가 있어요. 마이페이지에서 확인해 주세요.")
+    st.session_state["_um_popup_shown"] = True
+
+def um_template_set(title: str, body: str):
+    st.session_state["admin_msg_title"] = title
+    st.session_state["admin_msg_body"] = body
+
+
+
+def render_user_inbox_section(sb_authed, user_id: str):
+    """Render inbox UI (safe) - can be placed on My page."""
+    st.markdown("## 📩 관리자 메시지")
+    if not _um_table_ready(sb_authed):
+        st.info("메시지함이 아직 준비되지 않았습니다.")
+        return
+    msgs = um_fetch_inbox(sb_authed, user_id, limit=50)
+    if not msgs:
+        st.info("받은 메시지가 없습니다.")
+        return
+
+    unread_ids = []
+    for m in msgs:
+        unread = (m.get("read_at") is None)
+        if unread:
+            unread_ids.append(str(m.get("id")))
+        title = (m.get("title") or "메시지").strip()
+        header = f"{'🟡 ' if unread else ''}{title}"
+        with st.expander(header, expanded=unread):
+            st.write(m.get("body") or "")
+            st.caption(str(m.get("created_at") or ""))
+            if unread and st.button("읽음 처리", key=f"um_read_{m.get('id')}"):
+                try:
+                    um_mark_read(sb_authed, [str(m.get("id"))])
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"읽음 처리 실패: {e}")
+
+    # optional: mark all as read with one click
+    if unread_ids:
+        if st.button("모두 읽음 처리", use_container_width=True, key="um_read_all"):
+            try:
+                um_mark_read(sb_authed, unread_ids)
+                st.rerun()
+            except Exception as e:
+                st.error(f"읽음 처리 실패: {e}")
+
+
 def render_admin_dashboard(sb_authed):
     """
     Hatena-style admin dashboard.
@@ -2332,6 +2467,20 @@ def render_admin_dashboard(sb_authed):
                 </style>
                 """, unsafe_allow_html=True)
 
+                # --- filter: users with unread messages ---
+                unread_only = st.checkbox("📩 읽지 않은 메시지 있는 학생만", value=False, key="admin_filter_unread_only")
+                if unread_only:
+                    if _um_table_ready(sb_authed):
+                        _uset = um_unread_user_set(sb_authed)
+                        if _uset:
+                            _keycol = "id_str" if "id_str" in uf.columns else ("id" if "id" in uf.columns else None)
+                            if _keycol:
+                                uf = uf[uf[_keycol].astype(str).isin(_uset)].copy()
+                        else:
+                            st.info("읽지 않은 메시지가 있는 학생이 없습니다.")
+                    else:
+                        st.warning("메시지 기능(DB: user_messages)이 아직 준비되지 않았습니다. 먼저 Supabase에 테이블/RLS를 추가하세요.")
+
                 list_df = uf.head(int(limit)).copy()
 
                 def _fmt_dt(v):
@@ -2596,6 +2745,90 @@ def render_admin_dashboard(sb_authed):
                                     """, language="sql")
 
                                 st.markdown("</div>", unsafe_allow_html=True)
+
+                                # --- Card: messages ---
+                                st.markdown('<div class="ha-card">', unsafe_allow_html=True)
+                                st.markdown("#### ✉️ 학생에게 메시지 보내기")
+
+                                if not _um_table_ready(sb_authed):
+                                    st.warning("메시지 기능(user_messages)이 아직 준비되지 않았습니다. Supabase SQL(Editor)에서 테이블/RLS를 먼저 추가해 주세요.")
+                                else:
+                                    # templates
+                                    t1, t2, t3 = st.columns(3)
+                                    with t1:
+                                        if st.button("시험 독려", use_container_width=True, key="tpl_exam"):
+                                            um_template_set("JLPT 시험 대비", "이번 주는 ‘실전 루틴’으로 갑시다.\n- 매일 1세트(10문제)\n- 오답만 다시 풀기\n- 주말엔 독해 1지문\n오늘도 10분만 같이 가요.")
+                                            st.rerun()
+                                    with t2:
+                                        if st.button("루틴 독려", use_container_width=True, key="tpl_routine"):
+                                            um_template_set("오늘도 루틴 체크", "딱 10분만 해도 루틴은 살아 있습니다.\n오늘 1세트만 하고 ‘완료’ 찍고 가요.\n하테나가 계속 옆에서 밀어드릴게요.")
+                                            st.rerun()
+                                    with t3:
+                                        if st.button("합격 축하", use_container_width=True, key="tpl_congrats"):
+                                            um_template_set("합격 축하합니다!", "정말 고생 많으셨습니다.\n이번 결과는 실력 + 루틴이 만든 성과예요.\n이제 다음 단계도 하테나랑 같이 가요 🙂")
+                                            st.rerun()
+
+                                    msg_title = st.text_input("제목(선택)", key="admin_msg_title")
+                                    msg_body  = st.text_area("내용", height=140, key="admin_msg_body", placeholder="학생에게 보낼 메시지를 입력하세요.")
+
+                                    send_c1, send_c2 = st.columns([1.0, 1.0])
+                                    with send_c1:
+                                        send_mode = st.radio("전송 대상", ["선택 회원에게", "특정 플랜 전체"], horizontal=True, index=0, key="admin_msg_mode")
+                                    with send_c2:
+                                        target_plan = st.selectbox("플랜 선택", options=["free","pro"], index=1 if str(cur_plan).lower()=="pro" else 0, key="admin_msg_target_plan")
+
+                                    confirm_send = st.checkbox("전송 확인", value=False, key="admin_msg_confirm")
+                                    if st.button("메시지 전송", type="primary", use_container_width=True, disabled=not confirm_send, key="admin_msg_send_btn"):
+                                        if not msg_body.strip():
+                                            st.warning("내용을 입력해 주세요.")
+                                        else:
+                                            sender_id = st.session_state.get("user_id")
+                                            if send_mode == "선택 회원에게":
+                                                try:
+                                                    um_send_to_user(
+                                                        sb_authed,
+                                                        to_user_id=user_id,
+                                                        sender_admin_id=sender_id,
+                                                        title=(msg_title.strip() if msg_title.strip() else None),
+                                                        body=msg_body.strip(),
+                                                    )
+                                                    st.success("보냈습니다.")
+                                                    st.session_state["admin_msg_title"] = ""
+                                                    st.session_state["admin_msg_body"] = ""
+                                                    st.rerun()
+                                                except Exception as e:
+                                                    st.error(f"전송 실패: {e}")
+                                            else:
+                                                # broadcast by plan (insert per user)
+                                                try:
+                                                    prof = (sb_authed.table("profiles")
+                                                              .select("id")
+                                                              .eq("plan", target_plan)
+                                                              .limit(5000)
+                                                              .execute()).data or []
+                                                    ids = [str(x.get("id") or "") for x in prof if x.get("id")]
+                                                    if not ids:
+                                                        st.warning("대상 플랜 회원이 없습니다.")
+                                                    else:
+                                                        payloads = [{
+                                                            "user_id": uid,
+                                                            "sender_admin_id": sender_id,
+                                                            "title": (msg_title.strip() if msg_title.strip() else None),
+                                                            "body": msg_body.strip(),
+                                                        } for uid in ids]
+                                                        # chunk to avoid payload size issues
+                                                        chunk = 500
+                                                        for i in range(0, len(payloads), chunk):
+                                                            um_bulk_send(sb_authed, payloads[i:i+chunk])
+                                                        st.success(f"플랜({target_plan}) 회원 {len(ids)}명에게 발송했습니다.")
+                                                        st.session_state["admin_msg_title"] = ""
+                                                        st.session_state["admin_msg_body"] = ""
+                                                        st.rerun()
+                                                except Exception as e:
+                                                    st.error(f"전체 발송 실패: {e}")
+
+                                st.markdown("</div>", unsafe_allow_html=True)
+
                 else:
                     st.info("검색 결과가 없습니다.")
 
@@ -2858,8 +3091,16 @@ if page == "home":
     # ✅ Home Hub: dashboard view
     render_home_dashboard(sb_authed, user)
 elif page == "my":
-    # ✅ 독립 마이페이지: 한자(app.py) 안에 있던 대시보드를 그대로 분리한 mypage.py를 실행
+    # ✅ 마이페이지: (1) 받은 메시지(알림) 먼저 노출 → (2) 기존 mypage 모듈 실행
     st.session_state['HUB_MODE'] = True
+    try:
+        uid_now = st.session_state.get("user_id") or getattr(user, "id", None)
+        if uid_now and sb_authed:
+            render_user_inbox_section(sb_authed, str(uid_now))
+            st.markdown("---")
+    except Exception:
+        pass
+
     run_module('mypage')
     st.stop()
 
