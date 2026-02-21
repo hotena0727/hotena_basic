@@ -6,6 +6,7 @@ BUILD_STAMP = 'home-min-clean-v2 (replace dashboard) 2026-02-20 KST (+09:00)'
 from pathlib import Path
 import os
 import runpy
+import importlib
 import json
 import hashlib
 import base64
@@ -13,7 +14,6 @@ from cryptography.fernet import Fernet
 from datetime import date, datetime, timedelta, timezone
 import streamlit as st
 import streamlit.components.v1 as components
-import importlib
 # ============================================================
 # ✅ LocalStorage / QueryParam persistence helpers
 # ============================================================
@@ -1812,23 +1812,6 @@ def run_script(filename: str):
 
 
 # ============================================================
-# ✅ Module runner (NO runpy gap)
-# - Import + reload so it executes in the SAME Streamlit run
-# - Avoids the extra block spacing that runpy.run_path introduces
-# ============================================================
-def run_module(module_name: str):
-    try:
-        mod = importlib.import_module(module_name)
-        importlib.reload(mod)  # ensure rerun renders the module content
-    except Exception:
-        # surface full traceback in-app
-        import traceback as _tb
-        st.error("모듈 실행 중 오류가 발생했습니다.")
-        st.code(_tb.format_exc())
-        raise
-
-
-# ============================================================
 # ✅ Floating-menu query routing (CSP-safe, preserves rt/at)
 # ============================================================
 try:
@@ -1856,10 +1839,8 @@ if page == "home":
     render_home_dashboard(sb_authed, user)
 elif page == "my":
     # ✅ 독립 마이페이지: 한자(app.py) 안에 있던 대시보드를 그대로 분리한 mypage.py를 실행
-    st.session_state['HUB_MODE']=True
-    import mypage as _myp
-    importlib.reload(_myp)
-    _myp.render()
+    st.session_state['HUB_MODE'] = True
+    run_module('mypage')
     st.stop()
 
 elif page == "reminder":
@@ -1869,18 +1850,17 @@ elif page == "reminder":
 elif page == "word":
     st.session_state["hub_target"] = "word"
     render_training_header(sb_authed, user, kind="word", title="📘 단어 훈련", subtitle="뜻/발음/한→일 · 10문제 1세트")
-    st.session_state['HUB_MODE']=True
+    st.session_state['HUB_MODE'] = True
     run_module('hotena_basic')
 elif page == "kanji":
     st.session_state["hub_target"] = "kanji"
     render_training_header(sb_authed, user, kind="kanji", title="🈶 한자 훈련", subtitle="읽기/뜻/복습 · 10문제 1세트")
-    st.session_state['HUB_MODE']=True
+    st.session_state['HUB_MODE'] = True
     run_module('app')
 elif page == "talk":
     st.session_state["hub_target"] = "talk"
     render_training_header(sb_authed, user, kind="talk", title="💬 회화 훈련", subtitle="상황 판단 · 정답 선택 · 발음 연습")
-    st.session_state['HUB_MODE']=True
-    run_module('talk')
+    run_script("talk.py")
 else:
     # ✅ Fallback: unknown page -> go home
     st.session_state["hub_page"] = "home"
