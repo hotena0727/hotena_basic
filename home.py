@@ -20,30 +20,24 @@ import streamlit.components.v1 as components
 # - Import (or reload) a module by name so it renders in the SAME Streamlit flow
 # ============================================================
 def run_module(module_name: str):
-    """Import (or reload) a module by name so it renders in the SAME Streamlit flow.
+    """Run a page module as a script (so __name__ == '__main__').
 
-    IMPORTANT:
-    - Do NOT import + reload back-to-back in the same run.
-      That executes top-level module code twice and can trigger StreamlitDuplicateElementKey.
+    Why:
+    - Several modules (e.g., app.py) render only under __main__.
+    - Avoid import+reload double-execution which can cause DuplicateElementKey.
     """
     try:
-        import sys as _sys
-        if module_name in _sys.modules:
-            mod = importlib.reload(_sys.modules[module_name])
-        else:
-            mod = importlib.import_module(module_name)
-
-        # If module exposes a render() function, call it.
-        if hasattr(mod, "render") and callable(getattr(mod, "render")):
-            mod.render()
+        base_dir = Path(__file__).resolve().parent
+        path = base_dir / f"{module_name}.py"
+        if not path.exists():
+            raise FileNotFoundError(f"Module file not found: {path}")
+        # Execute exactly once per Streamlit run (reflects latest edits automatically)
+        runpy.run_path(str(path), run_name="__main__")
     except Exception as e:
         st.exception(e)
         raise
 
 
-# ============================================================
-# ✅ LocalStorage / QueryParam persistence helpers
-# ============================================================
 def _js_bridge_localstorage_to_queryparam(ls_key: str, qp_key: str):
     try:
         components.html(
@@ -102,24 +96,6 @@ from streamlit_cookies_manager import EncryptedCookieManager
 # ✅ Page Config (Hub only)
 # ============================================================
 st.set_page_config(page_title="Hotena Hub", layout="centered")
-# ✅ Hide Streamlit default chrome (header/footer)
-st.markdown("""
-<style>
-/* Streamlit chrome */
-#MainMenu {visibility: hidden;}
-header {visibility: hidden;}
-footer {visibility: hidden;}
-
-/* Newer Streamlit selectors */
-[data-testid="stHeader"] {display: none;}
-[data-testid="stToolbar"] {display: none;}
-[data-testid="stDecoration"] {display: none;}
-[data-testid="stStatusWidget"] {display: none;}
-[data-testid="stFooter"] {display: none;}
-/* Viewer badge (bottom-right) */
-[data-testid="stViewerBadge"] {display: none;}
-</style>
-""", unsafe_allow_html=True)
 # ✅ TOP anchor for floating button (no-JS)
 st.markdown('<div id="hotena-top"></div>', unsafe_allow_html=True)
 
