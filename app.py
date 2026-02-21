@@ -20,29 +20,23 @@ import textwrap
 if not st.session_state.get("_page_config_set"):
     st.set_page_config(page_title="Hotena", layout="centered")
     st.session_state["_page_config_set"] = True
-
 # ============================================================
-# ✅ Hide Streamlit default header/footer/menu (per-page)
+# ✅ Hide Streamlit default header/footer (applies per page)
 # ============================================================
-st.markdown("""
+st.markdown(
+    """
 <style>
-/* Main menu / toolbar / header */
-#MainMenu {visibility: hidden;}
-header {visibility: hidden;}
-[data-testid="stHeader"] {display: none;}
-[data-testid="stToolbar"] {display: none;}
-[data-testid="stDecoration"] {display: none;}
-[data-testid="stStatusWidget"] {display: none;}
-
-/* Footer + Streamlit badge */
-footer {visibility: hidden;}
-[data-testid="stFooter"] {display: none;}
-.viewerBadge_container {display: none !important;}
-.viewerBadge_link {display: none !important;}
-.viewerBadge_text {display: none !important;}
+/* Hide Streamlit chrome */
+header, footer {visibility: hidden;}
+[data-testid="stHeader"], [data-testid="stFooter"] {display: none;}
+/* In some builds, Streamlit shows a bottom badge/container */
+[data-testid="stBottomBlockContainer"] {display: none;}
+/* Fallback for older/newer badge classnames */
+[class^="viewerBadge_"], [class*="viewerBadge_"] {display: none;}
 </style>
-""", unsafe_allow_html=True)
-
+""",
+    unsafe_allow_html=True,
+)
 # ============================================================
 # ✅ [SOUND] 사운드 유틸 (모바일 자동재생 정책 대응)
 # ============================================================

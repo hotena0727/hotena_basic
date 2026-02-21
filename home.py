@@ -92,6 +92,23 @@ from streamlit_cookies_manager import EncryptedCookieManager
 # ✅ Page Config (Hub only)
 # ============================================================
 st.set_page_config(page_title="Hotena Hub", layout="centered")
+# ============================================================
+# ✅ Hide Streamlit default header/footer (applies per page)
+# ============================================================
+st.markdown(
+    """
+<style>
+/* Hide Streamlit chrome */
+header, footer {visibility: hidden;}
+[data-testid="stHeader"], [data-testid="stFooter"] {display: none;}
+/* In some builds, Streamlit shows a bottom badge/container */
+[data-testid="stBottomBlockContainer"] {display: none;}
+/* Fallback for older/newer badge classnames */
+[class^="viewerBadge_"], [class*="viewerBadge_"] {display: none;}
+</style>
+""",
+    unsafe_allow_html=True,
+)
 # ✅ TOP anchor for floating button (no-JS)
 st.markdown('<div id="hotena-top"></div>', unsafe_allow_html=True)
 
@@ -240,29 +257,6 @@ div[data-testid="stMetric"]{
     unsafe_allow_html=True,
 )
 st.session_state["_page_config_set"] = True  # children should not call set_page_config
-
-# ============================================================
-# ✅ Hide Streamlit default header/footer/menu (per-page)
-# ============================================================
-st.markdown("""
-<style>
-/* Main menu / toolbar / header */
-#MainMenu {visibility: hidden;}
-header {visibility: hidden;}
-[data-testid="stHeader"] {display: none;}
-[data-testid="stToolbar"] {display: none;}
-[data-testid="stDecoration"] {display: none;}
-[data-testid="stStatusWidget"] {display: none;}
-
-/* Footer + Streamlit badge */
-footer {visibility: hidden;}
-[data-testid="stFooter"] {display: none;}
-.viewerBadge_container {display: none !important;}
-.viewerBadge_link {display: none !important;}
-.viewerBadge_text {display: none !important;}
-</style>
-""", unsafe_allow_html=True)
-
 
 BASE_DIR = Path(__file__).resolve().parent
 

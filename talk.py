@@ -8,6 +8,23 @@ import hashlib
 
 import pandas as pd
 import streamlit as st
+# ============================================================
+# ✅ Hide Streamlit default header/footer (applies per page)
+# ============================================================
+st.markdown(
+    """
+<style>
+/* Hide Streamlit chrome */
+header, footer {visibility: hidden;}
+[data-testid="stHeader"], [data-testid="stFooter"] {display: none;}
+/* In some builds, Streamlit shows a bottom badge/container */
+[data-testid="stBottomBlockContainer"] {display: none;}
+/* Fallback for older/newer badge classnames */
+[class^="viewerBadge_"], [class*="viewerBadge_"] {display: none;}
+</style>
+""",
+    unsafe_allow_html=True,
+)
 
 
 # ============================================================
