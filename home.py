@@ -2481,14 +2481,6 @@ def render_admin_dashboard(sb_authed):
                 pos_code = str(r.get("품사", "") or "")
                 quiz_code = str(r.get("퀴즈", "") or "")
 
-                # ✅ handle legacy combined code like "noun meaning"
-                # If quiz_code is empty but pos_code includes two tokens, split them.
-                if (not quiz_code.strip()) and pos_code and (" " in pos_code.strip()):
-                    a, b = pos_code.strip().split(None, 1)
-                    b_l = b.strip().lower()
-                    if b_l in {"meaning", "reading", "kr2jp", "jp2kr"}:
-                        pos_code, quiz_code = a, b_l
-
                 # optional email masking
                 def _mask_mail(e: str) -> str:
                     if not e or "@" not in e:
@@ -2521,6 +2513,26 @@ def render_admin_dashboard(sb_authed):
                     "jp2kr": "일→한",
                 }
 
+
+                # ✅ handle legacy combined code like "noun meaning" stored in a single column
+                _raw_pos = (pos_code or "").replace("\u00a0", " ").strip()
+                _raw_quiz = (quiz_code or "").replace("\u00a0", " ").strip()
+
+                # If quiz_code is empty but pos_code contains both (e.g., "noun meaning"), split it.
+                if (not _raw_quiz) and (" " in _raw_pos):
+                    _parts = _raw_pos.split()
+                    if len(_parts) >= 2:
+                        _p, _q = _parts[0], _parts[1]
+                        if _q.lower() in {"meaning", "reading", "kr2jp", "jp2kr"}:
+                            pos_code, quiz_code = _p, _q
+
+                # If quiz_code itself is combined (rare), also split it.
+                if _raw_quiz and (" " in _raw_quiz):
+                    _parts = _raw_quiz.split()
+                    if len(_parts) >= 2:
+                        _q = _parts[0]
+                        if _q.lower() in {"meaning", "reading", "kr2jp", "jp2kr"}:
+                            quiz_code = _q
                 import re as _re
 
                 def _norm_code(s: str) -> str:
@@ -2541,10 +2553,6 @@ def render_admin_dashboard(sb_authed):
 
                 pos = POS_LABELS.get(pos_key, pos_code or "-")
                 quiz = QUIZ_LABELS.get(quiz_key, quiz_code or "-")
-
-                # ✅ UX: for "단어" 기록(품사 기반)은 고정 표기로 안내
-                if pos_key in POS_LABELS:
-                    quiz = "발음, 뜻, 한→일"
 
                 def _to_int(v, default=0):
                     try:
