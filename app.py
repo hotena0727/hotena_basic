@@ -2655,5 +2655,10 @@ def render_kanji_hub(HUB_MODE: bool = False):
             render_naver_talk()
 
 
+def render():
+    # ✅ Home hub에서 호출될 때 사용하는 진입점
+    render_kanji_hub(HUB_MODE=True)
+
+
 if __name__ == '__main__':
     render_kanji_hub(HUB_MODE=False)

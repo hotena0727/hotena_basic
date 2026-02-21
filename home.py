@@ -1203,7 +1203,6 @@ def render_floating_menu():
                 .replace("__HREF_REM__", href_rem)
                 .replace("__HREF_OUT__", href_out))
 
-    html = html.replace("__ADMIN_LINK__", admin_link_html)
     st.markdown(html, unsafe_allow_html=True)
 
 
@@ -1606,6 +1605,10 @@ def render_floating_menu():
     href_my   = "?" + base + "p=my"
     href_rem  = "?" + base + "p=reminder"
     href_out  = "?" + base + "action=logout"
+    href_admin = "?" + base + "p=admin"
+    is_admin = bool(st.session_state.get("is_admin", False))
+    admin_link_html = f'<a href="{href_admin}" target="_self">🛠 관리자</a>' if is_admin else ""
+
 
     html = """<style>
 /* ===== Floating Menu (Hub) ===== */
@@ -1688,6 +1691,7 @@ def render_floating_menu():
     <a href="__HREF_TALK__" target="_self">💬 회화</a>
     <a href="__HREF_MY__" target="_self">👤 마이페이지</a>
     <a href="__HREF_REM__" target="_self">🔔 알림 설정</a>
+    __ADMIN_LINK__
     <a href="__HREF_OUT__" target="_self">🚪 로그아웃</a>
     <div style="height:0.6rem"></div>
     <div style="font-size:0.85rem; opacity:0.7;">Tip: 바깥을 누르면 닫힙니다.</div>
