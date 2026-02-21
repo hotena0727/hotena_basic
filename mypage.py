@@ -70,6 +70,54 @@ def _user_email(user: Any) -> Optional[str]:
     return None
 
 
+
+def _kind_label(kind: str) -> str:
+    k = (kind or "").strip().lower()
+    if k in ("word", "words", "noun", "vocab"):
+        return "단어"
+    if k in ("kanji", "hanja", "character"):
+        return "한자"
+    if k in ("talk", "speech", "conversation"):
+        return "회화"
+    # already korean?
+    if kind in ("단어","한자","회화"):
+        return kind
+    return (kind or "기타").upper()
+
+
+def _sparkline_svg(values: List[float], width: int = 240, height: int = 48) -> str:
+    vals = [float(v) for v in values if v is not None]
+    if not vals:
+        vals = [0.0]
+    mn, mx = min(vals), max(vals)
+    if mx == mn:
+        mx = mn + 1.0
+    # normalize
+    pts = []
+    for i, v in enumerate(vals):
+        x = i * (width / max(1, (len(vals)-1)))
+        y = height - ((v - mn) / (mx - mn) * height)
+        pts.append((x, y))
+    d = "M " + " L ".join(f"{x:.1f},{y:.1f}" for x, y in pts)
+    return f'<svg viewBox="0 0 {width} {height}" width="{width}" height="{height}" xmlns="http://www.w3.org/2000/svg">' \
+           f'<path d="{d}" fill="none" stroke="currentColor" stroke-width="2" opacity="0.85"/>' \
+           f'</svg>'
+
+
+def _stacked_bar_html(parts: List[Dict[str, Any]]) -> str:
+    # parts: [{"label":..., "count":...}, ...]
+    total = sum(int(p.get("count", 0)) for p in parts) or 1
+    segs = []
+    for p in parts:
+        cnt = int(p.get("count", 0))
+        pct = cnt / total * 100
+        label = str(p.get("label", ""))
+        segs.append(
+            f'<div class="ha-seg" style="width:{pct:.2f}%"><span>{label} {cnt}</span></div>'
+        )
+    return '<div class="ha-stack">' + "".join(segs) + '</div>'
+
+
 def _css():
     st.markdown(
         """
@@ -112,6 +160,15 @@ def _css():
 
 /* Streamlit tweaks: make tabs breathe a bit */
 div[data-testid="stTabs"] button {font-weight: 750;}
+
+/* mini charts */
+.ha-chart {background:#fff; border:1px solid #e8edf5; border-radius:18px; padding:14px; box-shadow: 0 10px 28px rgba(18,38,63,.06);}
+.ha-stack {display:flex; width:100%; height:38px; border-radius:14px; overflow:hidden; border:1px solid #eef2f7; background:#f6f8fc;}
+.ha-seg {display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:800; opacity:.9; border-right:1px solid rgba(255,255,255,.7);}
+.ha-seg span{padding:0 8px; white-space:nowrap;}
+.ha-spark {display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 12px; border:1px solid #eef2f7; border-radius:16px; background:#fbfcff;}
+.ha-spark .lbl{font-size:12px; font-weight:800; opacity:.75;}
+.ha-spark .val{font-size:18px; font-weight:900; line-height:1;}
 </style>
         """,
         unsafe_allow_html=True,
@@ -259,16 +316,17 @@ def _wrong_cards_ui(wrongs: List[Dict[str, Any]]):
     with left:
         st.markdown('<div class="ha-chart">', unsafe_allow_html=True)
         st.caption("오답 유형 분포")
-        kind_counts = df["kind"].value_counts().rename_axis("kind").reset_index(name="count")
-        kind_counts = kind_counts.set_index("kind")[["count"]]
-        st.bar_chart(kind_counts)
+        kind_counts = df["kind"].map(_kind_label).value_counts().rename_axis("kind").reset_index(name="count")
+        parts = [{"label": r["kind"], "count": int(r["count"])} for _, r in kind_counts.iterrows()]
+        st.markdown(_stacked_bar_html(parts), unsafe_allow_html=True)
         st.caption("최근 14일 오답 추이")
         ddf = df.copy()
         ddf["day"] = ddf["created_at"].apply(_to_date).dt.date
         daily = ddf.groupby("day").size().reset_index(name="count").tail(14)
         if not daily.empty:
-            daily = daily.set_index("day")[["count"]]
-            st.line_chart(daily)
+            vals = daily["count"].tolist()
+            svg = _sparkline_svg(vals)
+            st.markdown(f'<div class="ha-spark"><div><div class="lbl">최근 14일</div><div class="val">{int(vals[-1])}</div></div>{svg}</div>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
     with right:
@@ -464,7 +522,9 @@ def _records_ui():
             tmp["score"] = pd.to_numeric(tmp["score"], errors="coerce")
             tmp = tmp.dropna(subset=["dt", "score"]).sort_values("dt").tail(30)
             if len(tmp) >= 2:
-                st.line_chart(tmp.set_index("dt")[["score"]])
+                vals = tmp["score"].tolist()
+                svg = _sparkline_svg(vals)
+                st.markdown(f'<div class="ha-spark"><div><div class="lbl">최근 30회 점수</div><div class="val">{int(vals[-1])}</div></div>{svg}</div>', unsafe_allow_html=True)
             else:
                 st.caption("점수 데이터가 더 쌓이면 그래프가 표시됩니다.")
         else:
@@ -475,8 +535,8 @@ def _records_ui():
         st.markdown('<div class="ha-chart">', unsafe_allow_html=True)
         st.caption("유형별 시도")
         kind_counts = df["kind_label"].value_counts().rename_axis("kind").reset_index(name="count")
-        kind_counts = kind_counts.set_index("kind")[["count"]]
-        st.bar_chart(kind_counts)
+        parts = [{"label": _kind_label(k), "count": int(kind_counts.loc[k, "count"])} for k in kind_counts.index]
+        st.markdown(_stacked_bar_html(parts), unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
     st.markdown('<div class="ha-divider"></div>', unsafe_allow_html=True)
@@ -553,7 +613,9 @@ def _messages_ui():
         ddf["day"] = ddf["dt"].dt.date
         daily = ddf.groupby("day").size().reset_index(name="count").tail(14)
         if not daily.empty:
-            st.line_chart(daily.set_index("day")[["count"]])
+            vals = daily["count"].tolist()
+            svg = _sparkline_svg(vals)
+            st.markdown(f'<div class="ha-spark"><div><div class="lbl">최근 14일</div><div class="val">{int(vals[-1])}</div></div>{svg}</div>', unsafe_allow_html=True)
         st.markdown('</div>', unsafe_allow_html=True)
 
     with right:
