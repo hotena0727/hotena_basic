@@ -32,6 +32,17 @@ import random
 import pandas as pd
 import streamlit as st
 
+
+# ============================================================
+# ✅ wrong_notes debug helper
+# ============================================================
+_WN_DEBUG = bool(st.session_state.get("is_admin", False)) or bool(st.session_state.get("is_admin_cached", False))
+def _wn_warn(msg: str):
+    if _WN_DEBUG:
+        try:
+            st.warning(msg)
+        except Exception:
+            pass
 # ✅ HUB에서 호출되면 상단 중복 UI를 숨기기 위한 플래그
 HUB_MODE = st.session_state.get('HUB_MODE', False)
 import unicodedata
@@ -2496,28 +2507,13 @@ def render_home():
     # ✅ (2) 오늘의 학습 리포트: 홈에서만 / 타이틀 다음, 오늘의 말 위
     try:
         sb_authed = get_authed_sb()
-        if not sb_authed:
-            raise Exception("no supabase client")
-        if not _has_table(sb_authed, "wrong_notes"):
-            raise Exception("wrong_notes table missing or RLS blocks access")
-        uid_now = _get_uid_from_sb(sb_authed)
-        if uid_now and wrong_list:
-            rows = []
-            for w in wrong_list:
-                q_text = (w.get("단어") or w.get("문제") or "").strip()
-                rows.append({
-                    "user_id": uid_now,
-                    "quiz_type": "word",
-                    "question": q_text if q_text else (w.get("문제") or ""),
-                    "correct_answer": str(w.get("정답") or ""),
-                    "user_answer": str(w.get("내 답") or ""),
-                    "level": str(st.session_state.get("level", "") or ""),
-                })
-            sb_authed.table("wrong_notes").insert(rows).execute()
-    except Exception as e:
-        # 사용자에게는 조용히 안내(디버깅 가능하도록 메시지는 남김)
-        if st.session_state.get("is_admin") or st.session_state.get("debug_wrongnotes"):
-            st.warning(f"오답 저장 실패: {e}")
+        user_id = getattr(u, "id", None) if u else None
+        if sb_authed and user_id:
+            render_today_report_db_only(sb_authed, user_id)
+    except Exception:
+        # 리포트 실패해도 홈 화면은 멈추지 않게
+        pass
+
     # ✅ (3) 오늘의 말
     quotes = [
         "오늘 10문항이면 충분해요.",
@@ -2877,31 +2873,6 @@ if st.session_state.page == "my":
 #   - FREE: 하루 30문항 제한, PRO: 무제한
 # ============================================================
 from datetime import datetime, timedelta, timezone
-# ============================================================
-# ✅ Supabase UID / table helper (stable across auth response shapes)
-# ============================================================
-def _get_uid_from_sb(sb):
-    try:
-        gu = sb.auth.get_user()
-    except Exception:
-        return None
-    # supabase-py may return object with .user or dict with ["user"]
-    u = getattr(gu, "user", None)
-    if u is None and isinstance(gu, dict):
-        u = gu.get("user")
-    if u is None:
-        return None
-    if isinstance(u, dict):
-        return u.get("id")
-    return getattr(u, "id", None)
-
-def _has_table(sb, table_name: str) -> bool:
-    try:
-        # lightweight probe
-        sb.table(table_name).select("id").limit(1).execute()
-        return True
-    except Exception:
-        return False
 
 KST = timezone(timedelta(hours=9))
 FREE_LIMIT = 30
@@ -3577,32 +3548,37 @@ if st.session_state.submitted:
 
     # ============================================================
     # ✅ 오답 상세 저장 (wrong_notes) — 3회 이상 반복오답/Top10 복습용
-    # - 홈/마이페이지에서 '단어/정답/내답' 카드 복원을 위해 필요
-    # ============================================================
+# - 홈/마이페이지에서 '단어/정답/내답' 카드 복원을 위해 필요
+rows = []
+sb_authed = get_authed_sb()
+u_id = getattr(st.session_state.get("user"), "id", None)
+if not u_id and st.session_state.get("access_token"):
     try:
-        sb_authed = get_authed_sb()
-        if not sb_authed:
-            raise Exception("no supabase client")
-        if not _has_table(sb_authed, "wrong_notes"):
-            raise Exception("wrong_notes table missing or RLS blocks access")
-        uid_now = _get_uid_from_sb(sb_authed)
-        if uid_now and wrong_list:
-            rows = []
-            for w in wrong_list:
-                q_text = (w.get("단어") or w.get("문제") or "").strip()
-                rows.append({
-                    "user_id": uid_now,
-                    "quiz_type": "word",
-                    "question": q_text if q_text else (w.get("문제") or ""),
-                    "correct_answer": str(w.get("정답") or ""),
-                    "user_answer": str(w.get("내 답") or ""),
-                    "level": str(st.session_state.get("level", "") or ""),
-                })
+        u = sb.auth.get_user(st.session_state.get("access_token"))
+        u_id = getattr(getattr(u, "user", None), "id", None) or getattr(u, "id", None)
+    except Exception:
+        u_id = None
+
+if sb_authed is None:
+    _wn_warn("오답 저장 실패: authed client 없음(access_token).")
+elif not u_id:
+    _wn_warn("오답 저장 실패: user_id(uid) 없음. 로그인 세션을 확인하세요.")
+else:
+    for w in (st.session_state.get("wrong_list") or []):
+        rows.append({
+            "user_id": str(u_id),
+            "quiz_type": "word",
+            "question": str(w.get("단어") or w.get("question") or ""),
+            "correct_answer": str(w.get("정답") or w.get("correct") or ""),
+            "user_answer": str(w.get("내 답") or w.get("user") or ""),
+            "level": str(st.session_state.get("level", "") or ""),
+        })
+    if rows:
+        try:
             sb_authed.table("wrong_notes").insert(rows).execute()
-    except Exception as e:
-        # 사용자에게는 조용히 안내(디버깅 가능하도록 메시지는 남김)
-        if st.session_state.get("is_admin") or st.session_state.get("debug_wrongnotes"):
-            st.warning(f"오답 저장 실패: {e}")
+        except Exception as e:
+            _wn_warn(f"오답 저장 실패: {e}")
+
     st.success(f"점수: {score} / {quiz_len}")
 
     # ✅ FREE 제한 카운트 누적 (제출 1회 = quiz_len 소비)
@@ -3873,5 +3849,7 @@ if st.session_state.get("submitted", False):
     show_naver_talk = (SHOW_NAVER_TALK == "N") or is_admin()
     if show_naver_talk:
         render_naver_talk()
+
+
 
 

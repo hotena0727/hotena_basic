@@ -10,6 +10,17 @@ import pandas as pd
 import streamlit as st
 
 
+
+# ============================================================
+# ✅ wrong_notes debug helper
+# ============================================================
+_WN_DEBUG = bool(st.session_state.get("is_admin", False)) or bool(st.session_state.get("is_admin_cached", False))
+def _wn_warn(msg: str):
+    if _WN_DEBUG:
+        try:
+            st.warning(msg)
+        except Exception:
+            pass
 # ============================================================
 # ✅ HUB 진입 시: 선택/제출 상태 초기화 (회화)
 # ============================================================
@@ -22,31 +33,6 @@ if st.session_state.get("_entered_talk"):
 
 import streamlit.components.v1 as components
 from supabase import create_client
-# ============================================================
-# ✅ Supabase UID / table helper (stable across auth response shapes)
-# ============================================================
-def _get_uid_from_sb(sb):
-    try:
-        gu = sb.auth.get_user()
-    except Exception:
-        return None
-    # supabase-py may return object with .user or dict with ["user"]
-    u = getattr(gu, "user", None)
-    if u is None and isinstance(gu, dict):
-        u = gu.get("user")
-    if u is None:
-        return None
-    if isinstance(u, dict):
-        return u.get("id")
-    return getattr(u, "id", None)
-
-def _has_table(sb, table_name: str) -> bool:
-    try:
-        # lightweight probe
-        sb.table(table_name).select("id").limit(1).execute()
-        return True
-    except Exception:
-        return False
 
 # ============================================================
 # ✅ Settings
@@ -90,6 +76,30 @@ def get_sb():
     sb = st.session_state.get("sb")
     if sb is not None:
         return sb
+
+
+def get_authed_sb():
+    # 홈허브 로그인 세션의 access_token을 사용해 PostgREST 권한 요청을 보냅니다.
+    token = st.session_state.get("access_token")
+    if not token:
+        return None
+
+    cached = st.session_state.get("_sb_authed_talk")
+    cached_token = st.session_state.get("_sb_authed_talk_token")
+    if cached is not None and cached_token == token:
+        return cached
+
+    sb2 = get_sb()
+    try:
+        # supabase-py: postgrest.auth(token)
+        sb2.postgrest.auth(token)
+    except Exception:
+        # 일부 버전은 내부 client 설정이 다를 수 있음
+        pass
+
+    st.session_state["_sb_authed_talk"] = sb2
+    st.session_state["_sb_authed_talk_token"] = token
+    return sb2
     url = get_cfg("SUPABASE_URL")
     key = get_cfg("SUPABASE_ANON_KEY")
     if not url or not key:
@@ -462,14 +472,35 @@ if submitted:
             sb2 = st.session_state.get("sb_authed") or sb  # hub에서 공유되면 sb_authed 우선
             if sb2 and USER_ID:
                 q_text = (str(row.get("q_jp", "")) or str(row.get("situation_kr",""))).strip()
-                sb2.table("wrong_notes").insert({
-                    "user_id": USER_ID,
-                    "quiz_type": "talk",
-                    "question": q_text if q_text else str(row.get("id", "")),
-                    "correct_answer": str(correct),
-                    "user_answer": str(selected),
-                    "level": "talk",
-                }).execute()
+                sb2 = get_authed_sb() or sb2
+
+                if not sb2:
+
+                    _wn_warn("오답 저장 실패: authed client 없음(access_token).")
+
+                else:
+
+                    try:
+
+                        sb2.table("wrong_notes").insert({
+
+                            "user_id": USER_ID,
+
+                            "quiz_type": "talk",
+
+                            "question": q_text if q_text else str(row.get("id", "")),
+
+                            "correct_answer": str(correct),
+
+                            "user_answer": str(selected),
+
+                            "level": "talk",
+
+                        }).execute()
+
+                    except Exception as e:
+
+                        _wn_warn(f"오답 저장 실패: {e}")
         except Exception:
             pass
 

@@ -5,6 +5,17 @@ from pathlib import Path
 import random
 import pandas as pd
 import streamlit as st
+
+# ============================================================
+# ✅ wrong_notes debug helper
+# ============================================================
+_WN_DEBUG = bool(st.session_state.get("is_admin", False)) or bool(st.session_state.get("is_admin_cached", False))
+def _wn_warn(msg: str):
+    if _WN_DEBUG:
+        try:
+            st.warning(msg)
+        except Exception:
+            pass
 import unicodedata
 from supabase import create_client
 from streamlit_cookies_manager import EncryptedCookieManager
@@ -1263,31 +1274,6 @@ import unicodedata
 import random
 import pandas as pd
 import streamlit as st
-# ============================================================
-# ✅ Supabase UID / table helper (stable across auth response shapes)
-# ============================================================
-def _get_uid_from_sb(sb):
-    try:
-        gu = sb.auth.get_user()
-    except Exception:
-        return None
-    # supabase-py may return object with .user or dict with ["user"]
-    u = getattr(gu, "user", None)
-    if u is None and isinstance(gu, dict):
-        u = gu.get("user")
-    if u is None:
-        return None
-    if isinstance(u, dict):
-        return u.get("id")
-    return getattr(u, "id", None)
-
-def _has_table(sb, table_name: str) -> bool:
-    try:
-        # lightweight probe
-        sb.table(table_name).select("id").limit(1).execute()
-        return True
-    except Exception:
-        return False
 
 def _nfkc_str(x) -> str:
     return unicodedata.normalize("NFKC", str(x or "")).strip()
@@ -2405,32 +2391,37 @@ def render_kanji_hub(HUB_MODE: bool = False):
 
         st.session_state.wrong_list = wrong_list
             # ============================================================
-        # ✅ 오답 상세 저장 (wrong_notes) — 3회 이상 반복오답/Top10 복습용
-        # ============================================================
+        # ✅ 오답 상세 저장 (wrong_notes) — 반복오답/Top10 복습용
+rows = []
+sb_authed = get_authed_sb()
+u_id = getattr(st.session_state.get("user"), "id", None)
+if not u_id and st.session_state.get("access_token"):
+    try:
+        u = sb.auth.get_user(st.session_state.get("access_token"))
+        u_id = getattr(getattr(u, "user", None), "id", None) or getattr(u, "id", None)
+    except Exception:
+        u_id = None
+
+if sb_authed is None:
+    _wn_warn("오답 저장 실패: authed client 없음(access_token).")
+elif not u_id:
+    _wn_warn("오답 저장 실패: user_id(uid) 없음. 로그인 세션을 확인하세요.")
+else:
+    for w in (st.session_state.get("wrong_list") or []):
+        rows.append({
+            "user_id": str(u_id),
+            "quiz_type": "kanji",
+            "question": str(w.get("단어") or w.get("question") or ""),
+            "correct_answer": str(w.get("정답") or w.get("correct") or ""),
+            "user_answer": str(w.get("내 답") or w.get("user") or ""),
+            "level": str(st.session_state.get("level", "") or ""),
+        })
+    if rows:
         try:
-            sb_authed = get_authed_sb()
-            if not sb_authed:
-                raise Exception("no supabase client")
-            if not _has_table(sb_authed, "wrong_notes"):
-                raise Exception("wrong_notes table missing or RLS blocks access")
-            uid_now = _get_uid_from_sb(sb_authed)
-            if uid_now and wrong_list:
-                rows = []
-                for w in wrong_list:
-                    q_text = (w.get("단어") or w.get("문제") or "").strip()
-                    rows.append({
-                        "user_id": uid_now,
-                        "quiz_type": "kanji",
-                        "question": q_text if q_text else (w.get("문제") or ""),
-                        "correct_answer": str(w.get("정답") or ""),
-                        "user_answer": str(w.get("내 답") or ""),
-                        "level": str(st.session_state.get("level", "") or ""),
-                    })
-                sb_authed.table("wrong_notes").insert(rows).execute()
+            sb_authed.table("wrong_notes").insert(rows).execute()
         except Exception as e:
-            # 사용자에게는 조용히 안내(디버깅 가능하도록 메시지는 남김)
-            if st.session_state.get("is_admin") or st.session_state.get("debug_wrongnotes"):
-                st.warning(f"오답 저장 실패: {e}")
+            _wn_warn(f"오답 저장 실패: {e}")
+
         quiz_len = len(st.session_state.quiz)
         st.success(f"점수: {score} / {quiz_len}")
         ratio = score / quiz_len if quiz_len else 0

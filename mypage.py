@@ -5,31 +5,6 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 import streamlit as st
-# ============================================================
-# ✅ Supabase UID / table helper (stable across auth response shapes)
-# ============================================================
-def _get_uid_from_sb(sb):
-    try:
-        gu = sb.auth.get_user()
-    except Exception:
-        return None
-    # supabase-py may return object with .user or dict with ["user"]
-    u = getattr(gu, "user", None)
-    if u is None and isinstance(gu, dict):
-        u = gu.get("user")
-    if u is None:
-        return None
-    if isinstance(u, dict):
-        return u.get("id")
-    return getattr(u, "id", None)
-
-def _has_table(sb, table_name: str) -> bool:
-    try:
-        # lightweight probe
-        sb.table(table_name).select("id").limit(1).execute()
-        return True
-    except Exception:
-        return False
 
 
 # ============================================================
@@ -42,7 +17,16 @@ def _has_table(sb, table_name: str) -> bool:
 
 
 def _sb() -> Any:
-    return st.session_state.get("sb_authed") or st.session_state.get("sb")
+    # 홈허브 로그인 세션(access_token)이 있으면 PostgREST 요청에 JWT를 붙여서 RLS 통과
+    sb = st.session_state.get("sb_authed") or st.session_state.get("sb")
+    token = st.session_state.get("access_token")
+    if sb and token:
+        try:
+            sb.postgrest.auth(token)
+        except Exception:
+            pass
+    return sb
+
 
 
 def _user() -> Any:
@@ -153,17 +137,13 @@ def _load_wrong_notes(limit: int = 200) -> List[Dict[str, Any]]:
     sb = _sb()
     if not sb:
         return []
-    # table/RLS probe
-    if not _has_table(sb, "wrong_notes"):
-        st.info("오답카드를 사용하려면 DB에 wrong_notes 테이블과 RLS 정책이 필요합니다. (테이블 생성 SQL을 먼저 적용해 주세요.)")
-        return []
     try:
-        r = sb.table("wrong_notes").select("id,quiz_type,question,correct_answer,user_answer,level,created_at").order("created_at", desc=True).limit(limit).execute()
+        r = sb.table("wrong_notes").select("*").order("created_at", desc=True).limit(limit).execute()
         return getattr(r, "data", None) or []
-    except Exception as e:
-        if st.session_state.get("is_admin") or st.session_state.get("debug_wrongnotes"):
-            st.warning(f"오답카드 로딩 실패: {e}")
+    except Exception:
         return []
+
+
 def _format_dt(v: Any) -> str:
     if not v:
         return ""
@@ -322,10 +302,7 @@ def _records_ui():
         st.markdown("</div>", unsafe_allow_html=True)
         return
     try:
-        if not _has_table(sb, "quiz_attempts"):
-            st.info("학습 기록 테이블(quiz_attempts)을 찾을 수 없습니다. (테이블명/권한을 확인해 주세요.)")
-        else:
-            r = sb.table("quiz_attempts").select("created_at,kind,level,quiz_len,score").order("created_at", desc=True).limit(50).execute()
+        r = sb.table("quiz_attempts").select("created_at,kind,level,quiz_len,score").order("created_at", desc=True).limit(50).execute()
         data = getattr(r, "data", None) or []
         if not data:
             st.info("기록이 아직 없습니다.")
