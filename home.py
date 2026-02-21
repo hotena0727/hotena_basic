@@ -1964,6 +1964,41 @@ def render_admin_dashboard(sb_authed):
 
     tab_stats, tab_users, tab_logs, tab_backup = st.tabs(["📊 통계", "👥 회원", "🕒 기록", "🗂 백업·버전"])
 
+    # ---------- Admin helpers (profiles update / backup) ----------
+    def _admin_update_profile(user_id: str, payload: dict):
+        return sb_authed.table("profiles").update(payload).eq("id", user_id).execute()
+
+    def _admin_set_pro_until(user_id: str, date_value: str):
+        candidates = ["pro_until", "pro_expires_at", "expires_at", "pro_expiry"]
+        last_err = None
+        for col in candidates:
+            try:
+                _admin_update_profile(user_id, {col: date_value})
+                return col
+            except Exception as e:
+                last_err = e
+                continue
+        raise last_err
+
+    def _admin_make_backup_zip(version_tag: str = "") -> tuple[bytes, str]:
+        import io, zipfile, json, datetime
+        from pathlib import Path
+        ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        tag = (version_tag or "stable").strip().replace(" ", "_")
+        filename = f"hotena_backup_{tag}_{ts}.zip"
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as z:
+            for name in ["home.py", "app.py", "hotena_basic.py", "talk.py", "mypage.py"]:
+                p = Path(__file__).parent / name
+                if p.exists():
+                    z.write(str(p), arcname=name)
+            z.writestr("manifest.json", json.dumps({
+                "created_at": ts,
+                "version_tag": tag,
+                "files": [zi.filename for zi in z.infolist()],
+            }, ensure_ascii=False, indent=2))
+        return buf.getvalue(), filename
+
     # ---------- Charts helpers ----------
     def donut_chart(data_df, name_col, value_col, title):
         # Try Plotly first
@@ -2021,6 +2056,41 @@ def render_admin_dashboard(sb_authed):
 
     # ---------- tab: stats ----------
     with tab_stats:
+        # --- 회원별(개인) 통계 ---
+        st.markdown('<div class="ha-section"><div class="ha-title">회원별 통계</div><div class="ha-sub">특정 회원의 사용 패턴을 확인합니다.</div>', unsafe_allow_html=True)
+        if dfa.empty or "user_email" not in dfa.columns:
+            st.info("quiz_attempts 데이터가 없거나 user_email 컬럼이 없어 개인 통계를 만들 수 없습니다.")
+            st.markdown("</div>", unsafe_allow_html=True)
+        else:
+            emails = sorted([e for e in dfa["user_email"].fillna("").astype(str).unique().tolist() if e])
+            q_person = st.text_input("회원 이메일 검색", placeholder="예: gmail / naver / abc ...", key="admin_person_q")
+            emails2 = [e for e in emails if q_person.lower() in e.lower()] if q_person else emails
+            if not emails2:
+                st.warning("검색 결과가 없습니다.")
+                st.markdown("</div>", unsafe_allow_html=True)
+            else:
+                sel_email = st.selectbox("회원 선택", options=emails2[:2000], key="admin_person_sel")
+                df_person = dfa[dfa["user_email"].fillna("").astype(str) == str(sel_email)].copy()
+
+                if "level" in df_person.columns:
+                    by_level_p = df_person.groupby(df_person["level"].astype(str).str.strip().replace({"":"unknown"})).size().reset_index(name="attempts")
+                    by_level_p.columns = ["level", "attempts"]
+                    st.markdown("**레벨별 사용(개인)**")
+                    donut_chart(by_level_p, "level", "attempts", f"{sel_email} · 레벨 분포")
+
+                if "created_at" in df_person.columns:
+                    try:
+                        kst = kst_series(df_person["created_at"])
+                        df_person["date"] = kst.dt.date
+                        daily_p = df_person.groupby("date").size().reset_index(name="attempts").sort_values("date")
+                        if len(daily_p) > 30:
+                            daily_p = daily_p.tail(30)
+                        st.markdown("**최근 30일 사용 추이(개인)**")
+                        line_chart(daily_p, "date", "attempts", f"{sel_email} · 최근 30일")
+                    except Exception:
+                        st.caption("created_at 파싱 실패로 개인 추이를 만들 수 없습니다.")
+                st.markdown("</div>", unsafe_allow_html=True)
+
         st.markdown('<div class="ha-section"><div class="ha-title">레벨별 사용량</div><div class="ha-sub">최근 기록 기준(quiz_attempts)</div>', unsafe_allow_html=True)
         if dfa.empty:
             st.info("quiz_attempts 데이터가 없거나 RLS로 차단되었습니다.")
@@ -2074,6 +2144,58 @@ def render_admin_dashboard(sb_authed):
 
     # ---------- tab: users ----------
     with tab_users:
+        st.markdown('<div class="ha-section"><div class="ha-title">등급 변경</div><div class="ha-sub">plan / is_admin / PRO 만료일</div>', unsafe_allow_html=True)
+        if dfp.empty:
+            st.info("profiles 데이터가 없거나 RLS로 차단되었습니다.")
+            st.markdown("</div>", unsafe_allow_html=True)
+        else:
+            u2 = dfp.copy()
+            if "email" in u2.columns:
+                u2["email"] = u2["email"].fillna("").astype(str)
+                options = sorted([e for e in u2["email"].unique().tolist() if e])
+                target = st.selectbox("대상 이메일", options=options[:2000] if options else [""], key="admin_edit_email")
+                row = u2[u2["email"] == target].head(1)
+            else:
+                options = u2["id"].astype(str).unique().tolist()
+                target = st.selectbox("대상 ID", options=options[:2000] if options else [""], key="admin_edit_id")
+                row = u2[u2["id"].astype(str) == str(target)].head(1)
+
+            if row.empty:
+                st.warning("대상 사용자를 찾지 못했습니다.")
+            else:
+                user_id = str(row.iloc[0].get("id",""))
+                cur_plan = str(row.iloc[0].get("plan","free")).lower()
+                cur_admin = bool(row.iloc[0].get("is_admin", False))
+
+                c1, c2, c3 = st.columns(3)
+                with c1:
+                    new_plan = st.selectbox("플랜", options=["free","pro"], index=1 if cur_plan=="pro" else 0, key="admin_new_plan")
+                with c2:
+                    new_admin = st.selectbox("관리자", options=[False, True], index=1 if cur_admin else 0, key="admin_new_admin")
+                with c3:
+                    new_until = st.date_input("PRO 만료일", value=None, key="admin_new_until")
+
+                if st.button("변경 적용", type="primary", key="admin_apply_change"):
+                    try:
+                        payload = {}
+                        if "plan" in dfp.columns:
+                            payload["plan"] = new_plan
+                        if "is_admin" in dfp.columns:
+                            payload["is_admin"] = bool(new_admin)
+                        if payload:
+                            _admin_update_profile(user_id, payload)
+
+                        if new_until is not None:
+                            used_col = _admin_set_pro_until(user_id, str(new_until))
+                            st.success(f"저장 완료! (만료일 컬럼: {used_col})")
+                        else:
+                            st.success("저장 완료!")
+                    except Exception as e:
+                        st.error("저장 실패 (RLS/권한/컬럼 확인 필요)")
+                        st.exception(e)
+                        st.caption("만료일 컬럼이 DB에 없거나, RLS에서 profiles update가 막혀있을 수 있습니다.")
+        st.markdown("</div>", unsafe_allow_html=True)
+
         st.markdown('<div class="ha-section"><div class="ha-title">회원 검색</div><div class="ha-sub">이메일/플랜/관리자 필터</div>', unsafe_allow_html=True)
         if dfp.empty:
             st.info("profiles 데이터가 없거나 RLS로 차단되었습니다.")
@@ -2123,6 +2245,19 @@ def render_admin_dashboard(sb_authed):
                 except Exception:
                     pass
             st.dataframe(d.head(500), use_container_width=True, hide_index=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    with tab_backup:
+        st.markdown('<div class="ha-section"><div class="ha-title">백업 · 버전</div><div class="ha-sub">현재 핵심 파일을 ZIP으로 백업합니다.</div>', unsafe_allow_html=True)
+        tag = st.text_input("버전 태그", value="stable", key="admin_backup_tag")
+        if st.button("백업 ZIP 만들기", type="primary", key="admin_backup_make"):
+            try:
+                data, fname = _admin_make_backup_zip(tag)
+                st.download_button("다운로드", data=data, file_name=fname, mime="application/zip", key="admin_backup_dl")
+                st.success("백업 ZIP 생성 완료!")
+            except Exception as e:
+                st.error("백업 생성 실패")
+                st.exception(e)
         st.markdown("</div>", unsafe_allow_html=True)
 
 try:
