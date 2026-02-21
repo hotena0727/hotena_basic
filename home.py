@@ -14,7 +14,6 @@ from cryptography.fernet import Fernet
 from datetime import date, datetime, timedelta, timezone
 import streamlit as st
 import streamlit.components.v1 as components
-import pandas as pd
 
 # ============================================================
 # ✅ Module runner (NO runpy/run_path)
@@ -1098,8 +1097,8 @@ def render_floating_menu():
     href_kanji = "?" + base + "p=kanji"
     href_talk = "?" + base + "p=talk"
     href_my   = "?" + base + "p=my"
-    href_admin = "?" + base + "p=admin"
     href_rem  = "?" + base + "p=reminder"
+    href_admin = "?" + base + "p=admin"
     href_out  = "?" + base + "action=logout"
 
     html = """<style>
@@ -1183,6 +1182,7 @@ def render_floating_menu():
     <a href="__HREF_TALK__" target="_self">💬 회화</a>
     <a href="__HREF_MY__" target="_self">👤 마이페이지</a>
     <a href="__HREF_REM__" target="_self">🔔 알림 설정</a>
+    __ADMIN_LINK__
     <a href="__HREF_OUT__" target="_self">🚪 로그아웃</a>
     <div style="height:0.6rem"></div>
     <div style="font-size:0.85rem; opacity:0.7;">Tip: 바깥을 누르면 닫힙니다.</div>
@@ -1198,8 +1198,14 @@ def render_floating_menu():
                 .replace("__HREF_TALK__", href_talk)
                 .replace("__HREF_MY__", href_my)
                 .replace("__HREF_REM__", href_rem)
+                .replace("__HREF_ADMIN__", href_admin)
                 .replace("__HREF_OUT__", href_out))
 
+
+    # ✅ Admin link: only visible for admins
+    is_admin = bool(st.session_state.get("is_admin", False))
+    admin_link = '<a href="__HREF_ADMIN__" target="_self">🛠 관리자</a>' if is_admin else ''
+    html = html.replace("__ADMIN_LINK__", admin_link)
     st.markdown(html, unsafe_allow_html=True)
 
 
@@ -1313,6 +1319,106 @@ def render_reminder_settings(sb_authed, user):
         st.session_state["progress_all"] = progress_all
         save_progress(sb_authed, user.id, progress_all)
         st.success("저장했습니다.")
+
+
+
+# ============================================================
+# 🛠 Admin page (Hub-only)
+# ============================================================
+def fetch_admin_attempts(sb_authed, limit: int = 200) -> list[dict]:
+    """Admin: fetch recent attempts across all users.
+    Note: requires Supabase RLS policy that allows admins to read quiz_attempts.
+    """
+    try:
+        res = (
+            sb_authed.table("quiz_attempts")
+            .select("created_at, user_email, user_id, level, pos_mode, quiz_len, score, wrong_count")
+            .order("created_at", desc=True)
+            .limit(int(limit))
+            .execute()
+        )
+        return res.data or []
+    except Exception as e:
+        st.session_state["_admin_fetch_error"] = str(e)
+        return []
+
+
+def render_admin_page(sb_authed, user):
+    if not bool(st.session_state.get("is_admin", False)):
+        st.error("관리자 권한이 없습니다.")
+        return
+
+    st.markdown("## 🛠 관리자 페이지")
+    st.caption("최근 퀴즈 기록(최대 200개)을 조회합니다. (RLS 정책에 따라 관리자만 전체 조회 가능)")
+
+    c1, c2, c3 = st.columns([1, 1, 1])
+    with c1:
+        limit = st.selectbox("조회 개수", [50, 100, 200, 500], index=2, key="admin_limit")
+    with c2:
+        kind = st.selectbox("필터(종류)", ["전체", "단어", "한자", "회화"], index=0, key="admin_kind")
+    with c3:
+        keyword = st.text_input("이메일/ID 검색", value="", key="admin_kw")
+
+    attempts = fetch_admin_attempts(sb_authed, limit=int(limit))
+
+    # show RLS error hint
+    err = st.session_state.get("_admin_fetch_error")
+    if err and not attempts:
+        st.warning("전체 조회가 차단되어 있을 수 있습니다. (Supabase RLS 정책 확인 필요)")
+        st.code(err)
+
+    # filter by kind
+    if kind != "전체":
+        want = {"단어": "word", "한자": "kanji", "회화": "talk"}[kind]
+        filtered = []
+        for a in attempts:
+            k = _infer_kind(str(a.get("level") or ""), str(a.get("pos_mode") or ""))
+            if k == want:
+                filtered.append(a)
+        attempts = filtered
+
+    # keyword filter
+    if keyword:
+        kw = keyword.strip().lower()
+        attempts = [
+            a for a in attempts
+            if kw in str(a.get("user_email") or "").lower() or kw in str(a.get("user_id") or "").lower()
+        ]
+
+    if not attempts:
+        st.info("표시할 데이터가 없습니다.")
+        return
+
+    # simple stats
+    total = len(attempts)
+    avg = sum([float(a.get("score") or 0) for a in attempts]) / max(total, 1)
+    st.markdown(f"**표시중:** {total}건 · **평균 점수:** {avg:.1f}")
+
+    # table
+    rows = []
+    for a in attempts:
+        created = str(a.get("created_at") or "")
+        email = str(a.get("user_email") or "")
+        uid = str(a.get("user_id") or "")
+        level = str(a.get("level") or "")
+        pos_mode = str(a.get("pos_mode") or "")
+        kind2 = _infer_kind(level, pos_mode)
+        quiz_len = a.get("quiz_len")
+        score = a.get("score")
+        wrong = a.get("wrong_count")
+        rows.append({
+            "created_at": created,
+            "user_email": email,
+            "user_id": uid,
+            "kind": kind2,
+            "level": level,
+            "pos_mode": pos_mode,
+            "quiz_len": quiz_len,
+            "score": score,
+            "wrong_count": wrong,
+        })
+
+    st.dataframe(rows, use_container_width=True, height=520)
 
 
 def fire_in_app_reminder_if_enabled(user):
@@ -1601,6 +1707,7 @@ def render_floating_menu():
     href_talk = "?" + base + "p=talk"
     href_my   = "?" + base + "p=my"
     href_rem  = "?" + base + "p=reminder"
+    href_admin = "?" + base + "p=admin"
     href_out  = "?" + base + "action=logout"
 
     html = """<style>
@@ -1684,6 +1791,7 @@ def render_floating_menu():
     <a href="__HREF_TALK__" target="_self">💬 회화</a>
     <a href="__HREF_MY__" target="_self">👤 마이페이지</a>
     <a href="__HREF_REM__" target="_self">🔔 알림 설정</a>
+    __ADMIN_LINK__
     <a href="__HREF_OUT__" target="_self">🚪 로그아웃</a>
     <div style="height:0.6rem"></div>
     <div style="font-size:0.85rem; opacity:0.7;">Tip: 바깥을 누르면 닫힙니다.</div>
@@ -1699,6 +1807,7 @@ def render_floating_menu():
                 .replace("__HREF_TALK__", href_talk)
                 .replace("__HREF_MY__", href_my)
                 .replace("__HREF_REM__", href_rem)
+                .replace("__HREF_ADMIN__", href_admin)
                 .replace("__HREF_OUT__", href_out))
 
     st.markdown(html, unsafe_allow_html=True)
@@ -1731,52 +1840,18 @@ def _hub_build_base_qs() -> str:
         parts.append("at=" + _q(at_enc))
     return ("&".join(parts) + "&") if parts else ""
 
-
-# ============================================================
-# ✅ Admin page (Hub-only) — moved from word/kanji apps
-# ============================================================
-def render_admin_hub(sb_authed, user):
-    st.markdown('## 🛠 관리자')
-    if not st.session_state.get('is_admin'):
-        st.error('접근 권한이 없습니다.')
-        st.session_state['hub_page'] = 'home'
-        return
-    if sb_authed is None or user is None:
-        st.warning('세션이 없습니다. 다시 로그인해 주세요.')
-        return
-    st.caption('최근 학습 기록(전체) — 필요하면 필터/다운로드/통계로 확장 가능합니다.')
-    try:
-        res = (sb_authed.table('quiz_attempts')
-               .select('created_at, user_email, level, pos_mode, quiz_len, score, wrong_count')
-               .order('created_at', desc=True)
-               .limit(200)
-               .execute())
-        data = res.data if res and getattr(res, 'data', None) else []
-        if not data:
-            st.info('기록이 없습니다.')
-            return
-        df = pd.DataFrame(data)
-        # created_at pretty
-        if 'created_at' in df.columns:
-            try:
-                df['created_at'] = pd.to_datetime(df['created_at'], errors='coerce').dt.tz_convert('Asia/Seoul').dt.strftime('%Y-%m-%d %H:%M')
-            except Exception:
-                df['created_at'] = df['created_at'].astype(str)
-        st.dataframe(df, use_container_width=True, hide_index=True)
-    except Exception as e:
-        st.error('조회 실패')
-        st.write(str(e))
-
 def render_bottom_nav(active: str = "home"):
     """Mobile-only bottom nav. Hidden on wide screens."""
     base = _hub_build_base_qs()
     def href(p: str) -> str:
         return "?" + base + "p=" + p
 
-
-    admin_nav = ""
-    if st.session_state.get("is_admin"):
-        admin_nav = f'<a href="{href("admin")}" target="_self" class="{ "active" if active=="admin" else "" }"><div class="ic">🛠</div><div>관리</div></a>'
+    is_admin = bool(st.session_state.get("is_admin", False))
+    admin_cls = "active" if active == "admin" else ""
+    admin_item = (
+        f'<a href="{href("admin")}" target="_self" class="{admin_cls}"><div class="ic">🛠</div><div>관리</div></a>'
+        if is_admin else ""
+    )
 
     # Mobile only: hide on >= 801px
     html = f"""<style>
@@ -1821,7 +1896,6 @@ def render_bottom_nav(active: str = "home"):
     <a href="{href('kanji')}" target="_self" class="{ 'active' if active=='kanji' else '' }"><div class="ic">🈶</div><div>한자</div></a>
     <a href="{href('talk')}" target="_self" class="{ 'active' if active=='talk' else '' }"><div class="ic">💬</div><div>회화</div></a>
     <a href="{href('my')}" target="_self" class="{ 'active' if active=='my' else '' }"><div class="ic">👤</div><div>MY</div></a>
-    {admin_nav}
   </div>
 </div>"""
     st.markdown(html, unsafe_allow_html=True)
@@ -1907,10 +1981,10 @@ elif page == "my":
 elif page == "reminder":
     render_reminder_settings(sb_authed, user)
     st.stop()
-
 elif page == "admin":
-    render_admin_hub(sb_authed, user)
+    render_admin_page(sb_authed, user)
     st.stop()
+
 
 
 elif page == "word":

@@ -1151,11 +1151,18 @@ def render_topcard():
 
     st.markdown('<div class="topcard">', unsafe_allow_html=True)
 
-    left, r_my, r_logout = st.columns([6.0, 2.4, 2.4], vertical_alignment="center")
+    left, r_admin, r_my, r_logout = st.columns([6.0, 1.2, 2.4, 2.4], vertical_alignment="center")
 
     with left:
         # ✅ 왼쪽 '환영합니다/이메일' 제거 (공간만 유지)
         st.markdown("<div style='height:40px;'></div>", unsafe_allow_html=True)
+
+    with r_admin:
+        if is_admin():
+            st.button("📊", use_container_width=True, help="관리자 대시보드",
+                      key="topcard_btn_nav_admin", on_click=nav_to, args=("admin",))
+        else:
+            st.markdown("<div style='height:40px;'></div>", unsafe_allow_html=True)
 
     with r_my:
         st.button("📌 마이페이지", use_container_width=True, help="내 학습 기록/오답 TOP10 보기",
@@ -1626,8 +1633,27 @@ def build_quiz_from_wrongs(wrong_list: list, qtype: str) -> list:
     return [make_question(retry_df.iloc[i], qtype, pool) for i in range(len(retry_df))]
 
 # ============================================================
-# ✅ 마이페이지 (관리자 제거 — Hub로 이동)
+# ✅ 마이페이지/관리자 (원본 기능 유지, 한자용으로 가벼운 조정)
+# ============================================================
 
+def render_admin_dashboard():
+    st.subheader("📊 관리자 대시보드")
+
+    if not is_admin():
+        st.error("접근 권한이 없습니다.")
+        st.session_state.page = "quiz"
+        st.stop()
+
+    if st.button("← 돌아가기", use_container_width=True, key="btn_admin_back"):
+        st.session_state.page = "quiz"
+        st.rerun()
+
+    sb_authed_local = get_authed_sb()
+    if sb_authed_local is None:
+        st.warning("세션 토큰이 없습니다. 다시 로그인해 주세요.")
+        return
+
+    st.caption("※ 여기서부터 확장 가능(전체 기록 조회 등).")
 
 def render_my_dashboard():
     st.subheader("📌 내 대시보드")
@@ -1989,6 +2015,8 @@ if st.session_state.get("page") != "home":
     _p = st.session_state.get("page")
     if _p == "my":
         _title = "👤 마이페이지"
+    elif _p == "admin":
+        _title = "🛠 관리자"
     else:
         _title = "✨ 한자 퀴즈"
 
@@ -2019,6 +2047,13 @@ if st.session_state.page == "home":
     render_home()
     st.stop()
 
+if st.session_state.page == "admin":
+    if not is_admin():
+        st.session_state.page = "quiz"
+        st.warning("관리자 권한이 없습니다.")
+        st.rerun()
+    render_admin_dashboard()
+    st.stop()
 
 if st.session_state.page == "my":
     try:
@@ -2622,4 +2657,3 @@ def render_kanji_hub(HUB_MODE: bool = False):
 
 if __name__ == '__main__':
     render_kanji_hub(HUB_MODE=False)
-

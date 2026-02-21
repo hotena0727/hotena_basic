@@ -213,6 +213,7 @@ quiz_label_map = {
     "kr2jp": "한→일",
 }
 QUIZ_TYPES_USER = ["reading", "meaning", "kr2jp"]
+QUIZ_TYPES_ADMIN = ["reading", "meaning", "kr2jp"]  # 필요시 관리자 전용 유형 추가 가능
 
 # ✅ 요청 반영: 기타(adv/particle/conj/interj)에서는 발음(reading) 숨김 → 그룹 단위로 other만 제한
 POS_ONLY_2TYPES = {"other"}
@@ -802,21 +803,21 @@ def is_admin() -> bool:
 def ensure_mastered_words_shape():
     if "mastered_words" not in st.session_state or not isinstance(st.session_state.mastered_words, dict):
         st.session_state.mastered_words = {}
-    types = QUIZ_TYPES_USER
+    types = QUIZ_TYPES_ADMIN if is_admin() else QUIZ_TYPES_USER
     for qt in types:
         st.session_state.mastered_words.setdefault(mastery_key(qt), set())
 
 def ensure_excluded_wrong_words_shape():
     if "excluded_wrong_words" not in st.session_state or not isinstance(st.session_state.excluded_wrong_words, dict):
         st.session_state.excluded_wrong_words = {}
-    types = QUIZ_TYPES_USER
+    types = QUIZ_TYPES_ADMIN if is_admin() else QUIZ_TYPES_USER
     for qt in types:
         st.session_state.excluded_wrong_words.setdefault(mastery_key(qt), set())
 
 def ensure_seen_words_shape():
     if "seen_words" not in st.session_state or not isinstance(st.session_state.seen_words, dict):
         st.session_state.seen_words = {}
-    types = QUIZ_TYPES_USER
+    types = QUIZ_TYPES_ADMIN if is_admin() else QUIZ_TYPES_USER
     for qt in types:
         st.session_state.seen_words.setdefault(mastery_key(qt), set())     
 
@@ -826,7 +827,7 @@ def ensure_mastery_banner_shape():
     if "mastery_done" not in st.session_state or not isinstance(st.session_state.mastery_done, dict):
         st.session_state.mastery_done = {}
 
-    types = QUIZ_TYPES_USER
+    types = QUIZ_TYPES_ADMIN if is_admin() else QUIZ_TYPES_USER
     for qt in types:
         k = mastery_key(qt)
         st.session_state.mastery_banner_shown.setdefault(k, False)
@@ -1085,6 +1086,14 @@ def fetch_recent_attempts(sb_authed, user_id, limit=10):
         .execute()
     )
 
+def fetch_all_attempts_admin(sb_authed, limit=500):
+    return (
+        sb_authed.table("quiz_attempts")
+        .select("created_at, user_email, level, pos_mode, quiz_len, score, wrong_count")
+        .order("created_at", desc=True)
+        .limit(limit)
+        .execute()
+    )
 
 def fetch_plan_from_db(sb_authed, user_id) -> str:
     try:
@@ -1676,10 +1685,17 @@ def render_topcard():
         return
 
     st.markdown('<div class="topcard">', unsafe_allow_html=True)
-    left, r_my, r_logout = st.columns([6.0, 2.4, 2.4], vertical_alignment="center")
+    left, r_admin, r_my, r_logout = st.columns([6.0, 1.2, 2.4, 2.4], vertical_alignment="center")
 
     with left:
         st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
+
+    with r_admin:
+        if is_admin():
+            st.button("📊", use_container_width=True, help="관리자 대시보드",
+                      key="topcard_btn_nav_admin", on_click=nav_to, args=("admin",))
+        else:
+            st.markdown("<div style='height:40px;'></div>", unsafe_allow_html=True)
 
     with r_my:
         st.button("📌 마이페이지", use_container_width=True, help="내 학습 기록/오답 TOP10 보기",
@@ -2159,6 +2175,38 @@ def build_quiz_from_wrongs(wrong_list: list, qtype: str, pos_group: str) -> list
 # ============================================================
 # ✅ Admin/My pages
 # ============================================================
+def render_admin_dashboard():
+    st.subheader("📊 관리자 대시보드")
+
+    if not is_admin():
+        st.error("접근 권한이 없습니다.")
+        st.session_state.page = "quiz"
+        st.stop()
+
+    if st.button("← 돌아가기", use_container_width=True, key="btn_admin_back"):
+        st.session_state.page = "quiz"
+        st.rerun()
+
+    sb_authed_local = get_authed_sb()
+    if sb_authed_local is None:
+        st.warning("세션 토큰이 없습니다. 다시 로그인해 주세요.")
+        return
+
+    st.caption("※ 확장 가능: 전체 기록 조회 등")
+    if st.button("최근 전체 기록 100개 보기", use_container_width=True, key="btn_admin_fetch100"):
+        try:
+            res = run_db(lambda: fetch_all_attempts_admin(sb_authed_local, limit=100))
+            if not res.data:
+                st.info("기록이 없습니다.")
+            else:
+                df = pd.DataFrame(res.data)
+                df["created_at"] = to_kst_naive(df["created_at"])
+                df["품사"] = df["level"].map(lambda x: POS_LABEL_MAP.get(str(x), str(x)))
+                df["유형"] = df["pos_mode"].map(lambda x: quiz_label_map.get(str(x), str(x)))
+                st.dataframe(df, use_container_width=True, hide_index=True)
+        except Exception as e:
+            st.error("조회 실패")
+            st.write(str(e))
 
 def render_my_dashboard():
     st.subheader("📌 내 대시보드")
@@ -2791,6 +2839,13 @@ if st.session_state.page == "home":
     render_home()
     st.stop()
 
+if st.session_state.page == "admin":
+    if not is_admin():
+        st.session_state.page = "quiz"
+        st.warning("관리자 권한이 없습니다.")
+        st.rerun()
+    render_admin_dashboard()
+    st.stop()
 
 if st.session_state.page == "my":
     try:
