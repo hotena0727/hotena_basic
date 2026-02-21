@@ -2414,7 +2414,7 @@ def render_admin_dashboard(sb_authed):
 
     # ---------- tab: logs ----------
     with tab_logs:
-        st.markdown('<div class="ha-section"><div class="ha-title">기록</div><div class="ha-sub">필터 · 보기 모드(테이블/카드)</div>', unsafe_allow_html=True)
+        st.markdown('<div class="ha-section"><div class="ha-title">기록</div><div class="ha-sub">필터 · 카드형 피드</div>', unsafe_allow_html=True)
 
         if dfa.empty:
             st.info("quiz_attempts 데이터가 없거나 RLS로 차단되었습니다.")
@@ -2436,7 +2436,7 @@ def render_admin_dashboard(sb_authed):
             # filters
             c1, c2, c3, c4 = st.columns([1.1, 1.0, 1.0, 1.0])
             with c1:
-                view_mode = st.selectbox("보기", ["테이블", "카드"], index=1, key="admin_logs_view")
+                mask_email = st.toggle("이메일 마스킹", value=True, key="admin_logs_mask")
             with c2:
                 days = st.selectbox("기간", [1,7,30,90,365], index=2, key="admin_logs_days")
             with c3:
@@ -2457,7 +2457,8 @@ def render_admin_dashboard(sb_authed):
             rename_map = {
                 "user_email": "이메일",
                 "level": "레벨",
-                "pos_mode": "유형",
+                "pos_mode": "품사",
+                "quiz_type": "퀴즈",
                 "quiz_len": "문항",
                 "score": "점수",
                 "wrong_count": "오답",
@@ -2466,53 +2467,37 @@ def render_admin_dashboard(sb_authed):
                 if k in d.columns:
                     d[v] = d[k]
 
-            keep = [c for c in ["일시","이메일","레벨","유형","문항","점수","오답","user_id"] if c in d.columns]
+            keep = [c for c in ["일시","이메일","레벨","품사","퀴즈","문항","점수","오답"] if c in d.columns]
             d2 = d[keep].head(int(max_rows)).copy() if keep else d.head(int(max_rows)).copy()
+            # card view (Hatena style)
+            # card view (Hatena style)
+            import html as _html
+            st.markdown('<div class="ha-log">', unsafe_allow_html=True)
+            for _, r in d2.head(200).iterrows():
+                email = str(r.get("이메일", "") or "")
+                when = str(r.get("일시", "") or "")
+                level = str(r.get("레벨", "-") or "-")
+                qtype = str(r.get("유형", "-") or "-")
 
-            if view_mode == "테이블":
-                st.dataframe(
-                    d2,
-                    use_container_width=True,
-                    hide_index=True,
-                    column_config={
-                        "일시": st.column_config.TextColumn("일시"),
-                        "이메일": st.column_config.TextColumn("이메일"),
-                        "레벨": st.column_config.TextColumn("레벨"),
-                        "유형": st.column_config.TextColumn("유형"),
-                        "문항": st.column_config.NumberColumn("문항"),
-                        "점수": st.column_config.NumberColumn("점수"),
-                        "오답": st.column_config.NumberColumn("오답"),
-                        "user_id": st.column_config.TextColumn("user_id"),
-                    },
-                )
-            else:
-                # card view (Hatena style)
-                import html as _html
-                st.markdown('<div class="ha-log">', unsafe_allow_html=True)
-                for _, r in d2.head(200).iterrows():
-                    email = str(r.get("이메일", "") or "")
-                    when = str(r.get("일시", "") or "")
-                    level = str(r.get("레벨", "-") or "-")
-                    qtype = str(r.get("유형", "-") or "-")
+                def _to_int(v, default=0):
+                    try:
+                        return int(float(v))
+                    except Exception:
+                        return default
 
-                    def _to_int(v, default=0):
-                        try:
-                            return int(float(v))
-                        except Exception:
-                            return default
+                quiz_len = _to_int(r.get("문항", 0), 0)
+                score = _to_int(r.get("점수", 0), 0)
+                wrong = _to_int(r.get("오답", 0), 0)
+                pct = int(round((score / quiz_len) * 100)) if quiz_len else 0
+                pct = max(0, min(100, pct))
 
-                    quiz_len = _to_int(r.get("문항", 0), 0)
-                    score = _to_int(r.get("점수", 0), 0)
-                    wrong = _to_int(r.get("오답", 0), 0)
-                    pct = int(round((score / quiz_len) * 100)) if quiz_len else 0
-                    pct = max(0, min(100, pct))
+                email_html = _html.escape(email)
+                when_html = _html.escape(when)
+                level_html = _html.escape(level)
+                pos_html = _html.escape(pos)
+                    quiz_html = _html.escape(quiz)
 
-                    email_html = _html.escape(email)
-                    when_html = _html.escape(when)
-                    level_html = _html.escape(level)
-                    qtype_html = _html.escape(qtype)
-
-                    html = f"""
+                html = f"""
 <div class='ha-logcard'>
   <div class='ha-logtop'>
     <div>
@@ -2521,7 +2506,8 @@ def render_admin_dashboard(sb_authed):
     </div>
     <div class='ha-badges'>
       <span class='ha-badge'>{level_html}</span>
-      <span class='ha-badge'>{qtype_html}</span>
+      <span class='ha-badge'>{pos_html}</span>
+      <span class='ha-badge'>{quiz_html}</span>
       <span class='ha-badge ok'>✅ {score}/{quiz_len} · {pct}%</span>
       <span class='ha-badge bad'>❌ {wrong}</span>
     </div>
@@ -2534,9 +2520,9 @@ def render_admin_dashboard(sb_authed):
   </div>
 </div>
 """
-                    st.markdown(html, unsafe_allow_html=True)
+                st.markdown(html, unsafe_allow_html=True)
 
-                st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
 
             st.caption("※ '관리자 작업 로그(플랜 변경 이력)'까지 원하시면, 별도 admin_audit_logs 테이블/RPC를 추가해 붙일 수 있습니다.")
             st.markdown("</div>", unsafe_allow_html=True)
