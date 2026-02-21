@@ -636,6 +636,43 @@ def render_home_dashboard(sb_authed, user):
     idx = (kst_today.toordinal() + (streak * 3) + remaining_sets) % len(messages)
     motivation = messages[idx]
 
+    # ---- 오늘의 한마디 (한국어, 날짜 기반 고정) ----
+    HUB_QUOTES = [
+        "오늘 20분이면 충분합니다.",
+        "꾸준함은 재능을 이깁니다.",
+        "작은 차이가 1년을 바꿉니다.",
+        "루틴은 의지를 대신합니다.",
+        "느려도 괜찮습니다. 계속하면 됩니다.",
+        "매일 조금씩이 가장 빠른 길입니다.",
+        "오늘을 채우면 내일이 편해집니다.",
+        "공부는 감정이 아니라 구조입니다.",
+        "포기하지 않는 사람이 결국 이깁니다.",
+        "하테나는 루틴을 만듭니다.",
+        "어제보다 1%만 나아지면 됩니다.",
+        "오늘 한 문제라도 의미 있습니다.",
+        "멈추지 않으면 쌓입니다.",
+        "실력은 조용히 올라갑니다.",
+        "반복이 결국 차이를 만듭니다.",
+        "몰아서 하지 말고, 매일 하세요.",
+        "오늘의 기록이 내일의 자신감입니다.",
+        "성장은 보이지 않게 진행됩니다.",
+        "공부는 자신과의 약속입니다.",
+        "매일 하는 사람이 강합니다.",
+        "완벽하지 않아도 괜찮습니다.",
+        "오늘을 넘기지 마세요.",
+        "시작이 가장 쉽습니다.",
+        "루틴은 배신하지 않습니다.",
+        "하루는 짧지만, 1년은 깁니다.",
+        "꾸준함이 가장 큰 무기입니다.",
+        "오늘을 버티면 실력이 됩니다.",
+        "계속하는 사람이 결국 남습니다.",
+        "지금 시작하는 것이 가장 빠릅니다.",
+        "하테나는 오늘도 쌓입니다.",
+    ]
+    today_quote = HUB_QUOTES[kst_today.toordinal() % len(HUB_QUOTES)]
+
+    
+
     # ---- local helper ----
     def _dots_3(done_sets: int, goal_sets_: int) -> str:
         if goal_sets_ <= 0:
@@ -811,6 +848,30 @@ def render_home_dashboard(sb_authed, user):
   .st-key-hub_goal_gear_icon button:active{outline:none !important;box-shadow:none !important;}
   .st-key-hub_goal_gear_icon button p{font-size:18px !important;margin:0 !important;}
 
+
+
+
+/* Quote (오늘의 한마디) */
+.h-quote-card{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin: 0.25rem 0 0.1rem 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(244,247,251,0.95);
+  border: 1px solid rgba(227,232,240,1);
+}
+.h-quote-dot{
+  width:6px;height:6px;border-radius:50%;
+  background: rgba(74,108,247,1);
+  flex-shrink:0;
+}
+.h-quote-t{
+  font-size: 0.98rem;
+  font-weight: 600;
+  color: rgba(44,62,80,1);
+}
 </style>
         """,
         unsafe_allow_html=True,
@@ -822,8 +883,8 @@ def render_home_dashboard(sb_authed, user):
 <div class="h-wrap">
   <div class="h-top">
     <div>
-      <p class="h-title">하테나 학습 허브</p>
-      <p class="h-sub">{motivation}</p>
+      <p class="h-title">하테나일본어</p>
+      <div class="h-quote-card"><span class="h-quote-dot"></span><span class="h-quote-t">{today_quote}</span></div>
       <p class="h-sub" style="opacity:.58;font-size:.86rem;margin:.10rem 0 0;">오늘의 성취율을 확인하고, 바로 이어가세요.</p>
     </div>
     <div class="h-pill">🔥 <b>{streak}</b>일</div>
@@ -1044,6 +1105,70 @@ def render_home_dashboard(sb_authed, user):
         st.query_params["p"] = rec_kind
         st.rerun()
 
+
+
+    # ---- hub: inbox + wrongcards (compact) ----
+    st.markdown("<div style='height:0.6rem'></div>", unsafe_allow_html=True)
+
+    with st.expander("📩 받은 메시지", expanded=False):
+        try:
+            rows = []
+            try:
+                r = (
+                    sb_authed.table("user_messages")
+                    .select("id,title,body,created_at,read_at")
+                    .eq("user_id", user.id)
+                    .order("created_at", desc=True)
+                    .limit(50)
+                    .execute()
+                )
+                rows = r.data or []
+            except Exception as e:
+                st.warning(f"메시지함을 불러오지 못했습니다: {e}")
+
+            if not rows:
+                st.info("받은 메시지가 없습니다.")
+            else:
+                unread = sum(1 for x in rows if not x.get("read_at"))
+                st.caption(f"읽지 않은 메시지: {unread}개 · 최근 {min(len(rows),50)}개")
+                now_iso = datetime.now(timezone(timedelta(hours=9))).isoformat()
+                for msg in rows[:20]:
+                    mid = msg.get("id")
+                    title = (msg.get("title") or "알림").strip()
+                    body = (msg.get("body") or "").strip()
+                    created = (msg.get("created_at") or "")
+                    read_at = msg.get("read_at")
+                    badge = "🟦 미읽음" if not read_at else "✅ 읽음"
+                    st.markdown(f"**{title}**  ·  {badge}")
+                    if created:
+                        st.caption(str(created).replace('T',' ').replace('Z','')[:19])
+                    if body:
+                        st.write(body)
+                    if (not read_at) and mid:
+                        if st.button("읽음 처리", key=f"msg_read_{mid}"):
+                            try:
+                                sb_authed.table("user_messages").update({"read_at": now_iso}).eq("id", mid).execute()
+                                st.success("읽음 처리했습니다.")
+                                st.rerun()
+                            except Exception as e:
+                                st.error(f"읽음 처리 실패: {e}")
+                    st.divider()
+        except Exception as e:
+            st.error(f"메시지함 로딩 실패: {e}")
+
+    with st.expander("🧾 오답카드 · TOP10", expanded=False):
+        st.caption("오답카드/Top10 기능은 마이페이지에 그대로 있습니다. 아래 버튼으로 이동해 이용하세요.")
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("오답카드 열기", use_container_width=True, key="hub_open_wrongs"):
+                st.query_params["p"] = "my"
+                st.session_state["hub_page"] = "my"
+                st.rerun()
+        with c2:
+            if st.button("TOP10 재시험", use_container_width=True, key="hub_open_top10"):
+                st.query_params["p"] = "my"
+                st.session_state["hub_page"] = "my"
+                st.rerun()
 
 
 def summarize_attempts(attempts: list[dict]) -> dict:
