@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+import random
 from typing import Any, Dict, List, Optional, Tuple
 
 import streamlit as st
@@ -196,6 +197,118 @@ def _mark_message_read(sb: Any, msg_id: str) -> bool:
         return False
 
 
+
+def _pick_field(row: Dict[str, Any], keys: List[str]) -> str:
+    for k in keys:
+        v = row.get(k)
+        if v is None:
+            continue
+        s = str(v).strip()
+        if s:
+            return s
+    return ""
+
+
+def _build_top10_quiz(wrong_rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Build a 10-question quiz from wrong_rows.
+    Each item: {q, correct, choices(optional)}.
+    - Prefer multiple-choice when we can form 4 unique options.
+    - Fallback to short-answer when options are insufficient.
+    """
+    items: List[Dict[str, Any]] = []
+    if not wrong_rows:
+        return items
+
+    # Normalize candidates (need both question and correct answer)
+    pool: List[Tuple[str, str]] = []
+    for r in wrong_rows:
+        q = _pick_field(r, ["question", "jp_word", "item"])
+        ca = _pick_field(r, ["correct_answer", "answer"])
+        if q and ca:
+            pool.append((q, ca))
+
+    # Unique by question
+    seen = set()
+    uniq: List[Tuple[str, str]] = []
+    for q, ca in pool:
+        if q in seen:
+            continue
+        seen.add(q)
+        uniq.append((q, ca))
+
+    # Take up to 10
+    uniq = uniq[:10]
+
+    # Distractor pool from correct answers
+    answers = list({ca for _, ca in uniq})
+    for q, ca in uniq:
+        # Try build 4 choices
+        choices = []
+        if len(answers) >= 4:
+            distractors = [a for a in answers if a != ca]
+            random.shuffle(distractors)
+            choices = [ca] + distractors[:3]
+            random.shuffle(choices)
+        items.append({"q": q, "correct": ca, "choices": choices})
+
+    return items
+
+
+def _render_top10_quiz_ui() -> None:
+    """Render in-page TOP10 quiz UI using st.session_state['top10_quiz']"""
+    quiz = st.session_state.get("top10_quiz") or []
+    if not quiz:
+        st.info("TOP10 재시험 데이터를 만들 수 없습니다. (오답 상세 데이터가 필요합니다.)")
+        return
+
+    st.markdown("#### 🧪 TOP10 재시험")
+    st.caption("오답카드 기반으로 10문항을 즉석에서 재시험합니다. (정답은 기존 오답 데이터의 정답 필드를 사용합니다.)")
+
+    # answers state
+    if "top10_answers" not in st.session_state:
+        st.session_state["top10_answers"] = {}
+
+    score = 0
+    answered = 0
+
+    for i, it in enumerate(quiz, start=1):
+        q = it.get("q", "")
+        ca = it.get("correct", "")
+        choices = it.get("choices") or []
+        st.markdown(f"**Q{i}.** {q}")
+
+        key = f"top10_q_{i}"
+        if choices:
+            sel = st.radio("보기", options=choices, key=key, horizontal=False, label_visibility="collapsed")
+            st.session_state["top10_answers"][key] = sel
+            answered += 1
+            if sel == ca:
+                score += 1
+        else:
+            ans = st.text_input("정답 입력", key=key, label_visibility="collapsed")
+            st.session_state["top10_answers"][key] = ans
+            if ans:
+                answered += 1
+                if ans.strip() == ca.strip():
+                    score += 1
+
+        with st.expander("정답 보기", expanded=False):
+            st.write(f"정답: {ca}")
+
+        st.divider()
+
+    st.markdown(f"### 점수: {score} / {len(quiz)}")
+    cols = st.columns([0.5, 0.5])
+    with cols[0]:
+        if st.button("🔁 다시 풀기", key="top10_retry"):
+            st.session_state.pop("top10_answers", None)
+            st.rerun()
+    with cols[1]:
+        if st.button("✅ 시험 종료", key="top10_end"):
+            st.session_state["top10_active"] = False
+            st.rerun()
+
+
 def render() -> None:
     _inject_css()
 
@@ -294,20 +407,20 @@ def render() -> None:
             unsafe_allow_html=True,
         )
 
+        # Pull wrong details first (needed for TOP10)
+        table_name, wrong_rows = _try_fetch_wrongs(sb, email, limit=30)
+
         # Actions row
         a1, a2, a3 = st.columns([0.34, 0.33, 0.33])
         with a1:
-            st.button("🔎 오답카드 새로고침", key="my_wrongs_refresh")
+            if st.button("🔎 오답카드 새로고침", key="my_wrongs_refresh"):
+                st.rerun()
         with a2:
-            # Navigate to word training (best effort)
-            if st.button("🧪 TOP10 재시험", type="primary", key="my_top10_go"):
-                # best-effort: 이동만 확실히
-                st.session_state["hub_page"] = "word"
-                try:
-                    st.query_params["p"] = "word"
-                    st.query_params["from"] = "top10"
-                except Exception:
-                    pass
+            # In-page TOP10 quiz (no dependency on other modules)
+            disabled = not bool(wrong_rows)
+            if st.button("🧪 TOP10 재시험 시작", type="primary", key="my_top10_start", disabled=disabled):
+                st.session_state["top10_quiz"] = _build_top10_quiz(wrong_rows)
+                st.session_state["top10_active"] = True
                 st.rerun()
         with a3:
             if st.button("➡️ 단어 훈련으로 이동", key="my_go_word"):
@@ -317,8 +430,6 @@ def render() -> None:
                 except Exception:
                     pass
                 st.rerun()
-
-        table_name, wrong_rows = _try_fetch_wrongs(sb, email, limit=30)
 
         if not wrong_rows:
             st.info(
