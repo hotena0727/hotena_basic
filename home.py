@@ -2472,6 +2472,48 @@ def render_admin_dashboard(sb_authed):
             # card view (Hatena style)
             # card view (Hatena style)
             import html as _html
+            import re
+
+            # code → label mapping (표시용)
+            POS_LABELS = {
+                "noun": "명사",
+                "verb": "동사",
+                "adj_i": "い형용사",
+                "adj_na": "な형용사",
+                "adverb": "부사",
+                "particle": "조사",
+                "conj": "접속사",
+                "conjunction": "접속사",
+                "interj": "감탄사",
+                "interjection": "감탄사",
+            }
+            QUIZ_LABELS = {
+                "meaning": "뜻",
+                "reading": "발음",
+                "kr2jp": "한→일",
+                "jp2kr": "일→한",
+                "hanja_reading": "한자읽기",
+                "context": "문맥",
+            }
+
+            def _norm_code(s: str) -> str:
+                s = (s or "")
+                # normalize: strip, lower, spaces, hyphen->underscore
+                s = s.strip().lower().replace("-", "_")
+                s = re.sub(r"\s+", "", s)
+                return s
+
+            def _mask_mail(e: str) -> str:
+                e = (e or "")
+                if "@" not in e:
+                    return e
+                name, dom = e.split("@", 1)
+                if len(name) <= 3:
+                    masked = (name[:1] + "*" * max(1, len(name) - 1))
+                else:
+                    masked = name[:3] + "*" * (len(name) - 3)
+                return masked + "@" + dom
+
             st.markdown('<div class="ha-log">', unsafe_allow_html=True)
             for _, r in d2.head(200).iterrows():
                 # raw values (may be None)
@@ -2480,54 +2522,17 @@ def render_admin_dashboard(sb_authed):
                 level = str(r.get("레벨", "-") or "-")
                 pos_code = str(r.get("품사", "") or "")
                 quiz_code = str(r.get("퀴즈", "") or "")
-
                 # optional email masking
-                def _mask_mail(e: str) -> str:
-                    if not e or "@" not in e:
-                        return e
-                    name, dom = e.split("@", 1)
-                    if len(name) <= 3:
-                        masked = (name[:1] + "*" * max(1, len(name) - 1))
-                    else:
-                        masked = name[:3] + "*" * (len(name) - 3)
-                    return masked + "@" + dom
-
                 if mask_email:
                     email = _mask_mail(email)
 
-                # code → label mapping (normalize codes before mapping)
-                def _norm_code(s: str) -> str:
-                    s = (s or "").strip().lower()
-                    # common separators / variants
-                    s = s.replace(" ", "").replace("-", "_")
-                    return s
+                # normalize codes and map to labels
+                pos_key = _norm_code(pos_code)
+                quiz_key = _norm_code(quiz_code)
 
-                POS_LABELS = {
-                    "noun": "명사",
-                    "verb": "동사",
-                    "adj_i": "い형용사",
-                    "adj_na": "な형용사",
-                    "adverb": "부사",
-                    "particle": "조사",
-                    "conj": "접속사",
-                    "conjunction": "접속사",
-                    "interj": "감탄사",
-                    "interjection": "감탄사",
-                }
-                QUIZ_LABELS = {
-                    "meaning": "뜻",
-                    "reading": "발음",
-                    "kr2jp": "한→일",
-                    "jp2kr": "일→한",
-                    "hanja_reading": "한자읽기",
-                    "context": "문맥",
-                }
+                pos = POS_LABELS.get(pos_key, pos_code.strip() or "-")
+                quiz = QUIZ_LABELS.get(quiz_key, quiz_code.strip() or "-")
 
-                _pk = _norm_code(pos_code)
-                _qk = _norm_code(quiz_code)
-
-                pos = POS_LABELS.get(_pk, pos_code.strip() or "-")
-                quiz = QUIZ_LABELS.get(_qk, quiz_code.strip() or "-")
                 def _to_int(v, default=0):
                     try:
                         return int(float(v))
