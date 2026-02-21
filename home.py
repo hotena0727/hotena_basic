@@ -586,6 +586,30 @@ def _dots_3(done_sets: int, goal_sets: int) -> str:
     return " ".join(["●"] * filled + ["○"] * (3 - filled))
 
 
+
+def hub_href(p: str) -> str:
+    """Build hub navigation href preserving encrypted tokens in query params (rt/at)."""
+    try:
+        rt_enc = st.query_params.get("rt", "")
+        at_enc = st.query_params.get("at", "")
+    except Exception:
+        rt_enc, at_enc = "", ""
+
+    def _q(s: str) -> str:
+        try:
+            import urllib.parse
+            return urllib.parse.quote(s, safe="") if s else ""
+        except Exception:
+            return s or ""
+
+    base = ""
+    if rt_enc:
+        base += "rt=" + _q(rt_enc) + "&"
+    if at_enc:
+        base += "at=" + _q(at_enc) + "&"
+    return "?" + base + "p=" + _q(p)
+
+
 def render_home_dashboard(sb_authed, user):
     """Home Hub dashboard (A++): donut + weekly heatmap + level mini bars + rows + smart CTA + compact goal gear."""
     from datetime import datetime, timezone, timedelta
@@ -1015,9 +1039,9 @@ def render_home_dashboard(sb_authed, user):
 </a>"""
 
     rows_html = """<div class='h-rows'>""" + \
-        _row("?p=word", "📘 단어", int(w["sets"]), int(w["q"]), "word") + \
-        _row("?p=kanji", "🈶 한자", int(k["sets"]), int(k["q"]), "kanji") + \
-        _row("?p=talk", "💬 회화", int(t["sets"]), int(t["q"]), "talk") + \
+        _row(hub_href("word"), "📘 단어", int(w["sets"]), int(w["q"]), "word") + \
+        _row(hub_href("kanji"), "🈶 한자", int(k["sets"]), int(k["q"]), "kanji") + \
+        _row(hub_href("talk"), "💬 회화", int(t["sets"]), int(t["q"]), "talk") + \
         """</div>"""
     st.markdown(rows_html, unsafe_allow_html=True)
 
