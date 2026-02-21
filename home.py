@@ -2311,20 +2311,77 @@ def render_admin_dashboard(sb_authed):
                     except Exception:
                         pass
 
-                st.dataframe(
-                    table_df,
-                    use_container_width=True,
-                    hide_index=True,
-                    column_config={
-                        "email": st.column_config.TextColumn("이메일"),
-                        "full_name": st.column_config.TextColumn("이름"),
-                        "plan": st.column_config.TextColumn("플랜"),
-                        "is_admin": st.column_config.CheckboxColumn("관리자"),
-                        "last_seen_kst": st.column_config.TextColumn("최근 학습"),
-                        "created_at": st.column_config.TextColumn("가입일"),
-                        "id_str": st.column_config.TextColumn("ID"),
-                    },
-                )
+                
+                # ✅ Pretty user list (cards) instead of dataframe
+                st.markdown("""
+                <style>
+                .ha-userlist{display:flex;flex-direction:column;gap:10px;margin-top:6px;}
+                .ha-urow{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;
+                  padding:12px 14px;border-radius:16px;border:1px solid rgba(0,0,0,0.06);
+                  background:rgba(255,255,255,0.75);box-shadow:0 6px 16px rgba(0,0,0,0.03);}
+                .ha-uleft{min-width:0;}
+                .ha-uemail{font-weight:850;letter-spacing:-0.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+                .ha-umeta{font-size:12px;opacity:.68;margin-top:2px;display:flex;flex-wrap:wrap;gap:10px;}
+                .ha-badges{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;}
+                .ha-b{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;
+                  font-size:12px;background:rgba(0,0,0,0.04);border:1px solid rgba(0,0,0,0.08);opacity:.92;}
+                .ha-b.pro{background:rgba(0,128,0,0.07);border-color:rgba(0,128,0,0.18);}
+                .ha-b.free{background:rgba(0,0,0,0.03);}
+                .ha-b.admin{background:rgba(0,0,0,0.06);border-color:rgba(0,0,0,0.12);}
+                </style>
+                """, unsafe_allow_html=True)
+
+                list_df = uf.head(int(limit)).copy()
+
+                def _fmt_dt(v):
+                    try:
+                        vv = pd.to_datetime(v, errors="coerce")
+                        if pd.isna(vv):
+                            return "-"
+                        if getattr(vv, "tzinfo", None) is not None:
+                            vv = vv.tz_convert("Asia/Seoul")
+                        return vv.strftime("%Y-%m-%d %H:%M")
+                    except Exception:
+                        return "-"
+
+                st.markdown('<div class="ha-userlist">', unsafe_allow_html=True)
+                for _, rr in list_df.iterrows():
+                    em = str(rr.get("email","") or "").strip() or "(no email)"
+                    fn = str(rr.get("full_name","") or "").strip()
+                    uid = str(rr.get("id_str","") or rr.get("id","") or "").strip()
+                    pl = str(rr.get("plan","free") or "free").lower().strip()
+                    adm = bool(rr.get("is_admin", False))
+                    last_seen = rr.get("last_seen_kst", None)
+                    created = rr.get("created_at", None)
+
+                    meta_parts = []
+                    if fn:
+                        meta_parts.append(f"이름: {html.escape(fn)}")
+                    if created is not None and str(created).strip():
+                        meta_parts.append(f"가입: {_fmt_dt(created)}")
+                    if last_seen is not None and str(last_seen).strip():
+                        meta_parts.append(f"최근 학습: {_fmt_dt(last_seen)}")
+                    if uid:
+                        meta_parts.append(f"ID: {html.escape(uid)}")
+
+                    meta_html = " · ".join(meta_parts) if meta_parts else ""
+
+                    badges = []
+                    badges.append(f"<span class='ha-b { 'pro' if pl=='pro' else 'free' }'>{html.escape(pl)}</span>")
+                    if adm:
+                        badges.append("<span class='ha-b admin'>관리자</span>")
+
+                    card = f"""
+                    <div class='ha-urow'>
+                      <div class='ha-uleft'>
+                        <div class='ha-uemail'>{html.escape(em)}</div>
+                        <div class='ha-umeta'>{meta_html}</div>
+                      </div>
+                      <div class='ha-badges'>{''.join(badges)}</div>
+                    </div>
+                    """
+                    st.markdown(card, unsafe_allow_html=True)
+                st.markdown('</div>', unsafe_allow_html=True)
 
             # pick target user for detail actions
             with right:
