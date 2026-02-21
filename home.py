@@ -1162,11 +1162,15 @@ def render_home_dashboard(sb_authed, user):
         with c1:
             if st.button("오답카드 열기", use_container_width=True, key="hub_open_wrongs"):
                 st.query_params["p"] = "my"
+                st.query_params["my"] = "wrongs"
+                st.session_state["my_focus"] = "wrongs"
                 st.session_state["hub_page"] = "my"
                 st.rerun()
         with c2:
             if st.button("TOP10 재시험", use_container_width=True, key="hub_open_top10"):
                 st.query_params["p"] = "my"
+                st.query_params["my"] = "top10"
+                st.session_state["my_focus"] = "top10"
                 st.session_state["hub_page"] = "my"
                 st.rerun()
 
@@ -3222,8 +3226,36 @@ if page == "home":
     # ✅ Home Hub: dashboard view
     render_home_dashboard(sb_authed, user)
 elif page == "my":
-    # ✅ 마이페이지: (1) 받은 메시지(알림) 먼저 노출 → (2) 기존 mypage 모듈 실행
+    # ✅ 마이페이지(허브에서 진입): 상단에 "← 홈허브" 버튼 + 포커스(오답/Top10) 힌트
     st.session_state['HUB_MODE'] = True
+
+    _my_focus = ""
+    try:
+        _my_focus = str(st.query_params.get("my", "") or "")
+    except Exception:
+        _my_focus = ""
+    if _my_focus:
+        st.session_state["my_focus"] = _my_focus
+
+    bar_l, bar_r = st.columns([1.2, 2.8])
+    with bar_l:
+        if st.button("← 홈허브", key="btn_back_to_hub"):
+            st.query_params["p"] = "home"
+            # keep focus param clean
+            try:
+                if "my" in st.query_params:
+                    del st.query_params["my"]
+            except Exception:
+                pass
+            st.session_state["hub_page"] = "home"
+            st.rerun()
+    with bar_r:
+        if st.session_state.get("my_focus") == "wrongs":
+            st.caption("오답카드 화면")
+        elif st.session_state.get("my_focus") == "top10":
+            st.caption("TOP10 재시험 화면")
+
+    # (1) 받은 메시지(알림) 먼저 노출 → (2) 기존 mypage 모듈 실행
     try:
         uid_now = st.session_state.get("user_id") or getattr(user, "id", None)
         if uid_now and sb_authed:
