@@ -1911,7 +1911,7 @@ def render_admin_dashboard(sb_authed):
     # ---------- Hatena UI skin ----------
     st.markdown("""
 <style>
-.ha-wrap{max-width:980px;margin:0 auto;}
+.ha-wrap{max-width:none;width:100%;margin:0;box-sizing:border-box;}
 .ha-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:10px 0 14px;}
 .ha-card{background:linear-gradient(180deg, rgba(0,0,0,.035), rgba(0,0,0,.015));
   border:1px solid rgba(0,0,0,.08);border-radius:18px;padding:14px 14px 12px;}
