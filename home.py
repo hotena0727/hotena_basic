@@ -2275,7 +2275,7 @@ def render_admin_dashboard(sb_authed):
             uf = u[mask].copy().sort_values(by=["last_seen_kst","created_at"], ascending=[False, False], na_position="last")
 
             # --- layout: list + detail ---
-            left, right = st.columns([1.75, 1.0], gap="medium")
+            left, right = st.columns([1.0, 2.2], gap="medium")
 
             with left:
                 st.caption(f"검색 결과: {len(uf):,}명 / 전체: {len(u):,}명")
