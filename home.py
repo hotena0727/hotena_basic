@@ -13,6 +13,7 @@ from cryptography.fernet import Fernet
 from datetime import date, datetime, timedelta, timezone
 import streamlit as st
 import streamlit.components.v1 as components
+import importlib
 # ============================================================
 # ✅ LocalStorage / QueryParam persistence helpers
 # ============================================================
@@ -75,57 +76,148 @@ from streamlit_cookies_manager import EncryptedCookieManager
 # ============================================================
 st.set_page_config(page_title="Hotena Hub", layout="centered")
 # ✅ TOP anchor for floating button (no-JS)
-components.html("""<div id="hotena-top"></div>""", height=0)
+st.markdown('<div id="hotena-top"></div>', unsafe_allow_html=True)
 
 # ✅ CSS reset (child pages may hide Streamlit header; keep top UI from being clipped)
 st.markdown(
     """
 <style>
 /* ==========================================================
-   ✅ HUB Global CSS (TOP GAP MAX KILLER)
-   - Hide Streamlit chrome completely
-   - Remove all default top paddings/margins
+   ✅ HUB Global CSS (Mobile-first polish)
+   - Keep header visible (child pages may hide)
+   - Make tap targets big enough
+   - Normalize spacing/typography for "app-like" feel
    ========================================================== */
 
-/* 1) Streamlit chrome */
-header[data-testid="stHeader"]{ display:none !important; height:0 !important; min-height:0 !important; }
-div[data-testid="stToolbar"]{ display:none !important; height:0 !important; }
-div[data-testid="stDecoration"]{ display:none !important; height:0 !important; }
-#MainMenu{ visibility:hidden !important; height:0 !important; }
-footer{ visibility:hidden !important; height:0 !important; }
+header[data-testid="stHeader"]{
+  height: auto !important;
+  min-height: 3.25rem !important;
+}
 
-/* 2) App containers: kill top padding/margin everywhere */
-div[data-testid="stAppViewContainer"]{ padding-top:0 !important; margin-top:0 !important; }
-div[data-testid="stAppViewContainer"] .main{ padding-top:0 !important; margin-top:0 !important; }
-section.main > div.block-container,
+/* Container spacing */
 div[data-testid="stAppViewContainer"] .block-container{
-  padding-top: 0rem !important;
-  margin-top: 0rem !important;
-  padding-bottom: 5.25rem !important; /* keep bottom breathing room */
+  padding-top: 0.25rem !important;
+  padding-bottom: 5.25rem !important; /* bottom breathing room for mobile */
 }
 
-/* 3) First element in main sometimes gets extra spacing */
-div[data-testid="stAppViewContainer"] .block-container > div:first-child{
-  margin-top: 0 !important;
-  padding-top: 0 !important;
-}
-
-/* 4) Headline spacing: tighter */
+/* Headlines: tighter */
 div[data-testid="stAppViewContainer"] h1,
 div[data-testid="stAppViewContainer"] h2{
-  margin-top: 0 !important;
-  padding-top: 0 !important;
-  margin-bottom: .55rem !important;
+  margin-top: 0.15rem !important;
+  margin-bottom: 0.55rem !important;
 }
 
-/* 5) The top anchor should not create layout */
-#hotena-top{ height:0 !important; margin:0 !important; padding:0 !important; }
-
-/* 6) Defensive: markdown containers sometimes add top spacing */
-div[data-testid="stAppViewContainer"] .stMarkdown,
-div[data-testid="stAppViewContainer"] .stMarkdownContainer{
+/* Defensive: if a child adds negative margins / weird offsets */
+div[data-testid="stAppViewContainer"] .main,
+div[data-testid="stAppViewContainer"]{
   margin-top: 0 !important;
 }
+
+/* Tighten very top whitespace */
+.block-container > div:first-child { margin-top: 0 !important; }
+
+/* Buttons: minimum tap size + readable text */
+div[data-testid="stAppViewContainer"] .stButton > button,
+div[data-testid="stAppViewContainer"] button[kind]{
+  min-height: 44px !important;
+  padding-top: 0.55rem !important;
+  padding-bottom: 0.55rem !important;
+  font-size: 16px !important;
+  border-radius: 12px !important;
+}
+
+/* Inputs: readable */
+div[data-testid="stAppViewContainer"] input,
+div[data-testid="stAppViewContainer"] textarea{
+  font-size: 16px !important; /* prevent iOS zoom */
+}
+
+/* Selectbox / multiselect */
+div[data-testid="stAppViewContainer"] div[role="combobox"]{
+  min-height: 44px !important;
+}
+
+/* Radio/checkbox label spacing: thumb friendly */
+div[data-testid="stAppViewContainer"] div[role="radiogroup"] label,
+div[data-testid="stAppViewContainer"] label[data-baseweb="checkbox"]{
+  padding: 0.35rem 0.25rem !important;
+}
+
+/* Expander: make summary easier to tap */
+div[data-testid="stExpander"] summary{
+  padding-top: 0.35rem !important;
+  padding-bottom: 0.35rem !important;
+}
+
+/* Card-like blocks (metrics/containers) slightly tighter */
+div[data-testid="stMetric"]{
+  padding: 0.15rem 0 !important;
+}
+
+/* Mobile-only tuning */
+@media (max-width: 640px){
+  div[data-testid="stAppViewContainer"] .block-container{
+    padding-left: 1.0rem !important;
+    padding-right: 1.0rem !important;
+    padding-top: 0.15rem !important;
+    padding-bottom: 6.0rem !important;
+  }
+
+  /* Slightly larger tap targets on phones */
+  div[data-testid="stAppViewContainer"] .stButton > button,
+  div[data-testid="stAppViewContainer"] button[kind]{
+    min-height: 48px !important;
+    font-size: 16px !important;
+    border-radius: 14px !important;
+  }
+}
+
+/* ✅ Goal settings (inline, modern) */
+.goal-settings-wrap{
+  margin-top: 10px;
+  margin-bottom: 10px;
+  padding: 12px 14px;
+  border: 1px solid rgba(0,0,0,0.06);
+  border-radius: 14px;
+  background: rgba(245,247,251,0.85);
+}
+.goal-settings-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  margin-bottom: 10px;
+}
+.goal-settings-head .ttl{
+  font-weight:700;
+  font-size: 14px;
+}
+.goal-settings-head .meta{
+  font-size: 12px;
+  color: rgba(0,0,0,0.55);
+  white-space: nowrap;
+}
+.goal-bar{
+  width:100%;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(0,0,0,0.08);
+  overflow:hidden;
+  margin: 8px 0 12px;
+}
+.goal-bar > div{
+  height:100%;
+  width: var(--w, 0%);
+  border-radius: 999px;
+  background: rgba(0,0,0,0.55);
+  transition: width 420ms ease;
+}
+.goal-help{
+  margin-top: 6px;
+  font-size: 12px;
+  color: rgba(0,0,0,0.55);
+}
+
 </style>
 """,
     unsafe_allow_html=True,
@@ -1127,7 +1219,7 @@ def render_plan_pill():
     txt = "✨ PRO 이용 중입니다" if plan == "pro" else "🆓 FREE 이용 중"
     st.markdown(
         f"""
-<div style="display:flex;justify-content:flex-start;margin-top:0;margin-bottom:0;">
+<div style="display:flex;justify-content:flex-start;margin-top:0.15rem;margin-bottom:0.2rem;">
   <div style="
     display:inline-flex;align-items:center;gap:.45rem;
     padding:.28rem .55rem;border-radius:999px;
@@ -1692,7 +1784,7 @@ def render_training_header(sb_authed, user, kind: str, title: str, subtitle: str
 <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:0.75rem;margin-top:0.25rem;margin-bottom:0.45rem;">
   <div>
     <div style="font-size:1.35rem;font-weight:800;line-height:1.2;">{title}</div>
-    <div style="opacity:0.72;font-size:0.95rem; margin-top:0;">{subtitle}</div>
+    <div style="opacity:0.72;font-size:0.95rem; margin-top:0.15rem;">{subtitle}</div>
   </div>
   <div style="text-align:right;">
     <div style="display:inline-flex;align-items:center;gap:.35rem;padding:.22rem .55rem;border-radius:999px;border:1px solid rgba(0,0,0,.10);background:rgba(0,0,0,.02);font-size:.88rem;">
@@ -1717,6 +1809,23 @@ def run_script(filename: str):
     # ✅ Hub mode flag so child scripts can adjust UI/CSS
     st.session_state["HUB_MODE"] = True
     runpy.run_path(str(path), run_name="__main__")
+
+
+# ============================================================
+# ✅ Module runner (NO runpy gap)
+# - Import + reload so it executes in the SAME Streamlit run
+# - Avoids the extra block spacing that runpy.run_path introduces
+# ============================================================
+def run_module(module_name: str):
+    try:
+        mod = importlib.import_module(module_name)
+        importlib.reload(mod)  # ensure rerun renders the module content
+    except Exception:
+        # surface full traceback in-app
+        import traceback as _tb
+        st.error("모듈 실행 중 오류가 발생했습니다.")
+        st.code(_tb.format_exc())
+        raise
 
 
 # ============================================================
@@ -1747,7 +1856,10 @@ if page == "home":
     render_home_dashboard(sb_authed, user)
 elif page == "my":
     # ✅ 독립 마이페이지: 한자(app.py) 안에 있던 대시보드를 그대로 분리한 mypage.py를 실행
-    run_script("mypage.py")
+    st.session_state['HUB_MODE']=True
+    import mypage as _myp
+    importlib.reload(_myp)
+    _myp.render()
     st.stop()
 
 elif page == "reminder":
@@ -1757,48 +1869,19 @@ elif page == "reminder":
 elif page == "word":
     st.session_state["hub_target"] = "word"
     render_training_header(sb_authed, user, kind="word", title="📘 단어 훈련", subtitle="뜻/발음/한→일 · 10문제 1세트")
-    run_script("hotena_basic.py")
+    st.session_state['HUB_MODE']=True
+    run_module('hotena_basic')
 elif page == "kanji":
     st.session_state["hub_target"] = "kanji"
     render_training_header(sb_authed, user, kind="kanji", title="🈶 한자 훈련", subtitle="읽기/뜻/복습 · 10문제 1세트")
-    run_script("app.py")
+    st.session_state['HUB_MODE']=True
+    run_module('app')
 elif page == "talk":
     st.session_state["hub_target"] = "talk"
     render_training_header(sb_authed, user, kind="talk", title="💬 회화 훈련", subtitle="상황 판단 · 정답 선택 · 발음 연습")
-    run_script("talk.py")
+    st.session_state['HUB_MODE']=True
+    run_module('talk')
 else:
     # ✅ Fallback: unknown page -> go home
     st.session_state["hub_page"] = "home"
     render_home_dashboard(sb_authed, user)
-
-def kill_top_gap_final():
-    st.markdown("""
-    <style>
-    header[data-testid="stHeader"], div[data-testid="stToolbar"], div[data-testid="stDecoration"]{
-      display:none !important; height:0 !important; min-height:0 !important;
-    }
-    div[data-testid="stAppViewContainer"], div[data-testid="stAppViewContainer"] .main{
-      padding-top:0 !important; margin-top:0 !important;
-    }
-    section.main > div.block-container,
-    div[data-testid="stAppViewContainer"] .block-container{
-      padding-top:0 !important; margin-top:0 !important;
-    }
-    
-/* ✅ ULTRA micro-tuning: remove any residual top gaps inside containers */
-div[data-testid="stAppViewContainer"] .block-container > div{
-  margin-top: 0 !important;
-  padding-top: 0 !important;
-}
-div[data-testid="stAppViewContainer"] h1,
-div[data-testid="stAppViewContainer"] h2,
-div[data-testid="stAppViewContainer"] h3,
-div[data-testid="stAppViewContainer"] p{
-  margin-top: 0 !important;
-}
-
-</style>
-    """, unsafe_allow_html=True)
-
-# ✅ 모든 렌더링이 끝난 "마지막 줄" 근처에서 호출
-kill_top_gap_final()
