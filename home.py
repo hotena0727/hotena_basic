@@ -2474,10 +2474,47 @@ def render_admin_dashboard(sb_authed):
             import html as _html
             st.markdown('<div class="ha-log">', unsafe_allow_html=True)
             for _, r in d2.head(200).iterrows():
+                # raw values (may be None)
                 email = str(r.get("이메일", "") or "")
                 when = str(r.get("일시", "") or "")
                 level = str(r.get("레벨", "-") or "-")
-                qtype = str(r.get("유형", "-") or "-")
+                pos_code = str(r.get("품사", "") or "")
+                quiz_code = str(r.get("퀴즈", "") or "")
+
+                # optional email masking
+                def _mask_mail(e: str) -> str:
+                    if not e or "@" not in e:
+                        return e
+                    name, dom = e.split("@", 1)
+                    if len(name) <= 3:
+                        masked = (name[:1] + "*" * max(1, len(name) - 1))
+                    else:
+                        masked = name[:3] + "*" * (len(name) - 3)
+                    return masked + "@" + dom
+
+                if mask_email:
+                    email = _mask_mail(email)
+
+                # code → label mapping
+                POS_LABELS = {
+                    "noun": "명사",
+                    "verb": "동사",
+                    "adj_i": "い형용사",
+                    "adj_na": "な형용사",
+                    "adverb": "부사",
+                    "particle": "조사",
+                    "conjunction": "접속사",
+                    "interjection": "감탄사",
+                }
+                QUIZ_LABELS = {
+                    "meaning": "뜻",
+                    "reading": "발음",
+                    "kr2jp": "한→일",
+                    "jp2kr": "일→한",
+                }
+
+                pos = POS_LABELS.get(pos_code, pos_code or "-")
+                quiz = QUIZ_LABELS.get(quiz_code, quiz_code or "-")
 
                 def _to_int(v, default=0):
                     try:
