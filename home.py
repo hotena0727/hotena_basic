@@ -2496,11 +2496,12 @@ def render_admin_dashboard(sb_authed):
                     email = _mask_mail(email)
 
                 # code → label mapping
+                import re as _re
                 def _norm_code(s: str) -> str:
-                    s = (s or "").strip().lower()
-                    s = s.replace("-", "_")
-                    # collapse spaces
-                    s = "_".join([p for p in s.split() if p])
+                    s = str(s or '')
+                    s = s.strip().lower()
+                    s = s.replace('-', '_')
+                    s = _re.sub(r'\s+', '', s)
                     return s
 
                 POS_LABELS = {
@@ -2523,11 +2524,11 @@ def render_admin_dashboard(sb_authed):
                 }
 
                 pos_key = _norm_code(pos_code)
+                pos = POS_LABELS.get(pos_key, (pos_code or "-").strip() or "-")
                 quiz_key = _norm_code(quiz_code)
+                quiz = QUIZ_LABELS.get(quiz_key, (quiz_code or "-").strip() or "-")
 
-                pos = POS_LABELS.get(pos_key, pos_code.strip() or "-")
-                quiz = QUIZ_LABELS.get(quiz_key, quiz_code.strip() or "-")
-def _to_int(v, default=0):
+                def _to_int(v, default=0):
                     try:
                         return int(float(v))
                     except Exception:
