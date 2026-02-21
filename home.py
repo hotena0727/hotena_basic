@@ -1051,32 +1051,87 @@ def render_home_dashboard(sb_authed, user):
         st.query_params["p"] = rec_kind
         st.rerun()
 
-
     # ---- account (My-page absorption) ----
-    st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
-    st.markdown("<div class='ha-quote-card'><span class='ha-quote-dot'></span><span><b>내 계정</b></span></div>", unsafe_allow_html=True)
+    st.markdown("<div style='height:14px'></div>", unsafe_allow_html=True)
 
-    # plan + email
+    # Title row + small logout
     try:
         _email = st.session_state.get("user_email") or getattr(user, "email", "") or ""
-        _plan  = (st.session_state.get("user_plan") or "free").upper()
-        cols = st.columns([3, 1])
-        with cols[0]:
-            st.caption(f"이메일: {_email}")
-            st.caption(f"플랜: {_plan}")
-        with cols[1]:
-            if st.button("로그아웃", use_container_width=True, key="hub_logout_btn"):
+        uid_now = st.session_state.get("user_id") or getattr(user, "id", None)
+
+        c1, c2 = st.columns([4, 1])
+        with c1:
+            st.markdown("#### 내 계정")
+            if _email:
+                st.caption(f"이메일: {_email}")
+        with c2:
+            # 작은 버튼(컨테이너 폭 X)
+            if st.button("로그아웃", key="hub_logout_btn", use_container_width=False):
                 hub_logout()
                 st.stop()
     except Exception:
-        pass
+        uid_now = None
 
-    # inbox preview (unread + latest)
+    # Inbox preview (unread + latest)
     try:
-        uid_now = st.session_state.get("user_id") or getattr(user, "id", None)
         if uid_now and sb_authed:
             with st.expander("📩 받은 메시지", expanded=False):
                 render_user_inbox_section(sb_authed, str(uid_now))
+    except Exception:
+        pass
+
+    # Wrong/Review mini summary (from quiz_attempts)
+    try:
+        if uid_now and sb_authed:
+            with st.expander("🧾 오답 · 복습", expanded=False):
+                since = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+                rows = sb_authed.table("quiz_attempts") \
+                    .select("created_at,level,pos_mode,quiz_type,quiz_len,score,wrong_count") \
+                    .eq("user_id", str(uid_now)) \
+                    .gte("created_at", since) \
+                    .order("created_at", desc=True) \
+                    .limit(50) \
+                    .execute()
+
+                data = rows.data or []
+                total_q = 0
+                total_wrong = 0
+                last_items = []
+
+                for r in data:
+                    q = int(r.get("quiz_len") or 0)
+                    w = int(r.get("wrong_count") or 0)
+                    total_q += q
+                    total_wrong += w
+                    last_items.append({
+                        "created_at": r.get("created_at"),
+                        "level": r.get("level") or "",
+                        "pos_mode": r.get("pos_mode") or "",
+                        "quiz_type": r.get("quiz_type") or "",
+                        "quiz_len": q,
+                        "wrong": w,
+                    })
+
+                if not data:
+                    st.caption("최근 30일 기준 오답 기록이 없습니다.")
+                else:
+                    wrong_rate = (total_wrong / total_q * 100) if total_q else 0.0
+                    cols = st.columns(3)
+                    cols[0].metric("최근 30일 오답", f"{total_wrong}개")
+                    cols[1].metric("최근 30일 문항", f"{total_q}문항")
+                    cols[2].metric("오답률", f"{wrong_rate:.0f}%")
+
+                    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+                    st.caption("최근 기록(최대 5개)")
+                    for item in last_items[:5]:
+                        when = str(item.get("created_at") or "")[:16].replace("T", " ")
+                        lvl = str(item.get("level") or "")
+                        qt = str(item.get("quiz_type") or "")
+                        w = int(item.get("wrong") or 0)
+                        q = int(item.get("quiz_len") or 0)
+                        st.markdown(
+                            f"- {when} · {lvl} · {qt} · 오답 {w}/{q}"
+                        )
     except Exception:
         pass
 
