@@ -2398,18 +2398,116 @@ def render_admin_dashboard(sb_authed):
                                 st.exception(e)
 
                         st.divider()
-                        st.markdown("**회원 기록 초기화(위험)**")
-                        st.caption("퀴즈 기록/출석/단어 통계를 초기화합니다. 되돌릴 수 없습니다.")
-                        sure = st.checkbox("네, 초기화 위험을 이해했습니다.", key="admin_reset_confirm")
-                        if st.button("이 회원 기록 초기화", disabled=not sure, key="admin_reset_btn"):
-                            try:
-                                _rpc("admin_reset_user_data", {"p_user_id": user_id})
-                                st.success("초기화 완료!")
-                                st.rerun()
-                            except Exception as e:
-                                st.error("초기화 실패: admin_reset_user_data RPC가 없거나 권한이 없습니다.")
-                                st.exception(e)
-                                st.info("필요 시 DB에 'admin_reset_user_data' SECURITY DEFINER RPC를 추가해야 합니다.")
+                        st.markdown("**회원 기록 정리(기간 선택)**")
+                        st.caption("선택한 기간보다 **이전**의 기록만 삭제합니다. (되돌릴 수 없음)  •  예: 30일 → 30일 이전 기록 삭제")
+
+                        dcol1, dcol2 = st.columns([1.0, 1.0])
+                        with dcol1:
+                            days_opt = st.selectbox("기준 기간", options=["10일", "30일", "90일", "직접 입력"], index=1, key="admin_purge_days_opt")
+                        with dcol2:
+                            days_custom = st.number_input("직접 입력(일)", min_value=1, max_value=3650, value=30, step=1, key="admin_purge_days_custom")
+
+                        purge_days = int(days_custom) if days_opt == "직접 입력" else int(days_opt.replace("일",""))
+                        scope = st.radio("대상", options=["이 회원만", "전체 회원(공통 정리)"], horizontal=True, index=0, key="admin_purge_scope")
+
+                        st.caption("✅ 안전장치: 먼저 **미리보기(삭제될 개수)**를 확인한 뒤 실행하세요.")
+                        puid = user_id if scope == "이 회원만" else None
+
+                        pc1, pc2, pc3 = st.columns([1.0, 1.0, 1.2])
+                        with pc1:
+                            if st.button("삭제 미리보기", key="admin_purge_preview_btn"):
+                                try:
+                                    resp = _rpc("admin_preview_purge_quiz_attempts", {"p_user_id": puid, "p_days": purge_days})
+                                    data = getattr(resp, 'data', None) if resp is not None else None
+                                    n = None
+                                    if isinstance(data, list) and data:
+                                        if isinstance(data[0], dict):
+                                            n = data[0].get('count') or data[0].get('cnt') or data[0].get('n')
+                                        else:
+                                            n = data[0]
+                                    elif isinstance(data, dict):
+                                        n = data.get('count') or data.get('cnt') or data.get('n')
+                                    if n is None:
+                                        st.info('미리보기 결과를 파싱하지 못했습니다. (RPC 반환 형식 확인 필요)')
+                                    else:
+                                        st.session_state['admin_purge_preview_n'] = int(n)
+                                        who = '이 회원' if puid else '전체 회원'
+                                        st.success(f"미리보기: {who}의 **{purge_days}일 이전** 기록 {int(n):,}건이 삭제 대상입니다.")
+                                except Exception as e:
+                                    st.error('미리보기 실패: admin_preview_purge_quiz_attempts RPC가 없거나 권한이 없습니다.')
+                                    st.exception(e)
+
+                        with pc2:
+                            sure = st.checkbox("네, 삭제 위험을 이해했습니다.", key="admin_purge_confirm")
+
+                        with pc3:
+                            disabled_run = not sure
+                            if st.button("기록 삭제 실행", disabled=disabled_run, key="admin_purge_run_btn"):
+                                try:
+                                    resp = _rpc("admin_purge_quiz_attempts", {"p_user_id": puid, "p_days": purge_days})
+                                    data = getattr(resp, 'data', None) if resp is not None else None
+                                    deleted = None
+                                    if isinstance(data, list) and data:
+                                        if isinstance(data[0], dict):
+                                            deleted = data[0].get('deleted') or data[0].get('count') or data[0].get('n')
+                                        else:
+                                            deleted = data[0]
+                                    elif isinstance(data, dict):
+                                        deleted = data.get('deleted') or data.get('count') or data.get('n')
+                                    who = '이 회원' if puid else '전체 회원'
+                                    if deleted is None:
+                                        st.success(f'삭제 실행 완료! ({who} / {purge_days}일 이전) — 반환값 형식 확인 필요')
+                                    else:
+                                        st.success(f'삭제 완료! ({who} / {purge_days}일 이전) — {int(deleted):,}건 삭제')
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error('삭제 실패: admin_purge_quiz_attempts RPC가 없거나 권한이 없습니다.')
+                                    st.exception(e)
+
+                        with st.expander("⚙️ Supabase에 추가해야 하는 RPC(SQL) 보기", expanded=False):
+                            st.code("""-- ============================================================
+                        -- ✅ 기록 정리 RPC (관리자 전용)
+                        -- - quiz_attempts 테이블 기준
+                        -- - p_user_id = NULL 이면 전체 회원 대상으로 동작
+                        -- ============================================================
+                        
+                        -- 1) 미리보기: 삭제될 건수
+                        create or replace function public.admin_preview_purge_quiz_attempts(
+                          p_user_id uuid,
+                          p_days int
+                        ) returns table(count bigint)
+                        language sql
+                        security definer
+                        as $$
+                          select count(*)::bigint
+                          from public.quiz_attempts
+                          where (p_user_id is null or user_id = p_user_id)
+                            and created_at < now() - make_interval(days => p_days);
+                        $$;
+                        
+                        -- 2) 실행: 실제 삭제 + 삭제 건수 반환
+                        create or replace function public.admin_purge_quiz_attempts(
+                          p_user_id uuid,
+                          p_days int
+                        ) returns table(deleted bigint)
+                        language plpgsql
+                        security definer
+                        as $$
+                        declare
+                          n bigint;
+                        begin
+                          delete from public.quiz_attempts
+                           where (p_user_id is null or user_id = p_user_id)
+                             and created_at < now() - make_interval(days => p_days);
+                        
+                          get diagnostics n = row_count;
+                          return query select n;
+                        end;
+                        $$;
+                        
+                        -- ✅ 중요: security definer 함수는 관리자 체크를 넣는 것을 강력 권장합니다.
+                        -- 예: profiles.is_admin=true 인지 확인 후 아니면 exception.
+                        """, language="sql")
         st.markdown("</div>", unsafe_allow_html=True)
 
     # ---------- tab: logs ----------
