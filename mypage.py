@@ -160,45 +160,44 @@ def _wrong_cards_ui(wrongs: List[Dict[str, Any]]):
     st.markdown("<h4>📚 오답카드</h4>", unsafe_allow_html=True)
 
     if not wrongs:
-        st.info("아직 저장된 오답 상세가 없습니다. (앞으로 틀린 문제는 자동으로 오답카드에 쌓입니다.)")
+        st.info("아직 저장된 오답 상세가 없습니다. (틀린 문제는 자동으로 오답카드에 쌓입니다.)")
         st.markdown("</div>", unsafe_allow_html=True)
         return
 
+    type_map = {"word": "단어", "kanji": "한자", "talk": "회화"}
     total = len(wrongs)
-    recent7 = sum(1 for w in wrongs[:200] if (str(w.get("created_at") or "")[:10] >= str(datetime.utcnow().date())))
-    # recent7 is approximate; avoid heavy date math without timezone issues
 
-    st.markdown(
-        f'<div class="ha-row"><span class="ha-badge">총 {total}개</span>'
-        f'<span class="ha-badge">최근 {min(30,total)}개 표시</span></div>',
-        unsafe_allow_html=True,
-    )
+    st.caption(f"총 {total}개 · 최근 {min(30, total)}개 표시")
     st.markdown('<div class="ha-divider"></div>', unsafe_allow_html=True)
 
     for w in wrongs[:30]:
-        q = w.get("question", "")
-        ca = w.get("correct_answer", "")
-        ua = w.get("user_answer", "")
-        qt = (w.get("quiz_type") or "").upper()
-        lv = w.get("level") or ""
+        q = str(w.get("question") or "")
+        ca = str(w.get("correct_answer") or "")
+        ua = str(w.get("user_answer") or "")
+        qt_raw = str(w.get("quiz_type") or "")
+        qt = type_map.get(qt_raw.lower(), qt_raw.upper() or "퀴즈")
+        lv = str(w.get("level") or "")
         when = _format_dt(w.get("created_at"))
+
+        meta_parts = [qt]
+        if lv:
+            meta_parts.append(lv)
+        if when:
+            meta_parts.append(when)
+
+        st.markdown('<div class="ha-card" style="box-shadow:none; padding:12px; border-radius:12px;">', unsafe_allow_html=True)
+        st.caption(" · ".join(meta_parts))
         st.markdown(
             f"""
-<div class="ha-card" style="box-shadow:none; padding:12px; border-radius:12px;">
-  <div class="ha-row">
-    <span class="ha-badge">{qt or "QUIZ"}</span>
-    {f'<span class="ha-badge">{lv}</span>' if lv else ''}
-    {f'<span class="ha-badge">{when}</span>' if when else ''}
-  </div>
-  <div style="margin-top:8px; font-size:15px;">
-    <div><span class="ha-muted">문제</span> <b>{q}</b></div>
-    <div style="margin-top:4px;"><span class="ha-muted">정답</span> <span class="ha-correct">{ca}</span></div>
-    <div style="margin-top:2px;"><span class="ha-muted">내 답</span> <span class="ha-wrong">{ua}</span></div>
-  </div>
+<div style="margin-top:6px; font-size:15px;">
+  <div><span class="ha-muted">문제</span> <b>{q}</b></div>
+  <div style="margin-top:4px;"><span class="ha-muted">정답</span> <span class="ha-correct">{ca}</span></div>
+  <div style="margin-top:2px;"><span class="ha-muted">내 답</span> <span class="ha-wrong">{ua}</span></div>
 </div>
-            """,
+""",
             unsafe_allow_html=True,
         )
+        st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -293,34 +292,80 @@ def _top10_quiz_ui(wrongs: List[Dict[str, Any]]):
 
 
 def _records_ui():
-    # Lightweight: show recent quiz_attempts if available (keeps MyPage focused)
     sb = _sb()
     st.markdown('<div class="ha-card">', unsafe_allow_html=True)
     st.markdown("<h4>📊 학습 기록</h4>", unsafe_allow_html=True)
+
     if not sb:
         st.info("로그인 후 이용 가능합니다.")
         st.markdown("</div>", unsafe_allow_html=True)
         return
-    try:
-        r = sb.table("quiz_attempts").select("created_at,kind,level,quiz_len,score").order("created_at", desc=True).limit(50).execute()
-        data = getattr(r, "data", None) or []
-        if not data:
-            st.info("기록이 아직 없습니다.")
-        else:
-            # quick summary
-            total = len(data)
-            avg = sum((d.get("score") or 0) for d in data) / max(1, total)
-            st.markdown(f'<div class="ha-row"><span class="ha-badge">최근 {total}건</span><span class="ha-badge">평균 점수 {avg:.1f}</span></div>', unsafe_allow_html=True)
-            st.markdown('<div class="ha-divider"></div>', unsafe_allow_html=True)
-            for d in data[:15]:
-                when = _format_dt(d.get("created_at"))
-                kind = (d.get("kind") or "").upper()
-                level = d.get("level") or ""
-                ql = d.get("quiz_len") or ""
-                sc = d.get("score")
-                st.markdown(f"- {when} · {kind} {level} · {ql}문 · {sc}점")
-    except Exception:
-        st.info("학습 기록을 불러올 수 없습니다. (RLS 또는 테이블 확인)")
+
+    candidates = [
+        "created_at,kind,level,quiz_len,score",
+        "created_at,kind,level,total,correct,score",
+        "created_at,kind,level,correct_count,wrong_count,score",
+        "created_at,kind,level,score",
+        "created_at,kind,level",
+        "created_at,kind",
+        "created_at",
+    ]
+
+    data = []
+    last_err = None
+
+    for cols in candidates:
+        try:
+            r = sb.table("quiz_attempts").select(cols).order("created_at", desc=True).limit(50).execute()
+            data = getattr(r, "data", None) or []
+            last_err = None
+            break
+        except Exception as e:
+            last_err = e
+
+    if last_err is not None:
+        try:
+            r = sb.table("quiz_attempts").select("*").order("created_at", desc=True).limit(30).execute()
+            data = getattr(r, "data", None) or []
+        except Exception:
+            st.info("학습 기록을 불러올 수 없습니다. (quiz_attempts 테이블/RLS/컬럼 확인)")
+            st.markdown("</div>", unsafe_allow_html=True)
+            return
+
+    if not data:
+        st.info("기록이 아직 없습니다.")
+        st.markdown("</div>", unsafe_allow_html=True)
+        return
+
+    total = len(data)
+    scores = []
+    for d in data:
+        sc = d.get("score")
+        if isinstance(sc, (int, float)):
+            scores.append(float(sc))
+    avg = (sum(scores) / len(scores)) if scores else None
+    if avg is None:
+        st.caption(f"최근 {total}건")
+    else:
+        st.caption(f"최근 {total}건 · 평균 점수 {avg:.1f}")
+
+    st.markdown('<div class="ha-divider"></div>', unsafe_allow_html=True)
+
+    type_map = {"word": "단어", "kanji": "한자", "talk": "회화"}
+    for d in data[:15]:
+        when = _format_dt(d.get("created_at"))
+        kind_raw = str(d.get("kind") or "")
+        kind = type_map.get(kind_raw.lower(), kind_raw.upper() or "QUIZ")
+        level = str(d.get("level") or "")
+        quiz_len = d.get("quiz_len") or d.get("total") or d.get("question_count") or ""
+        score = d.get("score")
+        parts = [p for p in [when, kind, level] if p]
+        if quiz_len:
+            parts.append(f"{quiz_len}문")
+        if score is not None and score != "":
+            parts.append(f"{score}점")
+        st.markdown("- " + " · ".join(parts))
+
     st.markdown("</div>", unsafe_allow_html=True)
 
 
