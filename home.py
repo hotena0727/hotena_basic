@@ -20,24 +20,25 @@ import streamlit.components.v1 as components
 # - Import (or reload) a module by name so it renders in the SAME Streamlit flow
 # ============================================================
 def run_module(module_name: str):
-    """Run a page module as a script (so __name__ == '__main__').
+    """Run a page module exactly once per rerun, in the same Streamlit process.
 
-    Why:
-    - Several modules (e.g., app.py) render only under __main__.
-    - Avoid import+reload double-execution which can cause DuplicateElementKey.
+    Why runpy?
+    - Avoids import/reload double-execution bugs (duplicate widget keys, duplicate renders).
+    - Ensures modules that rely on `if __name__ == "__main__":` still render.
     """
     try:
-        base_dir = Path(__file__).resolve().parent
-        path = base_dir / f"{module_name}.py"
+        base = Path(__file__).resolve().parent
+        path = base / f"{module_name}.py"
         if not path.exists():
             raise FileNotFoundError(f"Module file not found: {path}")
-        # Execute exactly once per Streamlit run (reflects latest edits automatically)
         runpy.run_path(str(path), run_name="__main__")
     except Exception as e:
         st.exception(e)
         raise
 
-
+# ============================================================
+# ✅ LocalStorage / QueryParam persistence helpers
+# ============================================================
 def _js_bridge_localstorage_to_queryparam(ls_key: str, qp_key: str):
     try:
         components.html(
@@ -96,19 +97,25 @@ from streamlit_cookies_manager import EncryptedCookieManager
 # ✅ Page Config (Hub only)
 # ============================================================
 st.set_page_config(page_title="Hotena Hub", layout="centered")
-st.markdown('''
+
+# ✅ Hide Streamlit default chrome (header/footer/menu)
+st.markdown("""
 <style>
-/* Hide Streamlit default chrome */
-#MainMenu {visibility: hidden;}
-header {visibility: hidden;}
-footer {visibility: hidden;}
-[data-testid="stHeader"] {display: none !important;}
-[data-testid="stToolbar"] {display: none !important;}
-[data-testid="stDecoration"] {display: none !important;}
-[data-testid="stStatusWidget"] {display: none !important;}
-[data-testid="stFooter"] {display: none !important;}
+/* Hide Streamlit chrome */
+#MainMenu {display:none !important;}
+header {display:none !important;}
+footer {display:none !important;}
+[data-testid="stHeader"]{display:none !important;}
+[data-testid="stToolbar"]{display:none !important;}
+[data-testid="stDecoration"]{display:none !important;}
+[data-testid="stStatusWidget"]{display:none !important;}
+[data-testid="stFooter"]{display:none !important;}
+/* Bottom-right badge (if present) */
+.viewerBadge_container__1QSob {display:none !important;}
+.viewerBadge_link__1S137 {display:none !important;}
+.viewerBadge_text__1JaDK {display:none !important;}
 </style>
-''', unsafe_allow_html=True)
+""", unsafe_allow_html=True)
 
 # ✅ TOP anchor for floating button (no-JS)
 st.markdown('<div id="hotena-top"></div>', unsafe_allow_html=True)
@@ -596,30 +603,6 @@ def _dots_3(done_sets: int, goal_sets: int) -> str:
     return " ".join(["●"] * filled + ["○"] * (3 - filled))
 
 
-
-def hub_href(p: str) -> str:
-    """Build hub navigation href preserving encrypted tokens in query params (rt/at)."""
-    try:
-        rt_enc = st.query_params.get("rt", "")
-        at_enc = st.query_params.get("at", "")
-    except Exception:
-        rt_enc, at_enc = "", ""
-
-    def _q(s: str) -> str:
-        try:
-            import urllib.parse
-            return urllib.parse.quote(s, safe="") if s else ""
-        except Exception:
-            return s or ""
-
-    base = ""
-    if rt_enc:
-        base += "rt=" + _q(rt_enc) + "&"
-    if at_enc:
-        base += "at=" + _q(at_enc) + "&"
-    return "?" + base + "p=" + _q(p)
-
-
 def render_home_dashboard(sb_authed, user):
     """Home Hub dashboard (A++): donut + weekly heatmap + level mini bars + rows + smart CTA + compact goal gear."""
     from datetime import datetime, timezone, timedelta
@@ -1049,9 +1032,9 @@ def render_home_dashboard(sb_authed, user):
 </a>"""
 
     rows_html = """<div class='h-rows'>""" + \
-        _row(hub_href("word"), "📘 단어", int(w["sets"]), int(w["q"]), "word") + \
-        _row(hub_href("kanji"), "🈶 한자", int(k["sets"]), int(k["q"]), "kanji") + \
-        _row(hub_href("talk"), "💬 회화", int(t["sets"]), int(t["q"]), "talk") + \
+        _row("?p=word", "📘 단어", int(w["sets"]), int(w["q"]), "word") + \
+        _row("?p=kanji", "🈶 한자", int(k["sets"]), int(k["q"]), "kanji") + \
+        _row("?p=talk", "💬 회화", int(t["sets"]), int(t["q"]), "talk") + \
         """</div>"""
     st.markdown(rows_html, unsafe_allow_html=True)
 
