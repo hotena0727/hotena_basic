@@ -20,19 +20,14 @@ import streamlit.components.v1 as components
 # - Import (or reload) a module by name so it renders in the SAME Streamlit flow
 # ============================================================
 def run_module(module_name: str):
-    """Run a page module exactly once per rerun, in the same Streamlit process.
-
-    Why runpy?
-    - Avoids import/reload double-execution bugs (duplicate widget keys, duplicate renders).
-    - Ensures modules that rely on `if __name__ == "__main__":` still render.
-    """
     try:
-        base = Path(__file__).resolve().parent
-        path = base / f"{module_name}.py"
-        if not path.exists():
-            raise FileNotFoundError(f"Module file not found: {path}")
-        runpy.run_path(str(path), run_name="__main__")
+        mod = importlib.import_module(module_name)
+        importlib.reload(mod)  # reflect latest edits during dev
+        # If module exposes a render() function, call it.
+        if hasattr(mod, "render") and callable(getattr(mod, "render")):
+            mod.render()
     except Exception as e:
+        # Surface useful error in-app
         st.exception(e)
         raise
 
@@ -97,26 +92,6 @@ from streamlit_cookies_manager import EncryptedCookieManager
 # ✅ Page Config (Hub only)
 # ============================================================
 st.set_page_config(page_title="Hotena Hub", layout="centered")
-
-# ✅ Hide Streamlit default chrome (header/footer/menu)
-st.markdown("""
-<style>
-/* Hide Streamlit chrome */
-#MainMenu {display:none !important;}
-header {display:none !important;}
-footer {display:none !important;}
-[data-testid="stHeader"]{display:none !important;}
-[data-testid="stToolbar"]{display:none !important;}
-[data-testid="stDecoration"]{display:none !important;}
-[data-testid="stStatusWidget"]{display:none !important;}
-[data-testid="stFooter"]{display:none !important;}
-/* Bottom-right badge (if present) */
-.viewerBadge_container__1QSob {display:none !important;}
-.viewerBadge_link__1S137 {display:none !important;}
-.viewerBadge_text__1JaDK {display:none !important;}
-</style>
-""", unsafe_allow_html=True)
-
 # ✅ TOP anchor for floating button (no-JS)
 st.markdown('<div id="hotena-top"></div>', unsafe_allow_html=True)
 
@@ -131,7 +106,14 @@ st.markdown(
    - Normalize spacing/typography for "app-like" feel
    ========================================================== */
 
-
+/* ✅ Hide Streamlit default chrome (header/footer/toolbar) */
+header, footer {visibility: hidden;}
+[data-testid="stHeader"], header[data-testid="stHeader"] {display:none !important; height:0 !important; min-height:0 !important;}
+[data-testid="stFooter"], footer {display:none !important; height:0 !important; min-height:0 !important;}
+#MainMenu {visibility: hidden;}
+[data-testid="stToolbar"] {display:none !important;}
+[data-testid="stDecoration"] {display:none !important;}
+[data-testid="stStatusWidget"] {display:none !important;}
 /* Container spacing */
 div[data-testid="stAppViewContainer"] .block-container{
   padding-top: 0.25rem !important;
