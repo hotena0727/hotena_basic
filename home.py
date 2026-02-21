@@ -2518,7 +2518,7 @@ def render_admin_dashboard(sb_authed):
                 else:
                     st.info("검색 결과가 없습니다.")
 
-st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
 
     # ---------- tab: logs ----------
     with tab_logs:
