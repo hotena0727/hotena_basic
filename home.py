@@ -14,6 +14,7 @@ from cryptography.fernet import Fernet
 from datetime import date, datetime, timedelta, timezone
 import streamlit as st
 import streamlit.components.v1 as components
+import pandas as pd
 
 # ============================================================
 # ✅ Module runner (NO runpy/run_path)
@@ -106,7 +107,10 @@ st.markdown(
    - Normalize spacing/typography for "app-like" feel
    ========================================================== */
 
-header[data-testid="stHeader"]{display:none !important; height:0 !important; min-height:0 !important; visibility:hidden !important;}
+header[data-testid="stHeader"]{
+  height: auto !important;
+  min-height: 3.25rem !important;
+}
 
 /* Container spacing */
 div[data-testid="stAppViewContainer"] .block-container{
@@ -231,14 +235,6 @@ div[data-testid="stMetric"]{
   font-size: 12px;
   color: rgba(0,0,0,0.55);
 }
-
-
-/* ✅ Streamlit 기본 메뉴/푸터 숨김 */
-#MainMenu{display:none !important;}
-footer{display:none !important;}
-[data-testid="stFooter"]{display:none !important;}
-/* (선택) 상태/배지류 */
-[data-testid="stStatusWidget"]{display:none !important;}
 
 </style>
 """,
@@ -1102,6 +1098,7 @@ def render_floating_menu():
     href_kanji = "?" + base + "p=kanji"
     href_talk = "?" + base + "p=talk"
     href_my   = "?" + base + "p=my"
+    href_admin = "?" + base + "p=admin"
     href_rem  = "?" + base + "p=reminder"
     href_out  = "?" + base + "action=logout"
 
@@ -1734,11 +1731,52 @@ def _hub_build_base_qs() -> str:
         parts.append("at=" + _q(at_enc))
     return ("&".join(parts) + "&") if parts else ""
 
+
+# ============================================================
+# ✅ Admin page (Hub-only) — moved from word/kanji apps
+# ============================================================
+def render_admin_hub(sb_authed, user):
+    st.markdown('## 🛠 관리자')
+    if not st.session_state.get('is_admin'):
+        st.error('접근 권한이 없습니다.')
+        st.session_state['hub_page'] = 'home'
+        return
+    if sb_authed is None or user is None:
+        st.warning('세션이 없습니다. 다시 로그인해 주세요.')
+        return
+    st.caption('최근 학습 기록(전체) — 필요하면 필터/다운로드/통계로 확장 가능합니다.')
+    try:
+        res = (sb_authed.table('quiz_attempts')
+               .select('created_at, user_email, level, pos_mode, quiz_len, score, wrong_count')
+               .order('created_at', desc=True)
+               .limit(200)
+               .execute())
+        data = res.data if res and getattr(res, 'data', None) else []
+        if not data:
+            st.info('기록이 없습니다.')
+            return
+        df = pd.DataFrame(data)
+        # created_at pretty
+        if 'created_at' in df.columns:
+            try:
+                df['created_at'] = pd.to_datetime(df['created_at'], errors='coerce').dt.tz_convert('Asia/Seoul').dt.strftime('%Y-%m-%d %H:%M')
+            except Exception:
+                df['created_at'] = df['created_at'].astype(str)
+        st.dataframe(df, use_container_width=True, hide_index=True)
+    except Exception as e:
+        st.error('조회 실패')
+        st.write(str(e))
+
 def render_bottom_nav(active: str = "home"):
     """Mobile-only bottom nav. Hidden on wide screens."""
     base = _hub_build_base_qs()
     def href(p: str) -> str:
         return "?" + base + "p=" + p
+
+
+    admin_nav = ""
+    if st.session_state.get("is_admin"):
+        admin_nav = f'<a href="{href("admin")}" target="_self" class="{ "active" if active=="admin" else "" }"><div class="ic">🛠</div><div>관리</div></a>'
 
     # Mobile only: hide on >= 801px
     html = f"""<style>
@@ -1783,6 +1821,7 @@ def render_bottom_nav(active: str = "home"):
     <a href="{href('kanji')}" target="_self" class="{ 'active' if active=='kanji' else '' }"><div class="ic">🈶</div><div>한자</div></a>
     <a href="{href('talk')}" target="_self" class="{ 'active' if active=='talk' else '' }"><div class="ic">💬</div><div>회화</div></a>
     <a href="{href('my')}" target="_self" class="{ 'active' if active=='my' else '' }"><div class="ic">👤</div><div>MY</div></a>
+    {admin_nav}
   </div>
 </div>"""
     st.markdown(html, unsafe_allow_html=True)
@@ -1846,7 +1885,7 @@ if action == "logout":
     hub_logout()
 
 if isinstance(p, str) and p:
-    if p in {"home", "word", "kanji", "talk", "my", "reminder"}:
+    if p in {"home", "word", "kanji", "talk", "my", "reminder", "admin"}:
         st.session_state["hub_page"] = p
 
 # ✅ Always render floating menu + plan pill in hub mode (after auth)
@@ -1868,6 +1907,11 @@ elif page == "my":
 elif page == "reminder":
     render_reminder_settings(sb_authed, user)
     st.stop()
+
+elif page == "admin":
+    render_admin_hub(sb_authed, user)
+    st.stop()
+
 
 elif page == "word":
     st.session_state["hub_target"] = "word"
