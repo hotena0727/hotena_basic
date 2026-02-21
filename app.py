@@ -19,27 +19,30 @@ import textwrap
 # NOTE: page config is handled by home.py
 if not st.session_state.get("_page_config_set"):
     st.set_page_config(page_title="Hotena", layout="centered")
+    st.session_state["_page_config_set"] = True
 
 # ============================================================
-# ✅ HIDE STREAMLIT DEFAULT HEADER/FOOTER (chrome)
+# ✅ Hide Streamlit default header/footer/menu (per-page)
 # ============================================================
 st.markdown("""
 <style>
-/* Streamlit 기본 헤더/푸터/메뉴 제거 */
+/* Main menu / toolbar / header */
 #MainMenu {visibility: hidden;}
 header {visibility: hidden;}
-footer {visibility: hidden;}
-
-/* 최신 Streamlit에서 가끔 살아나는 요소들까지 추가 차단 */
 [data-testid="stHeader"] {display: none;}
 [data-testid="stToolbar"] {display: none;}
 [data-testid="stDecoration"] {display: none;}
 [data-testid="stStatusWidget"] {display: none;}
+
+/* Footer + Streamlit badge */
+footer {visibility: hidden;}
 [data-testid="stFooter"] {display: none;}
+.viewerBadge_container {display: none !important;}
+.viewerBadge_link {display: none !important;}
+.viewerBadge_text {display: none !important;}
 </style>
 """, unsafe_allow_html=True)
 
-    st.session_state["_page_config_set"] = True
 # ============================================================
 # ✅ [SOUND] 사운드 유틸 (모바일 자동재생 정책 대응)
 # ============================================================
