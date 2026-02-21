@@ -1254,8 +1254,8 @@ def render_plan_pill():
   .hub-gear{{display:inline-flex;align-items:center;justify-content:center;
     margin-left:8px;width:28px;height:28px;border-radius:999px;text-decoration:none;
     border:1px solid rgba(0,0,0,.10);background:rgba(0,0,0,.02);font-size:16px;line-height:1;
-    pointer-events:auto;text-decoration:none !important;}
-}
+    pointer-events:auto;text-decoration:none !important;}}
+
   .hub-gear:hover{{background:rgba(0,0,0,.04);}}
 </style>
 <div class="hub-plan-wrap">
