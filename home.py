@@ -235,24 +235,6 @@ div[data-testid="stMetric"]{
   color: rgba(0,0,0,0.55);
 }
 
-
-.ha-logwrap{display:flex;flex-direction:column;gap:10px;margin-top:6px;}
-.ha-logcard{border:1px solid rgba(0,0,0,.08);background:rgba(255,255,255,.72);
-  border-radius:18px;padding:12px 14px;box-shadow:0 10px 24px rgba(0,0,0,.035);}
-.ha-logtop{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:6px;}
-.ha-logtime{font-size:12px;opacity:.65;margin-top:2px;}
-.ha-loguser{font-weight:800;letter-spacing:-0.01em;}
-.ha-badges{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;}
-.ha-badge{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;
-  background:rgba(0,0,0,.04);border:1px solid rgba(0,0,0,.08);font-size:12px;opacity:.9;white-space:nowrap;}
-.ha-badge.good{background:rgba(46,134,255,.10);border-color:rgba(46,134,255,.18);}
-.ha-badge.bad{background:rgba(255,71,87,.08);border-color:rgba(255,71,87,.18);}
-.ha-loggrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:8px;}
-.ha-mini{border:1px solid rgba(0,0,0,.08);border-radius:14px;padding:8px 10px;background:rgba(0,0,0,.02);}
-.ha-mini .k{font-size:11px;opacity:.65;}
-.ha-mini .v{font-size:16px;font-weight:800;margin-top:2px;}
-@media (max-width:900px){.ha-loggrid{grid-template-columns:repeat(2,minmax(0,1fr));}}
-
 </style>
 """,
     unsafe_allow_html=True,
@@ -1942,6 +1924,26 @@ def render_admin_dashboard(sb_authed):
 .ha-pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;
   background:rgba(0,0,0,.04);border:1px solid rgba(0,0,0,.08);font-size:12px;opacity:.85;}
 @media (max-width:900px){.ha-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
+
+.ha-log{display:flex;flex-direction:column;gap:10px;margin-top:10px;}
+.ha-logcard{background:rgba(255,255,255,.82);border:1px solid rgba(0,0,0,.08);border-radius:18px;padding:14px;}
+.ha-logtop{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;}
+.ha-email{font-weight:800;letter-spacing:-0.02em;}
+.ha-time{font-size:12px;opacity:.65;margin-top:2px;display:flex;align-items:center;gap:6px;}
+.ha-badges{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;}
+.ha-badge{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;
+  background:rgba(0,0,0,.04);border:1px solid rgba(0,0,0,.08);font-size:12px;opacity:.9;}
+.ha-badge.ok{background:rgba(0,128,0,.06);border-color:rgba(0,128,0,.18);}
+.ha-badge.bad{background:rgba(220,0,0,.06);border-color:rgba(220,0,0,.18);}
+.ha-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:10px;}
+.ha-mini{display:flex;flex-direction:column;gap:2px;}
+.ha-mini .k{font-size:12px;opacity:.6;}
+.ha-mini .v{font-size:16px;font-weight:800;}
+.ha-ring{width:46px;height:46px;border-radius:999px;display:grid;place-items:center;
+  background:conic-gradient(rgba(0,0,0,.55) var(--p), rgba(0,0,0,.08) 0);}
+.ha-ring > div{width:36px;height:36px;border-radius:999px;background:white;display:grid;place-items:center;
+  font-size:12px;font-weight:800;}
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -1965,10 +1967,10 @@ def render_admin_dashboard(sb_authed):
     st.markdown(f"""
 <div class="ha-wrap">
   <div class="ha-grid">
-    <div class="ha-card"><div class="ha-k">총 회원</div><div class="ha-v">{total_users:,}</div><div class="ha-s">profiles · {profiles_sel or 'N/A'}</div></div>
-    <div class="ha-card"><div class="ha-k">PRO 회원</div><div class="ha-v">{pro_users:,}</div><div class="ha-s">plan == pro</div></div>
-    <div class="ha-card"><div class="ha-k">관리자</div><div class="ha-v">{admin_users:,}</div><div class="ha-s">is_admin == true</div></div>
-    <div class="ha-card"><div class="ha-k">오늘 퀴즈</div><div class="ha-v">{today_attempts:,}</div><div class="ha-s">최근 7일: {last7_attempts:,}</div></div>
+    <div class="ha-card"><div class="ha-k">총 회원</div><div class="ha-v">{total_users:,}</div><div class="ha-s">현재 등록된 회원 수</div></div>
+    <div class="ha-card"><div class="ha-k">PRO 회원</div><div class="ha-v">{pro_users:,}</div><div class="ha-s">전체의 {( (pro_users/total_users)*100 if total_users else 0):.0f}%</div></div>
+    <div class="ha-card"><div class="ha-k">관리자</div><div class="ha-v">{admin_users:,}</div><div class="ha-s">권한 보유 계정</div></div>
+    <div class="ha-card"><div class="ha-k">오늘 퀴즈</div><div class="ha-v">{today_attempts:,}</div><div class="ha-s">최근 7일 합계 {last7_attempts:,}</div></div>
   </div>
 </div>
 """, unsafe_allow_html=True)
@@ -2412,8 +2414,7 @@ def render_admin_dashboard(sb_authed):
 
     # ---------- tab: logs ----------
     with tab_logs:
-
-        st.markdown('<div class="ha-section"><div class="ha-title">기록</div><div class="ha-sub">최근 활동을 카드형 피드로 보여줍니다.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="ha-section"><div class="ha-title">기록</div><div class="ha-sub">필터 · 보기 모드(테이블/카드)</div>', unsafe_allow_html=True)
 
         if dfa.empty:
             st.info("quiz_attempts 데이터가 없거나 RLS로 차단되었습니다.")
@@ -2427,30 +2428,21 @@ def render_admin_dashboard(sb_authed):
                     ts = pd.to_datetime(d["created_at"], errors="coerce", utc=True).dt.tz_convert("Asia/Seoul")
                     d["kst"] = ts
                     d["일시"] = ts.dt.strftime("%Y-%m-%d %H:%M")
-                    d["날짜"] = ts.dt.strftime("%Y-%m-%d")
                 except Exception:
                     d["일시"] = d["created_at"].astype(str)
-                    d["날짜"] = d["일시"].astype(str).str.slice(0, 10)
             else:
                 d["일시"] = ""
-                d["날짜"] = ""
 
-            # ---- filters (minimal, brand-friendly) ----
-            c1, c2, c3, c4 = st.columns([1.2, 1.0, 1.0, 0.8])
+            # filters
+            c1, c2, c3, c4 = st.columns([1.1, 1.0, 1.0, 1.0])
             with c1:
-                email_q = st.text_input("회원 검색", placeholder="이메일 일부를 입력하세요", key="admin_logs_email_q2")
+                view_mode = st.selectbox("보기", ["테이블", "카드"], index=1, key="admin_logs_view")
             with c2:
-                days = st.selectbox("기간", [1, 7, 30, 90, 365], index=2, key="admin_logs_days2")
+                days = st.selectbox("기간", [1,7,30,90,365], index=2, key="admin_logs_days")
             with c3:
-                max_cards = st.selectbox("표시", [20, 50, 100, 200], index=1, key="admin_logs_max2")
+                email_q = st.text_input("이메일 검색", placeholder="예: gmail / naver ...", key="admin_logs_email_q")
             with c4:
-                st.download_button(
-                    "CSV",
-                    data=d.to_csv(index=False).encode("utf-8-sig"),
-                    file_name="hatena_logs.csv",
-                    mime="text/csv",
-                    use_container_width=True,
-                )
+                max_rows = st.selectbox("표시", [50,100,200,500,1000], index=3, key="admin_logs_max")
 
             # apply filters
             if "kst" in d.columns:
@@ -2459,94 +2451,95 @@ def render_admin_dashboard(sb_authed):
             if email_q and "user_email" in d.columns:
                 d = d[d["user_email"].fillna("").astype(str).str.contains(email_q, case=False, na=False)]
 
-            # derived metrics
-            if "quiz_len" in d.columns and "score" in d.columns:
-                try:
-                    d["정답률"] = (d["score"].astype(float) / d["quiz_len"].replace(0, pd.NA).astype(float)) * 100.0
-                except Exception:
-                    d["정답률"] = pd.NA
-            else:
-                d["정답률"] = pd.NA
-
             d = d.sort_values(by=["kst" if "kst" in d.columns else "created_at"], ascending=False)
 
-            # ---- KPI mini cards ----
-            total = int(len(d))
-            if "user_id" in d.columns:
-                uniq_users = int(d["user_id"].nunique())
-            elif "user_email" in d.columns:
-                uniq_users = int(d["user_email"].nunique())
-            else:
-                uniq_users = 0
+            # pretty columns
+            rename_map = {
+                "user_email": "이메일",
+                "level": "레벨",
+                "pos_mode": "유형",
+                "quiz_len": "문항",
+                "score": "점수",
+                "wrong_count": "오답",
+            }
+            for k, v in rename_map.items():
+                if k in d.columns:
+                    d[v] = d[k]
 
-            today = pd.Timestamp.now(tz="Asia/Seoul").strftime("%Y-%m-%d")
-            today_cnt = int((d["날짜"] == today).sum()) if "날짜" in d.columns else 0
-            avg_acc = float(d["정답률"].dropna().mean()) if "정답률" in d.columns and d["정답률"].dropna().size else 0.0
+            keep = [c for c in ["일시","이메일","레벨","유형","문항","점수","오답","user_id"] if c in d.columns]
+            d2 = d[keep].head(int(max_rows)).copy() if keep else d.head(int(max_rows)).copy()
 
-            st.markdown(
-                f'''
-                <div class="ha-loggrid">
-                  <div class="ha-mini"><div class="k">기간 내 시도</div><div class="v">{total:,}</div></div>
-                  <div class="ha-mini"><div class="k">활동 회원</div><div class="v">{uniq_users:,}</div></div>
-                  <div class="ha-mini"><div class="k">오늘 기록</div><div class="v">{today_cnt:,}</div></div>
-                </div>
-                ''',
-                unsafe_allow_html=True,
-            )
-            st.progress(min(max(avg_acc / 100.0, 0.0), 1.0))
-            st.caption(f"평균 정답률(추정): {avg_acc:.1f}%")
-
-            # ---- Card feed ----
-            show = d.head(int(max_cards)).copy()
-
-            def _safe(v):
-                return "" if v is None else str(v)
-
-            st.markdown('<div class="ha-logwrap">', unsafe_allow_html=True)
-            for _, r in show.iterrows():
-                email = _safe(r.get("user_email", "")) or _safe(r.get("이메일", ""))
-                when = _safe(r.get("일시", ""))
-                level = _safe(r.get("level", "")) or _safe(r.get("레벨", ""))
-                mode = _safe(r.get("pos_mode", "")) or _safe(r.get("유형", ""))
-                qlen = r.get("quiz_len", r.get("문항", ""))
-                score = r.get("score", r.get("점수", ""))
-                wrong = r.get("wrong_count", r.get("오답", ""))
-                acc = r.get("정답률", None)
-
-                display_name = email if email else "알 수 없는 사용자"
-
-                acc_txt = ""
-                badge_cls = "good"
-                try:
-                    if pd.notna(acc):
-                        acc_txt = f"{float(acc):.0f}%"
-                        badge_cls = "good" if float(acc) >= 70 else "bad"
-                except Exception:
-                    acc_txt = ""
-
-                st.markdown(
-                    f'''
-                    <div class="ha-logcard">
-                      <div class="ha-logtop">
-                        <div>
-                          <div class="ha-loguser">{display_name}</div>
-                          <div class="ha-logtime">🕒 {when}</div>
-                        </div>
-                        <div class="ha-badges">
-                          <span class="ha-badge">{level or "레벨?"}</span>
-                          <span class="ha-badge">{mode or "유형?"}</span>
-                          <span class="ha-badge {badge_cls}">✅ {score}/{qlen}{(" · " + acc_txt) if acc_txt else ""}</span>
-                          <span class="ha-badge bad">❌ {wrong}</span>
-                        </div>
-                      </div>
-                    </div>
-                    ''',
-                    unsafe_allow_html=True,
+            if view_mode == "테이블":
+                st.dataframe(
+                    d2,
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        "일시": st.column_config.TextColumn("일시"),
+                        "이메일": st.column_config.TextColumn("이메일"),
+                        "레벨": st.column_config.TextColumn("레벨"),
+                        "유형": st.column_config.TextColumn("유형"),
+                        "문항": st.column_config.NumberColumn("문항"),
+                        "점수": st.column_config.NumberColumn("점수"),
+                        "오답": st.column_config.NumberColumn("오답"),
+                        "user_id": st.column_config.TextColumn("user_id"),
+                    },
                 )
-            st.markdown("</div>", unsafe_allow_html=True)
+            else:
+                # card view (Hatena style)
+                import html as _html
+                st.markdown('<div class="ha-log">', unsafe_allow_html=True)
+                for _, r in d2.head(200).iterrows():
+                    email = str(r.get("이메일", "") or "")
+                    when = str(r.get("일시", "") or "")
+                    level = str(r.get("레벨", "-") or "-")
+                    qtype = str(r.get("유형", "-") or "-")
 
-            st.markdown("</div>", unsafe_allow_html=True)
+                    def _to_int(v, default=0):
+                        try:
+                            return int(float(v))
+                        except Exception:
+                            return default
 
+                    quiz_len = _to_int(r.get("문항", 0), 0)
+                    score = _to_int(r.get("점수", 0), 0)
+                    wrong = _to_int(r.get("오답", 0), 0)
+                    pct = int(round((score / quiz_len) * 100)) if quiz_len else 0
+                    pct = max(0, min(100, pct))
+
+                    email_html = _html.escape(email)
+                    when_html = _html.escape(when)
+                    level_html = _html.escape(level)
+                    qtype_html = _html.escape(qtype)
+
+                    html = f"""
+<div class='ha-logcard'>
+  <div class='ha-logtop'>
+    <div>
+      <div class='ha-email'>{email_html}</div>
+      <div class='ha-time'>🕒 {when_html}</div>
+    </div>
+    <div class='ha-badges'>
+      <span class='ha-badge'>{level_html}</span>
+      <span class='ha-badge'>{qtype_html}</span>
+      <span class='ha-badge ok'>✅ {score}/{quiz_len} · {pct}%</span>
+      <span class='ha-badge bad'>❌ {wrong}</span>
+    </div>
+  </div>
+  <div class='ha-row'>
+    <div class='ha-mini'><div class='k'>문항</div><div class='v'>{quiz_len}</div></div>
+    <div class='ha-mini'><div class='k'>정답</div><div class='v'>{score}</div></div>
+    <div class='ha-mini'><div class='k'>오답</div><div class='v'>{wrong}</div></div>
+    <div class='ha-ring' style='--p:{pct}%;'><div>{pct}%</div></div>
+  </div>
+</div>
+"""
+                    st.markdown(html, unsafe_allow_html=True)
+
+                st.markdown('</div>', unsafe_allow_html=True)
+
+            st.caption("※ '관리자 작업 로그(플랜 변경 이력)'까지 원하시면, 별도 admin_audit_logs 테이블/RPC를 추가해 붙일 수 있습니다.")
+            st.markdown("</div>", unsafe_allow_html=True)
 
     with tab_backup:
         st.markdown('<div class="ha-section"><div class="ha-title">백업 · 버전</div><div class="ha-sub">현재 핵심 파일을 ZIP으로 백업합니다.</div>', unsafe_allow_html=True)
