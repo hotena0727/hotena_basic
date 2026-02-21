@@ -2495,7 +2495,7 @@ def render_admin_dashboard(sb_authed):
                 when_html = _html.escape(when)
                 level_html = _html.escape(level)
                 pos_html = _html.escape(pos)
-                    quiz_html = _html.escape(quiz)
+                quiz_html = _html.escape(quiz)
 
                 html = f"""
 <div class='ha-logcard'>
