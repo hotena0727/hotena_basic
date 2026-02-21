@@ -2496,14 +2496,6 @@ def render_admin_dashboard(sb_authed):
                     email = _mask_mail(email)
 
                 # code → label mapping
-                import re as _re
-                def _norm_code(s: str) -> str:
-                    s = str(s or '')
-                    s = s.strip().lower()
-                    s = s.replace('-', '_')
-                    s = _re.sub(r'\s+', '', s)
-                    return s
-
                 POS_LABELS = {
                     "noun": "명사",
                     "verb": "동사",
@@ -2512,9 +2504,7 @@ def render_admin_dashboard(sb_authed):
                     "adverb": "부사",
                     "particle": "조사",
                     "conjunction": "접속사",
-                    "conj": "접속사",
                     "interjection": "감탄사",
-                    "interj": "감탄사",
                 }
                 QUIZ_LABELS = {
                     "meaning": "뜻",
@@ -2523,10 +2513,21 @@ def render_admin_dashboard(sb_authed):
                     "jp2kr": "일→한",
                 }
 
+
+                import re as _re
+
+                def _norm_code(s: str) -> str:
+                    s = (s or "")
+                    s = s.replace("\u00a0", " ")  # NBSP -> space
+                    s = s.strip().lower().replace("-", "_")
+                    s = _re.sub(r"\s+", "", s)        # drop all whitespace
+                    s = _re.sub(r"[^a-z0-9_]", "", s)  # keep safe chars only
+                    return s
+
                 pos_key = _norm_code(pos_code)
-                pos = POS_LABELS.get(pos_key, (pos_code or "-").strip() or "-")
                 quiz_key = _norm_code(quiz_code)
-                quiz = QUIZ_LABELS.get(quiz_key, (quiz_code or "-").strip() or "-")
+                pos = POS_LABELS.get(pos_key, (pos_code or "-").strip())
+                quiz = QUIZ_LABELS.get(quiz_key, (quiz_code or "-").strip())
 
                 def _to_int(v, default=0):
                     try:
