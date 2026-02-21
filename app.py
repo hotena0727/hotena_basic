@@ -1187,7 +1187,6 @@ READ_KW = dict(
 def load_pool(csv_path_str: str) -> pd.DataFrame:
     df = pd.read_csv(csv_path_str, **READ_KW)
 
-    # ✅ 한자 퀴즈 필수 컬럼
     # ✅ 한자 퀴즈 필수 컬럼 (+pos 추가)
     required_cols = {"level", "jp_word", "reading", "meaning", "pos"}
     missing = required_cols - set(df.columns)
