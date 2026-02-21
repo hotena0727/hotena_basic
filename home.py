@@ -1101,9 +1101,6 @@ def render_floating_menu():
     href_out  = "?" + base + "action=logout"
 
     html = """<style>
-.hub-admin-gear{display:inline-flex;align-items:center;justify-content:center;margin-left:8px;width:28px;height:28px;border-radius:999px;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.18);text-decoration:none;line-height:1;font-size:16px;}
-.hub-admin-gear:hover{background:rgba(255,255,255,0.18);}
-
 /* ===== Floating Menu (Hub) ===== */
 .hub-float-wrap{
   position: fixed;
@@ -1234,23 +1231,58 @@ def render_float_top_anchor_button():
     )
 
 
+def render_admin_page(sb_authed):
+    st.markdown("## 🛠 관리자 페이지")
+    st.caption("최근 퀴즈 기록(최대 200개)")
+
+    if not sb_authed:
+        st.error("Supabase 클라이언트를 찾을 수 없습니다. 로그인 상태를 확인해주세요.")
+        return
+
+    try:
+        res = (sb_authed.table("quiz_attempts")
+                 .select("created_at,user_email,level,pos_mode,quiz_len,score,wrong_count")
+                 .order("created_at", desc=True)
+                 .limit(200)
+                 .execute())
+        rows = res.data or []
+        if not rows:
+            st.warning("조회 결과가 0건입니다. (RLS 정책으로 막혔거나 데이터가 없을 수 있어요)")
+            return
+        import pandas as pd
+        df = pd.DataFrame(rows)
+        st.dataframe(df, use_container_width=True, hide_index=True)
+    except Exception as e:
+        st.error("관리자 조회에 실패했습니다. RLS 정책/권한을 확인해야 합니다.")
+        st.exception(e)
+
 def render_plan_pill():
     plan = (st.session_state.get("user_plan") or "free").lower()
     txt = "✨ PRO 이용 중입니다" if plan == "pro" else "🆓 FREE 이용 중"
+
+    is_admin = bool(st.session_state.get("is_admin", False))
+    base = _hub_build_base_qs()
+    href_admin = "?" + base + "p=admin"
+    gear = f'<a href="{href_admin}" target="_self" class="hub-gear" title="관리자">⚙️</a>' if is_admin else ""
+
     st.markdown(
         f"""
-<div style="display:flex;justify-content:flex-start;margin-top:0.15rem;margin-bottom:0.2rem;">
-  <div style="
-    display:inline-flex;align-items:center;gap:.45rem;
-    padding:.28rem .55rem;border-radius:999px;
-    border:1px solid rgba(0,0,0,.10);
-    font-size:.86rem;opacity:.92;background:rgba(0,0,0,.02);
-  ">{txt}</div>
+<style>
+  .hub-plan-wrap{{display:flex;justify-content:flex-start;margin-top:0.15rem;margin-bottom:0.2rem;}}
+  .hub-plan-pill{{display:inline-flex;align-items:center;gap:.45rem;padding:.28rem .55rem;border-radius:999px;
+    border:1px solid rgba(0,0,0,.10);font-size:.86rem;opacity:.92;background:rgba(0,0,0,.02);}}
+  .hub-gear{{display:inline-flex;align-items:center;justify-content:center;
+    margin-left:8px;width:28px;height:28px;border-radius:999px;text-decoration:none;
+    border:1px solid rgba(0,0,0,.10);background:rgba(0,0,0,.02);font-size:16px;line-height:1;
+    pointer-events:auto;}}
+  .hub-gear:hover{{background:rgba(0,0,0,.04);}}
+</style>
+<div class="hub-plan-wrap">
+  <div class="hub-plan-pill">{txt}{gear}</div>
 </div>
 """,
         unsafe_allow_html=True,
     )
-
 def render_daily_goal_home(sb_authed, user_id: str):
     """Home dashboard: daily goal (sets-based). 1 set == 10 questions (quiz_len)."""
     progress_all = st.session_state.get("progress_all", {}) or {}
@@ -1853,31 +1885,6 @@ if isinstance(p, str) and p:
 # ✅ Always render floating menu + plan pill in hub mode (after auth)
 render_floating_menu()
 render_plan_pill()
-
-def render_admin_page(sb_authed):
-    st.markdown("## 🛠 관리자 페이지")
-    st.caption("최근 퀴즈 기록(최대 200개)")
-
-    if not sb_authed:
-        st.error("Supabase 클라이언트를 찾을 수 없습니다. 로그인 상태를 확인해주세요.")
-        return
-
-    try:
-        res = (sb_authed.table("quiz_attempts")
-                 .select("created_at,user_email,level,pos_mode,quiz_len,score,wrong_count")
-                 .order("created_at", desc=True)
-                 .limit(200)
-                 .execute())
-        rows = res.data or []
-        if not rows:
-            st.warning("조회 결과가 0건입니다. (RLS 정책으로 막혔거나 데이터가 없을 수 있어요)")
-            return
-        import pandas as pd
-        df = pd.DataFrame(rows)
-        st.dataframe(df, use_container_width=True, hide_index=True)
-    except Exception as e:
-        st.error("관리자 조회에 실패했습니다. RLS 정책/권한을 확인해야 합니다.")
-        st.exception(e)
 
 page = st.session_state.get("hub_page", "home")
 render_bottom_nav(active=page)
