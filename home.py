@@ -2754,19 +2754,19 @@ def render_admin_dashboard(sb_authed):
                 pct = int(round((score / quiz_len) * 100)) if quiz_len else 0
                 pct = max(0, min(100, pct))
 
-                email_html = _html_module.escape(email)
-                when_html = _html_module.escape(when)
+                email_html = html_module.escape(email)
+                when_html = html_module.escape(when)
                 # level badge: show JLPT level if present; if it looks like POS code, show Korean label
                 _lvl_raw = (level or "").replace("\u00a0", " ").strip()
                 _lvl_key = _lvl_raw.lower()
                 if " " in _lvl_key:
                     _lvl_key = _lvl_key.split()[0]
                 if _lvl_key in POS_LABELS:
-                    level_html = _html_module.escape(POS_LABELS[_lvl_key])
+                    level_html = html_module.escape(POS_LABELS[_lvl_key])
                 else:
-                    level_html = _html_module.escape(_lvl_raw or "-")
-                pos_html = _html_module.escape(pos)
-                quiz_html = _html_module.escape(quiz)
+                    level_html = html_module.escape(_lvl_raw or "-")
+                pos_html = html_module.escape(pos)
+                quiz_html = html_module.escape(quiz)
 
                 # ✅ record label: show "훈련 모드" summary instead of raw codes (noun/meaning etc.)
                 try:
@@ -2779,7 +2779,7 @@ def render_admin_dashboard(sb_authed):
                     "talk": "상황 판단 · 정답 선택",
                 }
                 mode_label = MODE_LABELS.get(kind, "발음 · 뜻 · 한→일")
-                mode_html = _html_module.escape(mode_label)
+                mode_html = html_module.escape(mode_label)
 
                 html = f"""
 <div class='ha-logcard'>
