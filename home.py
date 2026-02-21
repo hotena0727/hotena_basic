@@ -2164,11 +2164,19 @@ def render_admin_dashboard(sb_authed):
 
     # ---------- tab: users ----------
     with tab_users:
-        st.markdown('<div class="ha-section"><div class="ha-title">회원 관리</div><div class="ha-sub">검색/필터 · 등급/만료일 · 기록 초기화</div>\n<style>
-.ha-card{background:rgba(255,255,255,0.72);border:1px solid rgba(0,0,0,0.06);border-radius:16px;padding:16px 16px 10px;margin:0 0 14px 0;box-shadow:0 6px 18px rgba(0,0,0,0.04);}
-.ha-card h4{margin:0 0 10px 0;}
-.ha-card .stCaption{margin-top:0;}
-</style>', unsafe_allow_html=True)\n\n        def _rpc(name: str, params: dict | None = None):
+        st.markdown("""
+        <div class="ha-section">
+          <div class="ha-title">회원 관리</div>
+          <div class="ha-sub">검색/필터 · 등급/만료일 · 기록 초기화</div>
+        </div>
+        <style>
+        .ha-card{background:rgba(255,255,255,0.72);border:1px solid rgba(0,0,0,0.06);border-radius:16px;padding:16px 16px 10px;margin:0 0 14px 0;box-shadow:0 6px 18px rgba(0,0,0,0.04);}
+        .ha-card h4{margin:0 0 10px 0;}
+        .ha-card .stCaption{margin-top:0;}
+        </style>
+        """, unsafe_allow_html=True)
+
+        def _rpc(name: str, params: dict | None = None):
             try:
                 return sb_authed.rpc(name, params or {}).execute()
             except Exception as e:
