@@ -749,6 +749,9 @@ def render_home_dashboard(sb_authed, user):
 
   /* rows */
   .h-rows{display:flex;flex-direction:column;gap:.46rem;margin:.05rem 0 .55rem;}
+
+  .h-rows a{ text-decoration:none !important; color:inherit !important; }
+  .h-rows a *{ text-decoration:none !important; }
   .row{
     display:flex;align-items:center;justify-content:space-between;gap:.6rem;
     padding: .62rem .72rem;
@@ -1852,7 +1855,7 @@ if action == "logout":
     hub_logout()
 
 if isinstance(p, str) and p:
-    if p in {"home", "word", "kanji", "talk", "my", "reminder"}:
+    if p in {"home", "word", "kanji", "talk", "my", "reminder", "admin"}:
         st.session_state["hub_page"] = p
 
 # ✅ Always render floating menu + plan pill in hub mode (after auth)
