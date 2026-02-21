@@ -2513,21 +2513,26 @@ def render_admin_dashboard(sb_authed):
                     "jp2kr": "일→한",
                 }
 
-
                 import re as _re
 
                 def _norm_code(s: str) -> str:
                     s = (s or "")
-                    s = s.replace("\u00a0", " ")  # NBSP -> space
-                    s = s.strip().lower().replace("-", "_")
-                    s = _re.sub(r"\s+", "", s)        # drop all whitespace
-                    s = _re.sub(r"[^a-z0-9_]", "", s)  # keep safe chars only
+                    # remove NBSP and normalize spaces
+                    s = s.replace("\u00a0", " ").strip().lower()
+                    # remove all whitespace inside
+                    s = _re.sub(r"\s+", "", s)
+                    # unify separators
+                    s = s.replace("-", "_")
                     return s
 
                 pos_key = _norm_code(pos_code)
                 quiz_key = _norm_code(quiz_code)
-                pos = POS_LABELS.get(pos_key, (pos_code or "-").strip())
-                quiz = QUIZ_LABELS.get(quiz_key, (quiz_code or "-").strip())
+
+                # common aliases
+                pos_key = {"conj": "conjunction", "interj": "interjection"}.get(pos_key, pos_key)
+
+                pos = POS_LABELS.get(pos_key, pos_code or "-")
+                quiz = QUIZ_LABELS.get(quiz_key, quiz_code or "-")
 
                 def _to_int(v, default=0):
                     try:
