@@ -2235,9 +2235,17 @@ def render_admin_dashboard(sb_authed):
 
             # --- filters ---
             q = st.text_input("회원 검색", placeholder="이메일/이름(ID 포함)로 검색", key="admin_user_q")
-            c1, c2, c3, c4 = st.columns([1.3, 1.0, 1.0, 0.7])
-            with c1:
-                plan_filter = st.multiselect("플랜", options=["free","pro"], default=["free","pro"], key="admin_user_plan_filter")
+
+            # ✅ 1) 플랜은 단독 full width
+            plan_filter = st.multiselect(
+                "플랜",
+                options=["free", "pro"],
+                default=["free", "pro"],
+                key="admin_user_plan_filter",
+            )
+
+            # ✅ 2) 나머지(관리자/활동/표시)는 한 줄 full width
+            c2, c3, c4 = st.columns([1.0, 1.0, 0.7], gap="medium")
             with c2:
                 admin_filter = st.selectbox("관리자", options=["전체","관리자만","일반만"], index=0, key="admin_user_admin_filter")
             with c3:
@@ -2274,8 +2282,13 @@ def render_admin_dashboard(sb_authed):
 
             uf = u[mask].copy().sort_values(by=["last_seen_kst","created_at"], ascending=[False, False], na_position="last")
 
-            # --- layout: list + detail ---
-            left, right = st.columns([1.0, 2.2], gap="medium")
+            # --- layout: list + detail (✅ full width) ---
+
+
+            left = st.container()
+
+
+            right = st.container()
 
             with left:
                 st.caption(f"검색 결과: {len(uf):,}명 / 전체: {len(u):,}명")
