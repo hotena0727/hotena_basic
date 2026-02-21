@@ -2528,7 +2528,7 @@ def render_admin_dashboard(sb_authed):
 
                 pos = POS_LABELS.get(_pk, pos_code.strip() or "-")
                 quiz = QUIZ_LABELS.get(_qk, quiz_code.strip() or "-")
-def _to_int(v, default=0):
+                def _to_int(v, default=0):
                     try:
                         return int(float(v))
                     except Exception:
