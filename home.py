@@ -2356,25 +2356,25 @@ def render_admin_dashboard(sb_authed):
 
                     meta_parts = []
                     if fn:
-                        meta_parts.append(f"이름: {html.escape(fn)}")
+                        meta_parts.append(f"이름: {html_module.escape(fn)}")
                     if created is not None and str(created).strip():
                         meta_parts.append(f"가입: {_fmt_dt(created)}")
                     if last_seen is not None and str(last_seen).strip():
                         meta_parts.append(f"최근 학습: {_fmt_dt(last_seen)}")
                     if uid:
-                        meta_parts.append(f"ID: {html.escape(uid)}")
+                        meta_parts.append(f"ID: {html_module.escape(uid)}")
 
                     meta_html = " · ".join(meta_parts) if meta_parts else ""
 
                     badges = []
-                    badges.append(f"<span class='ha-b { 'pro' if pl=='pro' else 'free' }'>{html.escape(pl)}</span>")
+                    badges.append(f"<span class='ha-b { 'pro' if pl=='pro' else 'free' }'>{html_module.escape(pl)}</span>")
                     if adm:
                         badges.append("<span class='ha-b admin'>관리자</span>")
 
                     card = f"""
                     <div class='ha-urow'>
                       <div class='ha-uleft'>
-                        <div class='ha-uemail'>{html.escape(em)}</div>
+                        <div class='ha-uemail'>{html_module.escape(em)}</div>
                         <div class='ha-umeta'>{meta_html}</div>
                       </div>
                       <div class='ha-badges'>{''.join(badges)}</div>
@@ -2659,7 +2659,7 @@ def render_admin_dashboard(sb_authed):
             d2 = d[keep].head(int(max_rows)).copy() if keep else d.head(int(max_rows)).copy()
             # card view (Hatena style)
             # card view (Hatena style)
-            import html as _html
+import html as html_module  # ✅ for html escaping in admin cards
             st.markdown('<div class="ha-log">', unsafe_allow_html=True)
             for _, r in d2.head(200).iterrows():
                 # raw values (may be None)
@@ -2754,19 +2754,19 @@ def render_admin_dashboard(sb_authed):
                 pct = int(round((score / quiz_len) * 100)) if quiz_len else 0
                 pct = max(0, min(100, pct))
 
-                email_html = _html.escape(email)
-                when_html = _html.escape(when)
+                email_html = _html_module.escape(email)
+                when_html = _html_module.escape(when)
                 # level badge: show JLPT level if present; if it looks like POS code, show Korean label
                 _lvl_raw = (level or "").replace("\u00a0", " ").strip()
                 _lvl_key = _lvl_raw.lower()
                 if " " in _lvl_key:
                     _lvl_key = _lvl_key.split()[0]
                 if _lvl_key in POS_LABELS:
-                    level_html = _html.escape(POS_LABELS[_lvl_key])
+                    level_html = _html_module.escape(POS_LABELS[_lvl_key])
                 else:
-                    level_html = _html.escape(_lvl_raw or "-")
-                pos_html = _html.escape(pos)
-                quiz_html = _html.escape(quiz)
+                    level_html = _html_module.escape(_lvl_raw or "-")
+                pos_html = _html_module.escape(pos)
+                quiz_html = _html_module.escape(quiz)
 
                 # ✅ record label: show "훈련 모드" summary instead of raw codes (noun/meaning etc.)
                 try:
@@ -2779,7 +2779,7 @@ def render_admin_dashboard(sb_authed):
                     "talk": "상황 판단 · 정답 선택",
                 }
                 mode_label = MODE_LABELS.get(kind, "발음 · 뜻 · 한→일")
-                mode_html = _html.escape(mode_label)
+                mode_html = _html_module.escape(mode_label)
 
                 html = f"""
 <div class='ha-logcard'>
