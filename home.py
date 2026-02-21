@@ -2144,110 +2144,346 @@ def render_admin_dashboard(sb_authed):
 
     # ---------- tab: users ----------
     with tab_users:
-        st.markdown('<div class="ha-section"><div class="ha-title">등급 변경</div><div class="ha-sub">plan / is_admin / PRO 만료일</div>', unsafe_allow_html=True)
-        if dfp.empty:
-            st.info("profiles 데이터가 없거나 RLS로 차단되었습니다.")
-            st.markdown("</div>", unsafe_allow_html=True)
-        else:
-            u2 = dfp.copy()
-            if "email" in u2.columns:
-                u2["email"] = u2["email"].fillna("").astype(str)
-                options = sorted([e for e in u2["email"].unique().tolist() if e])
-                target = st.selectbox("대상 이메일", options=options[:2000] if options else [""], key="admin_edit_email")
-                row = u2[u2["email"] == target].head(1)
-            else:
-                options = u2["id"].astype(str).unique().tolist()
-                target = st.selectbox("대상 ID", options=options[:2000] if options else [""], key="admin_edit_id")
-                row = u2[u2["id"].astype(str) == str(target)].head(1)
+        st.markdown('<div class="ha-section"><div class="ha-title">회원 관리</div><div class="ha-sub">검색/필터 · 등급/만료일 · 기록 초기화</div>', unsafe_allow_html=True)
 
-            if row.empty:
-                st.warning("대상 사용자를 찾지 못했습니다.")
-            else:
-                user_id = str(row.iloc[0].get("id",""))
-                cur_plan = str(row.iloc[0].get("plan","free")).lower()
-                cur_admin = bool(row.iloc[0].get("is_admin", False))
+        def _rpc(name: str, params: dict | None = None):
+            try:
+                return sb_authed.rpc(name, params or {}).execute()
+            except Exception as e:
+                raise e
 
-                c1, c2, c3 = st.columns(3)
-                with c1:
-                    new_plan = st.selectbox("플랜", options=["free","pro"], index=1 if cur_plan=="pro" else 0, key="admin_new_plan")
-                with c2:
-                    new_admin = st.selectbox("관리자", options=[False, True], index=1 if cur_admin else 0, key="admin_new_admin")
-                with c3:
-                    new_until = st.date_input("PRO 만료일", value=None, key="admin_new_until")
-
-                if st.button("변경 적용", type="primary", key="admin_apply_change"):
-                    try:
-                        payload = {}
-                        if "plan" in dfp.columns:
-                            payload["plan"] = new_plan
-                        if "is_admin" in dfp.columns:
-                            payload["is_admin"] = bool(new_admin)
-                        if payload:
-                            _admin_update_profile(user_id, payload)
-
-                        if new_until is not None:
-                            used_col = _admin_set_pro_until(user_id, str(new_until))
-                            st.success(f"저장 완료! (만료일 컬럼: {used_col})")
-                        else:
-                            st.success("저장 완료!")
-                    except Exception as e:
-                        st.error("저장 실패 (RLS/권한/컬럼 확인 필요)")
-                        st.exception(e)
-                        st.caption("만료일 컬럼이 DB에 없거나, RLS에서 profiles update가 막혀있을 수 있습니다.")
-        st.markdown("</div>", unsafe_allow_html=True)
-
-        st.markdown('<div class="ha-section"><div class="ha-title">회원 검색</div><div class="ha-sub">이메일/플랜/관리자 필터</div>', unsafe_allow_html=True)
         if dfp.empty:
             st.info("profiles 데이터가 없거나 RLS로 차단되었습니다.")
             st.markdown("</div>", unsafe_allow_html=True)
         else:
             u = dfp.copy()
+
+            # --- normalize columns ---
             if "email" in u.columns:
                 u["email"] = u["email"].fillna("").astype(str)
+            else:
+                u["email"] = ""
+
             if "plan" in u.columns:
                 u["plan"] = u["plan"].fillna("free").astype(str).str.lower()
+            else:
+                u["plan"] = "free"
 
-            q = st.text_input("이메일 검색", placeholder="예: gmail / @naver / abc ...")
-            c1, c2, c3 = st.columns(3)
+            if "is_admin" in u.columns:
+                u["is_admin"] = u["is_admin"].fillna(False).astype(bool)
+            else:
+                u["is_admin"] = False
+
+            # --- last activity from attempts (best effort) ---
+            last_map = {}
+            if (not dfa.empty) and ("created_at" in dfa.columns):
+                try:
+                    _tmp = dfa.copy()
+                    if "user_id" in _tmp.columns:
+                        _tmp["__uid__"] = _tmp["user_id"].astype(str)
+                    else:
+                        _tmp["__uid__"] = ""
+                    ts = pd.to_datetime(_tmp["created_at"], errors="coerce", utc=True).dt.tz_convert("Asia/Seoul")
+                    _tmp["__kst__"] = ts
+                    last_map = _tmp.groupby("__uid__")["__kst__"].max().dropna().to_dict()
+                except Exception:
+                    last_map = {}
+
+            u["id_str"] = u.get("id", "").astype(str)
+            u["last_seen_kst"] = u["id_str"].map(last_map)
+            u["last_seen_kst"] = pd.to_datetime(u["last_seen_kst"], errors="coerce")
+
+            # --- filters ---
+            q = st.text_input("회원 검색", placeholder="이메일/이름(ID 포함)로 검색", key="admin_user_q")
+            c1, c2, c3, c4 = st.columns([1.2, 1.0, 1.0, 1.0])
             with c1:
-                plan_filter = st.multiselect("플랜", options=["free","pro"], default=["free","pro"])
+                plan_filter = st.multiselect("플랜", options=["free","pro"], default=["free","pro"], key="admin_user_plan_filter")
             with c2:
-                admin_filter = st.selectbox("관리자", options=["전체","관리자만","일반만"], index=0)
+                admin_filter = st.selectbox("관리자", options=["전체","관리자만","일반만"], index=0, key="admin_user_admin_filter")
             with c3:
-                limit = st.selectbox("표시 개수", options=[50,100,200,500,1000], index=2)
+                act_filter = st.selectbox("활동", options=["전체","최근 7일 활동","최근 30일 활동","비활동(30일+)"], index=0, key="admin_user_act_filter")
+            with c4:
+                limit = st.selectbox("표시", options=[50,100,200,500,1000], index=2, key="admin_user_limit")
 
             mask = pd.Series([True]*len(u))
-            if q and "email" in u.columns:
-                mask &= u["email"].str.contains(q, case=False, na=False)
-            if "plan" in u.columns:
-                mask &= u["plan"].isin(plan_filter)
-            if admin_filter != "전체" and "is_admin" in u.columns:
-                want = (admin_filter == "관리자만")
-                mask &= (u["is_admin"].fillna(False).astype(bool) == want)
 
-            uf = u[mask].copy()
-            st.caption(f"검색 결과: {len(uf):,}명 / 전체: {len(u):,}명")
-            show_cols = [c for c in ["email","plan","pro_until","pro_expires_at","expires_at","is_admin","created_at","id"] if c in uf.columns]
-            st.dataframe(uf[show_cols].head(int(limit)), use_container_width=True, hide_index=True)
-            st.markdown("</div>", unsafe_allow_html=True)
+            if q:
+                ql = q.lower().strip()
+                mask &= (
+                    u["email"].str.lower().str.contains(ql, na=False)
+                    | u["id_str"].str.lower().str.contains(ql, na=False)
+                    | u.get("full_name", pd.Series([""]*len(u))).fillna("").astype(str).str.lower().str.contains(ql, na=False)
+                )
+
+            mask &= u["plan"].isin(plan_filter)
+
+            if admin_filter != "전체":
+                want = (admin_filter == "관리자만")
+                mask &= (u["is_admin"] == want)
+
+            # activity filter
+            now_kst = pd.Timestamp.now(tz="Asia/Seoul")
+            if act_filter != "전체":
+                ls = u["last_seen_kst"]
+                if act_filter == "최근 7일 활동":
+                    mask &= (ls.notna() & (ls >= (now_kst - pd.Timedelta(days=7))))
+                elif act_filter == "최근 30일 활동":
+                    mask &= (ls.notna() & (ls >= (now_kst - pd.Timedelta(days=30))))
+                else:  # inactive 30d+
+                    mask &= (ls.isna() | (ls < (now_kst - pd.Timedelta(days=30))))
+
+            uf = u[mask].copy().sort_values(by=["last_seen_kst","created_at"], ascending=[False, False], na_position="last")
+
+            # --- layout: list + detail ---
+            left, right = st.columns([1.25, 1.0], gap="large")
+
+            with left:
+                st.caption(f"검색 결과: {len(uf):,}명 / 전체: {len(u):,}명")
+
+                # show table with nicer columns
+                show_cols = []
+                for c in ["email","full_name","plan","is_admin","pro_until","pro_expires_at","expires_at","last_seen_kst","created_at","id_str"]:
+                    if c in uf.columns:
+                        show_cols.append(c)
+                if not show_cols:
+                    show_cols = uf.columns.tolist()[:8]
+
+                table_df = uf[show_cols].head(int(limit)).copy()
+                if "last_seen_kst" in table_df.columns:
+                    table_df["last_seen_kst"] = table_df["last_seen_kst"].dt.strftime("%Y-%m-%d %H:%M").fillna("")
+                if "created_at" in table_df.columns:
+                    try:
+                        ca = pd.to_datetime(table_df["created_at"], errors="coerce", utc=True).dt.tz_convert("Asia/Seoul")
+                        table_df["created_at"] = ca.dt.strftime("%Y-%m-%d")
+                    except Exception:
+                        pass
+
+                st.dataframe(
+                    table_df,
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        "email": st.column_config.TextColumn("이메일"),
+                        "full_name": st.column_config.TextColumn("이름"),
+                        "plan": st.column_config.TextColumn("플랜"),
+                        "is_admin": st.column_config.CheckboxColumn("관리자"),
+                        "last_seen_kst": st.column_config.TextColumn("최근 학습"),
+                        "created_at": st.column_config.TextColumn("가입일"),
+                        "id_str": st.column_config.TextColumn("ID"),
+                    },
+                )
+
+            # pick target user for detail actions
+            with right:
+                st.markdown("**선택 회원**")
+                options = uf["email"].tolist() if "email" in uf.columns and uf["email"].str.len().sum() > 0 else uf["id_str"].tolist()
+                options = [o for o in options if str(o).strip()]
+                if not options:
+                    st.info("오른쪽 패널을 사용하려면 검색 결과가 있어야 합니다.")
+                else:
+                    sel = st.selectbox("대상", options=options[:2000], key="admin_user_detail_sel")
+                    if "email" in uf.columns and sel in uf["email"].values:
+                        row = uf[uf["email"] == sel].head(1)
+                    else:
+                        row = uf[uf["id_str"] == str(sel)].head(1)
+
+                    if row.empty:
+                        st.warning("대상 사용자를 찾지 못했습니다.")
+                    else:
+                        r0 = row.iloc[0]
+                        user_id = str(r0.get("id_str",""))
+                        cur_plan = str(r0.get("plan","free")).lower()
+                        cur_admin = bool(r0.get("is_admin", False))
+
+                        # find existing expiry column
+                        exp_col = None
+                        for c in ["pro_until","pro_expires_at","expires_at","pro_expiry"]:
+                            if c in uf.columns:
+                                exp_col = c
+                                break
+                        cur_until = r0.get(exp_col) if exp_col else None
+                        try:
+                            cur_until_dt = pd.to_datetime(cur_until, errors="coerce")
+                            cur_until_date = cur_until_dt.date() if pd.notna(cur_until_dt) else None
+                        except Exception:
+                            cur_until_date = None
+
+                        st.markdown(f'<div class="ha-pill">ID: {user_id}</div>', unsafe_allow_html=True)
+                        if r0.get("email"):
+                            st.caption(str(r0.get("email")))
+
+                        st.divider()
+
+                        # --- controls ---
+                        new_plan = st.selectbox("플랜", options=["free","pro"], index=1 if cur_plan=="pro" else 0, key="admin_detail_plan")
+                        new_admin = st.selectbox("관리자", options=[False, True], index=1 if cur_admin else 0, key="admin_detail_admin")
+                        new_until = st.date_input("PRO 만료일", value=cur_until_date, key="admin_detail_until")
+
+                        quick = st.columns(3)
+                        with quick[0]:
+                            if st.button("+30일", key="admin_detail_plus30"):
+                                if new_until:
+                                    st.session_state["admin_detail_until"] = (new_until + timedelta(days=30))
+                                    st.rerun()
+                        with quick[1]:
+                            if st.button("+90일", key="admin_detail_plus90"):
+                                if new_until:
+                                    st.session_state["admin_detail_until"] = (new_until + timedelta(days=90))
+                                    st.rerun()
+                        with quick[2]:
+                            if st.button("만료일 제거", key="admin_detail_clear_until"):
+                                st.session_state["admin_detail_until"] = None
+                                st.rerun()
+
+                        # --- apply updates ---
+                        if st.button("저장", type="primary", key="admin_detail_save"):
+                            try:
+                                # plan: prefer RPC if exists
+                                if "admin_set_user_plan" in str(sb_authed):
+                                    pass
+                                try:
+                                    _rpc("admin_set_user_plan", {"p_user_id": user_id, "p_plan": new_plan})
+                                except Exception:
+                                    _admin_update_profile(user_id, {"plan": new_plan})
+
+                                # admin flag (best effort)
+                                try:
+                                    _admin_update_profile(user_id, {"is_admin": bool(new_admin)})
+                                except Exception:
+                                    pass
+
+                                # expiry (best effort; prefer RPC if exists)
+                                if new_until is not None:
+                                    iso = datetime.combine(new_until, datetime.min.time()).isoformat()
+                                    try:
+                                        _rpc("admin_set_pro_until", {"p_user_id": user_id, "p_until": iso})
+                                    except Exception:
+                                        try:
+                                            used_col = _admin_set_pro_until(user_id, iso)
+                                            st.caption(f"만료일 저장 컬럼: {used_col}")
+                                        except Exception:
+                                            st.warning("만료일 저장 실패 (컬럼/정책/RPC 확인 필요)")
+                                else:
+                                    # try clear
+                                    try:
+                                        if exp_col:
+                                            _admin_update_profile(user_id, {exp_col: None})
+                                    except Exception:
+                                        pass
+
+                                st.success("저장 완료!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error("저장 실패 (RLS/권한/RPC 확인 필요)")
+                                st.exception(e)
+
+                        st.divider()
+                        st.markdown("**회원 기록 초기화(위험)**")
+                        st.caption("퀴즈 기록/출석/단어 통계를 초기화합니다. 되돌릴 수 없습니다.")
+                        sure = st.checkbox("네, 초기화 위험을 이해했습니다.", key="admin_reset_confirm")
+                        if st.button("이 회원 기록 초기화", disabled=not sure, key="admin_reset_btn"):
+                            try:
+                                _rpc("admin_reset_user_data", {"p_user_id": user_id})
+                                st.success("초기화 완료!")
+                                st.rerun()
+                            except Exception as e:
+                                st.error("초기화 실패: admin_reset_user_data RPC가 없거나 권한이 없습니다.")
+                                st.exception(e)
+                                st.info("필요 시 DB에 'admin_reset_user_data' SECURITY DEFINER RPC를 추가해야 합니다.")
+        st.markdown("</div>", unsafe_allow_html=True)
 
     # ---------- tab: logs ----------
     with tab_logs:
-        st.markdown('<div class="ha-section"><div class="ha-title">최근 기록</div><div class="ha-sub">최근 500건</div>', unsafe_allow_html=True)
+        st.markdown('<div class="ha-section"><div class="ha-title">기록</div><div class="ha-sub">필터 · 보기 모드(테이블/카드)</div>', unsafe_allow_html=True)
+
         if dfa.empty:
             st.info("quiz_attempts 데이터가 없거나 RLS로 차단되었습니다.")
+            st.markdown("</div>", unsafe_allow_html=True)
         else:
             d = dfa.copy()
+
+            # normalize time
             if "created_at" in d.columns:
                 try:
                     ts = pd.to_datetime(d["created_at"], errors="coerce", utc=True).dt.tz_convert("Asia/Seoul")
-                    d["kst"] = ts.dt.strftime("%Y-%m-%d %H:%M")
+                    d["kst"] = ts
+                    d["일시"] = ts.dt.strftime("%Y-%m-%d %H:%M")
                 except Exception:
-                    pass
-            st.dataframe(d.head(500), use_container_width=True, hide_index=True)
-        st.markdown("</div>", unsafe_allow_html=True)
+                    d["일시"] = d["created_at"].astype(str)
+            else:
+                d["일시"] = ""
 
-    with tab_backup:
+            # filters
+            c1, c2, c3, c4 = st.columns([1.1, 1.0, 1.0, 1.0])
+            with c1:
+                view_mode = st.selectbox("보기", ["테이블", "카드"], index=0, key="admin_logs_view")
+            with c2:
+                days = st.selectbox("기간", [1,7,30,90,365], index=2, key="admin_logs_days")
+            with c3:
+                email_q = st.text_input("이메일 검색", placeholder="예: gmail / naver ...", key="admin_logs_email_q")
+            with c4:
+                max_rows = st.selectbox("표시", [50,100,200,500,1000], index=3, key="admin_logs_max")
+
+            # apply filters
+            if "kst" in d.columns:
+                cutoff = pd.Timestamp.now(tz="Asia/Seoul") - pd.Timedelta(days=int(days))
+                d = d[d["kst"].notna() & (d["kst"] >= cutoff)]
+            if email_q and "user_email" in d.columns:
+                d = d[d["user_email"].fillna("").astype(str).str.contains(email_q, case=False, na=False)]
+
+            d = d.sort_values(by=["kst" if "kst" in d.columns else "created_at"], ascending=False)
+
+            # pretty columns
+            rename_map = {
+                "user_email": "이메일",
+                "level": "레벨",
+                "pos_mode": "유형",
+                "quiz_len": "문항",
+                "score": "점수",
+                "wrong_count": "오답",
+            }
+            for k, v in rename_map.items():
+                if k in d.columns:
+                    d[v] = d[k]
+
+            keep = [c for c in ["일시","이메일","레벨","유형","문항","점수","오답","user_id"] if c in d.columns]
+            d2 = d[keep].head(int(max_rows)).copy() if keep else d.head(int(max_rows)).copy()
+
+            if view_mode == "테이블":
+                st.dataframe(
+                    d2,
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        "일시": st.column_config.TextColumn("일시"),
+                        "이메일": st.column_config.TextColumn("이메일"),
+                        "레벨": st.column_config.TextColumn("레벨"),
+                        "유형": st.column_config.TextColumn("유형"),
+                        "문항": st.column_config.NumberColumn("문항"),
+                        "점수": st.column_config.NumberColumn("점수"),
+                        "오답": st.column_config.NumberColumn("오답"),
+                        "user_id": st.column_config.TextColumn("user_id"),
+                    },
+                )
+            else:
+                # card view
+                for _, r in d2.head(50).iterrows():
+                    with st.container(border=True):
+                        top = f"🕒 {r.get('일시','')}"
+                        st.markdown(f"**{top}**")
+                        st.caption(str(r.get("이메일","")))
+                        cA, cB, cC = st.columns(3)
+                        with cA:
+                            st.metric("레벨", str(r.get("레벨","-")))
+                        with cB:
+                            st.metric("점수", int(r.get("점수", 0)) if str(r.get("점수","")).isdigit() else r.get("점수","-"))
+                        with cC:
+                            st.metric("오답", int(r.get("오답", 0)) if str(r.get("오답","")).isdigit() else r.get("오답","-"))
+
+            st.caption("※ '관리자 작업 로그(플랜 변경 이력)'까지 원하시면, 별도 admin_audit_logs 테이블/RPC를 추가해 붙일 수 있습니다.")
+            st.markdown("</div>", unsafe_allow_html=True)
+
+with tab_backup:
         st.markdown('<div class="ha-section"><div class="ha-title">백업 · 버전</div><div class="ha-sub">현재 핵심 파일을 ZIP으로 백업합니다.</div>', unsafe_allow_html=True)
         tag = st.text_input("버전 태그", value="stable", key="admin_backup_tag")
         if st.button("백업 ZIP 만들기", type="primary", key="admin_backup_make"):
