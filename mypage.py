@@ -5,6 +5,31 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 import streamlit as st
+# ============================================================
+# ✅ Supabase UID / table helper (stable across auth response shapes)
+# ============================================================
+def _get_uid_from_sb(sb):
+    try:
+        gu = sb.auth.get_user()
+    except Exception:
+        return None
+    # supabase-py may return object with .user or dict with ["user"]
+    u = getattr(gu, "user", None)
+    if u is None and isinstance(gu, dict):
+        u = gu.get("user")
+    if u is None:
+        return None
+    if isinstance(u, dict):
+        return u.get("id")
+    return getattr(u, "id", None)
+
+def _has_table(sb, table_name: str) -> bool:
+    try:
+        # lightweight probe
+        sb.table(table_name).select("id").limit(1).execute()
+        return True
+    except Exception:
+        return False
 
 
 # ============================================================
@@ -79,8 +104,6 @@ def _css():
 .ha-wrong {color:#c0392b; font-weight:700;}
 .ha-correct {color:#2e7d32; font-weight:700;}
 .ha-divider {height:1px; background:#eef2f7; margin:10px 0;}
-
-.ha-badge-warn{background:#d97706;color:#fff;}
 </style>
         """,
         unsafe_allow_html=True,
@@ -89,13 +112,13 @@ def _css():
 
 def _nav_back_and_logout():
     # Keep visual balance: two pill buttons with same style.
-    left, right = st.columns([4, 1], vertical_alignment="center")
+    left, right = st.columns([1, 1], vertical_alignment="center")
     with left:
-        if st.button("← 홈허브", key="mypage_back_hub", use_container_width=False, type="secondary"):
+        if st.button("← 홈허브", key="mypage_back_hub", use_container_width=True):
             st.session_state["hub_page"] = "home"
             st.rerun()
     with right:
-        if st.button("로그아웃", key="mypage_logout", use_container_width=False, type="secondary"):
+        if st.button("로그아웃", key="mypage_logout", use_container_width=True):
             # rely on existing logout handler in home.py if present
             # minimal: clear session
             for k in ["user", "sb_authed", "access_token", "refresh_token", "hub_page"]:
@@ -130,13 +153,17 @@ def _load_wrong_notes(limit: int = 200) -> List[Dict[str, Any]]:
     sb = _sb()
     if not sb:
         return []
-    try:
-        r = sb.table("wrong_notes").select("*").order("created_at", desc=True).limit(limit).execute()
-        return getattr(r, "data", None) or []
-    except Exception:
+    # table/RLS probe
+    if not _has_table(sb, "wrong_notes"):
+        st.info("오답카드를 사용하려면 DB에 wrong_notes 테이블과 RLS 정책이 필요합니다. (테이블 생성 SQL을 먼저 적용해 주세요.)")
         return []
-
-
+    try:
+        r = sb.table("wrong_notes").select("id,quiz_type,question,correct_answer,user_answer,level,created_at").order("created_at", desc=True).limit(limit).execute()
+        return getattr(r, "data", None) or []
+    except Exception as e:
+        if st.session_state.get("is_admin") or st.session_state.get("debug_wrongnotes"):
+            st.warning(f"오답카드 로딩 실패: {e}")
+        return []
 def _format_dt(v: Any) -> str:
     if not v:
         return ""
@@ -148,59 +175,26 @@ def _format_dt(v: Any) -> str:
         return str(v)
 
 
-
 def _wrong_cards_ui(wrongs: List[Dict[str, Any]]):
     st.markdown('<div class="ha-card">', unsafe_allow_html=True)
-    st.markdown("<h4>📚 오답카드 · 복습</h4>", unsafe_allow_html=True)
+    st.markdown("<h4>📚 오답카드</h4>", unsafe_allow_html=True)
 
     if not wrongs:
         st.info("아직 저장된 오답 상세가 없습니다. (앞으로 틀린 문제는 자동으로 오답카드에 쌓입니다.)")
         st.markdown("</div>", unsafe_allow_html=True)
         return
 
-    # ✅ 반복 오답 카운트(최근 불러온 범위 기준)
-    counts: Dict[tuple, int] = {}
-    for w in wrongs:
-        key = (w.get("quiz_type") or "", w.get("question") or "", w.get("correct_answer") or "")
-        counts[key] = counts.get(key, 0) + 1
-
     total = len(wrongs)
-    stubborn_cnt = sum(1 for _, v in counts.items() if v >= 3)
+    recent7 = sum(1 for w in wrongs[:200] if (str(w.get("created_at") or "")[:10] >= str(datetime.utcnow().date())))
+    # recent7 is approximate; avoid heavy date math without timezone issues
 
     st.markdown(
         f'<div class="ha-row"><span class="ha-badge">총 {total}개</span>'
-        f'<span class="ha-badge">최근 {min(30,total)}개 표시</span>'
-        f'<span class="ha-badge ha-badge-warn">3회+ 반복오답 {stubborn_cnt}개</span></div>',
+        f'<span class="ha-badge">최근 {min(30,total)}개 표시</span></div>',
         unsafe_allow_html=True,
     )
     st.markdown('<div class="ha-divider"></div>', unsafe_allow_html=True)
 
-    # ✅ 반복오답(3회+) 우선 노출 (중복 제거)
-    stubborn_items = [(k, v) for k, v in counts.items() if v >= 3]
-    stubborn_items.sort(key=lambda kv: kv[1], reverse=True)
-
-    if stubborn_items:
-        st.markdown(
-            "<div style='margin:6px 0 10px;'><b>🔥 반복오답(3회+)</b> — 먼저 잡으면 성취율이 급상승합니다.</div>",
-            unsafe_allow_html=True,
-        )
-        for (qt, q, ca), v in stubborn_items[:8]:
-            st.markdown(
-                f"""<div class="ha-card" style="box-shadow:none; padding:10px 12px; border-radius:12px;">
-  <div class="ha-row">
-    <span class="ha-badge">{(qt or "QUIZ").upper()}</span>
-    <span class="ha-badge ha-badge-warn">{v}회</span>
-  </div>
-  <div style="margin-top:6px; font-size:14px;">
-    <div><span class="ha-muted">문제</span> <b>{q}</b></div>
-    <div style="margin-top:2px;"><span class="ha-muted">정답</span> <span class="ha-correct">{ca}</span></div>
-  </div>
-</div>""",
-                unsafe_allow_html=True,
-            )
-        st.markdown('<div class="ha-divider"></div>', unsafe_allow_html=True)
-
-    # ✅ 최근 오답 카드
     for w in wrongs[:30]:
         q = w.get("question", "")
         ca = w.get("correct_answer", "")
@@ -208,16 +202,11 @@ def _wrong_cards_ui(wrongs: List[Dict[str, Any]]):
         qt = (w.get("quiz_type") or "").upper()
         lv = w.get("level") or ""
         when = _format_dt(w.get("created_at"))
-
-        c = counts.get((w.get("quiz_type") or "", w.get("question") or "", w.get("correct_answer") or ""), 1)
-        repeat_badge = f'<span class="ha-badge ha-badge-warn">{c}회</span>' if c >= 3 else ""
-
         st.markdown(
             f"""
 <div class="ha-card" style="box-shadow:none; padding:12px; border-radius:12px;">
   <div class="ha-row">
     <span class="ha-badge">{qt or "QUIZ"}</span>
-    {repeat_badge}
     {f'<span class="ha-badge">{lv}</span>' if lv else ''}
     {f'<span class="ha-badge">{when}</span>' if when else ''}
   </div>
@@ -232,7 +221,6 @@ def _wrong_cards_ui(wrongs: List[Dict[str, Any]]):
         )
 
     st.markdown("</div>", unsafe_allow_html=True)
-
 
 
 def _build_mcq_choices(correct: str, pool: List[str], k: int = 4) -> List[str]:
@@ -334,7 +322,10 @@ def _records_ui():
         st.markdown("</div>", unsafe_allow_html=True)
         return
     try:
-        r = sb.table("quiz_attempts").select("created_at,kind,level,quiz_len,score").order("created_at", desc=True).limit(50).execute()
+        if not _has_table(sb, "quiz_attempts"):
+            st.info("학습 기록 테이블(quiz_attempts)을 찾을 수 없습니다. (테이블명/권한을 확인해 주세요.)")
+        else:
+            r = sb.table("quiz_attempts").select("created_at,kind,level,quiz_len,score").order("created_at", desc=True).limit(50).execute()
         data = getattr(r, "data", None) or []
         if not data:
             st.info("기록이 아직 없습니다.")

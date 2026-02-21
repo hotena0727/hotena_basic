@@ -22,6 +22,31 @@ if st.session_state.get("_entered_talk"):
 
 import streamlit.components.v1 as components
 from supabase import create_client
+# ============================================================
+# ✅ Supabase UID / table helper (stable across auth response shapes)
+# ============================================================
+def _get_uid_from_sb(sb):
+    try:
+        gu = sb.auth.get_user()
+    except Exception:
+        return None
+    # supabase-py may return object with .user or dict with ["user"]
+    u = getattr(gu, "user", None)
+    if u is None and isinstance(gu, dict):
+        u = gu.get("user")
+    if u is None:
+        return None
+    if isinstance(u, dict):
+        return u.get("id")
+    return getattr(u, "id", None)
+
+def _has_table(sb, table_name: str) -> bool:
+    try:
+        # lightweight probe
+        sb.table(table_name).select("id").limit(1).execute()
+        return True
+    except Exception:
+        return False
 
 # ============================================================
 # ✅ Settings
