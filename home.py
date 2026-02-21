@@ -2753,6 +2753,14 @@ def render_admin_dashboard(sb_authed):
                                 if not _um_table_ready(sb_authed):
                                     st.warning("메시지 기능(user_messages)이 아직 준비되지 않았습니다. Supabase SQL(Editor)에서 테이블/RLS를 먼저 추가해 주세요.")
                                 else:
+                                    # ✅ message compose state (must run BEFORE widgets)
+                                    if "admin_msg_title" not in st.session_state:
+                                        st.session_state["admin_msg_title"] = ""
+                                    if "admin_msg_body" not in st.session_state:
+                                        st.session_state["admin_msg_body"] = ""
+                                    # clear request (set on successful send)
+                                    if st.session_state.pop("_admin_msg_clear", False):
+                                        st.session_state["_admin_msg_clear"] = True
                                     # templates
                                     t1, t2, t3 = st.columns(3)
                                     with t1:
@@ -2793,8 +2801,7 @@ def render_admin_dashboard(sb_authed):
                                                         body=msg_body.strip(),
                                                     )
                                                     st.success("보냈습니다.")
-                                                    st.session_state["admin_msg_title"] = ""
-                                                    st.session_state["admin_msg_body"] = ""
+                                                    st.session_state["_admin_msg_clear"] = True
                                                     st.rerun()
                                                 except Exception as e:
                                                     st.error(f"전송 실패: {e}")
@@ -2821,8 +2828,7 @@ def render_admin_dashboard(sb_authed):
                                                         for i in range(0, len(payloads), chunk):
                                                             um_bulk_send(sb_authed, payloads[i:i+chunk])
                                                         st.success(f"플랜({target_plan}) 회원 {len(ids)}명에게 발송했습니다.")
-                                                        st.session_state["admin_msg_title"] = ""
-                                                        st.session_state["admin_msg_body"] = ""
+                                                        st.session_state["_admin_msg_clear"] = True
                                                         st.rerun()
                                                 except Exception as e:
                                                     st.error(f"전체 발송 실패: {e}")
