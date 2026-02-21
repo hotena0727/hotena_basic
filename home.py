@@ -1911,7 +1911,7 @@ def render_admin_dashboard(sb_authed):
     # ---------- Hatena UI skin ----------
     st.markdown("""
 <style>
-.ha-wrap{max-width:980px;margin:0 auto;}
+.ha-wrap{max-width:none;width:100%;margin:0;box-sizing:border-box;}
 .ha-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:10px 0 14px;}
 .ha-card{background:linear-gradient(180deg, rgba(0,0,0,.035), rgba(0,0,0,.015));
   border:1px solid rgba(0,0,0,.08);border-radius:18px;padding:14px 14px 12px;}
@@ -2164,7 +2164,27 @@ def render_admin_dashboard(sb_authed):
 
     # ---------- tab: users ----------
     with tab_users:
-        st.markdown('<div class="ha-section"><div class="ha-title">회원 관리</div><div class="ha-sub">검색/필터 · 등급/만료일 · 기록 초기화</div>', unsafe_allow_html=True)
+        st.markdown("""
+        <div class="ha-section">
+          <div class="ha-title">회원 관리</div>
+          <div class="ha-sub">검색/필터 · 등급/만료일 · 기록 초기화</div>
+        </div>
+        <style>
+        .ha-card{background:rgba(255,255,255,0.72);border:1px solid rgba(0,0,0,0.06);border-radius:16px;padding:16px 16px 10px;margin:0 0 14px 0;box-shadow:0 6px 18px rgba(0,0,0,0.04);}
+        .ha-card h4{margin:0 0 10px 0;}
+        .ha-card .stCaption{margin-top:0;}
+        </style>
+        """, unsafe_allow_html=True)
+        st.markdown("""
+        <style>
+        /* Admin tab layout tuning */
+        div[data-testid="stHorizontalBlock"] { align-items: flex-start; }
+        /* Make right panel inputs not overshoot */
+        .ha-card .stSelectbox, .ha-card .stTextInput, .ha-card .stDateInput { width: 100%; }
+        /* Ensure dataframe uses full width of its column */
+        section.main div[data-testid="stDataFrame"] { max-width: 100%; }
+        </style>
+        """, unsafe_allow_html=True)
 
         def _rpc(name: str, params: dict | None = None):
             try:
@@ -2215,9 +2235,17 @@ def render_admin_dashboard(sb_authed):
 
             # --- filters ---
             q = st.text_input("회원 검색", placeholder="이메일/이름(ID 포함)로 검색", key="admin_user_q")
-            c1, c2, c3, c4 = st.columns([1.2, 1.0, 1.0, 1.0])
-            with c1:
-                plan_filter = st.multiselect("플랜", options=["free","pro"], default=["free","pro"], key="admin_user_plan_filter")
+
+            # ✅ 1) 플랜은 단독 full width
+            plan_filter = st.multiselect(
+                "플랜",
+                options=["free", "pro"],
+                default=["free", "pro"],
+                key="admin_user_plan_filter",
+            )
+
+            # ✅ 2) 나머지(관리자/활동/표시)는 한 줄 full width
+            c2, c3, c4 = st.columns([1.0, 1.0, 0.7], gap="medium")
             with c2:
                 admin_filter = st.selectbox("관리자", options=["전체","관리자만","일반만"], index=0, key="admin_user_admin_filter")
             with c3:
@@ -2254,172 +2282,268 @@ def render_admin_dashboard(sb_authed):
 
             uf = u[mask].copy().sort_values(by=["last_seen_kst","created_at"], ascending=[False, False], na_position="last")
 
-            
-            # --- layout: member cards (full width) ---
-            st.caption(f"검색 결과: {len(uf):,}명 / 전체: {len(u):,}명")
+            # --- layout: list + detail (✅ full width) ---
 
-            st.markdown('''<style>
-            .ha-userlist{display:flex;flex-direction:column;gap:10px;margin-top:10px;}
-            .ha-usercard{border:1px solid rgba(0,0,0,.08);border-radius:18px;background:rgba(255,255,255,.72);padding:12px 14px;}
-            .ha-userline{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
-            .ha-email{font-weight:800;}
-            .ha-meta{font-size:12px;opacity:.7;}
-            </style>''', unsafe_allow_html=True)
 
-            # ✅ 리스트(카드) 표시 - 성능상 limit 적용
-            view_df = uf.head(int(limit)).copy()
+            left = st.container()
 
-            # 표시용 포맷
-            if "last_seen_kst" in view_df.columns:
-                try:
-                    view_df["last_seen_kst_str"] = view_df["last_seen_kst"].dt.strftime("%Y-%m-%d %H:%M").fillna("")
-                except Exception:
-                    view_df["last_seen_kst_str"] = view_df["last_seen_kst"].astype(str).fillna("")
-            else:
-                view_df["last_seen_kst_str"] = ""
 
-            if "created_at" in view_df.columns:
-                try:
-                    ca = pd.to_datetime(view_df["created_at"], errors="coerce", utc=True).dt.tz_convert("Asia/Seoul")
-                    view_df["created_at_str"] = ca.dt.strftime("%Y-%m-%d").fillna("")
-                except Exception:
-                    view_df["created_at_str"] = view_df["created_at"].astype(str).fillna("")
-            else:
-                view_df["created_at_str"] = ""
+            right = st.container()
 
-            # 현재 선택값(없으면 첫 사용자)
-            if "admin_user_detail_sel" not in st.session_state:
-                if not view_df.empty:
-                    st.session_state["admin_user_detail_sel"] = str(view_df.iloc[0].get("id_str") or view_df.iloc[0].get("id") or "")
+            with left:
+                st.caption(f"검색 결과: {len(uf):,}명 / 전체: {len(u):,}명")
 
-            st.markdown('<div class="ha-userlist">', unsafe_allow_html=True)
-
-            for i, (_, r) in enumerate(view_df.iterrows()):
-                uid = str(r.get("id_str") or r.get("id") or "")
-                email = str(r.get("email") or "").strip() or "(no email)"
-                plan = str(r.get("plan") or "free").lower()
-                is_admin = bool(r.get("is_admin", False))
-                last_seen = str(r.get("last_seen_kst_str") or "")
-                created = str(r.get("created_at_str") or "")
-                selected = (st.session_state.get("admin_user_detail_sel") == uid)
-
-                c1, c2 = st.columns([6, 1], vertical_alignment="center")
-                with c1:
-                    st.markdown(
-                        f'''<div class="ha-usercard">
-              <div class="ha-userline">
-                <span class="ha-email">{email}</span>
-                <span class="ha-pill">{'PRO' if plan=='pro' else 'FREE'}</span>
-                {"<span class='ha-pill'>ADMIN</span>" if is_admin else ""}
-              </div>
-              <div class="ha-meta">최근 학습: {last_seen or '-'} · 가입일: {created or '-'}</div>
-            </div>''',
-                        unsafe_allow_html=True
-                    )
-                with c2:
-                    if selected:
-                        st.button("선택됨", disabled=True, key=f"adm_sel_disabled_{i}")
-                    else:
-                        if st.button("선택", key=f"adm_sel_{i}"):
-                            st.session_state["admin_user_detail_sel"] = uid
-                            st.rerun()
-
-            st.markdown("</div>", unsafe_allow_html=True)
-
-            st.divider()
-
-            # ---------- detail (full width) ----------
-            st.markdown("### 선택 회원")
-
-            options = view_df["email"].tolist() if ("email" in view_df.columns and view_df["email"].astype(str).str.len().sum() > 0) else view_df["id_str"].astype(str).tolist()
-            options = [o for o in options if str(o).strip()]
-
-            sel_label = st.selectbox("대상", options=options[:2000], key="admin_user_detail_sel_label")
-
-            if "email" in view_df.columns and sel_label in view_df["email"].values:
-                row = uf[uf["email"] == sel_label].head(1)
-            else:
-                row = uf[uf["id_str"] == str(sel_label)].head(1)
-
-            if row.empty:
-                sel_uid = st.session_state.get("admin_user_detail_sel","")
-                if sel_uid:
-                    row = uf[uf["id_str"] == str(sel_uid)].head(1)
-
-            if row.empty:
-                st.warning("대상 사용자를 찾지 못했습니다.")
-            else:
-                r0 = row.iloc[0]
-                user_id = str(r0.get("id_str",""))
-                cur_plan = str(r0.get("plan","free")).lower()
-                cur_admin = bool(r0.get("is_admin", False))
-
-                exp_col = None
-                for c in ["pro_until","pro_expires_at","expires_at","pro_expiry"]:
+                # show table with nicer columns
+                show_cols = []
+                for c in ["email","full_name","plan","is_admin","pro_until","pro_expires_at","expires_at","last_seen_kst","created_at","id_str"]:
                     if c in uf.columns:
-                        exp_col = c
-                        break
-                cur_until = r0.get(exp_col) if exp_col else None
-                try:
-                    cur_until_dt = pd.to_datetime(cur_until, errors="coerce")
-                    cur_until_date = cur_until_dt.date() if pd.notna(cur_until_dt) else None
-                except Exception:
-                    cur_until_date = None
+                        show_cols.append(c)
+                if not show_cols:
+                    show_cols = uf.columns.tolist()[:8]
 
-                st.markdown(f'<div class="ha-pill">ID: {user_id}</div>', unsafe_allow_html=True)
-                if r0.get("email"):
-                    st.caption(str(r0.get("email")))
-
-                st.markdown('<div class="ha-section">', unsafe_allow_html=True)
-                st.markdown('<div class="ha-title">플랜 · 권한 · 만료일</div>', unsafe_allow_html=True)
-
-                new_plan = st.selectbox("플랜", options=["free","pro"], index=1 if cur_plan=="pro" else 0, key="admin_detail_plan")
-                new_admin = st.selectbox("관리자", options=[False, True], index=1 if cur_admin else 0, key="admin_detail_admin")
-                new_until = st.date_input("PRO 만료일", value=cur_until_date, key="admin_detail_until")
-
-                quick = st.columns(3)
-                with quick[0]:
-                    if st.button("+30일", key="admin_detail_plus30"):
-                        if new_until:
-                            st.session_state["admin_detail_until"] = (new_until + timedelta(days=30))
-                            st.rerun()
-                with quick[1]:
-                    if st.button("+90일", key="admin_detail_plus90"):
-                        if new_until:
-                            st.session_state["admin_detail_until"] = (new_until + timedelta(days=90))
-                            st.rerun()
-                with quick[2]:
-                    if st.button("만료일 제거", key="admin_detail_clear_until"):
-                        st.session_state["admin_detail_until"] = None
-                        st.rerun()
-
-                if st.button("저장", type="primary", key="admin_detail_save", use_container_width=True):
+                table_df = uf[show_cols].head(int(limit)).copy()
+                if "last_seen_kst" in table_df.columns:
+                    table_df["last_seen_kst"] = table_df["last_seen_kst"].dt.strftime("%Y-%m-%d %H:%M").fillna("")
+                if "created_at" in table_df.columns:
                     try:
-                        try:
-                            _rpc("admin_set_user_plan", {"p_user_id": user_id, "p_plan": new_plan})
-                        except Exception:
-                            _admin_update_profile(user_id, {"plan": new_plan})
+                        ca = pd.to_datetime(table_df["created_at"], errors="coerce", utc=True).dt.tz_convert("Asia/Seoul")
+                        table_df["created_at"] = ca.dt.strftime("%Y-%m-%d")
+                    except Exception:
+                        pass
 
-                        try:
-                            _rpc("admin_set_user_admin", {"p_user_id": user_id, "p_is_admin": bool(new_admin)})
-                        except Exception:
-                            _admin_update_profile(user_id, {"is_admin": bool(new_admin)})
+                st.dataframe(
+                    table_df,
+                    use_container_width=True,
+                    hide_index=True,
+                    column_config={
+                        "email": st.column_config.TextColumn("이메일"),
+                        "full_name": st.column_config.TextColumn("이름"),
+                        "plan": st.column_config.TextColumn("플랜"),
+                        "is_admin": st.column_config.CheckboxColumn("관리자"),
+                        "last_seen_kst": st.column_config.TextColumn("최근 학습"),
+                        "created_at": st.column_config.TextColumn("가입일"),
+                        "id_str": st.column_config.TextColumn("ID"),
+                    },
+                )
 
-                        if new_plan == "pro" and new_until:
-                            _admin_set_pro_until(user_id, str(new_until))
+            # pick target user for detail actions
+            with right:
+                # ✅ Right panel: compact cards (info / plan / purge)
+                if not uf.empty:
+                    with st.container():
+                        st.markdown('<div class="ha-card">', unsafe_allow_html=True)
+                        st.markdown("#### 선택 회원")
+
+                        options = uf["email"].tolist() if "email" in uf.columns and uf["email"].astype(str).str.len().sum() > 0 else uf["id_str"].tolist()
+                        options = [o for o in options if str(o).strip()]
+
+                        if not options:
+                            st.info("오른쪽 패널을 사용하려면 검색 결과가 있어야 합니다.")
+                            st.markdown("</div>", unsafe_allow_html=True)
                         else:
-                            try:
-                                _admin_set_pro_until(user_id, None)
-                            except Exception:
-                                pass
+                            sel = st.selectbox("대상", options=options[:2000], key="admin_user_detail_sel")
 
-                        st.success("저장 완료")
-                        st.rerun()
-                    except Exception as e:
-                        st.error("저장 실패")
-                        st.exception(e)
+                            if "email" in uf.columns and sel in uf["email"].values:
+                                row = uf[uf["email"] == sel].head(1)
+                            else:
+                                row = uf[uf["id_str"] == str(sel)].head(1)
 
-                st.markdown("</div>", unsafe_allow_html=True)
+                            if row.empty:
+                                st.warning("대상 사용자를 찾지 못했습니다.")
+                                st.markdown("</div>", unsafe_allow_html=True)
+                            else:
+                                r0 = row.iloc[0]
+                                user_id = str(r0.get("id_str", ""))
+                                cur_plan = str(r0.get("plan", "free")).lower()
+                                cur_admin = bool(r0.get("is_admin", False))
+
+                                # find existing expiry column
+                                exp_col = None
+                                for c in ["pro_until", "pro_expires_at", "expires_at", "pro_expiry"]:
+                                    if c in uf.columns:
+                                        exp_col = c
+                                        break
+                                cur_until = r0.get(exp_col) if exp_col else None
+                                try:
+                                    cur_until_dt = pd.to_datetime(cur_until, errors="coerce")
+                                    cur_until_date = cur_until_dt.date() if pd.notna(cur_until_dt) else None
+                                except Exception:
+                                    cur_until_date = None
+
+                                st.markdown(f'<div class="ha-pill">ID: {user_id}</div>', unsafe_allow_html=True)
+                                if r0.get("email"):
+                                    st.caption(str(r0.get("email")))
+                                # optional meta
+                                meta1, meta2 = st.columns([1,1])
+                                with meta1:
+                                    if "last_seen_kst" in r0.index and pd.notna(r0.get("last_seen_kst")):
+                                        try:
+                                            st.caption("최근 학습: " + pd.to_datetime(r0.get("last_seen_kst")).strftime("%Y-%m-%d %H:%M"))
+                                        except Exception:
+                                            pass
+                                with meta2:
+                                    if "created_at" in r0.index and pd.notna(r0.get("created_at")):
+                                        try:
+                                            st.caption("가입: " + pd.to_datetime(r0.get("created_at")).strftime("%Y-%m-%d"))
+                                        except Exception:
+                                            pass
+
+                                st.markdown("</div>", unsafe_allow_html=True)
+
+                                # --- Card: plan / admin / expiry ---
+                                st.markdown('<div class="ha-card">', unsafe_allow_html=True)
+                                st.markdown("#### 플랜 · 권한 · 만료일")
+
+                                new_plan = st.selectbox("플랜", options=["free", "pro"], index=1 if cur_plan == "pro" else 0, key="admin_detail_plan")
+                                new_admin = st.selectbox("관리자", options=[False, True], index=1 if cur_admin else 0, key="admin_detail_admin")
+                                new_until = st.date_input("PRO 만료일", value=cur_until_date, key="admin_detail_until")
+
+                                b1, b2, b3 = st.columns(3)
+                                with b1:
+                                    if st.button("+30일", key="admin_until_plus30"):
+                                        try:
+                                            base = new_until or date.today()
+                                            st.session_state["admin_detail_until"] = base + timedelta(days=30)
+                                            st.rerun()
+                                        except Exception:
+                                            pass
+                                with b2:
+                                    if st.button("+90일", key="admin_until_plus90"):
+                                        try:
+                                            base = new_until or date.today()
+                                            st.session_state["admin_detail_until"] = base + timedelta(days=90)
+                                            st.rerun()
+                                        except Exception:
+                                            pass
+                                with b3:
+                                    if st.button("만료일 제거", key="admin_until_clear"):
+                                        st.session_state["admin_detail_until"] = None
+                                        st.rerun()
+
+                                # save action (re-uses existing rpc if available)
+                                confirm_save = st.checkbox("변경사항 저장 전 확인", value=False, key="admin_detail_confirm_save")
+                                if st.button("저장", type="primary", use_container_width=True, disabled=not confirm_save, key="admin_detail_save_btn"):
+                                    try:
+                                        _ = _rpc("admin_update_profile_plan", {
+                                            "p_user_id": user_id,
+                                            "p_plan": new_plan,
+                                            "p_is_admin": bool(new_admin),
+                                            "p_pro_until": (str(new_until) if new_until else None),
+                                        })
+                                        st.success("저장 완료")
+                                    except Exception:
+                                        st.warning("저장 RPC(admin_update_profile_plan)가 없거나 권한이 없습니다. (플랜/관리자 저장은 기존 구현을 사용하거나 RPC를 추가하세요.)")
+
+                                st.markdown("</div>", unsafe_allow_html=True)
+
+                                # --- Card: purge ---
+                                st.markdown('<div class="ha-card">', unsafe_allow_html=True)
+                                st.markdown("#### 회원 기록 정리 (기간 선택)")
+
+                                st.caption("N일 이전 기록을 삭제합니다.  (이 회원만 / 전체)  •  예: 30일 → 30일 이전 기록 삭제")
+
+                                dcol1, dcol2 = st.columns([1.0, 1.0])
+                                with dcol1:
+                                    days_opt = st.selectbox("기준 기간", options=["10일", "30일", "90일", "직접 입력"], index=1, key="admin_purge_days_opt")
+                                with dcol2:
+                                    days_custom = st.number_input("직접 입력(일)", min_value=1, max_value=3650, value=30, step=1, key="admin_purge_days_custom")
+
+                                purge_days = int(days_custom) if days_opt == "직접 입력" else int(days_opt.replace("일", ""))
+                                scope = st.radio("대상", options=["이 회원만", "전체 회원(공통 정리)"], horizontal=True, index=0, key="admin_purge_scope")
+
+                                st.caption("✅ 안전장치: 먼저 **미리보기(삭제될 개수)**를 확인한 뒤 실행하세요.")
+                                puid = user_id if scope == "이 회원만" else None
+
+                                pc1, pc2, pc3 = st.columns([1.0, 1.0, 1.2])
+                                with pc1:
+                                    if st.button("삭제 미리보기", key="admin_purge_preview_btn"):
+                                        try:
+                                            resp = _rpc("admin_preview_purge_quiz_attempts", {"p_user_id": puid, "p_days": purge_days})
+                                            data = getattr(resp, "data", None) if resp is not None else None
+                                            n = None
+                                            if isinstance(data, list) and data:
+                                                if isinstance(data[0], dict):
+                                                    n = data[0].get("count") or data[0].get("cnt") or data[0].get("n")
+                                                else:
+                                                    n = data[0]
+                                            elif isinstance(data, dict):
+                                                n = data.get("count") or data.get("cnt") or data.get("n")
+                                            if n is None:
+                                                st.info("미리보기 결과를 파싱하지 못했습니다. (RPC 반환 형식 확인 필요)")
+                                            else:
+                                                st.session_state["admin_purge_preview_n"] = int(n)
+                                                who = "이 회원" if puid else "전체 회원"
+                                                st.success(f"미리보기: {who}의 **{purge_days}일 이전** 기록 {int(n):,}건이 삭제 대상입니다.")
+                                        except Exception:
+                                            st.error("미리보기 실패: admin_preview_purge_quiz_attempts RPC가 없거나 권한이 없습니다.")
+
+                                with pc2:
+                                    confirm = st.checkbox("삭제 실행 확인", value=False, key="admin_purge_confirm")
+                                with pc3:
+                                    if st.button("삭제 실행", type="primary", use_container_width=True, disabled=not confirm, key="admin_purge_run_btn"):
+                                        try:
+                                            resp = _rpc("admin_run_purge_quiz_attempts", {"p_user_id": puid, "p_days": purge_days})
+                                            data = getattr(resp, "data", None) if resp is not None else None
+                                            n = None
+                                            if isinstance(data, list) and data:
+                                                if isinstance(data[0], dict):
+                                                    n = data[0].get("count") or data[0].get("cnt") or data[0].get("n")
+                                                else:
+                                                    n = data[0]
+                                            elif isinstance(data, dict):
+                                                n = data.get("count") or data.get("cnt") or data.get("n")
+                                            if n is None:
+                                                st.success("삭제 실행 완료 (삭제 건수는 RPC 반환 형식 확인 필요)")
+                                            else:
+                                                who = "이 회원" if puid else "전체 회원"
+                                                st.success(f"삭제 완료: {who}의 **{purge_days}일 이전** 기록 {int(n):,}건 삭제")
+                                        except Exception:
+                                            st.error("삭제 실행 실패: admin_run_purge_quiz_attempts RPC가 없거나 권한이 없습니다.")
+
+                                with st.expander("Supabase RPC(SQL) 예시 (미리보기/삭제)"):
+                                    st.code("""                        -- ✅ 미리보기 (삭제 대상 건수)
+                        create or replace function public.admin_preview_purge_quiz_attempts(p_user_id uuid, p_days int)
+                        returns table(count bigint)
+                        language plpgsql
+                        security definer
+                        as $$
+                        begin
+                          return query
+                          select count(*)::bigint
+                            from public.quiz_attempts
+                           where (p_user_id is null or user_id = p_user_id)
+                             and created_at < now() - make_interval(days => p_days);
+                        end;
+                        $$;
+
+                        -- ✅ 삭제 실행 (삭제된 건수 반환)
+                        create or replace function public.admin_run_purge_quiz_attempts(p_user_id uuid, p_days int)
+                        returns table(count bigint)
+                        language plpgsql
+                        security definer
+                        as $$
+                        declare n bigint;
+                        begin
+                          delete from public.quiz_attempts
+                           where (p_user_id is null or user_id = p_user_id)
+                             and created_at < now() - make_interval(days => p_days);
+
+                          get diagnostics n = row_count;
+                          return query select n;
+                        end;
+                        $$;
+
+                        -- ✅ 중요: security definer 함수는 관리자 체크를 넣는 것을 강력 권장합니다.
+                        -- 예: profiles.is_admin=true 인지 확인 후 아니면 exception.
+                                    """, language="sql")
+
+                                st.markdown("</div>", unsafe_allow_html=True)
+                else:
+                    st.info("검색 결과가 없습니다.")
+
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    # ---------- tab: logs ----------
     with tab_logs:
         st.markdown('<div class="ha-section"><div class="ha-title">기록</div><div class="ha-sub">필터 · 카드형 피드</div>', unsafe_allow_html=True)
 
@@ -2520,6 +2644,26 @@ def render_admin_dashboard(sb_authed):
                     "jp2kr": "일→한",
                 }
 
+
+                # ✅ handle legacy combined code like "noun meaning" stored in a single column
+                _raw_pos = (pos_code or "").replace("\u00a0", " ").strip()
+                _raw_quiz = (quiz_code or "").replace("\u00a0", " ").strip()
+
+                # If quiz_code is empty but pos_code contains both (e.g., "noun meaning"), split it.
+                if (not _raw_quiz) and (" " in _raw_pos):
+                    _parts = _raw_pos.split()
+                    if len(_parts) >= 2:
+                        _p, _q = _parts[0], _parts[1]
+                        if _q.lower() in {"meaning", "reading", "kr2jp", "jp2kr"}:
+                            pos_code, quiz_code = _p, _q
+
+                # If quiz_code itself is combined (rare), also split it.
+                if _raw_quiz and (" " in _raw_quiz):
+                    _parts = _raw_quiz.split()
+                    if len(_parts) >= 2:
+                        _q = _parts[0]
+                        if _q.lower() in {"meaning", "reading", "kr2jp", "jp2kr"}:
+                            quiz_code = _q
                 import re as _re
 
                 def _norm_code(s: str) -> str:
@@ -2555,9 +2699,30 @@ def render_admin_dashboard(sb_authed):
 
                 email_html = _html.escape(email)
                 when_html = _html.escape(when)
-                level_html = _html.escape(level)
+                # level badge: show JLPT level if present; if it looks like POS code, show Korean label
+                _lvl_raw = (level or "").replace("\u00a0", " ").strip()
+                _lvl_key = _lvl_raw.lower()
+                if " " in _lvl_key:
+                    _lvl_key = _lvl_key.split()[0]
+                if _lvl_key in POS_LABELS:
+                    level_html = _html.escape(POS_LABELS[_lvl_key])
+                else:
+                    level_html = _html.escape(_lvl_raw or "-")
                 pos_html = _html.escape(pos)
                 quiz_html = _html.escape(quiz)
+
+                # ✅ record label: show "훈련 모드" summary instead of raw codes (noun/meaning etc.)
+                try:
+                    kind = _infer_kind(level, pos_code)
+                except Exception:
+                    kind = "word"
+                MODE_LABELS = {
+                    "word": "발음 · 뜻 · 한→일",
+                    "kanji": "읽기 · 뜻 · 복습",
+                    "talk": "상황 판단 · 정답 선택",
+                }
+                mode_label = MODE_LABELS.get(kind, "발음 · 뜻 · 한→일")
+                mode_html = _html.escape(mode_label)
 
                 html = f"""
 <div class='ha-logcard'>
@@ -2568,8 +2733,7 @@ def render_admin_dashboard(sb_authed):
     </div>
     <div class='ha-badges'>
       <span class='ha-badge'>{level_html}</span>
-      <span class='ha-badge'>{pos_html}</span>
-      <span class='ha-badge'>{quiz_html}</span>
+      <span class='ha-badge'>{mode_html}</span>
       <span class='ha-badge ok'>✅ {score}/{quiz_len} · {pct}%</span>
       <span class='ha-badge bad'>❌ {wrong}</span>
     </div>
