@@ -6,7 +6,6 @@ BUILD_STAMP = 'home-min-clean-v2 (replace dashboard) 2026-02-20 KST (+09:00)'
 from pathlib import Path
 import os
 import runpy
-import importlib
 import json
 import hashlib
 import base64
@@ -14,23 +13,6 @@ from cryptography.fernet import Fernet
 from datetime import date, datetime, timedelta, timezone
 import streamlit as st
 import streamlit.components.v1 as components
-
-# ============================================================
-# ✅ Module runner (NO runpy/run_path)
-# - Import (or reload) a module by name so it renders in the SAME Streamlit flow
-# ============================================================
-def run_module(module_name: str):
-    try:
-        mod = importlib.import_module(module_name)
-        importlib.reload(mod)  # reflect latest edits during dev
-        # If module exposes a render() function, call it.
-        if hasattr(mod, "render") and callable(getattr(mod, "render")):
-            mod.render()
-    except Exception as e:
-        # Surface useful error in-app
-        st.exception(e)
-        raise
-
 # ============================================================
 # ✅ LocalStorage / QueryParam persistence helpers
 # ============================================================
@@ -106,14 +88,11 @@ st.markdown(
    - Normalize spacing/typography for "app-like" feel
    ========================================================== */
 
-header[data-testid="stHeader"]{
-  height: auto !important;
-  min-height: 3.25rem !important;
-}
+header[data-testid="stHeader"]{ display:none !important; height:0 !important; min-height:0 !important; }
 
 /* Container spacing */
 div[data-testid="stAppViewContainer"] .block-container{
-  padding-top: 0.25rem !important;
+  padding-top: 0rem !important;
   padding-bottom: 5.25rem !important; /* bottom breathing room for mobile */
 }
 
@@ -176,7 +155,7 @@ div[data-testid="stMetric"]{
   div[data-testid="stAppViewContainer"] .block-container{
     padding-left: 1.0rem !important;
     padding-right: 1.0rem !important;
-    padding-top: 0.15rem !important;
+    padding-top: 0rem !important;
     padding-bottom: 6.0rem !important;
   }
 
@@ -234,16 +213,6 @@ div[data-testid="stMetric"]{
   font-size: 12px;
   color: rgba(0,0,0,0.55);
 }
-
-
-/* ==========================================================
-   ✅ Training header spacing (title ↔ divider)
-   - Scope to our wrapper .hub-training-header
-   ========================================================== */
-.hub-training-header { margin-top: 0rem; margin-bottom: 0.15rem; }
-.hub-training-header div[data-testid="stProgress"] { margin-top: 0.30rem !important; margin-bottom: 0.25rem !important; }
-.hub-training-header div[data-testid="stCaptionContainer"] { margin-top: 0.10rem !important; margin-bottom: 0.10rem !important; }
-.hub-tight-hr { height:1px; background: rgba(0,0,0,.10); margin: 0.35rem 0 0.10rem 0; border-radius:999px; }
 
 </style>
 """,
@@ -1806,10 +1775,9 @@ def render_training_header(sb_authed, user, kind: str, title: str, subtitle: str
     if goal_sets > 0:
         pct = min(1.0, done_sets_total / float(goal_sets))
 
-    st.markdown('<div class="hub-training-header">', unsafe_allow_html=True)
     st.markdown(
         f"""
-<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:0.75rem;margin-top:0.05rem;margin-bottom:0.20rem;">
+<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:0.75rem;margin-top:0.25rem;margin-bottom:0.45rem;">
   <div>
     <div style="font-size:1.35rem;font-weight:800;line-height:1.2;">{title}</div>
     <div style="opacity:0.72;font-size:0.95rem; margin-top:0.15rem;">{subtitle}</div>
@@ -1827,8 +1795,7 @@ def render_training_header(sb_authed, user, kind: str, title: str, subtitle: str
     # compact progress
     st.progress(pct)
     st.caption(f"오늘 완료: {done_sets_total}/{goal_sets}세트 · 현재 페이지: {kind}")
-    st.markdown('<div class="hub-tight-hr"></div>', unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown("---")
 
 def run_script(filename: str):
     path = (BASE_DIR / filename).resolve()
@@ -1868,13 +1835,7 @@ if page == "home":
     render_home_dashboard(sb_authed, user)
 elif page == "my":
     # ✅ 독립 마이페이지: 한자(app.py) 안에 있던 대시보드를 그대로 분리한 mypage.py를 실행
-    st.session_state['HUB_MODE'] = True
-    st.session_state['user'] = user
-    try:
-        st.session_state.user = user
-    except Exception:
-        pass
-    run_module('mypage')
+    run_script("mypage.py")
     st.stop()
 
 elif page == "reminder":
@@ -1884,33 +1845,15 @@ elif page == "reminder":
 elif page == "word":
     st.session_state["hub_target"] = "word"
     render_training_header(sb_authed, user, kind="word", title="📘 단어 훈련", subtitle="뜻/발음/한→일 · 10문제 1세트")
-    st.session_state['HUB_MODE'] = True
-    # ✅ Pass hub-auth user into child app (prevents landing/login UI)
-    st.session_state['user'] = user
-    try:
-        st.session_state.user = user
-    except Exception:
-        pass
-    run_module('hotena_basic')
+    run_script("hotena_basic.py")
 elif page == "kanji":
     st.session_state["hub_target"] = "kanji"
     render_training_header(sb_authed, user, kind="kanji", title="🈶 한자 훈련", subtitle="읽기/뜻/복습 · 10문제 1세트")
-    st.session_state['HUB_MODE'] = True
-    st.session_state['user'] = user
-    try:
-        st.session_state.user = user
-    except Exception:
-        pass
-    run_module('app')
+    run_script("app.py")
 elif page == "talk":
     st.session_state["hub_target"] = "talk"
     render_training_header(sb_authed, user, kind="talk", title="💬 회화 훈련", subtitle="상황 판단 · 정답 선택 · 발음 연습")
-    st.session_state['user'] = user
-    try:
-        st.session_state.user = user
-    except Exception:
-        pass
-    run_module('talk')
+    run_script("talk.py")
 else:
     # ✅ Fallback: unknown page -> go home
     st.session_state["hub_page"] = "home"
