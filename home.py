@@ -2481,13 +2481,13 @@ def render_admin_dashboard(sb_authed):
                 pos_code = str(r.get("품사", "") or "")
                 quiz_code = str(r.get("퀴즈", "") or "")
 
-# ✅ handle legacy combined code like "noun meaning"
-# If quiz_code is empty but pos_code includes two tokens, split them.
-if (not quiz_code.strip()) and pos_code and (" " in pos_code.strip()):
-    a, b = pos_code.strip().split(None, 1)
-    b_l = b.strip().lower()
-    if b_l in {"meaning", "reading", "kr2jp", "jp2kr"}:
-        pos_code, quiz_code = a, b_l
+                # ✅ handle legacy combined code like "noun meaning"
+                # If quiz_code is empty but pos_code includes two tokens, split them.
+                if (not quiz_code.strip()) and pos_code and (" " in pos_code.strip()):
+                    a, b = pos_code.strip().split(None, 1)
+                    b_l = b.strip().lower()
+                    if b_l in {"meaning", "reading", "kr2jp", "jp2kr"}:
+                        pos_code, quiz_code = a, b_l
 
                 # optional email masking
                 def _mask_mail(e: str) -> str:
@@ -2542,9 +2542,9 @@ if (not quiz_code.strip()) and pos_code and (" " in pos_code.strip()):
                 pos = POS_LABELS.get(pos_key, pos_code or "-")
                 quiz = QUIZ_LABELS.get(quiz_key, quiz_code or "-")
 
-# ✅ UX: for "단어" 기록(품사 기반)은 고정 표기로 안내
-if pos_key in POS_LABELS:
-    quiz = "발음, 뜻, 한→일"
+                # ✅ UX: for "단어" 기록(품사 기반)은 고정 표기로 안내
+                if pos_key in POS_LABELS:
+                    quiz = "발음, 뜻, 한→일"
 
                 def _to_int(v, default=0):
                     try:
