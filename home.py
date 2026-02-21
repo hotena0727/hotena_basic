@@ -2393,97 +2393,203 @@ def render_admin_dashboard(sb_authed):
         st.markdown("</div>", unsafe_allow_html=True)
 
     # ---------- tab: logs ----------
-    with tab_logs:
-        st.markdown('<div class="ha-section"><div class="ha-title">기록</div><div class="ha-sub">필터 · 보기 모드(테이블/카드)</div>', unsafe_allow_html=True)
+        with tab_logs:
+            st.markdown('<div class="ha-section"><div class="ha-title">기록</div><div class="ha-sub">예쁜 카드형 로그 + 리포트(그래프) · 필터</div>', unsafe_allow_html=True)
 
-        if dfa.empty:
-            st.info("quiz_attempts 데이터가 없거나 RLS로 차단되었습니다.")
-            st.markdown("</div>", unsafe_allow_html=True)
-        else:
-            d = dfa.copy()
-
-            # normalize time
-            if "created_at" in d.columns:
-                try:
-                    ts = pd.to_datetime(d["created_at"], errors="coerce", utc=True).dt.tz_convert("Asia/Seoul")
-                    d["kst"] = ts
-                    d["일시"] = ts.dt.strftime("%Y-%m-%d %H:%M")
-                except Exception:
-                    d["일시"] = d["created_at"].astype(str)
+            if dfa.empty:
+                st.info("quiz_attempts 데이터가 없거나 RLS로 차단되었습니다.")
+                st.markdown("</div>", unsafe_allow_html=True)
             else:
-                d["일시"] = ""
+                d = dfa.copy()
 
-            # filters
-            c1, c2, c3, c4 = st.columns([1.1, 1.0, 1.0, 1.0])
-            with c1:
-                view_mode = st.selectbox("보기", ["테이블", "카드"], index=0, key="admin_logs_view")
-            with c2:
-                days = st.selectbox("기간", [1,7,30,90,365], index=2, key="admin_logs_days")
-            with c3:
-                email_q = st.text_input("이메일 검색", placeholder="예: gmail / naver ...", key="admin_logs_email_q")
-            with c4:
-                max_rows = st.selectbox("표시", [50,100,200,500,1000], index=3, key="admin_logs_max")
+                # normalize time
+                if "created_at" in d.columns:
+                    try:
+                        ts = pd.to_datetime(d["created_at"], errors="coerce", utc=True).dt.tz_convert("Asia/Seoul")
+                        d["kst"] = ts
+                        d["일시"] = ts.dt.strftime("%Y-%m-%d %H:%M")
+                        d["일자"] = ts.dt.strftime("%Y-%m-%d")
+                    except Exception:
+                        d["일시"] = d["created_at"].astype(str)
+                        d["일자"] = ""
+                else:
+                    d["일시"] = ""
+                    d["일자"] = ""
 
-            # apply filters
-            if "kst" in d.columns:
-                cutoff = pd.Timestamp.now(tz="Asia/Seoul") - pd.Timedelta(days=int(days))
-                d = d[d["kst"].notna() & (d["kst"] >= cutoff)]
-            if email_q and "user_email" in d.columns:
-                d = d[d["user_email"].fillna("").astype(str).str.contains(email_q, case=False, na=False)]
+                # filters
+                c1, c2, c3, c4 = st.columns([1.25, 0.95, 1.1, 0.95])
+                with c1:
+                    view_mode = st.selectbox("보기", ["리포트+카드(추천)", "카드", "테이블(간단)"], index=0, key="admin_logs_view")
+                with c2:
+                    days = st.selectbox("기간", [1, 7, 30, 90, 365], index=2, key="admin_logs_days")
+                with c3:
+                    email_q = st.text_input("이메일 검색", placeholder="예: gmail / naver ...", key="admin_logs_email_q")
+                with c4:
+                    max_rows = st.selectbox("표시", [50, 100, 200, 500, 1000], index=2, key="admin_logs_max")
 
-            d = d.sort_values(by=["kst" if "kst" in d.columns else "created_at"], ascending=False)
+                # apply filters
+                if "kst" in d.columns:
+                    cutoff = pd.Timestamp.now(tz="Asia/Seoul") - pd.Timedelta(days=int(days))
+                    d = d[d["kst"].notna() & (d["kst"] >= cutoff)]
+                if email_q and "user_email" in d.columns:
+                    d = d[d["user_email"].fillna("").astype(str).str.contains(email_q, case=False, na=False)]
 
-            # pretty columns
-            rename_map = {
-                "user_email": "이메일",
-                "level": "레벨",
-                "pos_mode": "유형",
-                "quiz_len": "문항",
-                "score": "점수",
-                "wrong_count": "오답",
-            }
-            for k, v in rename_map.items():
-                if k in d.columns:
-                    d[v] = d[k]
+                d = d.sort_values(by=["kst" if "kst" in d.columns else "created_at"], ascending=False)
 
-            keep = [c for c in ["일시","이메일","레벨","유형","문항","점수","오답","user_id"] if c in d.columns]
-            d2 = d[keep].head(int(max_rows)).copy() if keep else d.head(int(max_rows)).copy()
+                # pretty columns
+                rename_map = {
+                    "user_email": "이메일",
+                    "level": "레벨",
+                    "pos_mode": "유형",
+                    "quiz_len": "문항",
+                    "score": "점수",
+                    "wrong_count": "오답",
+                }
+                for k, v in rename_map.items():
+                    if k in d.columns:
+                        d[v] = d[k]
 
-            if view_mode == "테이블":
-                st.dataframe(
-                    d2,
-                    use_container_width=True,
-                    hide_index=True,
-                    column_config={
-                        "일시": st.column_config.TextColumn("일시"),
-                        "이메일": st.column_config.TextColumn("이메일"),
-                        "레벨": st.column_config.TextColumn("레벨"),
-                        "유형": st.column_config.TextColumn("유형"),
-                        "문항": st.column_config.NumberColumn("문항"),
-                        "점수": st.column_config.NumberColumn("점수"),
-                        "오답": st.column_config.NumberColumn("오답"),
-                        "user_id": st.column_config.TextColumn("user_id"),
-                    },
-                )
-            else:
-                # card view
-                for _, r in d2.head(50).iterrows():
-                    with st.container(border=True):
-                        top = f"🕒 {r.get('일시','')}"
-                        st.markdown(f"**{top}**")
-                        st.caption(str(r.get("이메일","")))
-                        cA, cB, cC = st.columns(3)
-                        with cA:
-                            st.metric("레벨", str(r.get("레벨","-")))
-                        with cB:
-                            st.metric("점수", int(r.get("점수", 0)) if str(r.get("점수","")).isdigit() else r.get("점수","-"))
-                        with cC:
-                            st.metric("오답", int(r.get("오답", 0)) if str(r.get("오답","")).isdigit() else r.get("오답","-"))
+                keep = [c for c in ["일시", "이메일", "레벨", "유형", "문항", "점수", "오답", "user_id", "일자"] if c in d.columns]
+                d2 = d[keep].head(int(max_rows)).copy() if keep else d.head(int(max_rows)).copy()
+
+                # --- tiny UI skin for logs ---
+                st.markdown("""
+    <style>
+    .ha-log-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:10px 0 14px;}
+    @media (max-width: 860px){.ha-log-grid{grid-template-columns:1fr;}}
+    .ha-log-card{
+      background:linear-gradient(180deg, rgba(15,23,42,.06), rgba(15,23,42,.02));
+      border:1px solid rgba(15,23,42,.10);
+      border-radius:18px;
+      padding:14px 14px 12px;
+    }
+    .ha-log-top{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;margin-bottom:10px;}
+    .ha-log-time{font-weight:800;letter-spacing:-0.01em;}
+    .ha-log-email{opacity:.75;font-size:12px;margin-top:2px;word-break:break-all;}
+    .ha-badges{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;}
+    .ha-badge{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;
+      border:1px solid rgba(15,23,42,.10); background:rgba(255,255,255,.65); font-size:12px;}
+    .ha-badge b{font-weight:900;}
+    .ha-mini{opacity:.65;font-size:12px;margin-top:6px;}
+    .ha-table{width:100%;border-collapse:separate;border-spacing:0 10px;}
+    .ha-row{background:rgba(15,23,42,.03);border:1px solid rgba(15,23,42,.08);}
+    .ha-td{padding:10px 12px;font-size:13px;}
+    .ha-td:first-child{border-radius:14px 0 0 14px;}
+    .ha-td:last-child{border-radius:0 14px 14px 0;}
+    .ha-th{font-size:12px;opacity:.65;text-align:left;padding:0 12px;}
+    </style>
+    """, unsafe_allow_html=True)
+
+                # --- summary + charts (optional) ---
+                if view_mode.startswith("리포트"):
+                    # KPIs
+                    total = len(d)
+                    uniq_users = d["이메일"].nunique() if "이메일" in d.columns else (d["user_id"].nunique() if "user_id" in d.columns else 0)
+                    avg_score = None
+                    if "점수" in d.columns:
+                        try:
+                            avg_score = float(pd.to_numeric(d["점수"], errors="coerce").dropna().mean())
+                        except Exception:
+                            avg_score = None
+                    colA, colB, colC = st.columns(3)
+                    with colA:
+                        st.metric("기록 수", f"{total:,}")
+                    with colB:
+                        st.metric("활동 유저", f"{uniq_users:,}")
+                    with colC:
+                        st.metric("평균 점수", "-" if avg_score is None else f"{avg_score:.1f}")
+
+                    # Charts (best-effort; never crash)
+                    try:
+                        import altair as alt
+
+                        dd = d.copy()
+                        # daily count
+                        if "일자" in dd.columns and dd["일자"].astype(str).str.len().gt(0).any():
+                            daily = dd.groupby("일자").size().reset_index(name="count")
+                            daily["일자"] = pd.to_datetime(daily["일자"], errors="coerce")
+                            daily = daily.dropna()
+                            if not daily.empty:
+                                chart = alt.Chart(daily).mark_line(point=True).encode(
+                                    x=alt.X("일자:T", title="날짜"),
+                                    y=alt.Y("count:Q", title="시도 수"),
+                                    tooltip=[alt.Tooltip("일자:T"), alt.Tooltip("count:Q")]
+                                ).properties(height=180)
+                                st.altair_chart(chart, use_container_width=True)
+
+                        # donut: 유형 비율 (pos_mode)
+                        if "유형" in dd.columns:
+                            t = dd["유형"].fillna("unknown").astype(str).value_counts().reset_index()
+                            t.columns = ["유형", "count"]
+                            t = t.head(6)
+                            if not t.empty:
+                                t["percent"] = (t["count"] / t["count"].sum()) * 100.0
+                                donut = alt.Chart(t).mark_arc(innerRadius=55, outerRadius=90).encode(
+                                    theta=alt.Theta("count:Q", stack=True),
+                                    color=alt.Color("유형:N", legend=alt.Legend(title="유형")),
+                                    tooltip=[alt.Tooltip("유형:N"), alt.Tooltip("count:Q"), alt.Tooltip("percent:Q", format=".1f")]
+                                ).properties(height=220)
+                                st.altair_chart(donut, use_container_width=True)
+                    except Exception:
+                        st.caption("그래프 로딩에 실패했지만, 기록 조회는 정상입니다.")
+
+                    st.markdown("---")
+
+                # --- render ---
+                if view_mode == "테이블(간단)":
+                    # Beautiful HTML table (no spreadsheet vibe)
+                    show_cols = [c for c in ["일시", "이메일", "레벨", "유형", "문항", "점수", "오답"] if c in d2.columns]
+                    rows = d2[show_cols].head(120).to_dict(orient="records")
+
+                    head_html = "".join([f'<th class="ha-th">{c}</th>' for c in show_cols])
+                    body_rows = []
+                    for r in rows:
+                        tds = "".join([f'<td class="ha-td">{str(r.get(c,""))}</td>' for c in show_cols])
+                        body_rows.append(f"<tr class='ha-row'>{tds}</tr>")
+                    table_html = f"""
+    <table class="ha-table">
+      <thead><tr>{head_html}</tr></thead>
+      <tbody>
+        {''.join(body_rows)}
+      </tbody>
+    </table>
+    """
+                    st.markdown(table_html, unsafe_allow_html=True)
+
+                else:
+                    # card view (brand style)
+                    for _, r in d2.head(80).iterrows():
+                        t = str(r.get("일시", ""))
+                        email = str(r.get("이메일", "")) if "이메일" in d2.columns else ""
+                        level = str(r.get("레벨", "-")) if "레벨" in d2.columns else "-"
+                        mode = str(r.get("유형", "-")) if "유형" in d2.columns else "-"
+                        qlen = str(r.get("문항", "-")) if "문항" in d2.columns else "-"
+                        score = str(r.get("점수", "-")) if "점수" in d2.columns else "-"
+                        wrong = str(r.get("오답", "-")) if "오답" in d2.columns else "-"
+
+                        st.markdown(f"""
+    <div class="ha-log-card">
+      <div class="ha-log-top">
+        <div>
+          <div class="ha-log-time">🕒 {t}</div>
+          <div class="ha-log-email">{email}</div>
+        </div>
+        <div class="ha-badges">
+          <span class="ha-badge">레벨 <b>{level}</b></span>
+          <span class="ha-badge">유형 <b>{mode}</b></span>
+          <span class="ha-badge">점수 <b>{score}</b></span>
+          <span class="ha-badge">오답 <b>{wrong}</b></span>
+          <span class="ha-badge">문항 <b>{qlen}</b></span>
+        </div>
+      </div>
+      <div class="ha-mini">원하시면 이 카드에서 “상세(오답 목록/제출 데이터)” 팝업까지 확장할 수 있어요.</div>
+    </div>
+    """, unsafe_allow_html=True)
 
             st.caption("※ '관리자 작업 로그(플랜 변경 이력)'까지 원하시면, 별도 admin_audit_logs 테이블/RPC를 추가해 붙일 수 있습니다.")
             st.markdown("</div>", unsafe_allow_html=True)
 
-    with tab_backup:
+with tab_backup:
         st.markdown('<div class="ha-section"><div class="ha-title">백업 · 버전</div><div class="ha-sub">현재 핵심 파일을 ZIP으로 백업합니다.</div>', unsafe_allow_html=True)
         tag = st.text_input("버전 태그", value="stable", key="admin_backup_tag")
         if st.button("백업 ZIP 만들기", type="primary", key="admin_backup_make"):
