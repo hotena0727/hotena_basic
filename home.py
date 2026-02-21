@@ -96,6 +96,20 @@ from streamlit_cookies_manager import EncryptedCookieManager
 # ✅ Page Config (Hub only)
 # ============================================================
 st.set_page_config(page_title="Hotena Hub", layout="centered")
+st.markdown('''
+<style>
+/* Hide Streamlit default chrome */
+#MainMenu {visibility: hidden;}
+header {visibility: hidden;}
+footer {visibility: hidden;}
+[data-testid="stHeader"] {display: none !important;}
+[data-testid="stToolbar"] {display: none !important;}
+[data-testid="stDecoration"] {display: none !important;}
+[data-testid="stStatusWidget"] {display: none !important;}
+[data-testid="stFooter"] {display: none !important;}
+</style>
+''', unsafe_allow_html=True)
+
 # ✅ TOP anchor for floating button (no-JS)
 st.markdown('<div id="hotena-top"></div>', unsafe_allow_html=True)
 
@@ -110,10 +124,6 @@ st.markdown(
    - Normalize spacing/typography for "app-like" feel
    ========================================================== */
 
-header[data-testid="stHeader"]{
-  height: auto !important;
-  min-height: 3.25rem !important;
-}
 
 /* Container spacing */
 div[data-testid="stAppViewContainer"] .block-container{
