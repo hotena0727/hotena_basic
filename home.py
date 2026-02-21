@@ -2055,39 +2055,54 @@ try:
     _has_plotly = True
 except Exception:
     _has_plotly = False
-        st.markdown("### 레벨별 사용량 · 단어/한자 비율 · 최근 30일")
-        if dfa.empty:
-            st.info("quiz_attempts 데이터가 없거나 RLS로 차단되었습니다.")
-        else:
-            d = dfa.copy()
-            d["module"] = [ _admin_infer_module(r) for r in d.to_dict("records") ]
-            d["level_norm"] = d.get("level", pd.Series(["unknown"]*len(d))).astype(str).str.strip().replace({"":"unknown"})
 
-            c1, c2 = st.columns(2)
-            with c1:
-                by_level = d.groupby("level_norm").size().reset_index(name="attempts").sort_values("attempts", ascending=False)
-                st.dataframe(by_level, use_container_width=True, hide_index=True)
-            with c2:
-                by_mod = d.groupby("module").size().reset_index(name="attempts").sort_values("attempts", ascending=False)
-                st.dataframe(by_mod, use_container_width=True, hide_index=True)
+st.markdown("### 레벨별 사용량 · 단어/한자 비율 · 최근 30일")
+if dfa.empty:
+    st.info("quiz_attempts 데이터가 없거나 RLS로 차단되었습니다.")
+else:
+    d = dfa.copy()
+    d["module"] = [_admin_infer_module(r) for r in d.to_dict("records")]
+    d["level_norm"] = (
+        d.get("level", pd.Series(["unknown"] * len(d)))
+        .astype(str)
+        .str.strip()
+        .replace({"": "unknown"})
+    )
 
-if _has_plotly:
-    try:
-        fig1 = px.pie(by_level, names="level_norm", values="attempts", hole=0.62)
-        fig1.update_traces(textinfo="percent+label", textposition="inside")
-        fig1.update_layout(margin=dict(t=10,b=10,l=10,r=10), height=320, showlegend=False)
-        st.plotly_chart(fig1, use_container_width=True)
-    except Exception:
-        pass
+    c1, c2 = st.columns(2)
+    with c1:
+        by_level = (
+            d.groupby("level_norm")
+            .size()
+            .reset_index(name="attempts")
+            .sort_values("attempts", ascending=False)
+        )
+        st.dataframe(by_level, use_container_width=True, hide_index=True)
+    with c2:
+        by_mod = (
+            d.groupby("module")
+            .size()
+            .reset_index(name="attempts")
+            .sort_values("attempts", ascending=False)
+        )
+        st.dataframe(by_mod, use_container_width=True, hide_index=True)
 
-    try:
-        fig2 = px.pie(by_mod, names="module", values="attempts", hole=0.62)
-        fig2.update_traces(textinfo="percent+label", textposition="inside")
-        fig2.update_layout(margin=dict(t=10,b=10,l=10,r=10), height=320, showlegend=False)
-        st.plotly_chart(fig2, use_container_width=True)
-    except Exception:
-        pass
+    if _has_plotly:
+        try:
+            fig1 = px.pie(by_level, names="level_norm", values="attempts", hole=0.62)
+            fig1.update_traces(textinfo="percent+label", textposition="inside")
+            fig1.update_layout(margin=dict(t=10, b=10, l=10, r=10), height=320, showlegend=False)
+            st.plotly_chart(fig1, use_container_width=True)
+        except Exception:
+            pass
 
+        try:
+            fig2 = px.pie(by_mod, names="module", values="attempts", hole=0.62)
+            fig2.update_traces(textinfo="percent+label", textposition="inside")
+            fig2.update_layout(margin=dict(t=10, b=10, l=10, r=10), height=320, showlegend=False)
+            st.plotly_chart(fig2, use_container_width=True)
+        except Exception:
+            pass
             if "created_at" in d.columns:
                 try:
                     kst = _admin_kst(d["created_at"])
