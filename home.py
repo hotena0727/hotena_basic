@@ -1099,11 +1099,11 @@ def render_floating_menu():
     href_my   = "?" + base + "p=my"
     href_rem  = "?" + base + "p=reminder"
     href_out  = "?" + base + "action=logout"
-    href_admin = "?" + base + "p=admin"
-    is_admin = bool(st.session_state.get("is_admin", False))
-    admin_link_html = f'<a href="{href_admin}" target="_self">🛠 관리자</a>' if is_admin else ""
 
     html = """<style>
+.hub-admin-gear{display:inline-flex;align-items:center;justify-content:center;margin-left:8px;width:28px;height:28px;border-radius:999px;background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.18);text-decoration:none;line-height:1;font-size:16px;}
+.hub-admin-gear:hover{background:rgba(255,255,255,0.18);}
+
 /* ===== Floating Menu (Hub) ===== */
 .hub-float-wrap{
   position: fixed;
@@ -1184,7 +1184,6 @@ def render_floating_menu():
     <a href="__HREF_TALK__" target="_self">💬 회화</a>
     <a href="__HREF_MY__" target="_self">👤 마이페이지</a>
     <a href="__HREF_REM__" target="_self">🔔 알림 설정</a>
-    __ADMIN_LINK__
     <a href="__HREF_OUT__" target="_self">🚪 로그아웃</a>
     <div style="height:0.6rem"></div>
     <div style="font-size:0.85rem; opacity:0.7;">Tip: 바깥을 누르면 닫힙니다.</div>
@@ -1200,8 +1199,7 @@ def render_floating_menu():
                 .replace("__HREF_TALK__", href_talk)
                 .replace("__HREF_MY__", href_my)
                 .replace("__HREF_REM__", href_rem)
-                .replace("__HREF_OUT__", href_out)
-                .replace("__ADMIN_LINK__", admin_link_html))
+                .replace("__HREF_OUT__", href_out))
 
     st.markdown(html, unsafe_allow_html=True)
 
@@ -1897,13 +1895,6 @@ elif page == "reminder":
     render_reminder_settings(sb_authed, user)
     st.stop()
 
-elif page == "admin":
-    if not st.session_state.get("is_admin"):
-        st.warning("관리자만 접근할 수 있습니다.")
-        st.stop()
-    render_admin_page(sb_authed)
-    st.stop()
-
 elif page == "word":
     st.session_state["hub_target"] = "word"
     render_training_header(sb_authed, user, kind="word", title="📘 단어 훈련", subtitle="뜻/발음/한→일 · 10문제 1세트")
@@ -1918,6 +1909,13 @@ elif page == "talk":
     st.session_state["hub_target"] = "talk"
     render_training_header(sb_authed, user, kind="talk", title="💬 회화 훈련", subtitle="상황 판단 · 정답 선택 · 발음 연습")
     run_module('talk')
+elif page == "admin":
+    if not st.session_state.get("is_admin"):
+        st.warning("관리자만 접근할 수 있습니다.")
+        st.stop()
+    render_admin_page(sb_authed)
+    st.stop()
+
 else:
     # ✅ Fallback: unknown page -> go home
     st.session_state["hub_page"] = "home"
