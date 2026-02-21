@@ -57,23 +57,6 @@ if not st.session_state.get('_page_config_set'):
 )
     st.session_state['_page_config_set'] = True
 # ============================================================
-# ✅ Hide Streamlit default header/footer (applies per page)
-# ============================================================
-st.markdown(
-    """
-<style>
-/* Hide Streamlit chrome */
-header, footer {visibility: hidden;}
-[data-testid="stHeader"], [data-testid="stFooter"] {display: none;}
-/* In some builds, Streamlit shows a bottom badge/container */
-[data-testid="stBottomBlockContainer"] {display: none;}
-/* Fallback for older/newer badge classnames */
-[class^="viewerBadge_"], [class*="viewerBadge_"] {display: none;}
-</style>
-""",
-    unsafe_allow_html=True,
-)
-# ============================================================
 # ✅ [HOTFIX] Disable onboarding ("60초 이용안내") block entirely
 # - In case any legacy UI is still rendered, forcibly hide/remove it.
 # ============================================================

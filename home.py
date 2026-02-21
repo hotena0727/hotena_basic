@@ -20,16 +20,26 @@ import streamlit.components.v1 as components
 # - Import (or reload) a module by name so it renders in the SAME Streamlit flow
 # ============================================================
 def run_module(module_name: str):
+    """Import (or reload) a module by name so it renders in the SAME Streamlit flow.
+
+    IMPORTANT:
+    - Do NOT import + reload back-to-back in the same run.
+      That executes top-level module code twice and can trigger StreamlitDuplicateElementKey.
+    """
     try:
-        mod = importlib.import_module(module_name)
-        importlib.reload(mod)  # reflect latest edits during dev
+        import sys as _sys
+        if module_name in _sys.modules:
+            mod = importlib.reload(_sys.modules[module_name])
+        else:
+            mod = importlib.import_module(module_name)
+
         # If module exposes a render() function, call it.
         if hasattr(mod, "render") and callable(getattr(mod, "render")):
             mod.render()
     except Exception as e:
-        # Surface useful error in-app
         st.exception(e)
         raise
+
 
 # ============================================================
 # ✅ LocalStorage / QueryParam persistence helpers
@@ -92,23 +102,24 @@ from streamlit_cookies_manager import EncryptedCookieManager
 # ✅ Page Config (Hub only)
 # ============================================================
 st.set_page_config(page_title="Hotena Hub", layout="centered")
-# ============================================================
-# ✅ Hide Streamlit default header/footer (applies per page)
-# ============================================================
-st.markdown(
-    """
+# ✅ Hide Streamlit default chrome (header/footer)
+st.markdown("""
 <style>
-/* Hide Streamlit chrome */
-header, footer {visibility: hidden;}
-[data-testid="stHeader"], [data-testid="stFooter"] {display: none;}
-/* In some builds, Streamlit shows a bottom badge/container */
-[data-testid="stBottomBlockContainer"] {display: none;}
-/* Fallback for older/newer badge classnames */
-[class^="viewerBadge_"], [class*="viewerBadge_"] {display: none;}
+/* Streamlit chrome */
+#MainMenu {visibility: hidden;}
+header {visibility: hidden;}
+footer {visibility: hidden;}
+
+/* Newer Streamlit selectors */
+[data-testid="stHeader"] {display: none;}
+[data-testid="stToolbar"] {display: none;}
+[data-testid="stDecoration"] {display: none;}
+[data-testid="stStatusWidget"] {display: none;}
+[data-testid="stFooter"] {display: none;}
+/* Viewer badge (bottom-right) */
+[data-testid="stViewerBadge"] {display: none;}
 </style>
-""",
-    unsafe_allow_html=True,
-)
+""", unsafe_allow_html=True)
 # ✅ TOP anchor for floating button (no-JS)
 st.markdown('<div id="hotena-top"></div>', unsafe_allow_html=True)
 
