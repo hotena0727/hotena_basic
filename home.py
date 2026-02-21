@@ -1101,9 +1101,7 @@ def render_floating_menu():
     href_out  = "?" + base + "action=logout"
     href_admin = "?" + base + "p=admin"
     is_admin = bool(st.session_state.get("is_admin", False))
-    admin_anchor = (
-        '<a href="__HREF_ADMIN__" target="_self">🛠 관리자</a>'
-    ) if is_admin else ""
+    admin_link_html = f'<a href="{href_admin}" target="_self">🛠 관리자</a>' if is_admin else ""
 
     html = """<style>
 /* ===== Floating Menu (Hub) ===== */
@@ -1186,7 +1184,7 @@ def render_floating_menu():
     <a href="__HREF_TALK__" target="_self">💬 회화</a>
     <a href="__HREF_MY__" target="_self">👤 마이페이지</a>
     <a href="__HREF_REM__" target="_self">🔔 알림 설정</a>
-    __ADMIN_ANCHOR__
+    __ADMIN_LINK__
     <a href="__HREF_OUT__" target="_self">🚪 로그아웃</a>
     <div style="height:0.6rem"></div>
     <div style="font-size:0.85rem; opacity:0.7;">Tip: 바깥을 누르면 닫힙니다.</div>
@@ -1202,10 +1200,9 @@ def render_floating_menu():
                 .replace("__HREF_TALK__", href_talk)
                 .replace("__HREF_MY__", href_my)
                 .replace("__HREF_REM__", href_rem)
-                .replace("__HREF_OUT__", href_out))
+                .replace("__HREF_OUT__", href_out)
+                .replace("__ADMIN_LINK__", admin_link_html))
 
-    html = html.replace("__ADMIN_ANCHOR__", admin_anchor)
-    html = html.replace("__HREF_ADMIN__", href_admin)
     st.markdown(html, unsafe_allow_html=True)
 
 
@@ -1855,17 +1852,20 @@ if isinstance(p, str) and p:
     if p in allowed:
         st.session_state["hub_page"] = p
 
-def render_admin_page():
+# ✅ Always render floating menu + plan pill in hub mode (after auth)
+render_floating_menu()
+render_plan_pill()
+
+def render_admin_page(sb_authed):
     st.markdown("## 🛠 관리자 페이지")
     st.caption("최근 퀴즈 기록(최대 200개)")
 
-    sb = st.session_state.get("sb_authed") or st.session_state.get("sb")
-    if not sb:
+    if not sb_authed:
         st.error("Supabase 클라이언트를 찾을 수 없습니다. 로그인 상태를 확인해주세요.")
         return
 
     try:
-        res = (sb.table("quiz_attempts")
+        res = (sb_authed.table("quiz_attempts")
                  .select("created_at,user_email,level,pos_mode,quiz_len,score,wrong_count")
                  .order("created_at", desc=True)
                  .limit(200)
@@ -1880,10 +1880,6 @@ def render_admin_page():
     except Exception as e:
         st.error("관리자 조회에 실패했습니다. RLS 정책/권한을 확인해야 합니다.")
         st.exception(e)
-
-# ✅ Always render floating menu + plan pill in hub mode (after auth)
-render_floating_menu()
-render_plan_pill()
 
 page = st.session_state.get("hub_page", "home")
 render_bottom_nav(active=page)
@@ -1901,6 +1897,13 @@ elif page == "reminder":
     render_reminder_settings(sb_authed, user)
     st.stop()
 
+elif page == "admin":
+    if not st.session_state.get("is_admin"):
+        st.warning("관리자만 접근할 수 있습니다.")
+        st.stop()
+    render_admin_page(sb_authed)
+    st.stop()
+
 elif page == "word":
     st.session_state["hub_target"] = "word"
     render_training_header(sb_authed, user, kind="word", title="📘 단어 훈련", subtitle="뜻/발음/한→일 · 10문제 1세트")
@@ -1915,10 +1918,6 @@ elif page == "talk":
     st.session_state["hub_target"] = "talk"
     render_training_header(sb_authed, user, kind="talk", title="💬 회화 훈련", subtitle="상황 판단 · 정답 선택 · 발음 연습")
     run_module('talk')
-elif page == "admin":
-    render_admin_page()
-    st.stop()
-
 else:
     # ✅ Fallback: unknown page -> go home
     st.session_state["hub_page"] = "home"
