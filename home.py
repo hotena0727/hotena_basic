@@ -2568,7 +2568,15 @@ def render_admin_dashboard(sb_authed):
 
                 email_html = _html.escape(email)
                 when_html = _html.escape(when)
-                level_html = _html.escape(level)
+                # level badge: show JLPT level if present; if it looks like POS code, show Korean label
+                _lvl_raw = (level or "").replace("\u00a0", " ").strip()
+                _lvl_key = _lvl_raw.lower()
+                if " " in _lvl_key:
+                    _lvl_key = _lvl_key.split()[0]
+                if _lvl_key in POS_LABELS:
+                    level_html = _html.escape(POS_LABELS[_lvl_key])
+                else:
+                    level_html = _html.escape(_lvl_raw or "-")
                 pos_html = _html.escape(pos)
                 quiz_html = _html.escape(quiz)
 
