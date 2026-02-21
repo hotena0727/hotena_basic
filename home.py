@@ -106,14 +106,8 @@ st.markdown(
    - Normalize spacing/typography for "app-like" feel
    ========================================================== */
 
-/* ✅ Hide Streamlit default chrome (header/footer/toolbar) */
-header, footer {visibility: hidden;}
-[data-testid="stHeader"], header[data-testid="stHeader"] {display:none !important; height:0 !important; min-height:0 !important;}
-[data-testid="stFooter"], footer {display:none !important; height:0 !important; min-height:0 !important;}
-#MainMenu {visibility: hidden;}
-[data-testid="stToolbar"] {display:none !important;}
-[data-testid="stDecoration"] {display:none !important;}
-[data-testid="stStatusWidget"] {display:none !important;}
+header[data-testid="stHeader"]{display:none !important; height:0 !important; min-height:0 !important; visibility:hidden !important;}
+
 /* Container spacing */
 div[data-testid="stAppViewContainer"] .block-container{
   padding-top: 0.25rem !important;
@@ -237,6 +231,14 @@ div[data-testid="stMetric"]{
   font-size: 12px;
   color: rgba(0,0,0,0.55);
 }
+
+
+/* ✅ Streamlit 기본 메뉴/푸터 숨김 */
+#MainMenu{display:none !important;}
+footer{display:none !important;}
+[data-testid="stFooter"]{display:none !important;}
+/* (선택) 상태/배지류 */
+[data-testid="stStatusWidget"]{display:none !important;}
 
 </style>
 """,
