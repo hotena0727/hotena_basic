@@ -1101,8 +1101,9 @@ def render_floating_menu():
     href_out  = "?" + base + "action=logout"
     href_admin = "?" + base + "p=admin"
     is_admin = bool(st.session_state.get("is_admin", False))
-    admin_link_html = f'<a href="{href_admin}" target="_self">🛠 관리자</a>' if is_admin else ""
-
+    admin_anchor = (
+        '<a href="__HREF_ADMIN__" target="_self">🛠 관리자</a>'
+    ) if is_admin else ""
 
     html = """<style>
 /* ===== Floating Menu (Hub) ===== */
@@ -1185,7 +1186,7 @@ def render_floating_menu():
     <a href="__HREF_TALK__" target="_self">💬 회화</a>
     <a href="__HREF_MY__" target="_self">👤 마이페이지</a>
     <a href="__HREF_REM__" target="_self">🔔 알림 설정</a>
-    __ADMIN_LINK__
+    __ADMIN_ANCHOR__
     <a href="__HREF_OUT__" target="_self">🚪 로그아웃</a>
     <div style="height:0.6rem"></div>
     <div style="font-size:0.85rem; opacity:0.7;">Tip: 바깥을 누르면 닫힙니다.</div>
@@ -1203,6 +1204,8 @@ def render_floating_menu():
                 .replace("__HREF_REM__", href_rem)
                 .replace("__HREF_OUT__", href_out))
 
+    html = html.replace("__ADMIN_ANCHOR__", admin_anchor)
+    html = html.replace("__HREF_ADMIN__", href_admin)
     st.markdown(html, unsafe_allow_html=True)
 
 
@@ -1605,10 +1608,6 @@ def render_floating_menu():
     href_my   = "?" + base + "p=my"
     href_rem  = "?" + base + "p=reminder"
     href_out  = "?" + base + "action=logout"
-    href_admin = "?" + base + "p=admin"
-    is_admin = bool(st.session_state.get("is_admin", False))
-    admin_link_html = f'<a href="{href_admin}" target="_self">🛠 관리자</a>' if is_admin else ""
-
 
     html = """<style>
 /* ===== Floating Menu (Hub) ===== */
@@ -1691,7 +1690,6 @@ def render_floating_menu():
     <a href="__HREF_TALK__" target="_self">💬 회화</a>
     <a href="__HREF_MY__" target="_self">👤 마이페이지</a>
     <a href="__HREF_REM__" target="_self">🔔 알림 설정</a>
-    __ADMIN_LINK__
     <a href="__HREF_OUT__" target="_self">🚪 로그아웃</a>
     <div style="height:0.6rem"></div>
     <div style="font-size:0.85rem; opacity:0.7;">Tip: 바깥을 누르면 닫힙니다.</div>
@@ -1742,14 +1740,8 @@ def _hub_build_base_qs() -> str:
 def render_bottom_nav(active: str = "home"):
     """Mobile-only bottom nav. Hidden on wide screens."""
     base = _hub_build_base_qs()
-    is_admin = bool(st.session_state.get("is_admin", False))
     def href(p: str) -> str:
         return "?" + base + "p=" + p
-
-    admin_btn = (
-        f"<a href=\"{href('admin')}\" target=\"_self\" class=\"{'active' if active=='admin' else ''}\">"
-        f"<div class=\"ic\">🛠</div><div>관리</div></a>"
-    ) if is_admin else ""
 
     # Mobile only: hide on >= 801px
     html = f"""<style>
@@ -1794,7 +1786,6 @@ def render_bottom_nav(active: str = "home"):
     <a href="{href('kanji')}" target="_self" class="{ 'active' if active=='kanji' else '' }"><div class="ic">🈶</div><div>한자</div></a>
     <a href="{href('talk')}" target="_self" class="{ 'active' if active=='talk' else '' }"><div class="ic">💬</div><div>회화</div></a>
     <a href="{href('my')}" target="_self" class="{ 'active' if active=='my' else '' }"><div class="ic">👤</div><div>MY</div></a>
-    {admin_btn}
   </div>
 </div>"""
     st.markdown(html, unsafe_allow_html=True)
