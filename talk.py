@@ -42,26 +42,7 @@ NS = "talk"
 SET_LEN = 10
 
 # ============================================================
-# ✅ Hub login required
-# ============================================================
-u = st.session_state.get("user")
-if not u:
-    st.warning("홈에서 로그인 후 이용해 주세요.")
-    st.stop()
-
-USER_ID = getattr(u, "id", None)
-USER_EMAIL = getattr(u, "email", "") or ""
-
-USER_PLAN = (st.session_state.get("user_plan") or "free").lower()
-IS_PRO = USER_PLAN == "pro"
-    if not st.session_state.get('st.session_state.get("HUB_MODE", False)', False):
-
-st.title("회화 훈련 · 상황판단")
-st.caption("1문제씩: 상황 → 상대 발화(🔊/PRO) → 보기 선택 → 제출 → 정답/설명 → (선택)말하기 완료 체크")
-
-# ============================================================
-# ✅ Supabase client (hub reuse)
-# ============================================================
+# ✅ Hub login required (moved into render)
 
 def get_cfg(key: str) -> str:
     cfg = st.session_state.get("cfg") or {}

@@ -1323,7 +1323,7 @@ def play_sound_file(path: str):
 
 def render_sound_toggle():
     # ✅ Hub mode: sound toggle is rendered in home.py (plan pill)
-    if st.session_state.get("st.session_state.get("HUB_MODE", False)", False):
+    if st.session_state.get("HUB_MODE", False):
         return
 
     if "sound_enabled" not in st.session_state:
@@ -1729,7 +1729,7 @@ def nav_logout():
 
 def render_topcard():
     # HUB에서는 상단 메뉴를 home.py가 책임집니다.
-    if st.session_state.get("st.session_state.get("HUB_MODE", False)"):
+    if st.session_state.get("HUB_MODE", False):
         return
 
     u = st.session_state.get("user")
@@ -2531,7 +2531,7 @@ def mode_label(x: str) -> str:
 def render_home():
     u = st.session_state.get("user")
     email = (getattr(u, "email", None) if u else None) or st.session_state.get("login_email", "")
-    if st.session_state.get("st.session_state.get("HUB_MODE", False)"):
+    if st.session_state.get("HUB_MODE", False):
         # Hub에서 진입 시 홈 대시보드/타이틀 중복 노출 방지
         return
 
@@ -2816,7 +2816,7 @@ if st.session_state.get("page") not in ALLOWED_PAGES:
     st.session_state.page = "home"
 
 # HUB에서 실행될 때는 홈/내부 라우팅 대신 바로 퀴즈 화면으로 진입
-if st.session_state.get("st.session_state.get("HUB_MODE", False)"):
+if st.session_state.get("HUB_MODE", False):
     st.session_state.page = "quiz"
 
 user = st.session_state.get("user")
@@ -2867,7 +2867,7 @@ except Exception:
 if st.session_state.get("quiz_type") not in available_types:
     st.session_state.quiz_type = "meaning"
 
-if (st.session_state.get("page") != "home") and (not st.session_state.get("st.session_state.get("HUB_MODE", False)")):
+if (st.session_state.get("page") != "home") and (not st.session_state.get("HUB_MODE", False)):
     u = st.session_state.get("user")
     email = (getattr(u, "email", None) if u else None) or st.session_state.get("login_email", "")
     st.markdown(
@@ -2972,7 +2972,7 @@ except Exception:
 # ============================================================
 def render_plan_banner():
     # HUB에서는 공통 배지를 home.py에서 렌더링하므로 중복 표시하지 않음
-    if st.session_state.get("st.session_state.get("HUB_MODE", False)", False):
+    if st.session_state.get("HUB_MODE", False):
         return
 
     plan = get_user_plan()
@@ -2990,7 +2990,7 @@ render_topcard()
 render_plan_banner()
 render_sound_toggle()
 
-if not st.session_state.get("st.session_state.get("HUB_MODE", False)", False):
+if not st.session_state.get("HUB_MODE", False):
     streak = st.session_state.get("streak_count")
     did_today = st.session_state.get("did_attend_today")
     if streak is not None:
