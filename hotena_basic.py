@@ -534,7 +534,7 @@ def scroll_to_top(nonce: int = 0):
         </script>
         <!-- nonce:{nonce} -->
         """,
-        height=0,
+        height=1,
     )
 
 def render_floating_scroll_top():
@@ -644,7 +644,7 @@ def render_floating_scroll_top():
 })();
 </script>
         """,
-        height=0,
+        height=1,
     )
 
 render_floating_scroll_top()
@@ -1402,7 +1402,9 @@ def render_pronounce_button(text: str, uid: str, label: str = "🔊 발음"):
     let cand = ja.find(v => prefer.test(String(v.name || "")));
     if (cand) return cand;
 
-    // 2) avoid는 피하고 남은 것 중 첫번째
+    // 2,
+    height=0,
+) avoid는 피하고 남은 것 중 첫번째
     cand = ja.find(v => !avoid.test(String(v.name || "")));
     if (cand) return cand;
 
@@ -1465,7 +1467,7 @@ def render_pronounce_button(text: str, uid: str, label: str = "🔊 발음"):
 }})();
 </script>
         """,
-        height=0,
+        height=43,
     )
 # ============================================================
 # ✅ Login UI
