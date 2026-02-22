@@ -274,7 +274,7 @@ div[data-testid="stMetric"]{
     unsafe_allow_html=True,
 )
 st.session_state["_page_config_set"] = True  # children should not call set_page_config
-
+st.session_state["_top_compact_css_applied"] = True
 BASE_DIR = Path(__file__).resolve().parent
 
 # ============================================================
