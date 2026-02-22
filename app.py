@@ -34,7 +34,7 @@ if not st.session_state.get("_page_config_set"):
 # - Applied once per session
 # ============================================================
 if not st.session_state.get("_top_compact_css_applied"):
-    if not st.session_state.get('HUB_MODE', False): st.markdown("""<style>
+    if not st.session_state.get('st.session_state.get("HUB_MODE", False)', False): st.markdown("""<style>
 /* === Hotena: ultra-compact top spacing (mobile + desktop) === */
 /* 핵심: block-container의 기본 top padding 제거 + 첫 요소 여백 제거 */
 section.main > div.block-container,
@@ -109,7 +109,7 @@ def render_sound_toggle():
       사용자가 '테스트 재생' 버튼을 눌러 브라우저에 오디오 허용을 "한 번" 해주게 함
     """
     # ✅ Hub mode: sound toggle is rendered in home.py (plan pill)
-    if st.session_state.get("HUB_MODE", False):
+    if st.session_state.get("st.session_state.get("HUB_MODE", False)", False):
         return
 
     if "sound_enabled" not in st.session_state:
@@ -1048,13 +1048,12 @@ def auth_box():
 
 def require_login():
     """한자 앱 로그인 가드.
-    - HUB_MODE=True: 허브에서 이미 로그인/세션을 관리하므로, user가 없으면 간단 메시지만 보여주고 중단
-    - HUB_MODE=False: 단독 실행 시 기존 로그인 UI(auth_box) 노출
+    - st.session_state.get("HUB_MODE", False)=True: 허브에서 이미 로그인/세션을 관리하므로, user가 없으면 간단 메시지만 보여주고 중단
+    - st.session_state.get("HUB_MODE", False)=False: 단독 실행 시 기존 로그인 UI(auth_box) 노출
     """
-    HUB_MODE = st.session_state.get("HUB_MODE", False)
 
     if st.session_state.get("user") is None:
-        if HUB_MODE:
+        if st.session_state.get("HUB_MODE", False):
             st.info("로그인이 필요합니다. 홈으로 이동해 로그인 후 다시 시도해 주세요.")
             st.stop()
 
@@ -1198,7 +1197,7 @@ def nav_logout():
 
 def render_topcard():
     # HUB에서는 상단 메뉴를 home.py가 책임집니다.
-    if st.session_state.get("HUB_MODE"):
+    if st.session_state.get("st.session_state.get("HUB_MODE", False)"):
         return
 
     u = st.session_state.get("user")
@@ -1723,7 +1722,7 @@ def render_my_dashboard():
     st.subheader("📌 내 대시보드")
 
     if st.button("← 돌아가기", use_container_width=True, key="btn_my_back"):
-        if st.session_state.get("HUB_MODE"):
+        if st.session_state.get("st.session_state.get("HUB_MODE", False)"):
             st.session_state["hub_page"] = "home"
             st.rerun()
         st.session_state.page = "quiz"
@@ -2038,7 +2037,7 @@ if st.session_state.get("page") not in ALLOWED_PAGES:
 
 # HUB에서 실행될 때는 기본적으로 퀴즈 화면으로 진입.
 # 단, HUB 상단 메뉴에서 특정 화면(예: 마이페이지)을 요청한 경우는 그 화면으로 진입.
-if st.session_state.get("HUB_MODE"):
+if st.session_state.get("st.session_state.get("HUB_MODE", False)"):
     target = st.session_state.get("hub_target")
     if target in ("my", "admin", "home", "quiz"):
         st.session_state.page = target
@@ -2074,7 +2073,7 @@ if st.session_state.get("page") != "home":
     else:
         _title = "✨ 한자 퀴즈"
 
-    if not HUB_MODE:
+    if not st.session_state.get("HUB_MODE", False):
         st.markdown(
             f"""
     <div class="jp headbar">
@@ -2148,8 +2147,8 @@ if streak is not None:
 # ✅ 세션 초기화
 # ============================================================
 
-def render_kanji_hub(HUB_MODE: bool = False):
-    if HUB_MODE: st.session_state['HUB_MODE']=True
+def render_kanji_hub(st.session_state.get("HUB_MODE", False): bool = False):
+    if st.session_state.get("HUB_MODE", False): st.session_state['st.session_state.get("HUB_MODE", False)']=True
     if "quiz_version" not in st.session_state:
         st.session_state.quiz_version = 0
     if "submitted" not in st.session_state:
@@ -2712,10 +2711,9 @@ def render_kanji_hub(HUB_MODE: bool = False):
 
 
 if __name__ == '__main__':
-    render_kanji_hub(HUB_MODE=False)
+    render_kanji_hub(st.session_state.get("HUB_MODE", False)=False)
 
 
 def render():
-    HUB_MODE = st.session_state.get('HUB_MODE', False)  # refresh
     """Home hub에서 import 후 호출되는 진입점."""
-    render_kanji_hub(HUB_MODE=True)
+    render_kanji_hub(st.session_state.get("HUB_MODE", False)=True)
