@@ -199,12 +199,6 @@ def _inject_css() -> None:
   padding:0 !important;
 }
 .ha-card div[data-testid="stExpander"] summary{
-/* ✅ ensure expanded container has inner bottom padding (prevents overlap with outer border) */
-.ha-card div[data-testid="stExpander"] > details[open]{
-  padding-bottom:14px !important;
-  box-sizing:border-box !important;
-}
-
   position:relative;
   margin:0 !important;
   padding:6px 2px 6px 30px !important; /* ✅ tighter list */
@@ -246,7 +240,7 @@ def _inject_css() -> None:
 /* ✅ bigger white container ONLY (no design change) */
 .ha-card div[data-testid="stExpander"] .streamlit-expanderContent{
   margin-top:8px !important;
-  padding:14px 16px 30px 30px !important; /* ✅ extra bottom space so inner box doesn't touch outer border */
+  padding:14px 16px 20px 30px !important; /* ✅ white container bigger */
   border:0 !important;
   background:transparent !important;
 }
