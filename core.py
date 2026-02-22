@@ -18,69 +18,6 @@ import streamlit as st
 import streamlit.components.v1 as components
 from cryptography.fernet import Fernet
 
-
-# ============================================================
-# ✅ (HOME) 상단 회색 블록(커스텀 컴포넌트 placeholder) 제거
-# - F5 시 커스텀 컴포넌트(stIFrame)가 상단에 빈 자리(회색 줄무늬)로 남는 케이스 대응
-# - 화면 최상단(약 260px 이내)에 있는 stIFrame 중, 내부 iframe이 streamlit.components 계열인 것만 숨김
-# ============================================================
-def _hide_top_component_placeholders() -> None:
-    if st.session_state.get("_hide_top_component_placeholders_done"):
-        return
-    st.session_state["_hide_top_component_placeholders_done"] = True
-
-    try:
-        import streamlit.components.v1 as components  # local import for safety
-        components.html(
-            """
-<script>
-(function(){
-  function hideTop(){
-    try{
-      var doc = (window.parent && window.parent.document) ? window.parent.document : document;
-      var wraps = doc.querySelectorAll('div[data-testid="stIFrame"]');
-      wraps.forEach(function(w){
-        try{
-          var r = w.getBoundingClientRect();
-          if (r.top < 260 && r.height > 18 && r.height < 260){
-            var fr = w.querySelector('iframe');
-            if(!fr) return;
-            var title = fr.getAttribute('title') || '';
-            // 커스텀 컴포넌트 계열만(쿠키매니저/브리지 등)
-            if (title.indexOf('streamlit.components') !== -1 || title.indexOf('streamlit-component') !== -1){
-              w.style.display = 'none';
-              w.style.height = '0px';
-              w.style.minHeight = '0px';
-              w.style.margin = '0';
-              w.style.padding = '0';
-              fr.style.display = 'none';
-              fr.style.height = '0px';
-              fr.style.minHeight = '0px';
-            }
-          }
-        }catch(e){}
-      });
-    }catch(e){}
-  }
-  hideTop();
-  setTimeout(hideTop, 60);
-  setTimeout(hideTop, 220);
-  setTimeout(hideTop, 700);
-  var n=0;
-  var iv=setInterval(function(){
-    hideTop();
-    n++;
-    if(n>=30) clearInterval(iv);
-  }, 350);
-})();
-</script>
-            """,
-            height=0,
-        )
-    except Exception:
-        pass
-
-
 try:
     # Streamlit Cookies Manager
     from streamlit_cookies_manager import EncryptedCookieManager
