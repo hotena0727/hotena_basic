@@ -109,48 +109,16 @@ header[data-testid="stHeader"]{
 
 st.session_state['_page_config_set'] = True
 # ============================================================
-# ✅ [HOTFIX] Disable onboarding ("60초 이용안내") block entirely
-# - In case any legacy UI is still rendered, forcibly hide/remove it.
-# ============================================================
-try:
-    components.html(
-        """
-<script>
-(function(){
-  const kill = () => {
-    const needles = ["60초 이용안내", "처음 오셨나요"];
-    // expander renders as <details><summary>...</summary>...
-    document.querySelectorAll("details").forEach(d => {
-      const s = d.querySelector("summary");
-      const t = (s ? s.innerText : d.innerText) || "";
-      if (needles.some(n => t.includes(n))) { d.remove(); }
-    });
-    // also remove any plain text blocks
-    document.querySelectorAll("*").forEach(el => {
-      if (el && el.childNodes && el.childNodes.length===1 && el.childNodes[0].nodeType===3) {
-        const t = el.innerText || "";
-        if (needles.some(n => t.includes(n))) { el.remove(); }
-      }
-    });
-  };
-  window.setTimeout(kill, 50);
-  window.setTimeout(kill, 500);
-})();
-</script>
-""",
-        height=0,
-    )
-except Exception:
-    pass
-
-
+# (removed) onboarding HOTFIX block
 # ============================================================
 # ✅ PWA/아이콘 - set_page_config 바로 아래
 # ============================================================
 
 components.html("""
 <script>
-window.addEventListener("load", async () => {
+window.addEventListener("load", async (,
+            height=0,
+        ) => {
   // ✅ 부모 문서(=진짜 페이지)로 주입
   const doc = (window.parent && window.parent.document) ? window.parent.document : document;
 
@@ -500,7 +468,9 @@ def scroll_to_top(nonce: int = 0):
     components.html(
         f"""
         <script>
-        (function () {{
+        (function (,
+            height=0,
+        ) {{
           const doc = window.parent.document;
           const targets = [
             doc.querySelector('[data-testid="stAppViewContainer"]'),
@@ -540,7 +510,9 @@ def render_floating_scroll_top():
     components.html(
         """
 <script>
-(function(){
+(function(,
+            height=0,
+        ){
   const doc = window.parent.document;
   if (doc.getElementById("__FAB_TOP__")) return;
 
