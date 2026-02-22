@@ -255,7 +255,7 @@ BASE_DIR = Path(__file__).resolve().parent
 # ============================================================
 # ✅ Core init (shared auth/cookies/supabase/ui)
 # ============================================================
-from core import ensure_core, refresh_session_from_cookie_if_needed, get_authed_sb, enc as _enc, dec as _dec, render_floating_scroll_top, scroll_to_top, clear_auth_everywhere, run_db, _cookies_save_once_per_run, ensure_profile, load_profile
+from core import ensure_core, refresh_session_from_cookie_if_needed, get_authed_sb, enc as _enc, dec as _dec, render_floating_scroll_top, scroll_to_top, clear_auth_everywhere, run_db, _cookies_save_once_per_run
 
 CFG = ensure_core(cookie_prefix="hotena_beginner_", localstorage_keys=("hotena_rt","hotena_at"))
 st.session_state["cfg"] = CFG  # backward compatibility
@@ -266,8 +266,30 @@ sb = st.session_state.get("sb")
 # Ensure cookie save lock exists (used in legacy code paths)
 st.session_state.setdefault("_cookie_save_lock", False)
 
+def ensure_profile(sb_authed, user):
+    try:
+        sb_authed.table("profiles").upsert(
+            {"id": user.id, "email": getattr(user, "email", None)},
+            on_conflict="id",
+        ).execute()
+    except Exception:
+        pass
 
 
+def load_profile(sb_authed, user_id: str):
+    try:
+        res = sb_authed.table("profiles").select("progress, plan, is_admin").eq("id", user_id).single().execute()
+        data = res.data if res and res.data else {}
+        progress = data.get("progress") or {}
+        plan = data.get("plan") or "free"
+        is_admin = bool(data.get("is_admin")) if "is_admin" in data else False
+        st.session_state["progress_all"] = progress
+        st.session_state["user_plan"] = plan
+        st.session_state["is_admin"] = is_admin
+        st.session_state["user_id"] = user_id
+    except Exception:
+        st.session_state["progress_all"] = st.session_state.get("progress_all", {}) or {}
+        st.session_state["user_plan"] = st.session_state.get("user_plan", "free")
 
 
 def save_progress(sb_authed, user_id: str, progress: dict):
