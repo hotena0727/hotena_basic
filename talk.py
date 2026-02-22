@@ -1,5 +1,29 @@
 # talk.py (v27) - 1문제 집중형 + 말하기 완료 체크(B)
 from __future__ import annotations
+
+# ============================================================
+# ✅ Plan helper (HUB/standalone safe)
+# - Home(hub)에서 st.session_state["user_plan"] 또는 profiles.plan 을 세팅해둔 경우를 우선 사용
+# - 없으면 free 로 처리
+# ============================================================
+def _is_pro() -> bool:
+    # 1) 허브가 주입한 플랜
+    plan = st.session_state.get("user_plan")
+    if isinstance(plan, str):
+        return plan.strip().lower() == "pro"
+    # 2) profiles에서 가져온 plan을 user 객체나 dict에 넣어둔 경우
+    u = st.session_state.get("user")
+    for key in ("plan", "user_plan"):
+        try:
+            v = getattr(u, key, None)
+        except Exception:
+            v = None
+        if isinstance(v, str) and v.strip().lower() in ("pro", "free"):
+            return v.strip().lower() == "pro"
+    # 3) fall back
+    return False
+
+
 # BUILD_STAMP_TALK: talk-newset-in-progress-v1 2026-02-22 KST (+09:00)
 
 from pathlib import Path
@@ -274,16 +298,16 @@ def tts_button(text: str, label: str, key: str):
     - FREE: 잠금된 버튼(비활성) 표시
     """
     safe = (text or "").replace("\\", "\\\\").replace("`", "").replace("\n", " ")
-    disabled = "true" if (not IS_PRO) else "false"
-    btn_text = (f"🔒 {label}" if (not IS_PRO) else label)
+    disabled = "true" if (not _is_pro()) else "false"
+    btn_text = (f"🔒 {label}" if (not _is_pro()) else label)
     # key마다 고유한 mount id
     components.html(
         f"""
 <div style='width:100%'>
-  <button id='tts_{key}' {'disabled' if not IS_PRO else ''} 
+  <button id='tts_{key}' {'disabled' if not _is_pro() else ''} 
     style='width:100%;padding:8px 10px;border-radius:12px;border:1px solid rgba(49,51,63,.18);
-           background:{'#f6f7f9' if not IS_PRO else 'white'};cursor:{'not-allowed' if not IS_PRO else 'pointer'};
-           font-weight:800;opacity:{'0.7' if not IS_PRO else '1.0'};'>
+           background:{'#f6f7f9' if not _is_pro() else 'white'};cursor:{'not-allowed' if not _is_pro() else 'pointer'};
+           font-weight:800;opacity:{'0.7' if not _is_pro() else '1.0'};'>
     {btn_text}
   </button>
 </div>
