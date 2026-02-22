@@ -48,178 +48,180 @@ def _uid() -> Optional[str]:
 # UI / CSS
 # ---------------------------
 HATENA_BLUE = "#1E6BFF"  # ✅ 현재 하테나 블루(필요 시 값만 교체)
+
 def _inject_css() -> None:
-    """CSS injection (safe). Avoid f-strings to prevent brace / parsing issues."""
-    css = """\
+    st.markdown(
+        f"""
 <style>
-:root {
-  --ha-blue: __HATENA_BLUE__;
+:root {{
+  --ha-blue: {HATENA_BLUE};
   --ha-text: #0f172a;
   --ha-sub: #64748b;
   --ha-line: #e5e7eb;
   --ha-bg: #ffffff;
   --ha-chip: #f1f5f9;
-}
+}}
 
-/* ---- Streamlit buttons: prevent wrapping on desktop ---- */
-.stButton > button {
-  white-space: nowrap !important;
-}
-
-.ha-wrap {
+.ha-wrap {{
   max-width: 980px;
   margin: 0 auto;
   padding: 10px 8px 30px 8px;
-}
+}}
 
-.ha-topbar {
+.ha-topbar {{
   display:flex;
   align-items:center;
   justify-content:space-between;
   gap:12px;
   padding: 2px 0 14px 0;
-}
+}}
 
-.ha-title {
+.ha-title {{
   font-size: 20px;
   font-weight: 800;
   color: var(--ha-text);
-}
-
-.ha-subtitle {
-  font-size: 13px;
-  color: var(--ha-sub);
+  letter-spacing: -0.3px;
+}}
+.ha-sub {{
   margin-top: 2px;
-}
+  font-size: 12px;
+  color: var(--ha-sub);
+}}
 
-.ha-actions {
+.ha-actions {{
+  display:flex;
+  gap:8px;
+  align-items:center;
+}}
+
+.ha-btn {{
+  border: 1px solid var(--ha-line);
+  background: #fff;
+  color: var(--ha-text);
+  border-radius: 999px;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}}
+.ha-btn-primary {{
+  border: 1px solid rgba(30,107,255,0.35);
+  background: rgba(30,107,255,0.10);
+  color: var(--ha-blue);
+}}
+
+.ha-section {{
+  border: 1px solid var(--ha-line);
+  border-radius: 16px;
+  padding: 14px 14px;
+  background: var(--ha-bg);
+  margin: 10px 0;
+}}
+
+.ha-kpi {{
+  display:grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}}
+.ha-kpi-item {{
+  border: 1px solid var(--ha-line);
+  border-radius: 14px;
+  padding: 12px 12px;
+  background: #fff;
+}}
+.ha-kpi-num {{
+  font-size: 30px;
+  font-weight: 900;
+  color: var(--ha-text);
+  line-height: 1.0;
+}}
+.ha-kpi-lbl {{
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--ha-sub);
+  font-weight: 700;
+}}
+
+.ha-progress-row {{
   display:flex;
   align-items:center;
-  gap:8px;
-}
-
-.ha-kpi-row {
-  display:grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap:10px;
-  margin: 6px 0 14px 0;
-}
-
-.ha-kpi {
-  border: 1px solid var(--ha-line);
-  border-radius: 14px;
-  padding: 12px 14px;
-  background: var(--ha-bg);
-}
-
-.ha-kpi .n {
-  font-size: 34px;
-  font-weight: 900;
-  line-height: 1.05;
-  color: var(--ha-text);
-}
-
-.ha-kpi .n b {
-  color: var(--ha-blue);
-}
-
-.ha-kpi .t {
-  font-size: 12px;
-  color: var(--ha-sub);
-  margin-top: 6px;
-}
-
-.ha-progress {
-  border: 1px solid var(--ha-line);
-  border-radius: 14px;
-  padding: 12px 14px;
-  background: var(--ha-bg);
-  margin-bottom: 14px;
-}
-
-.ha-progress .row {
-  display:flex;
   justify-content:space-between;
-  align-items:baseline;
-  gap:10px;
-}
-
-.ha-progress .label {
-  font-weight: 800;
-  color: var(--ha-text);
-}
-
-.ha-progress .pct {
-  font-weight: 900;
-  color: var(--ha-blue);
-}
-
-.ha-bar {
-  height: 8px;
+  gap: 10px;
+  margin-top: 8px;
+}}
+.ha-progress {{
+  width: 100%;
+  height: 10px;
+  background: #f1f5f9;
   border-radius: 999px;
-  background: #eaf0ff;
-  overflow: hidden;
-  margin-top: 10px;
-}
-
-.ha-bar > div {
+  overflow:hidden;
+  border: 1px solid var(--ha-line);
+}}
+.ha-progress > div {{
   height: 100%;
-  width: 0%;
   background: var(--ha-blue);
-  border-radius: 999px;
-}
+  width: 0%;
+}}
 
-.ha-section {
-  border: 1px solid var(--ha-line);
-  border-radius: 14px;
-  padding: 14px;
-  background: var(--ha-bg);
-}
-
-.ha-section h3 {
-  margin: 0 0 10px 0;
-  font-size: 15px;
-  font-weight: 900;
-  color: var(--ha-text);
-}
-
-.ha-logcard {
-  border: 1px solid var(--ha-line);
-  border-radius: 14px;
-  padding: 12px 14px;
-  background: #fff;
-  margin: 10px 0;
-}
-
-.ha-meta {
+.ha-cta {{
   display:flex;
-  flex-wrap:wrap;
-  gap:6px;
-  margin-top: 6px;
-  color: var(--ha-sub);
-  font-size: 12px;
-}
+  justify-content:center;
+  gap: 10px;
+  margin-top: 10px;
+}}
 
-.ha-chip {
+.ha-chip {{
   display:inline-flex;
   align-items:center;
   gap:6px;
-  padding: 4px 8px;
-  background: var(--ha-chip);
+  padding: 4px 9px;
   border-radius: 999px;
+  background: var(--ha-chip);
+  border: 1px solid var(--ha-line);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ha-sub);
+}}
+.ha-chip b {{ color: var(--ha-text); }}
+
+.ha-card {{
+  border: 1px solid var(--ha-line);
+  border-radius: 14px;
+  padding: 12px 12px;
+  background: #fff;
+  margin: 8px 0;
+}}
+.ha-card-title {{
+  font-weight: 900;
+  color: var(--ha-text);
+  letter-spacing: -0.2px;
+}}
+.ha-meta {{
+  margin-top: 6px;
   font-size: 12px;
   color: var(--ha-sub);
-}
+  display:flex;
+  flex-wrap:wrap;
+  gap: 8px;
+}}
+.ha-dot {{
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--ha-blue);
+  display:inline-block;
+  margin-right: 6px;
+  opacity: 0.8;
+}}
 
-.ha-divider {
-  height: 1px;
-  background: var(--ha-line);
-  margin: 10px 0;
-}
+@media (max-width: 720px) {{
+  .ha-kpi {{ grid-template-columns: 1fr; }}
+}}
 </style>
-"""
-    css = css.replace("__HATENA_BLUE__", str(HATENA_BLUE))
-    st.markdown(css, unsafe_allow_html=True)
+""",
+        unsafe_allow_html=True,
+    )
+
 
 def _center_wrap_start() -> None:
     st.markdown('<div class="ha-wrap">', unsafe_allow_html=True)
@@ -321,39 +323,13 @@ def _fmt_dt(s: Any) -> str:
 
 def _app_label(app: Optional[str]) -> str:
     a = (app or "").lower().strip()
-    # 앱/모듈 라벨
     if a in ("word", "words", "vocab"):
         return "단어"
     if a in ("kanji", "hanja"):
         return "한자"
     if a in ("talk", "conversation", "speech"):
         return "회화"
-    # 품사(pos) 라벨이 들어오는 케이스 대응 (예: noun)
-    pos_ko = {
-        "noun": "명사",
-        "verb": "동사",
-        "adj": "형용사",
-        "adjective": "형용사",
-        "adv": "부사",
-        "adverb": "부사",
-        "prep": "전치사",
-        "preposition": "전치사",
-        "conj": "접속사",
-        "conjunction": "접속사",
-        "interj": "감탄사",
-        "interjection": "감탄사",
-        "pron": "대명사",
-        "pronoun": "대명사",
-        "det": "관형사",
-        "determiner": "관형사",
-        "particle": "조사",
-        "aux": "조동사",
-        "auxiliary": "조동사",
-    }
-    if a in pos_ko:
-        return pos_ko[a]
     return (app or "기타")
-
 
 
 def _num(n: Any) -> str:
@@ -689,7 +665,7 @@ def render() -> None:
     _center_wrap_start()
 
     # Topbar (centered)
-    left, mid, right = st.columns([3, 6, 3], vertical_alignment="center")
+    left, mid, right = st.columns([2, 5, 2], vertical_alignment="center")
     with mid:
         st.markdown(
             '<div style="text-align:center;">'
@@ -702,10 +678,10 @@ def render() -> None:
         # 작은 버튼 2개
         c1, c2 = st.columns(2, gap="small")
         with c1:
-            if st.button("🏠 홈", key="myp_home_btn", use_container_width=True):
+            if st.button("🏠 홈", key="myp_home_btn"):
                 _go_home()
         with c2:
-            if st.button("로그아웃", key="myp_logout_btn", use_container_width=True):
+            if st.button("로그아웃", key="myp_logout_btn"):
                 _logout()
 
     # Data
@@ -716,30 +692,27 @@ def render() -> None:
     # KPI + Flow
     _kpi_and_flow(wrongs, attempts if attempts_status == "ok" else [], msgs)
 
-    # Sections (tabs)
-    tabs = st.tabs(["📚 오답카드", "📈 학습기록", "📩 받은 메시지"])
+    # Sections (Info-dense but clean)
+    # View routing for CTA
+    view = st.session_state.get("mypage_view", "default")
+    if view == "top10":
+        st.markdown('<div class="ha-section">', unsafe_allow_html=True)
+        st.markdown('<div class="ha-title">🧪 TOP10 재시험</div><div class="ha-sub">현재 버전에서는 홈허브/기존 시험 화면으로 연결을 권장합니다.</div>', unsafe_allow_html=True)
+        st.info("TOP10 재시험은 기존 시험 화면(단어/한자/회화)로 연결되도록 홈에서 진행하는 방식이 가장 안정적입니다.")
+        if st.button("🏠 홈으로 돌아가기", use_container_width=True):
+            _go_home()
+        st.markdown("</div>", unsafe_allow_html=True)
 
-    with tabs[0]:
-        # 오답 섹션
-        _section_wrongs(wrongs, focus=(view == "wrongs_focus"))
+    # 오답 섹션
+    _section_wrongs(wrongs, focus=(view == "wrongs_focus"))
 
-        # TOP10 안내는 오답 탭에서만 노출
-        if view == "top10":
-            st.divider()
-            st.info("TOP10 재시험은 기존 시험 화면(단어/한자/회화)로 연결해 진행하는 방식이 가장 안정적입니다.")
-            if st.button("🏠 홈으로 돌아가기", use_container_width=True):
-                _go_home()
+    # 기록 섹션
+    if attempts_status == "ok":
+        _section_records(attempts)
+    else:
+        _section_records([])
 
-    with tabs[1]:
-        # 기록 섹션
-        if attempts_status == "ok":
-            _section_records(attempts)
-        else:
-            _section_records([])
-
-    with tabs[2]:
-        # 메시지 섹션
-        _section_messages(msgs)
+    # 메시지 섹션
+    _section_messages(msgs)
 
     _center_wrap_end()
-
