@@ -250,7 +250,7 @@ def _inject_css() -> None:
   background:transparent !important;
 }
 /* ✅ reduce gap between list items */
-.ha-card div[data-testid="stExpander"] + div[data-testid="stExpander"]{margin-top:4px !important;}
+.ha-card div[data-testid="stExpander"] + div[data-testid="stExpander"]{margin-top:2px !important;}
 .ha-msg-bodyA{margin-top:8px; padding:0;}
 .ha-msg-bodyA-inner{
   padding:12px 14px 16px 14px;
@@ -763,19 +763,19 @@ def _inject_css() -> None:
 
 /* tighten outer spacing so it doesn't feel too tall */
 .ha-card div[data-testid="stExpander"] > details[open]{
-  padding-bottom: 8px !important;
+  padding-bottom: 4px !important;
 }
 .ha-card div[data-testid="stExpander"] .streamlit-expanderContent{
-  padding: 10px 12px 18px 30px !important;
+  padding: 8px 10px 12px 26px !important;
 }
 .ha-card .ha-msg-scope div[data-testid="stExpander"] .streamlit-expanderContent{
-  padding: 10px 12px 18px 14px !important;
+  padding: 8px 10px 12px 12px !important;
 }
 
 /* reduce extra margin that can make bottom feel double-lined */
 .ha-msg-bodyA-inner{
-  margin: 8px 0 10px 0 !important;
-  padding: 10px 12px 12px 18px !important;
+  margin: 6px 0 8px 0 !important;
+  padding: 8px 10px 10px 16px !important;
   border-radius: 12px !important;
 }
 
