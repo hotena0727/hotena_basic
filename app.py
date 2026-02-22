@@ -13,8 +13,6 @@ if "KANJI_HEADER_RENDERED" not in st.session_state:
     st.session_state["KANJI_HEADER_RENDERED"] = False
 
 import unicodedata
-from supabase import create_client
-from streamlit_cookies_manager import EncryptedCookieManager
 import streamlit.components.v1 as components
 from collections import Counter
 import time
@@ -243,7 +241,7 @@ if st.session_state.get("_scroll_top_once"):
 # ============================================================
 # ✅ Cookies / Supabase (shared core)
 # ============================================================
-from core import ensure_core
+from core import ensure_core, get_authed_sb, refresh_session_from_cookie_if_needed, clear_auth_everywhere, run_db, ensure_profile, mark_attendance_once, fetch_recent_attempts, fetch_all_attempts_admin, delete_all_learning_records, clear_progress_in_db
 cfg = ensure_core(cookie_prefix="hotena_beginner_", localstorage_keys=("hotena_rt","hotena_at"))
 st.session_state["cfg"] = cfg  # backward compatibility
 cookies = st.session_state.get("cookies")
@@ -436,9 +434,6 @@ def run_db(callable_fn):
             st.rerun()
         raise
 
-def refresh_session_from_cookie_if_needed(force: bool = False) -> bool:
-    if not force and st.session_state.get("user") and st.session_state.get("access_token"):
-        return True
 
     rt = cookies.get("refresh_token")
     at = cookies.get("access_token")
@@ -480,16 +475,6 @@ def refresh_session_from_cookie_if_needed(force: bool = False) -> bool:
 
     return False
 
-def get_authed_sb():
-    """Return an authed Supabase client.
-    In the hub architecture, home.py is responsible for creating the base client
-    and restoring the session. This function reuses that client to avoid
-    missing secret vars / duplicate setup.
-    """
-    # ✅ Prefer a client already prepared by home.py
-    sb = st.session_state.get("supabase_authed") or st.session_state.get("sb_authed")
-    if sb is not None:
-        return sb
 
     # ✅ Ensure token exists (home should have restored it)
     if not st.session_state.get("access_token"):
