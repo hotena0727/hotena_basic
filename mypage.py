@@ -187,10 +187,71 @@ def _inject_css() -> None:
   flex-wrap: wrap;
 }
 
-/* ✅ messages: card list + spacing */
-.ha-msg-gap{height:12px;}
+/* ✅ messages: timeline (B) */
+.ha-msg-scope{margin-top:6px; position:relative;}
+/* kill expander outer box */
+.ha-msg-scope div[data-testid="stExpander"],
+.ha-msg-scope div[data-testid="stExpander"] > details{
+  border:0 !important;
+  outline:0 !important;
+  box-shadow:none !important;
+  background:transparent !important;
+  border-radius:0 !important;
+}
+.ha-msg-scope div[data-testid="stExpander"] summary{
+  position:relative;
+  padding:10px 2px 10px 30px !important; /* left space for line/dot */
+  border-bottom:1px solid var(--ha-line) !important;
+  border-radius:0 !important;
+  background:transparent !important;
+  font-weight:900 !important;
+  color:var(--ha-text) !important;
+  letter-spacing:-0.2px !important;
+}
+.ha-msg-scope div[data-testid="stExpander"] summary:hover{background:#fbfbfd !important;}
+.ha-msg-scope div[data-testid="stExpander"] summary svg{display:none !important;}
+/* timeline line + dot */
+.ha-msg-scope div[data-testid="stExpander"] summary:before{
+  content:"";
+  position:absolute;
+  left:12px;
+  top:0;
+  bottom:0;
+  width:2px;
+  background:rgba(37,99,235,0.16);
+  border-radius:99px;
+}
+.ha-msg-scope div[data-testid="stExpander"] summary:after{
+  content:"";
+  position:absolute;
+  left:9px;
+  top:50%;
+  transform:translateY(-50%);
+  width:10px;
+  height:10px;
+  border-radius:999px;
+  background:#cbd5e1;
+  border:2px solid #fff;
+  box-shadow:0 0 0 2px rgba(37,99,235,0.10);
+}
+.ha-msg-scope .ha-msg-unread summary:after{
+  background:var(--ha-blue);
+  box-shadow:0 0 0 2px rgba(37,99,235,0.18);
+}
+.ha-msg-scope div[data-testid="stExpander"] .streamlit-expanderContent{
+  padding:12px 12px 26px 30px !important;
+  border:0 !important;
+  background:transparent !important;
+}
+.ha-msg-bodyA{margin-top:10px; padding:0;}
+.ha-msg-bodyA-inner{
+  padding:10px 12px 14px 12px;
+  background:#f8fafc;
+  border:1px solid var(--ha-line);
+  border-radius:12px;
+  line-height:1.75;
+}
 
-/* ✅ messages: expander list (FLAT) */
 
 /* ✅ extra breathing room so expanded body never touches the outer (card) border */
 .ha-card .ha-msg-scope{padding:0 0 16px 0;}
@@ -1503,8 +1564,10 @@ def _render_msgs(msgs: List[Dict[str, Any]]) -> None:
         chip = "읽지 않음" if is_unread else "읽음"
         dot = "● " if is_unread else ""
 
-        label = f"{dot}{title} · {dt} · {chip}"
+        label = f"{title} · {dt} · {chip}"
 
+        wrapper_cls = "ha-msg-unread" if is_unread else ""
+        st.markdown(f'<div class="{wrapper_cls}">', unsafe_allow_html=True)
         with st.expander(label, expanded=False):
             safe_body = _escape_html(body).replace("\n", "<br>")
             st.markdown(
@@ -1520,6 +1583,8 @@ def _render_msgs(msgs: List[Dict[str, Any]]) -> None:
                         st.rerun()
                     except Exception:
                         st.warning("읽음 처리에 실패했습니다. (RLS 확인)")
+
+        st.markdown("</div>", unsafe_allow_html=True)  # wrapper
 
     st.markdown("</div>", unsafe_allow_html=True)  # scope
     st.markdown("</div>", unsafe_allow_html=True)  # card
