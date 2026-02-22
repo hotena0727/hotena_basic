@@ -40,9 +40,10 @@ def _sb() -> Any:
 # UI / CSS
 # ---------------------------
 def _inject_css() -> None:
+    # ✅ CSS는 f-string에서 '{' '}' 처리가 깨지면 바로 Syntax/NameError가 납니다.
+    #    그래서 이 함수는 '중괄호 이스케이프( {{ }} )'를 엄격히 지킨 안전 템플릿으로 고정합니다.
     st.markdown(
-        f"""
-<style>
+        f"""<style>
 :root {{
   --ha-blue: {HATENA_BLUE};
   --ha-text: #0f172a;
@@ -53,11 +54,10 @@ def _inject_css() -> None:
   --ha-soft: rgba(30,107,255,0.08);
 }}
 
-.ha-wrap {
+.ha-wrap {{
   font-family: Pretendard, 'Noto Sans KR', 'Apple SD Gothic Neo', ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-{
   max-width: 980px;
   margin: 0 auto;
   padding: 6px 8px 26px 8px;
@@ -73,17 +73,16 @@ def _inject_css() -> None:
 
 .ha-topbar {{
   display:flex;
-  align-items:center;
+  align-items:flex-start;
   justify-content:space-between;
-  gap: 10px;
+  gap: 12px;
 }}
 
 .ha-brand {{
   display:flex;
-  align-items:flex-start;
   gap: 10px;
+  align-items:flex-start;
 }}
-
 .ha-logo {{
   width: 34px;
   height: 34px;
@@ -96,7 +95,6 @@ def _inject_css() -> None:
   color: var(--ha-blue);
   font-weight: 900;
 }}
-
 .ha-title {{
   font-size: 18px;
   font-weight: 900;
@@ -135,25 +133,11 @@ def _inject_css() -> None:
   font-weight: 900;
 }}
 
-.ha-progress-row {{
+.ha-inline {{
   display:flex;
+  gap: 8px;
+  flex-wrap: wrap;
   align-items:center;
-  justify-content:space-between;
-  gap: 10px;
-  margin-top: 10px;
-}}
-.ha-progress {{
-  width: 100%;
-  height: 10px;
-  background: #f1f5f9;
-  border-radius: 999px;
-  overflow:hidden;
-  border: 1px solid var(--ha-line);
-}}
-.ha-progress > div {{
-  height: 100%;
-  background: var(--ha-blue);
-  width: 0%;
 }}
 
 .ha-chip {{
@@ -165,7 +149,7 @@ def _inject_css() -> None:
   background: var(--ha-chip);
   border: 1px solid var(--ha-line);
   font-size: 12px;
-  font-weight: 900;
+  font-weight: 800;
   color: var(--ha-sub);
   white-space: nowrap;
 }}
@@ -182,139 +166,38 @@ def _inject_css() -> None:
   white-space: nowrap;
 }}
 
-.ha-row {{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap: 10px;
-  flex-wrap: wrap;
-}}
-.ha-inline {{
-  display:flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  align-items:center;
-}}
-
 .ha-section {{
   border: 1px solid var(--ha-line);
   border-radius: 18px;
   padding: 12px 12px;
-  background: var(--ha-bg);
+  background: #fff;
   margin: 10px 0;
 }}
 
 .ha-card {{
   border: 1px solid var(--ha-line);
-  border-radius: 14px;
-  padding: 10px 10px;
+  border-radius: 16px;
+  padding: 12px 12px;
   background: #fff;
-  margin: 8px 0;
 }}
+
 .ha-card-title {{
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+  font-size: 14px;
   font-weight: 900;
   color: var(--ha-text);
   letter-spacing: -0.2px;
 }}
-.ha-meta {{
-  margin-top: 6px;
-  font-size: 12px;
-  color: var(--ha-sub);
-  display:flex;
-  flex-wrap:wrap;
-  gap: 8px;
-}}
 
-.ha-dot {{
-  width: 7px;
-  height: 7px;
-  border-radius: 999px;
-  background: var(--ha-blue);
-  display:inline-block;
-  margin-right: 6px;
-  opacity: 0.85;
-}}
-
-/* mini calendar */
-.ha-week {{
-  margin-top: 10px;
-  border: 1px solid var(--ha-line);
-  border-radius: 16px;
-  padding: 10px 10px;
-  background: #fff;
-}}
-.ha-week-head {{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap: 10px;
-  margin-bottom: 8px;
-}}
-.ha-week-title {{
-  font-size: 13px;
-  font-weight: 900;
-  color: var(--ha-text);
-}}
-.ha-week-grid {{
-  display:grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 8px;
-}}
-.ha-day {{
-  border: 1px solid var(--ha-line);
-  border-radius: 14px;
-  padding: 8px 6px;
-  text-align:center;
-  background: #fff;
-}}
-.ha-day-top {{
-  font-size: 11px;
-  color: var(--ha-sub);
-  font-weight: 900;
-}}
-.ha-day-num {{
-  margin-top: 4px;
-  font-size: 16px;
-  font-weight: 900;
-  color: var(--ha-text);
-}}
-.ha-day-sub {{
-  margin-top: 2px;
-  font-size: 11px;
-  color: var(--ha-sub);
-  font-weight: 900;
+.ha-hr {{
+  height: 1px;
+  background: var(--ha-line);
+  margin: 10px 0;
 }}
 
 @media (max-width: 720px) {{
   .ha-kpi {{ grid-template-columns: 1fr; }}
-  .ha-week-grid {{ gap: 6px; }}
 }}
-
-/* ✅ 메시지 Expander(접히는 창) 자체 디자인 */
-div[data-testid="stExpander"] details {
-  border: 1px solid var(--ha-line) !important;
-  border-radius: 16px !important;
-  background: #ffffff !important;
-  overflow: hidden !important;
-  box-shadow: 0 6px 18px rgba(0,0,0,0.04);
-}
-div[data-testid="stExpander"] summary {
-  padding: 12px 14px !important;
-  background: rgba(30,107,255,0.06) !important;
-  font-weight: 900 !important;
-  color: var(--ha-text) !important;
-}
-div[data-testid="stExpander"] summary p {
-  margin: 0 !important;
-}
-div[data-testid="stExpander"] div[role="button"] {
-  border-radius: 16px !important;
-}
-
-</style>
-""",
+</style>""",
         unsafe_allow_html=True,
     )
 
