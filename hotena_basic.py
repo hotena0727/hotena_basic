@@ -109,6 +109,41 @@ header[data-testid="stHeader"]{
     st.session_state["_top_compact_css_applied"] = True
 
 st.session_state['_page_config_set'] = True
+# ============================================================
+# ✅ [HOTFIX] Disable onboarding ("60초 이용안내") block entirely
+# - In case any legacy UI is still rendered, forcibly hide/remove it.
+# ============================================================
+try:
+    components.html(
+        """
+<script>
+(function(){
+  const kill = () => {
+    const needles = ["60초 이용안내", "처음 오셨나요"];
+    // expander renders as <details><summary>...</summary>...
+    document.querySelectorAll("details").forEach(d => {
+      const s = d.querySelector("summary");
+      const t = (s ? s.innerText : d.innerText) || "";
+      if (needles.some(n => t.includes(n))) { d.remove(); }
+    });
+    // also remove any plain text blocks
+    document.querySelectorAll("*").forEach(el => {
+      if (el && el.childNodes && el.childNodes.length===1 && el.childNodes[0].nodeType===3) {
+        const t = el.innerText || "";
+        if (needles.some(n => t.includes(n))) { el.remove(); }
+      }
+    });
+  };
+  window.setTimeout(kill, 50);
+  window.setTimeout(kill, 500);
+})();
+</script>
+""",
+        height=0,
+    )
+except Exception:
+    pass
+
 
 # ============================================================
 # ✅ PWA/아이콘 - set_page_config 바로 아래
@@ -2497,6 +2532,10 @@ def mode_label(x: str) -> str:
 def render_home():
     u = st.session_state.get("user")
     email = (getattr(u, "email", None) if u else None) or st.session_state.get("login_email", "")
+    if st.session_state.get("HUB_MODE"):
+        # Hub에서 진입 시 홈 대시보드/타이틀 중복 노출 방지
+        return
+
 
     # ✅ (1) 타이틀/환영
     st.markdown(
@@ -2829,7 +2868,7 @@ except Exception:
 if st.session_state.get("quiz_type") not in available_types:
     st.session_state.quiz_type = "meaning"
 
-if st.session_state.get("page") != "home":
+if (st.session_state.get("page") != "home") and (not st.session_state.get("HUB_MODE")):
     u = st.session_state.get("user")
     email = (getattr(u, "email", None) if u else None) or st.session_state.get("login_email", "")
     st.markdown(

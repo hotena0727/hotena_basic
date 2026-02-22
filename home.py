@@ -722,8 +722,8 @@ def render_home_dashboard(sb_authed, user):
     st.markdown(
         """
 <style>
-  .h-wrap{margin-top:.0rem;}
-  .h-top{display:flex;align-items:flex-end;justify-content:space-between;gap:.75rem;margin:.0rem 0 .35rem;}
+  .h-wrap{margin-top:.10rem;}
+  .h-top{display:flex;align-items:flex-end;justify-content:space-between;gap:.75rem;margin:.15rem 0 .45rem;}
   .h-title{font-size:1.28rem;font-weight:850;line-height:1.15;margin:0;}
   .h-sub{opacity:.70;font-size:.92rem;margin:.18rem 0 0;}
   .h-pill{display:inline-flex;align-items:center;gap:.35rem;padding:.20rem .55rem;border-radius:999px;border:1px solid rgba(0,0,0,.10);background:rgba(0,0,0,.02);font-size:.92rem;white-space:nowrap;}
@@ -1359,7 +1359,7 @@ def render_plan_pill():
     st.markdown(
         f"""
 <style>
-.hub-plan-wrap{{display:flex;justify-content:flex-start;margin-top:0.05rem;margin-bottom:0.00rem;}}
+.hub-plan-wrap{{display:flex;justify-content:flex-start;margin-top:0.15rem;margin-bottom:0.2rem;}}
 .hub-plan-pill{{display:inline-flex;align-items:center;gap:.45rem;padding:.28rem .55rem;border-radius:999px;
   border:1px solid rgba(0,0,0,.10);font-size:.86rem;opacity:.92;background:rgba(0,0,0,.02);}}
 .hub-admin-gear{{display:inline-flex;align-items:center;justify-content:center;margin-left:8px;width:28px;height:28px;border-radius:999px;
@@ -1369,6 +1369,36 @@ def render_plan_pill():
 </style>
 <div class="hub-plan-wrap">
   <div class="hub-plan-pill">{txt}{gear}</div>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
+
+
+def render_hub_page_title(page: str):
+    """Hub 상단 공통 타이틀(PLAN 배지 바로 아래). 각 모듈 내부 타이틀과 중복되지 않게 Hub에서만 출력."""
+    if page in (None, "", "home"):
+        return
+
+    sub = {
+        "word": "단어 훈련",
+        "kanji": "한자 훈련",
+        "talk": "회화 훈련",
+        "my": "마이페이지",
+        "admin": "관리자",
+        "reminder": "알림",
+    }.get(page, "")
+
+    st.markdown(
+        f"""
+<style>
+.hub-title-wrap{{margin:0.05rem 0 0.35rem; padding:0;}}
+.hub-title-main{{font-weight:900;font-size:42px;line-height:1.10;margin:0;padding:0;}}
+.hub-title-sub{{font-weight:800;font-size:14px;opacity:.72;margin:2px 0 0;padding:0;}}
+</style>
+<div class="hub-title-wrap jp">
+  <div class="hub-title-main">✨ 왕초보 탈출 하테나일본어</div>
+  {f'<div class="hub-title-sub">{sub}</div>' if sub else ''}
 </div>
 """,
         unsafe_allow_html=True,
@@ -3154,6 +3184,8 @@ render_floating_menu()
 render_plan_pill()
 
 page = st.session_state.get("hub_page", "home")
+render_hub_page_title(page)
+
 render_bottom_nav(active=page)
 
 
@@ -3188,6 +3220,7 @@ elif page == "kanji":
     run_module('app')
 elif page == "talk":
     st.session_state["hub_target"] = "talk"
+    st.session_state['HUB_MODE'] = True
     run_module('talk')
 else:
     # ✅ Fallback: unknown page -> go home

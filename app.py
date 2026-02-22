@@ -2063,14 +2063,15 @@ if st.session_state.get("page") != "home":
     else:
         _title = "✨ 한자 퀴즈"
 
-    st.markdown(
-        f"""
-<div class="jp headbar">
-  <div class="headtitle">{_title}</div>
-</div>
-""",
-        unsafe_allow_html=True
-    )
+    if not HUB_MODE:
+        st.markdown(
+            f"""
+    <div class="jp headbar">
+      <div class="headtitle">{_title}</div>
+    </div>
+    """,
+            unsafe_allow_html=True
+        )
 
 # 프로필/출석
 if sb_authed is not None:
