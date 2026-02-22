@@ -240,7 +240,7 @@ div[data-testid="stMetric"]{
   div[data-testid="stAppViewContainer"] .block-container{
     padding-left: 1.0rem !important;
     padding-right: 1.0rem !important;
-    padding-top: 0.15rem !important;
+    padding-top: 0rem !important;
     padding-bottom: 6.0rem !important;
   }
 
