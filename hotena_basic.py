@@ -1402,7 +1402,9 @@ def render_pronounce_button(text: str, uid: str, label: str = "🔊 발음"):
     let cand = ja.find(v => prefer.test(String(v.name || "")));
     if (cand) return cand;
 
-    // 2) avoid는 피하고 남은 것 중 첫번째
+    // 2,
+    height=0,
+) avoid는 피하고 남은 것 중 첫번째
     cand = ja.find(v => !avoid.test(String(v.name || "")));
     if (cand) return cand;
 
