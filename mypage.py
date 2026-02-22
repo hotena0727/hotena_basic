@@ -190,45 +190,78 @@ def _inject_css() -> None:
 /* ✅ messages: card list + spacing */
 .ha-msg-gap{height:12px;}
 
-/* ✅ messages: timeline style (B) */
-.ha-msg-scope{margin-top:10px;}
-.ha-msg-item{
-  position:relative;
-  padding:10px 0 10px 22px; /* left space for line+dot */
+/* ✅ messages: inbox list style (A) */
+.ha-msg-scope{margin-top:8px;}
+.ha-msg-rowA{
+  padding:10px 2px;
   border-bottom:1px solid var(--ha-line);
 }
-.ha-msg-item:last-child{border-bottom:0;}
-.ha-msg-line{
-  position:absolute;
-  left:10px;
-  top:0;
-  bottom:0;
-  width:2px;
-  background:rgba(37,99,235,0.16);
-  border-radius:99px;
-}
-.ha-msg-dot2{
-  position:absolute;
-  left:6px;
-  top:16px;
-  width:10px;
-  height:10px;
-  border-radius:99px;
-  background:#cbd5e1;
-  border:2px solid #fff;
-  box-shadow:0 0 0 2px rgba(37,99,235,0.10);
-}
-.ha-msg-item.is-unread .ha-msg-dot2{
-  background:var(--ha-blue);
-  box-shadow:0 0 0 2px rgba(37,99,235,0.20);
-}
-.ha-msg-row{
+.ha-msg-rowA:last-child{border-bottom:0;}
+.ha-msg-rowA:hover{background:#fbfbfd;}
+.ha-msg-leftA{
   display:flex;
   align-items:center;
-  justify-content:space-between;
   gap:10px;
+  min-width:0;
 }
-.ha-msg-titlebtn [data-testid="stButton"] > button{
+.ha-msg-titleA{
+  font-weight:900;
+  letter-spacing:-0.2px;
+  color:var(--ha-text);
+  font-size:15px;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.ha-msg-dotA{
+  width:8px; height:8px; border-radius:99px;
+  background:var(--ha-blue);
+  display:inline-block;
+  flex:0 0 auto;
+}
+.ha-msg-rightA{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+}
+.ha-msg-chevronA{
+  color:var(--ha-sub);
+  font-size:14px;
+  margin-left:2px;
+}
+.ha-msg-newA{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding:2px 8px;
+  border-radius:999px;
+  font-size:12px;
+  font-weight:900;
+  color:#fff;
+  background: var(--ha-blue);
+}
+.ha-msg-bodyA{
+  margin-top:8px;
+  padding:10px 12px;
+  background:#f8fafc;
+  border:1px solid var(--ha-line);
+  border-radius:12px;
+  line-height:1.75;
+  position:relative;
+}
+.ha-msg-bodyA:before{
+  content:"";
+  position:absolute;
+  left:0; top:10px; bottom:10px;
+  width:3px;
+  background:rgba(37,99,235,0.55);
+  border-radius:99px;
+}
+.ha-msg-bodyA-inner{padding-left:10px;}
+/* title button chrome off (scoped) */
+.ha-msg-titlebtnA [data-testid="stButton"] > button{
   width:100% !important;
   border:0 !important;
   background:transparent !important;
@@ -241,43 +274,9 @@ def _inject_css() -> None:
   color:var(--ha-text) !important;
   font-size:15px !important;
 }
-.ha-msg-titlebtn [data-testid="stButton"] > button:hover{background:transparent !important; color:var(--ha-blue) !important;}
-.ha-msg-right{
-  display:flex;
-  align-items:center;
-  gap:8px;
-  flex-wrap:wrap;
-  justify-content:flex-end;
-}
-.ha-msg-chevron{
-  color:var(--ha-sub);
-  font-size:14px;
-  margin-left:2px;
-}
-.ha-msg-new{
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  padding:2px 8px;
-  border-radius:999px;
-  font-size:12px;
-  font-weight:900;
-  color:#fff;
-  background: var(--ha-blue);
-}
-.ha-msg-body2{
-  margin-top:8px;
-  padding-left:0;
-}
-.ha-msg-body2-inner{
-  border-left:3px solid rgba(37,99,235,0.55);
-  background:#f8fafc;
-  border-radius:12px;
-  padding:12px 12px;
-  line-height:1.75;
-  border-top:1px solid var(--ha-line);
-  border-right:1px solid var(--ha-line);
-  border-bottom:1px solid var(--ha-line);
+.ha-msg-titlebtnA [data-testid="stButton"] > button:hover{
+  background:transparent !important;
+  color:var(--ha-blue) !important;
 }
 
 
@@ -1411,29 +1410,29 @@ def _render_msgs(msgs: List[Dict[str, Any]]) -> None:
         is_unread = not mm.get("read_at")
         chip = "읽지 않음" if is_unread else "읽음"
         chevron = "⌄" if open_id != mid else "⌃"
-        open_cls = "is-open" if open_id == mid else ""
-        unread_cls = "is-unread" if is_unread else ""
-        new_badge = '<span class="ha-msg-new">NEW</span>' if is_unread else ''
+        new_badge = '<span class="ha-msg-newA">NEW</span>' if is_unread else ''
+        dot = '<span class="ha-msg-dotA"></span>' if is_unread else '<span style="width:8px; height:8px; display:inline-block;"></span>'
 
-        st.markdown(f'<div class="ha-msg-item {open_cls} {unread_cls}">', unsafe_allow_html=True)
-        st.markdown('<div class="ha-msg-line"></div><div class="ha-msg-dot2"></div>', unsafe_allow_html=True)
+        st.markdown('<div class="ha-msg-rowA">', unsafe_allow_html=True)
+        c1, c2 = st.columns([0.72, 0.28], gap="small")
 
-        c1, c2 = st.columns([0.70, 0.30], gap="small")
         with c1:
-            st.markdown('<div class="ha-msg-titlebtn">', unsafe_allow_html=True)
+            st.markdown('<div class="ha-msg-leftA">', unsafe_allow_html=True)
+            st.markdown(dot, unsafe_allow_html=True)
+            st.markdown('<div class="ha-msg-titlebtnA">', unsafe_allow_html=True)
             if st.button(title, key=f"msg_toggle_{mid}", use_container_width=True):
                 st.session_state["myp_msg_open_id"] = None if open_id == mid else mid
                 st.rerun()
-            st.markdown('</div>', unsafe_allow_html=True)
+            st.markdown('</div></div>', unsafe_allow_html=True)
 
         with c2:
             st.markdown(
                 f"""
-<div class="ha-msg-right">
+<div class="ha-msg-rightA">
   {new_badge}
   <span class="ha-chip">{dt}</span>
   <span class="ha-badge">{chip}</span>
-  <span class="ha-msg-chevron">{chevron}</span>
+  <span class="ha-msg-chevronA">{chevron}</span>
 </div>
 """,
                 unsafe_allow_html=True,
@@ -1442,7 +1441,7 @@ def _render_msgs(msgs: List[Dict[str, Any]]) -> None:
         if open_id == mid:
             safe_body = _escape_html(body).replace("\n", "<br>")
             st.markdown(
-                f'<div class="ha-msg-body2"><div class="ha-msg-body2-inner">{safe_body}</div></div>',
+                f'<div class="ha-msg-bodyA"><div class="ha-msg-bodyA-inner">{safe_body}</div></div>',
                 unsafe_allow_html=True,
             )
 
@@ -1456,7 +1455,7 @@ def _render_msgs(msgs: List[Dict[str, Any]]) -> None:
                     except Exception:
                         st.warning("읽음 처리에 실패했습니다. (RLS 확인)")
 
-        st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)  # rowA end
 
     st.markdown("</div>", unsafe_allow_html=True)  # scope
     st.markdown("</div>", unsafe_allow_html=True)  # card
