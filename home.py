@@ -1879,11 +1879,11 @@ def render_bottom_nav(active: str = "home"):
     st.markdown(html, unsafe_allow_html=True)
 
 def render_training_header(sb_authed, user, kind: str, title: str, subtitle: str):
-    """Unified header on training pages (no daily progress strip)."""
+    """Unified header on training pages (minimal; no progress/caption/divider)."""
 
     st.markdown(
         f"""
-<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:0.75rem;margin-top:0.25rem;margin-bottom:0.35rem;">
+<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:0.75rem;margin-top:0.10rem;margin-bottom:0.35rem;">
   <div>
     <div style="font-size:1.35rem;font-weight:800;line-height:1.2;">{title}</div>
     <div style="opacity:0.72;font-size:0.95rem; margin-top:0.15rem;">{subtitle}</div>
@@ -1892,7 +1892,7 @@ def render_training_header(sb_authed, user, kind: str, title: str, subtitle: str
 """,
         unsafe_allow_html=True,
     )
-    st.markdown("---")
+
 
 def run_script(filename: str):
     path = (BASE_DIR / filename).resolve()
