@@ -534,7 +534,7 @@ def scroll_to_top(nonce: int = 0):
         </script>
         <!-- nonce:{nonce} -->
         """,
-        height=1,
+        height=0,
     )
 
 def render_floating_scroll_top():
@@ -644,7 +644,7 @@ def render_floating_scroll_top():
 })();
 </script>
         """,
-        height=1,
+        height=0,
     )
 
 render_floating_scroll_top()
