@@ -40,12 +40,9 @@ def _sb() -> Any:
 # UI / CSS
 # ---------------------------
 def _inject_css() -> None:
-    css = r"""
-<style>
+    css = r"""<style>
 :root {
-  --ha-font: Pretendard, 'Noto Sans KR', 'Apple SD Gothic Neo', ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
-{
-  --ha-blue: {HATENA_BLUE};
+  --ha-blue: __BLUE__;
   --ha-text: #0f172a;
   --ha-sub: #64748b;
   --ha-line: #e5e7eb;
@@ -55,8 +52,9 @@ def _inject_css() -> None:
 }
 
 .ha-wrap {
-  font-family: var(--ha-font);
-{{
+  font-family: Pretendard, 'Noto Sans KR', 'Apple SD Gothic Neo', ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   max-width: 980px;
   margin: 0 auto;
   padding: 6px 8px 26px 8px;
@@ -97,8 +95,6 @@ def _inject_css() -> None:
 }
 
 .ha-title {
-  font-family: var(--ha-font);
-{{
   font-size: 18px;
   font-weight: 800;
   color: var(--ha-text);
@@ -106,8 +102,6 @@ def _inject_css() -> None:
   line-height: 1.15;
 }
 .ha-sub {
-  font-family: var(--ha-font);
-{{
   margin-top: 3px;
   font-size: 12px;
   color: var(--ha-sub);
@@ -160,8 +154,6 @@ def _inject_css() -> None:
 }
 
 .ha-chip {
-  font-family: var(--ha-font);
-{{
   display:inline-flex;
   align-items:center;
   gap:6px;
@@ -217,8 +209,6 @@ def _inject_css() -> None:
   margin: 8px 0;
 }
 .ha-card-title {
-  font-family: var(--ha-font);
-{{
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   font-weight: 900;
@@ -298,19 +288,9 @@ def _inject_css() -> None:
   .ha-kpi { grid-template-columns: 1fr; }
   .ha-week-grid { gap: 6px; }
 }
-</style>
-
-/* ✅ 메시지 expander(접고 펴는 창) 자체 디자인 */
-div[data-testid="stExpander"] { margin-top: 12px; border: 1px solid var(--ha-line); border-radius: 16px; overflow: hidden; background: #fff; }
-div[data-testid="stExpander"] > details { padding: 0; }
-div[data-testid="stExpander"] summary { padding: 12px 14px !important; background: rgba(30,107,255,0.06); }
-div[data-testid="stExpander"] summary:hover { background: rgba(30,107,255,0.08); }
-div[data-testid="stExpander"] summary p { font-weight: 900 !important; color: var(--ha-text) !important; }
-div[data-testid="stExpander"] .streamlit-expanderContent { padding: 14px 14px 16px 14px !important; }
-"""
-    css = css.replace("{blue}", str(HATENA_BLUE))
+</style>"""
+    css = css.replace("__BLUE__", str(HATENA_BLUE))
     st.markdown(css, unsafe_allow_html=True)
-
 
 def _wrap_start() -> None:
     st.markdown('<div class="ha-wrap">', unsafe_allow_html=True)
