@@ -1879,39 +1879,19 @@ def render_bottom_nav(active: str = "home"):
     st.markdown(html, unsafe_allow_html=True)
 
 def render_training_header(sb_authed, user, kind: str, title: str, subtitle: str):
-    """A) Unified title + compact daily goal progress strip on training pages."""
-    progress_all = st.session_state.get("progress_all", {}) or {}
-    goal_sets = int((progress_all.get("daily_goal_sets") or 3))
-
-    attempts = fetch_today_attempts(sb_authed, user.id)
-    sm = summarize_attempts(attempts)
-    done_sets_total = int(sm.get("total_sets", 0))
-    done_sets_kind = int(sm.get("by_kind", {}).get(kind, {}).get("sets", 0))
-
-    pct = 0.0
-    if goal_sets > 0:
-        pct = min(1.0, done_sets_total / float(goal_sets))
+    """Unified header on training pages (no daily progress strip)."""
 
     st.markdown(
         f"""
-<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:0.75rem;margin-top:0.25rem;margin-bottom:0.45rem;">
+<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:0.75rem;margin-top:0.25rem;margin-bottom:0.35rem;">
   <div>
     <div style="font-size:1.35rem;font-weight:800;line-height:1.2;">{title}</div>
     <div style="opacity:0.72;font-size:0.95rem; margin-top:0.15rem;">{subtitle}</div>
-  </div>
-  <div style="text-align:right;">
-    <div style="display:inline-flex;align-items:center;gap:.35rem;padding:.22rem .55rem;border-radius:999px;border:1px solid rgba(0,0,0,.10);background:rgba(0,0,0,.02);font-size:.88rem;">
-      오늘 {done_sets_kind}세트
-    </div>
   </div>
 </div>
 """,
         unsafe_allow_html=True,
     )
-
-    # compact progress
-    st.progress(pct)
-    st.caption(f"오늘 완료: {done_sets_total}/{goal_sets}세트 · 현재 페이지: {kind}")
     st.markdown("---")
 
 def run_script(filename: str):
@@ -2014,6 +1994,46 @@ def um_popup_unread_once(sb, user_id: str):
 def um_template_set(title: str, body: str):
     st.session_state["admin_msg_title"] = title
     st.session_state["admin_msg_body"] = body
+
+
+
+def render_user_inbox_section(sb_authed, user_id: str):
+    """Render inbox UI (safe) - can be placed on My page."""
+    st.markdown("## 📩 관리자 메시지")
+    if not _um_table_ready(sb_authed):
+        st.info("메시지함이 아직 준비되지 않았습니다.")
+        return
+    msgs = um_fetch_inbox(sb_authed, user_id, limit=50)
+    if not msgs:
+        st.info("받은 메시지가 없습니다.")
+        return
+
+    unread_ids = []
+    for m in msgs:
+        unread = (m.get("read_at") is None)
+        if unread:
+            unread_ids.append(str(m.get("id")))
+        title = (m.get("title") or "메시지").strip()
+        header = f"{'🟡 ' if unread else ''}{title}"
+        with st.expander(header, expanded=unread):
+            st.write(m.get("body") or "")
+            st.caption(str(m.get("created_at") or ""))
+            if unread and st.button("읽음 처리", key=f"um_read_{m.get('id')}"):
+                try:
+                    um_mark_read(sb_authed, [str(m.get("id"))])
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"읽음 처리 실패: {e}")
+
+    # optional: mark all as read with one click
+    if unread_ids:
+        if st.button("모두 읽음 처리", use_container_width=True, key="um_read_all"):
+            try:
+                um_mark_read(sb_authed, unread_ids)
+                st.rerun()
+            except Exception as e:
+                st.error(f"읽음 처리 실패: {e}")
+
 
 def render_admin_dashboard(sb_authed):
     """
