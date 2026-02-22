@@ -19,34 +19,29 @@ import streamlit.components.v1 as components
 # - Import (or reload) a module by name so it renders in the SAME Streamlit flow
 # ============================================================
 def run_module(module_name: str):
-    """Import (or reload) a module by name so it renders in the SAME Streamlit flow.
+    """Import a module by name and call its render() in the SAME Streamlit flow.
 
-    IMPORTANT:
-    - Do NOT import + reload in the same run (it executes the module twice),
-      which can cause StreamlitDuplicateElementKey for widgets defined at import time.
+    ✅ 기본은 reload를 하지 않습니다(= F5/리런 시 커스텀 컴포넌트 iframe 누적 방지).
+    개발 중 핫리로드가 필요하면:
+        st.session_state["_dev_hot_reload"] = True
     """
     try:
         import sys
+        import importlib
 
-        # ✅ IMPORTANT: Avoid importlib.reload on every rerun.
-        # Reloading executes module top-level again, which can create duplicate Streamlit components
-        # (cookie manager / custom components) and leave gray placeholder blocks after F5.
-        #
-        # If you *really* need hot-reload during development, set:
-        #   st.session_state["_dev_hot_reload"] = True
-        dev_hot_reload = bool(st.session_state.get("_dev_hot_reload", False))
+        hot_reload = bool(st.session_state.get("_dev_hot_reload", False))
 
         if module_name in sys.modules:
-            mod = importlib.reload(sys.modules[module_name]) if dev_hot_reload else sys.modules[module_name]
+            mod = importlib.reload(sys.modules[module_name]) if hot_reload else sys.modules[module_name]
         else:
             mod = importlib.import_module(module_name)
 
-        # If module exposes a render() function, call it.
         if hasattr(mod, "render") and callable(getattr(mod, "render")):
             mod.render()
-except Exception as e:
+    except Exception as e:
         st.exception(e)
         raise
+
 
 # ============================================================
 # ✅ LocalStorage / QueryParam persistence helpers
