@@ -782,28 +782,39 @@ def _inject_css() -> None:
 
 
 /* ============================================================
-   ✅ V4.9.12 HOTFIX: message list spacing tighter
-   - Streamlit wraps expanders in element-container with default margins.
-   - Force near-zero spacing only inside message scope.
+   ✅ V4.9.13 ULTRA TIGHT: message list spacing (붙여서 정돈)
+   - Streamlit wrapper margin/padding 제거
+   - Expander 사이 간격 2px (0px로 바꾸면 완전 밀착)
    ============================================================ */
-.ha-msg-scope div[data-testid="element-container"]{
+
+/* wrapper들 기본 margin/padding 제거 (메시지 스코프만) */
+.ha-msg-scope div[data-testid="stVerticalBlock"] > div,
+.ha-msg-scope div[data-testid="stVerticalBlock"] > div > div,
+.ha-msg-scope div[data-testid="stElementContainer"],
+.ha-msg-scope div[data-testid="element-container"],
+.ha-msg-scope .element-container{
   margin: 0 !important;
   padding: 0 !important;
 }
-.ha-msg-scope div[data-testid="stVerticalBlock"]{
-  gap: 0 !important;
-}
-.ha-msg-scope div[data-testid="stExpander"]{
-  margin: 0 !important;
-}
+.ha-msg-scope div[data-testid="stVerticalBlock"]{ gap: 0 !important; }
+
+/* expander 자체 간격 0 */
+.ha-msg-scope div[data-testid="stExpander"]{ margin: 0 !important; }
+
+/* 목록 박스끼리: 2px만 (원하면 0px) */
 .ha-msg-scope div[data-testid="stExpander"] + div[data-testid="stExpander"]{
-  margin-top: 0px !important; /* almost 붙이기 */
+  margin-top: 2px !important;
 }
 
-/* Optional: a hairline separation without big gap */
+/* summary 높이도 타이트하게 */
 .ha-msg-scope div[data-testid="stExpander"] summary{
   padding-top: 6px !important;
   padding-bottom: 6px !important;
+}
+
+/* 보더 겹쳐 보이면 상단선 제거 */
+.ha-msg-scope div[data-testid="stExpander"] + div[data-testid="stExpander"] summary{
+  border-top-color: transparent !important;
 }
 
 </style>"""
