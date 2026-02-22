@@ -1376,29 +1376,42 @@ def render_plan_pill():
 
 
 def render_hub_page_title(page: str):
-    """Hub 상단 공통 타이틀(PLAN 배지 바로 아래). 각 모듈 내부 타이틀과 중복되지 않게 Hub에서만 출력."""
-    if page in (None, "", "home"):
+    """Hub 상단 공통 타이틀(PLAN 배지 바로 아래).
+    - 홈: 브랜드 타이틀
+    - 훈련/기능 페이지: 페이지별 타이틀
+    """
+    if page in (None, ""):
         return
 
-    sub = {
-        "word": "단어 훈련",
-        "kanji": "한자 훈련",
-        "talk": "회화 훈련",
-        "my": "마이페이지",
-        "admin": "관리자",
-        "reminder": "알림",
-    }.get(page, "")
+    main_map = {
+        "word": "📘 단어 훈련",
+        "kanji": "🈶 한자 훈련",
+        "talk": "🎤 회화 훈련",
+        "my": "👤 마이페이지",
+        "admin": "🛠️ 관리자",
+        "reminder": "🔔 알림",
+    }
+
+    title_main = "✨ 왕초보 탈출 하테나일본어" if page == "home" else main_map.get(page, "")
+    title_sub = "" if page == "home" else "하테나일본어"
+
+    if not title_main:
+        return
+
+    # 홈/훈련 폰트 크기 차등
+    fs_main = "42px" if page == "home" else "36px"
+    mt_mb = "0.05rem 0 0.25rem" if page == "home" else "0.02rem 0 0.18rem"
 
     st.markdown(
         f"""
 <style>
-.hub-title-wrap{{margin:0.05rem 0 0.35rem; padding:0;}}
-.hub-title-main{{font-weight:900;font-size:42px;line-height:1.10;margin:0;padding:0;}}
-.hub-title-sub{{font-weight:800;font-size:14px;opacity:.72;margin:2px 0 0;padding:0;}}
+.hub-title-wrap{{margin:{mt_mb}; padding:0;}}
+.hub-title-main{{font-weight:900;font-size:{fs_main};line-height:1.10;margin:0;padding:0;}}
+.hub-title-sub{{font-weight:800;font-size:12px;opacity:.72;margin:2px 0 0;padding:0;}}
 </style>
 <div class="hub-title-wrap jp">
-  <div class="hub-title-main">✨ 왕초보 탈출 하테나일본어</div>
-  {f'<div class="hub-title-sub">{sub}</div>' if sub else ''}
+  <div class="hub-title-main">{title_main}</div>
+  {f'<div class="hub-title-sub">{title_sub}</div>' if title_sub else ''}
 </div>
 """,
         unsafe_allow_html=True,
