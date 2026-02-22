@@ -32,18 +32,8 @@ import random
 import pandas as pd
 import streamlit as st
 
-
-# ============================================================
-# ✅ wrong_notes debug helper
-# ============================================================
-_WN_DEBUG = bool(st.session_state.get("is_admin", False)) or bool(st.session_state.get("is_admin_cached", False))
-def _wn_warn(msg: str):
-    if _WN_DEBUG:
-        try:
-            st.warning(msg)
-        except Exception:
-            pass
 # ✅ HUB에서 호출되면 상단 중복 UI를 숨기기 위한 플래그
+HUB_MODE = st.session_state.get('HUB_MODE', False)
 import unicodedata
 from supabase import create_client
 from streamlit_cookies_manager import EncryptedCookieManager
@@ -67,58 +57,50 @@ if not st.session_state.get('_page_config_set'):
     page_icon="static/icon-192.png",   # 또는 "🟦"
     layout="centered",
 )
-    
-
+    st.session_state['_page_config_set'] = True
 # ============================================================
-# ✅ TOP SPACING FIX (PC + Mobile)
-# - Remove Streamlit's default top padding/space
-# - Applied once per session
+# ✅ [HOTFIX] Disable onboarding ("60초 이용안내") block entirely
+# - In case any legacy UI is still rendered, forcibly hide/remove it.
 # ============================================================
-if not st.session_state.get("_top_compact_css_applied"):
-    st.markdown("""<style>
-/* === Hotena: ultra-compact top spacing (mobile + desktop) === */
-/* 핵심: block-container의 기본 top padding 제거 + 첫 요소 여백 제거 */
-section.main > div.block-container,
-div[data-testid="stAppViewContainer"] > div.block-container {
-  padding-top: 0rem !important;
-  margin-top: 0rem !important;
-}
+try:
+    components.html(
+        """
+<script>
+(function(){
+  const kill = () => {
+    const needles = ["60초 이용안내", "처음 오셨나요"];
+    // expander renders as <details><summary>...</summary>...
+    document.querySelectorAll("details").forEach(d => {
+      const s = d.querySelector("summary");
+      const t = (s ? s.innerText : d.innerText) || "";
+      if (needles.some(n => t.includes(n))) { d.remove(); }
+    });
+    // also remove any plain text blocks
+    document.querySelectorAll("*").forEach(el => {
+      if (el && el.childNodes && el.childNodes.length===1 && el.childNodes[0].nodeType===3) {
+        const t = el.innerText || "";
+        if (needles.some(n => t.includes(n))) { el.remove(); }
+      }
+    });
+  };
+  window.setTimeout(kill, 50);
+  window.setTimeout(kill, 500);
+})();
+</script>
+""",
+        height=0,
+    )
+except Exception:
+    pass
 
-/* 첫 요소(메뉴/버튼 래퍼) 상단 여백 제거 */
-div.block-container > div:first-child {
-  margin-top: 0rem !important;
-  padding-top: 0rem !important;
-}
 
-/* Streamlit 헤더가 만드는 공간 최소화 */
-header[data-testid="stHeader"]{
-  height: 0px !important;
-  min-height: 0px !important;
-}
-
-/* 모바일에서 더 강하게 */
-@media (max-width: 768px){
-  section.main > div.block-container,
-  div[data-testid="stAppViewContainer"] > div.block-container {
-    padding-top: 0rem !important;
-    margin-top: 0rem !important;
-  }
-}
-</style>""", unsafe_allow_html=True)
-    st.session_state["_top_compact_css_applied"] = True
-
-st.session_state['_page_config_set'] = True
-# ============================================================
-# (removed) onboarding HOTFIX block
 # ============================================================
 # ✅ PWA/아이콘 - set_page_config 바로 아래
 # ============================================================
 
 components.html("""
 <script>
-window.addEventListener("load", async (,
-            height=0,
-        ) => {
+window.addEventListener("load", async () => {
   // ✅ 부모 문서(=진짜 페이지)로 주입
   const doc = (window.parent && window.parent.document) ? window.parent.document : document;
 
@@ -468,9 +450,7 @@ def scroll_to_top(nonce: int = 0):
     components.html(
         f"""
         <script>
-        (function (,
-            height=0,
-        ) {{
+        (function () {{
           const doc = window.parent.document;
           const targets = [
             doc.querySelector('[data-testid="stAppViewContainer"]'),
@@ -510,9 +490,7 @@ def render_floating_scroll_top():
     components.html(
         """
 <script>
-(function(,
-            height=0,
-        ){
+(function(){
   const doc = window.parent.document;
   if (doc.getElementById("__FAB_TOP__")) return;
 
@@ -1701,7 +1679,7 @@ def nav_logout():
 
 def render_topcard():
     # HUB에서는 상단 메뉴를 home.py가 책임집니다.
-    if st.session_state.get("HUB_MODE", False):
+    if st.session_state.get("HUB_MODE"):
         return
 
     u = st.session_state.get("user")
@@ -2503,16 +2481,13 @@ def mode_label(x: str) -> str:
 def render_home():
     u = st.session_state.get("user")
     email = (getattr(u, "email", None) if u else None) or st.session_state.get("login_email", "")
-    if st.session_state.get("HUB_MODE", False):
-        # Hub에서 진입 시 홈 대시보드/타이틀 중복 노출 방지
-        return
-
 
     # ✅ (1) 타이틀/환영
     st.markdown(
         f"""
 <div class="jp headbar">
   <div class="headtitle">✨ 왕초보 탈출 하테나일본어</div>
+  <div class="headhello">환영합니다 🙂 <span class="mail">{email}</span></div>
 </div>
 """,
         unsafe_allow_html=True,
@@ -2788,7 +2763,7 @@ if st.session_state.get("page") not in ALLOWED_PAGES:
     st.session_state.page = "home"
 
 # HUB에서 실행될 때는 홈/내부 라우팅 대신 바로 퀴즈 화면으로 진입
-if st.session_state.get("HUB_MODE", False):
+if st.session_state.get("HUB_MODE"):
     st.session_state.page = "quiz"
 
 user = st.session_state.get("user")
@@ -2839,13 +2814,14 @@ except Exception:
 if st.session_state.get("quiz_type") not in available_types:
     st.session_state.quiz_type = "meaning"
 
-if (st.session_state.get("page") != "home") and (not st.session_state.get("HUB_MODE", False)):
+if st.session_state.get("page") != "home":
     u = st.session_state.get("user")
     email = (getattr(u, "email", None) if u else None) or st.session_state.get("login_email", "")
     st.markdown(
         f"""
 <div class="jp headbar">
   <div class="headtitle">✨ 왕초보 탈출 하테나일본어</div>
+  <div class="headhello">환영합니다 🙂 <span class="mail">{email}</span></div>
 </div>
 """,
         unsafe_allow_html=True,
@@ -2975,7 +2951,7 @@ if not st.session_state.get("HUB_MODE", False):
         elif streak >= 7:
             st.info("🏅 7일 연속 달성!")
 
-    if not st.session_state.get("HUB_MODE", False):
+    if not HUB_MODE:
             # --- (A) 기존 "오늘의 목표(루틴)" 섹션 ---
             if "today_goal_text" not in st.session_state:
                 st.session_state.today_goal_text = "오늘은 10문항 1회 완주"
@@ -3559,39 +3535,6 @@ if st.session_state.submitted:
 
     st.session_state.wrong_list = wrong_list
 
-    # ============================================================
-    # ✅ 오답 상세 저장 (wrong_notes) — 3회 이상 반복오답/Top10 복습용
-# - 홈/마이페이지에서 '단어/정답/내답' 카드 복원을 위해 필요
-rows = []
-sb_authed = get_authed_sb()
-u_id = getattr(st.session_state.get("user"), "id", None)
-if not u_id and st.session_state.get("access_token"):
-    try:
-        u = sb.auth.get_user(st.session_state.get("access_token"))
-        u_id = getattr(getattr(u, "user", None), "id", None) or getattr(u, "id", None)
-    except Exception:
-        u_id = None
-
-if sb_authed is None:
-    _wn_warn("오답 저장 실패: authed client 없음(access_token).")
-elif not u_id:
-    _wn_warn("오답 저장 실패: user_id(uid) 없음. 로그인 세션을 확인하세요.")
-else:
-    for w in (st.session_state.get("wrong_list") or []):
-        rows.append({
-            "user_id": str(u_id),
-            "quiz_type": "word",
-            "question": str(w.get("단어") or w.get("question") or ""),
-            "correct_answer": str(w.get("정답") or w.get("correct") or ""),
-            "user_answer": str(w.get("내 답") or w.get("user") or ""),
-            "level": str(st.session_state.get("level", "") or ""),
-        })
-    if rows:
-        try:
-            sb_authed.table("wrong_notes").insert(rows).execute()
-        except Exception as e:
-            _wn_warn(f"오답 저장 실패: {e}")
-
     st.success(f"점수: {score} / {quiz_len}")
 
     # ✅ FREE 제한 카운트 누적 (제출 1회 = quiz_len 소비)
@@ -3862,4 +3805,7 @@ if st.session_state.get("submitted", False):
     show_naver_talk = (SHOW_NAVER_TALK == "N") or is_admin()
     if show_naver_talk:
         render_naver_talk()
+
+
+
 

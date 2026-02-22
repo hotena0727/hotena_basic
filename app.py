@@ -5,13 +5,6 @@ from pathlib import Path
 import random
 import pandas as pd
 import streamlit as st
-
-# -------------------------------
-# ✅ 한자 헤더 중복 방지 플래그
-# -------------------------------
-if "KANJI_HEADER_RENDERED" not in st.session_state:
-    st.session_state["KANJI_HEADER_RENDERED"] = False
-
 import unicodedata
 from supabase import create_client
 from streamlit_cookies_manager import EncryptedCookieManager
@@ -26,47 +19,7 @@ import textwrap
 # NOTE: page config is handled by home.py
 if not st.session_state.get("_page_config_set"):
     st.set_page_config(page_title="Hotena", layout="centered")
-    
-
-# ============================================================
-# ✅ TOP SPACING FIX (PC + Mobile)
-# - Remove Streamlit's default top padding/space
-# - Applied once per session
-# ============================================================
-if not st.session_state.get("_top_compact_css_applied"):
-    if not st.session_state.get('st.session_state.get("HUB_MODE", False)', False): st.markdown("""<style>
-/* === Hotena: ultra-compact top spacing (mobile + desktop) === */
-/* 핵심: block-container의 기본 top padding 제거 + 첫 요소 여백 제거 */
-section.main > div.block-container,
-div[data-testid="stAppViewContainer"] > div.block-container {
-  padding-top: 0rem !important;
-  margin-top: 0rem !important;
-}
-
-/* 첫 요소(메뉴/버튼 래퍼) 상단 여백 제거 */
-div.block-container > div:first-child {
-  margin-top: 0rem !important;
-  padding-top: 0rem !important;
-}
-
-/* Streamlit 헤더가 만드는 공간 최소화 */
-header[data-testid="stHeader"]{
-  height: 0px !important;
-  min-height: 0px !important;
-}
-
-/* 모바일에서 더 강하게 */
-@media (max-width: 768px){
-  section.main > div.block-container,
-  div[data-testid="stAppViewContainer"] > div.block-container {
-    padding-top: 0rem !important;
-    margin-top: 0rem !important;
-  }
-}
-</style>""", unsafe_allow_html=True)
-    st.session_state["_top_compact_css_applied"] = True
-
-st.session_state["_page_config_set"] = True
+    st.session_state["_page_config_set"] = True
 # ============================================================
 # ✅ [SOUND] 사운드 유틸 (모바일 자동재생 정책 대응)
 # ============================================================
@@ -1047,17 +1000,7 @@ def auth_box():
     st.markdown("</div>", unsafe_allow_html=True)
 
 def require_login():
-    """한자 앱 로그인 가드.
-    - st.session_state.get("HUB_MODE", False)=True: 허브에서 이미 로그인/세션을 관리하므로, user가 없으면 간단 메시지만 보여주고 중단
-    - st.session_state.get("HUB_MODE", False)=False: 단독 실행 시 기존 로그인 UI(auth_box) 노출
-    """
-
     if st.session_state.get("user") is None:
-        if st.session_state.get("HUB_MODE", False):
-            st.info("로그인이 필요합니다. 홈으로 이동해 로그인 후 다시 시도해 주세요.")
-            st.stop()
-
-        # 단독 실행(허브 없이)일 때만 상단 안내 + 로그인/회원가입 UI
         st.markdown(
             """
 <div class="jp" style="margin: 8px 0 14px 0;">
@@ -1197,7 +1140,7 @@ def nav_logout():
 
 def render_topcard():
     # HUB에서는 상단 메뉴를 home.py가 책임집니다.
-    if st.session_state.get("HUB_MODE", False):
+    if st.session_state.get("HUB_MODE"):
         return
 
     u = st.session_state.get("user")
@@ -1320,13 +1263,6 @@ import unicodedata
 import random
 import pandas as pd
 import streamlit as st
-
-# -------------------------------
-# ✅ 한자 헤더 중복 방지 플래그
-# -------------------------------
-if "KANJI_HEADER_RENDERED" not in st.session_state:
-    st.session_state["KANJI_HEADER_RENDERED"] = False
-
 
 def _nfkc_str(x) -> str:
     return unicodedata.normalize("NFKC", str(x or "")).strip()
@@ -1722,7 +1658,7 @@ def render_my_dashboard():
     st.subheader("📌 내 대시보드")
 
     if st.button("← 돌아가기", use_container_width=True, key="btn_my_back"):
-        if st.session_state.get("HUB_MODE", False):
+        if st.session_state.get("HUB_MODE"):
             st.session_state["hub_page"] = "home"
             st.rerun()
         st.session_state.page = "quiz"
@@ -1980,6 +1916,16 @@ def render_home():
     page_title = "👤 마이페이지" if st.session_state.get("page") == "my" else "✨하테나일본어 한자정복"
 
 
+    st.markdown(
+        f"""
+<div class="jp headbar">
+  <div class="headtitle">{page_title}</div>
+  <div class="headhello">환영합니다 🙂 <span class="mail">{email}</span></div>
+</div>
+""",
+        unsafe_allow_html=True
+    )
+
     quotes = [
         "배움은 매일 새로 시작해도 늦지 않다.",
         "오늘의 한 문제는 내일의 자신감이다.",
@@ -2037,7 +1983,7 @@ if st.session_state.get("page") not in ALLOWED_PAGES:
 
 # HUB에서 실행될 때는 기본적으로 퀴즈 화면으로 진입.
 # 단, HUB 상단 메뉴에서 특정 화면(예: 마이페이지)을 요청한 경우는 그 화면으로 진입.
-if st.session_state.get("HUB_MODE", False):
+if st.session_state.get("HUB_MODE"):
     target = st.session_state.get("hub_target")
     if target in ("my", "admin", "home", "quiz"):
         st.session_state.page = target
@@ -2073,15 +2019,15 @@ if st.session_state.get("page") != "home":
     else:
         _title = "✨ 한자 퀴즈"
 
-    if not st.session_state.get("HUB_MODE", False):
-        st.markdown(
-            f"""
-    <div class="jp headbar">
-      <div class="headtitle">{_title}</div>
-    </div>
-    """,
-            unsafe_allow_html=True
-        )
+    st.markdown(
+        f"""
+<div class="jp headbar">
+  <div class="headtitle">{_title}</div>
+  <div class="headhello">환영합니다 🙂 <span class="mail">{email}</span></div>
+</div>
+""",
+        unsafe_allow_html=True
+    )
 
 # 프로필/출석
 if sb_authed is not None:
@@ -2148,7 +2094,7 @@ if streak is not None:
 # ============================================================
 
 def render_kanji_hub(HUB_MODE: bool = False):
-    if st.session_state.get("HUB_MODE", False): st.session_state['st.session_state.get("HUB_MODE", False)']=True
+    if HUB_MODE: st.session_state['HUB_MODE']=True
     if "quiz_version" not in st.session_state:
         st.session_state.quiz_version = 0
     if "submitted" not in st.session_state:
@@ -2207,9 +2153,6 @@ def render_kanji_hub(HUB_MODE: bool = False):
     # ----------------------------
     # 1) 레벨 버튼(N5~N1) 먼저
     # ----------------------------
-    
-    st.markdown('<div class="qtype_hint jp">✨레벨을 선택하세요</div>', unsafe_allow_html=True)
-    
     level_cols = st.columns(len(LEVEL_OPTIONS), gap="small")
     for i, lv in enumerate(LEVEL_OPTIONS):
         is_selected_lv = (lv == st.session_state.level)
@@ -2227,12 +2170,11 @@ def render_kanji_hub(HUB_MODE: bool = False):
                 args=(lv,),
             )
 
+    st.markdown('<div class="qtype_hint jp">✨레벨을 선택하세요</div>', unsafe_allow_html=True)
+
     # ----------------------------
     # 2) 유형 버튼(발음/뜻/한→일)
     # ----------------------------
-    
-    st.markdown('<div class="qtype_hint jp">✨유형을 선택하세요</div>', unsafe_allow_html=True)
-    
     type_cols = st.columns(len(available_types), gap="small")
     for i, qt in enumerate(available_types):
         is_selected = (qt == st.session_state.quiz_type)
@@ -2249,6 +2191,8 @@ def render_kanji_hub(HUB_MODE: bool = False):
                 on_click=on_pick_qtype,
                 args=(qt,),
             )
+
+    st.markdown('<div class="qtype_hint jp">✨유형을 선택하세요</div>', unsafe_allow_html=True)
 
     st.markdown('</div>', unsafe_allow_html=True)
 
@@ -2711,9 +2655,9 @@ def render_kanji_hub(HUB_MODE: bool = False):
 
 
 if __name__ == '__main__':
-    render_kanji_hub(HUB_MODE=st.session_state.get("HUB_MODE", False))
+    render_kanji_hub(HUB_MODE=False)
 
 
 def render():
     """Home hub에서 import 후 호출되는 진입점."""
-    render_kanji_hub(HUB_MODE=st.session_state.get("HUB_MODE", False))
+    render_kanji_hub(HUB_MODE=True)

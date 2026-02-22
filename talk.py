@@ -1,31 +1,6 @@
 # talk.py (v27) - 1문제 집중형 + 말하기 완료 체크(B)
 from __future__ import annotations
 
-# ============================================================
-# ✅ Plan helper (HUB/standalone safe)
-# - Home(hub)에서 st.session_state["user_plan"] 또는 profiles.plan 을 세팅해둔 경우를 우선 사용
-# - 없으면 free 로 처리
-# ============================================================
-def _is_pro() -> bool:
-    # 1) 허브가 주입한 플랜
-    plan = st.session_state.get("user_plan")
-    if isinstance(plan, str):
-        return plan.strip().lower() == "pro"
-    # 2) profiles에서 가져온 plan을 user 객체나 dict에 넣어둔 경우
-    u = st.session_state.get("user")
-    for key in ("plan", "user_plan"):
-        try:
-            v = getattr(u, key, None)
-        except Exception:
-            v = None
-        if isinstance(v, str) and v.strip().lower() in ("pro", "free"):
-            return v.strip().lower() == "pro"
-    # 3) fall back
-    return False
-
-
-# BUILD_STAMP_TALK: talk-newset-in-progress-v1 2026-02-22 KST (+09:00)
-
 from pathlib import Path
 from datetime import datetime, timedelta, date
 import random
@@ -35,17 +10,6 @@ import pandas as pd
 import streamlit as st
 
 
-
-# ============================================================
-# ✅ wrong_notes debug helper
-# ============================================================
-_WN_DEBUG = bool(st.session_state.get("is_admin", False)) or bool(st.session_state.get("is_admin_cached", False))
-def _wn_warn(msg: str):
-    if _WN_DEBUG:
-        try:
-            st.warning(msg)
-        except Exception:
-            pass
 # ============================================================
 # ✅ HUB 진입 시: 선택/제출 상태 초기화 (회화)
 # ============================================================
@@ -66,7 +30,25 @@ NS = "talk"
 SET_LEN = 10
 
 # ============================================================
-# ✅ Hub login required (moved into render)
+# ✅ Hub login required
+# ============================================================
+u = st.session_state.get("user")
+if not u:
+    st.warning("홈에서 로그인 후 이용해 주세요.")
+    st.stop()
+
+USER_ID = getattr(u, "id", None)
+USER_EMAIL = getattr(u, "email", "") or ""
+
+USER_PLAN = (st.session_state.get("user_plan") or "free").lower()
+IS_PRO = USER_PLAN == "pro"
+
+st.title("회화 훈련 · 상황판단")
+st.caption("1문제씩: 상황 → 상대 발화(🔊/PRO) → 보기 선택 → 제출 → 정답/설명 → (선택)말하기 완료 체크")
+
+# ============================================================
+# ✅ Supabase client (hub reuse)
+# ============================================================
 
 def get_cfg(key: str) -> str:
     cfg = st.session_state.get("cfg") or {}
@@ -83,30 +65,6 @@ def get_sb():
     sb = st.session_state.get("sb")
     if sb is not None:
         return sb
-
-
-def get_authed_sb():
-    # 홈허브 로그인 세션의 access_token을 사용해 PostgREST 권한 요청을 보냅니다.
-    token = st.session_state.get("access_token")
-    if not token:
-        return None
-
-    cached = st.session_state.get("_sb_authed_talk")
-    cached_token = st.session_state.get("_sb_authed_talk_token")
-    if cached is not None and cached_token == token:
-        return cached
-
-    sb2 = get_sb()
-    try:
-        # supabase-py: postgrest.auth(token)
-        sb2.postgrest.auth(token)
-    except Exception:
-        # 일부 버전은 내부 client 설정이 다를 수 있음
-        pass
-
-    st.session_state["_sb_authed_talk"] = sb2
-    st.session_state["_sb_authed_talk_token"] = token
-    return sb2
     url = get_cfg("SUPABASE_URL")
     key = get_cfg("SUPABASE_ANON_KEY")
     if not url or not key:
@@ -260,7 +218,7 @@ tag_options = [t for t in ["daily", "business", "call", "interview", "travel", "
 if not tag_options:
     tag_options = all_tags
 
-c1, c2 = st.columns([1.4, 1], vertical_alignment="bottom")
+c1, c2, c3 = st.columns([1.4, 1, 1])
 with c1:
     tag = st.selectbox(
         "상황 선택",
@@ -280,6 +238,10 @@ with c2:
         key=f"{NS}_level",
     )
 
+with c3:
+    if st.button("새 세트(10문제)", use_container_width=True, key=f"{NS}_new_set"):
+        reset_set()
+        st.rerun()
 
 pool_df = DF[(DF["tag"] == tag) & (DF["level"] == level)].copy().reset_index(drop=True)
 if pool_df.empty:
@@ -298,16 +260,16 @@ def tts_button(text: str, label: str, key: str):
     - FREE: 잠금된 버튼(비활성) 표시
     """
     safe = (text or "").replace("\\", "\\\\").replace("`", "").replace("\n", " ")
-    disabled = "true" if (not _is_pro()) else "false"
-    btn_text = (f"🔒 {label}" if (not _is_pro()) else label)
+    disabled = "true" if (not IS_PRO) else "false"
+    btn_text = (f"🔒 {label}" if (not IS_PRO) else label)
     # key마다 고유한 mount id
     components.html(
         f"""
 <div style='width:100%'>
-  <button id='tts_{key}' {'disabled' if not _is_pro() else ''} 
+  <button id='tts_{key}' {'disabled' if not IS_PRO else ''} 
     style='width:100%;padding:8px 10px;border-radius:12px;border:1px solid rgba(49,51,63,.18);
-           background:{'#f6f7f9' if not _is_pro() else 'white'};cursor:{'not-allowed' if not _is_pro() else 'pointer'};
-           font-weight:800;opacity:{'0.7' if not _is_pro() else '1.0'};'>
+           background:{'#f6f7f9' if not IS_PRO else 'white'};cursor:{'not-allowed' if not IS_PRO else 'pointer'};
+           font-weight:800;opacity:{'0.7' if not IS_PRO else '1.0'};'>
     {btn_text}
   </button>
 </div>
@@ -380,19 +342,10 @@ answers = st.session_state.get(f"{NS}_answers") or {}
 
 # ============================================================
 # ✅ Progress header (1/10)
-#   - '새 세트' 버튼을 진행 영역 오른쪽으로 이동(필터와 분리)
 # ============================================================
 progress = (idx + 1) / max(1, len(qids))
-
-p1, p2 = st.columns([1.6, 0.6], vertical_alignment="center")
-with p1:
-    st.progress(progress)
-    st.caption(f"진행: {idx+1}/{len(qids)}")
-
-with p2:
-    if st.button("🔄 새 세트", use_container_width=True, type="secondary", key=f"{NS}_new_set"):
-        reset_set()
-        st.rerun()
+st.progress(progress)
+st.caption(f"진행: {idx+1}/{len(qids)}")
 
 # ============================================================
 # ✅ Current question
@@ -476,47 +429,8 @@ with cc3:
 if submitted:
     correct = str(row.get("answer_jp", "")).strip()
     ok = (selected == correct)
-        # ============================================================
-    # ✅ 오답 상세 저장 (wrong_notes) — 회화도 '단어/정답/내답' 기록
-    # ============================================================
-    if not ok:
-        try:
-            sb2 = st.session_state.get("sb_authed") or sb  # hub에서 공유되면 sb_authed 우선
-            if sb2 and USER_ID:
-                q_text = (str(row.get("q_jp", "")) or str(row.get("situation_kr",""))).strip()
-                sb2 = get_authed_sb() or sb2
 
-                if not sb2:
-
-                    _wn_warn("오답 저장 실패: authed client 없음(access_token).")
-
-                else:
-
-                    try:
-
-                        sb2.table("wrong_notes").insert({
-
-                            "user_id": USER_ID,
-
-                            "quiz_type": "talk",
-
-                            "question": q_text if q_text else str(row.get("id", "")),
-
-                            "correct_answer": str(correct),
-
-                            "user_answer": str(selected),
-
-                            "level": "talk",
-
-                        }).execute()
-
-                    except Exception as e:
-
-                        _wn_warn(f"오답 저장 실패: {e}")
-        except Exception:
-            pass
-
-# 저장(answers)
+    # 저장(answers)
     answers.setdefault(qid, {})
     answers[qid]["selected"] = selected
     answers[qid]["ok"] = ok

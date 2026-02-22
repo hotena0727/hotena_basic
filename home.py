@@ -1,7 +1,8 @@
 # home.py
 from __future__ import annotations
 
-BUILD_STAMP = 'home-clean-no-spacer-v3 (fix run_module reload) 2026-02-22 KST (+09:00)'
+BUILD_STAMP = 'home-min-clean-v2 (replace dashboard) 2026-02-20 KST (+09:00)'
+
 from pathlib import Path
 import os
 import runpy
@@ -19,23 +20,14 @@ import streamlit.components.v1 as components
 # - Import (or reload) a module by name so it renders in the SAME Streamlit flow
 # ============================================================
 def run_module(module_name: str):
-    """Import (or reload) a module by name so it renders in the SAME Streamlit flow.
-
-    IMPORTANT:
-    - Do NOT import + reload in the same run (it executes the module twice),
-      which can cause StreamlitDuplicateElementKey for widgets defined at import time.
-    """
     try:
-        import sys
-        if module_name in sys.modules:
-            mod = importlib.reload(sys.modules[module_name])
-        else:
-            mod = importlib.import_module(module_name)
-
+        mod = importlib.import_module(module_name)
+        importlib.reload(mod)  # reflect latest edits during dev
         # If module exposes a render() function, call it.
         if hasattr(mod, "render") and callable(getattr(mod, "render")):
             mod.render()
     except Exception as e:
+        # Surface useful error in-app
         st.exception(e)
         raise
 
@@ -46,9 +38,7 @@ def _js_bridge_localstorage_to_queryparam(ls_key: str, qp_key: str):
     try:
         components.html(
             f"""<script>
-(function(,
-            height=0,
-        ){{
+(function(){{
   try {{
     const lsKey = {json.dumps("LS_KEY")};
     const qpKey = {json.dumps("QP_KEY")};
@@ -73,9 +63,7 @@ def _js_set_localstorage(key: str, value: str):
         components.html(
             f"""<script>
 try {{
-  localStorage.setItem({json.dumps("K",
-            height=0,
-        )}, {json.dumps("V")});
+  localStorage.setItem({json.dumps("K")}, {json.dumps("V")});
 }} catch(e) {{}}
 </script>""".replace("K", key).replace("V", value),
             height=0,
@@ -88,9 +76,7 @@ def _js_remove_localstorage(key: str):
         components.html(
             f"""<script>
 try {{
-  localStorage.removeItem({json.dumps("K",
-            height=0,
-        )});
+  localStorage.removeItem({json.dumps("K")});
 }} catch(e) {{}}
 </script>""".replace("K", key),
             height=0,
@@ -107,51 +93,29 @@ import html as html_module  # ✅ for html escaping in admin cards
 # ✅ Page Config (Hub only)
 # ============================================================
 st.set_page_config(page_title="Hotena Hub", layout="centered")
+# ✅ TOP anchor for floating button (no-JS)
+st.markdown('<div id="hotena-top"></div>', unsafe_allow_html=True)
 
+# ✅ CSS reset (child pages may hide Streamlit header; keep top UI from being clipped)
+st.markdown(
+    """
+<style>
+/* ==========================================================
+   ✅ HUB Global CSS (Mobile-first polish)
+   - Keep header visible (child pages may hide)
+   - Make tap targets big enough
+   - Normalize spacing/typography for "app-like" feel
+   ========================================================== */
 
-# ============================================================
-# ✅ TOP SPACING FIX (PC + Mobile)
-# - Remove Streamlit's default top padding/space
-# - Applied once per session
-# ============================================================
-if not st.session_state.get("_top_compact_css_applied"):
-    st.markdown("""<style>
-/* === Hotena: ultra-compact top spacing (mobile + desktop) === */
-/* 핵심: block-container의 기본 top padding 제거 + 첫 요소 여백 제거 */
-section.main > div.block-container,
-div[data-testid="stAppViewContainer"] > div.block-container {
-  padding-top: 0rem !important;
-  margin-top: 0rem !important;
-}
-
-/* 첫 요소(메뉴/버튼 래퍼) 상단 여백 제거 */
-div.block-container > div:first-child {
-  margin-top: 0rem !important;
-  padding-top: 0rem !important;
-}
-
-/* Streamlit 헤더가 만드는 공간 최소화 */
 header[data-testid="stHeader"]{
-  display:none !important;
-  height:0 !important;
-  min-height:0 !important;
+  height: auto !important;
+  min-height: 3.25rem !important;
 }
-div[data-testid="stToolbar"]{
-  display:none !important;
-  height:0 !important;
-  visibility:hidden !important;
-}
-footer{display:none !important;}
 
-/* Container spacing: pull content to the very top */
-div[data-testid="stAppViewContainer"]{
-  padding-top: 0 !important;
-  margin-top: 0 !important;
-}
+/* Container spacing */
 div[data-testid="stAppViewContainer"] .block-container{
-  padding-top: 0 !important;
-  margin-top: 0 !important;
-  padding-bottom: 5.25rem !important; /* keep breathing room for bottom nav */
+  padding-top: 0.25rem !important;
+  padding-bottom: 5.25rem !important; /* bottom breathing room for mobile */
 }
 
 /* Headlines: tighter */
@@ -672,43 +636,6 @@ def render_home_dashboard(sb_authed, user):
     idx = (kst_today.toordinal() + (streak * 3) + remaining_sets) % len(messages)
     motivation = messages[idx]
 
-    # ---- 오늘의 한마디 (한국어, 날짜 기반 고정) ----
-    HUB_QUOTES = [
-        "오늘 20분이면 충분합니다.",
-        "꾸준함은 재능을 이깁니다.",
-        "작은 차이가 1년을 바꿉니다.",
-        "루틴은 의지를 대신합니다.",
-        "느려도 괜찮습니다. 계속하면 됩니다.",
-        "매일 조금씩이 가장 빠른 길입니다.",
-        "오늘을 채우면 내일이 편해집니다.",
-        "공부는 감정이 아니라 구조입니다.",
-        "포기하지 않는 사람이 결국 이깁니다.",
-        "하테나는 루틴을 만듭니다.",
-        "어제보다 1%만 나아지면 됩니다.",
-        "오늘 한 문제라도 의미 있습니다.",
-        "멈추지 않으면 쌓입니다.",
-        "실력은 조용히 올라갑니다.",
-        "반복이 결국 차이를 만듭니다.",
-        "몰아서 하지 말고, 매일 하세요.",
-        "오늘의 기록이 내일의 자신감입니다.",
-        "성장은 보이지 않게 진행됩니다.",
-        "공부는 자신과의 약속입니다.",
-        "매일 하는 사람이 강합니다.",
-        "완벽하지 않아도 괜찮습니다.",
-        "오늘을 넘기지 마세요.",
-        "시작이 가장 쉽습니다.",
-        "루틴은 배신하지 않습니다.",
-        "하루는 짧지만, 1년은 깁니다.",
-        "꾸준함이 가장 큰 무기입니다.",
-        "오늘을 버티면 실력이 됩니다.",
-        "계속하는 사람이 결국 남습니다.",
-        "지금 시작하는 것이 가장 빠릅니다.",
-        "하테나는 오늘도 쌓입니다.",
-    ]
-    today_quote = HUB_QUOTES[kst_today.toordinal() % len(HUB_QUOTES)]
-
-    
-
     # ---- local helper ----
     def _dots_3(done_sets: int, goal_sets_: int) -> str:
         if goal_sets_ <= 0:
@@ -884,30 +811,6 @@ def render_home_dashboard(sb_authed, user):
   .st-key-hub_goal_gear_icon button:active{outline:none !important;box-shadow:none !important;}
   .st-key-hub_goal_gear_icon button p{font-size:18px !important;margin:0 !important;}
 
-
-
-
-/* Quote (오늘의 한마디) */
-.h-quote-card{
-  display:flex;
-  align-items:center;
-  gap:8px;
-  margin: 0.25rem 0 0.1rem 0;
-  padding: 10px 12px;
-  border-radius: 12px;
-  background: rgba(244,247,251,0.95);
-  border: 1px solid rgba(227,232,240,1);
-}
-.h-quote-dot{
-  width:6px;height:6px;border-radius:50%;
-  background: rgba(74,108,247,1);
-  flex-shrink:0;
-}
-.h-quote-t{
-  font-size: 0.98rem;
-  font-weight: 600;
-  color: rgba(44,62,80,1);
-}
 </style>
         """,
         unsafe_allow_html=True,
@@ -919,8 +822,8 @@ def render_home_dashboard(sb_authed, user):
 <div class="h-wrap">
   <div class="h-top">
     <div>
-      <p class="h-title">하테나일본어</p>
-      <div class="h-quote-card"><span class="h-quote-dot"></span><span class="h-quote-t">{today_quote}</span></div>
+      <p class="h-title">하테나 학습 허브</p>
+      <p class="h-sub">{motivation}</p>
       <p class="h-sub" style="opacity:.58;font-size:.86rem;margin:.10rem 0 0;">오늘의 성취율을 확인하고, 바로 이어가세요.</p>
     </div>
     <div class="h-pill">🔥 <b>{streak}</b>일</div>
@@ -1141,20 +1044,6 @@ def render_home_dashboard(sb_authed, user):
         st.query_params["p"] = rec_kind
         st.rerun()
 
-    # ---- Wrong routine CTA (compact) ----
-    st.markdown("<div style='height:0.25rem'></div>", unsafe_allow_html=True)
-    c_wr1, c_wr2 = st.columns([2, 1])
-    with c_wr1:
-        st.markdown("<div class='h-sub' style='margin-top:.10rem'>오답 루틴(반복오답)으로 복습까지 마무리해요.</div>", unsafe_allow_html=True)
-    with c_wr2:
-        if st.button("🔁 반복오답 루틴", use_container_width=True, key="hub_cta_wrongs"):
-            st.query_params["p"] = "my"
-            st.session_state["p"] = "my"
-            st.session_state["hub_page"] = "my"
-            # mypage 쪽에서 사용하면 자동 반영 (없어도 무해)
-            st.session_state["mypage_tab"] = "wrongs"
-            st.session_state["wrongs_repeat_only"] = True
-            st.rerun()
 
 
 def summarize_attempts(attempts: list[dict]) -> dict:
@@ -1380,53 +1269,6 @@ def render_plan_pill():
         unsafe_allow_html=True,
     )
 
-
-def render_hub_page_title(page: str):
-    """Hub 상단 공통 타이틀(PLAN 배지 바로 아래).
-    - 홈: 브랜드 타이틀
-    - 훈련/기능 페이지: 페이지별 타이틀
-    """
-    if page in (None, ""):
-        return
-
-    # ✅ 홈 허브에서는 브랜드 타이틀을 숨깁니다(버튼 3개 중심)
-    if page == "home":
-        return
-
-    main_map = {
-        "word": "📘 단어 훈련",
-        "kanji": "🈶 한자 훈련",
-        "talk": "🎤 회화 훈련",
-        "my": "👤 마이페이지",
-        "admin": "🛠️ 관리자",
-        "reminder": "🔔 알림",
-    }
-
-    title_main = "✨ 왕초보 탈출 하테나일본어" if page == "home" else main_map.get(page, "")
-    title_sub = ""
-
-    if not title_main:
-        return
-
-    # 홈/훈련 폰트 크기 차등
-    fs_main = "42px" if page == "home" else "36px"
-    mt_mb = "0.05rem 0 0.25rem" if page == "home" else "0.02rem 0 0.18rem"
-
-    st.markdown(
-        f"""
-<style>
-.hub-title-wrap{{margin:{mt_mb}; padding:0;}}
-.hub-title-main{{font-weight:900;font-size:{fs_main};line-height:1.10;margin:0;padding:0;}}
-.hub-title-sub{{font-weight:800;font-size:12px;opacity:.72;margin:2px 0 0;padding:0;}}
-</style>
-<div class="hub-title-wrap jp">
-  <div class="hub-title-main">{title_main}</div>
-  {f'<div class="hub-title-sub">{title_sub}</div>' if title_sub else ''}
-</div>
-""",
-        unsafe_allow_html=True,
-    )
-
 def render_daily_goal_home(sb_authed, user_id: str):
     """Home dashboard: daily goal (sets-based). 1 set == 10 questions (quiz_len)."""
     progress_all = st.session_state.get("progress_all", {}) or {}
@@ -1518,9 +1360,7 @@ def fire_in_app_reminder_if_enabled(user):
     components.html(
         f"""
 <script>
-  (function(,
-            height=0,
-        ){{
+  (function(){{
     try {{
       const delay = {delay_ms};
       const message = {msg};
@@ -1963,8 +1803,42 @@ def render_bottom_nav(active: str = "home"):
 </div>"""
     st.markdown(html, unsafe_allow_html=True)
 
+def render_training_header(sb_authed, user, kind: str, title: str, subtitle: str):
+    """A) Unified title + compact daily goal progress strip on training pages."""
+    progress_all = st.session_state.get("progress_all", {}) or {}
+    goal_sets = int((progress_all.get("daily_goal_sets") or 3))
 
-    return
+    attempts = fetch_today_attempts(sb_authed, user.id)
+    sm = summarize_attempts(attempts)
+    done_sets_total = int(sm.get("total_sets", 0))
+    done_sets_kind = int(sm.get("by_kind", {}).get(kind, {}).get("sets", 0))
+
+    pct = 0.0
+    if goal_sets > 0:
+        pct = min(1.0, done_sets_total / float(goal_sets))
+
+    st.markdown(
+        f"""
+<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:0.75rem;margin-top:0.25rem;margin-bottom:0.45rem;">
+  <div>
+    <div style="font-size:1.35rem;font-weight:800;line-height:1.2;">{title}</div>
+    <div style="opacity:0.72;font-size:0.95rem; margin-top:0.15rem;">{subtitle}</div>
+  </div>
+  <div style="text-align:right;">
+    <div style="display:inline-flex;align-items:center;gap:.35rem;padding:.22rem .55rem;border-radius:999px;border:1px solid rgba(0,0,0,.10);background:rgba(0,0,0,.02);font-size:.88rem;">
+      오늘 {done_sets_kind}세트
+    </div>
+  </div>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
+
+    # compact progress
+    st.progress(pct)
+    st.caption(f"오늘 완료: {done_sets_total}/{goal_sets}세트 · 현재 페이지: {kind}")
+    st.markdown("---")
+
 def run_script(filename: str):
     path = (BASE_DIR / filename).resolve()
     if not path.exists() or not path.is_file():
@@ -3209,8 +3083,6 @@ render_floating_menu()
 render_plan_pill()
 
 page = st.session_state.get("hub_page", "home")
-render_hub_page_title(page)
-
 render_bottom_nav(active=page)
 
 
@@ -3225,9 +3097,16 @@ if page == "home":
     # ✅ Home Hub: dashboard view
     render_home_dashboard(sb_authed, user)
 elif page == "my":
-    # ✅ 마이페이지: 홈 허브에서는 관리자 메시지(받은 메시지) 영역을 숨깁니다.
-    # - 메시지 탭은 mypage 내부에 이미 있으므로 중복 노출 방지
+    # ✅ 마이페이지: (1) 받은 메시지(알림) 먼저 노출 → (2) 기존 mypage 모듈 실행
     st.session_state['HUB_MODE'] = True
+    try:
+        uid_now = st.session_state.get("user_id") or getattr(user, "id", None)
+        if uid_now and sb_authed:
+            render_user_inbox_section(sb_authed, str(uid_now))
+            st.markdown("---")
+    except Exception:
+        pass
+
     run_module('mypage')
     st.stop()
 
@@ -3237,15 +3116,17 @@ elif page == "reminder":
 
 elif page == "word":
     st.session_state["hub_target"] = "word"
+    render_training_header(sb_authed, user, kind="word", title="📘 단어 훈련", subtitle="뜻/발음/한→일 · 10문제 1세트")
     st.session_state['HUB_MODE'] = True
     run_module('hotena_basic')
 elif page == "kanji":
     st.session_state["hub_target"] = "kanji"
+    render_training_header(sb_authed, user, kind="kanji", title="🈶 한자 훈련", subtitle="읽기/뜻/복습 · 10문제 1세트")
     st.session_state['HUB_MODE'] = True
     run_module('app')
 elif page == "talk":
     st.session_state["hub_target"] = "talk"
-    st.session_state['HUB_MODE'] = True
+    render_training_header(sb_authed, user, kind="talk", title="💬 회화 훈련", subtitle="상황 판단 · 정답 선택 · 발음 연습")
     run_module('talk')
 else:
     # ✅ Fallback: unknown page -> go home
