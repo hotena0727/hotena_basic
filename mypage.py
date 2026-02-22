@@ -965,6 +965,37 @@ body {{ margin:0; font-family: Pretendard, 'Noto Sans KR', 'Apple SD Gothic Neo'
   font-size: 14px;
   line-height: 1.55;
 }}
+
+/* ============================================================
+   ✅ 메시지 목록 "큰 공백" 제거 (중요)
+   - 각 항목마다 st.markdown('<div>') / st.markdown('</div>')로 생기는
+     빈 Markdown 블록의 기본 여백을 0으로 눌러서 리스트를 붙입니다.
+   ============================================================ */
+
+/* Streamlit markdown 블록 자체 여백 제거 (메시지 스코프 한정) */
+.ha-msg-scope div[data-testid="stMarkdown"]{
+  margin: 0 !important;
+  padding: 0 !important;
+}
+.ha-msg-scope div[data-testid="stMarkdown"] > div{
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* wrapper div(읽음/안읽음) 자체가 줄간격을 만들지 않게 */
+.ha-msg-scope .ha-msg-unread,
+.ha-msg-scope .ha-msg-read,
+.ha-msg-scope > div{
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* wrapper를 레이아웃에서 제거(간격 생성 방지) */
+.ha-msg-scope .ha-msg-unread,
+.ha-msg-scope .ha-msg-read{
+  display: contents !important;
+}
+
 </style></head>
 <body>
   <div class="card">
