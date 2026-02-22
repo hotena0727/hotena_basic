@@ -779,6 +779,33 @@ def _inject_css() -> None:
   border-radius: 12px !important;
 }
 
+
+
+/* ============================================================
+   ✅ V4.9.12 HOTFIX: message list spacing tighter
+   - Streamlit wraps expanders in element-container with default margins.
+   - Force near-zero spacing only inside message scope.
+   ============================================================ */
+.ha-msg-scope div[data-testid="element-container"]{
+  margin: 0 !important;
+  padding: 0 !important;
+}
+.ha-msg-scope div[data-testid="stVerticalBlock"]{
+  gap: 0 !important;
+}
+.ha-msg-scope div[data-testid="stExpander"]{
+  margin: 0 !important;
+}
+.ha-msg-scope div[data-testid="stExpander"] + div[data-testid="stExpander"]{
+  margin-top: 0px !important; /* almost 붙이기 */
+}
+
+/* Optional: a hairline separation without big gap */
+.ha-msg-scope div[data-testid="stExpander"] summary{
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
+}
+
 </style>"""
     css = css.replace("__BLUE__", str(HATENA_BLUE))
     st.markdown(css, unsafe_allow_html=True)
