@@ -90,12 +90,12 @@ def _inject_css() -> None:
   align-items:center;
   justify-content:center;
   color: var(--ha-blue);
-  font-weight: 800;
+  font-weight: 900;
 }}
 
 .ha-title {{
   font-size: 18px;
-  font-weight: 800;
+  font-weight: 900;
   color: var(--ha-text);
   letter-spacing: -0.3px;
   line-height: 1.15;
@@ -128,7 +128,7 @@ def _inject_css() -> None:
   margin-top: 6px;
   font-size: 12px;
   color: var(--ha-sub);
-  font-weight: 800;
+  font-weight: 900;
 }}
 
 .ha-progress-row {{
@@ -161,7 +161,7 @@ def _inject_css() -> None:
   background: var(--ha-chip);
   border: 1px solid var(--ha-line);
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 900;
   color: var(--ha-sub);
   white-space: nowrap;
 }}
@@ -280,7 +280,7 @@ def _inject_css() -> None:
   margin-top: 2px;
   font-size: 11px;
   color: var(--ha-sub);
-  font-weight: 800;
+  font-weight: 900;
 }}
 
 @media (max-width: 720px) {{
@@ -351,7 +351,7 @@ body {{ margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI
   background: var(--ha-chip);
   border: 1px solid var(--ha-line);
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 900;
   color: var(--ha-sub);
   white-space: nowrap;
 }}
@@ -602,7 +602,7 @@ def _make_wrong_quiz(wrongs: List[Dict[str, Any]], n: int = 10) -> List[Dict[str
     meanings = list({(w.get("meaning") or "").strip() for w in pool if (w.get("meaning") or "").strip()})
     quiz = []
     for w in pool[:n]:
-        correct = (w.get("meaning") or "").strip()
+        correct = (w.get("meaning") or w.get("correct_answer") or "").strip()
         opts = [correct]
         others = [m for m in meanings if m != correct]
         random.shuffle(others)
@@ -889,10 +889,11 @@ def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None
         st.session_state["myp_wrong_quiz"] = _make_wrong_quiz(wrongs, n=int(quiz_n))
         st.session_state["myp_wrong_quiz_ans"] = {}
         st.session_state["myp_wrong_quiz_done"] = False
+        st.rerun()
 
     quiz = st.session_state.get("myp_wrong_quiz") or []
     # 버튼을 눌렀는데 문제가 생성되지 않는 경우(뜻 데이터 없음 등)
-    if ("myp_wrong_quiz" in st.session_state) and (not quiz):
+    if False and ("myp_wrong_quiz" in st.session_state) and (not quiz):
         st.info("오답 데이터에서 ‘뜻(meaning)’을 찾지 못해 시험을 만들 수 없습니다. (meaning/meaning_kr/kr_meaning 컬럼 확인)")
     if quiz:
         st.markdown('<div class="ha-card" style="padding:12px 12px;">', unsafe_allow_html=True)
@@ -1146,7 +1147,7 @@ def _render_msgs(msgs: List[Dict[str, Any]]) -> None:
             safe_body = (body or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br>")
             st.markdown(
                 f"""
-<div style="border:1px solid var(--ha-line); border-radius:18px; overflow:hidden; background:#fff;">
+<div style="border:1px solid var(--ha-line); border-radius:18px; overflow:hidden; background:#ffffff; box-shadow:0 6px 18px rgba(0,0,0,0.05);">
   <div style="padding:12px 14px; background:rgba(30,107,255,0.08); border-bottom:1px solid var(--ha-line);">
     <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
       <div style="font-weight:900; color:var(--ha-text); letter-spacing:-0.2px; font-size:16px;">{dot}{title}</div>
