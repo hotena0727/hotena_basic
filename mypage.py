@@ -198,13 +198,13 @@ def _inject_css() -> None:
   margin:0 !important;
   padding:0 !important;
 }
-.ha-card div[data-testid="stExpander"] summary{
 /* ✅ ensure expanded container has inner bottom padding (prevents overlap with outer border) */
 .ha-card div[data-testid="stExpander"] > details[open]{
   padding-bottom:14px !important;
   box-sizing:border-box !important;
 }
 
+.ha-card div[data-testid="stExpander"] summary{
   position:relative;
   margin:0 !important;
   padding:6px 2px 6px 30px !important; /* ✅ tighter list */
@@ -252,14 +252,14 @@ def _inject_css() -> None:
 }
 /* ✅ reduce gap between list items */
 .ha-card div[data-testid="stExpander"] + div[data-testid="stExpander"]{margin-top:4px !important;}
-.ha-msg-bodyA{margin-top:8px; padding:0;}
+.ha-msg-bodyA{margin-top:8px; padding:0 0 14px 0;}
 .ha-msg-bodyA-inner{
   padding:10px 12px 14px 12px;
   background:#f8fafc;
   border:1px solid var(--ha-line);
   border-radius:12px;
   line-height:1.75;
-  margin-bottom:14px;
+  margin-bottom: 0px;
 }
 
 
