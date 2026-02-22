@@ -5,6 +5,13 @@ from pathlib import Path
 import random
 import pandas as pd
 import streamlit as st
+
+# -------------------------------
+# ✅ 한자 헤더 중복 방지 플래그
+# -------------------------------
+if "KANJI_HEADER_RENDERED" not in st.session_state:
+    st.session_state["KANJI_HEADER_RENDERED"] = False
+
 import unicodedata
 from supabase import create_client
 from streamlit_cookies_manager import EncryptedCookieManager
@@ -19,7 +26,47 @@ import textwrap
 # NOTE: page config is handled by home.py
 if not st.session_state.get("_page_config_set"):
     st.set_page_config(page_title="Hotena", layout="centered")
-    st.session_state["_page_config_set"] = True
+    
+
+# ============================================================
+# ✅ TOP SPACING FIX (PC + Mobile)
+# - Remove Streamlit's default top padding/space
+# - Applied once per session
+# ============================================================
+if not st.session_state.get("_top_compact_css_applied"):
+    st.markdown("""<style>
+/* === Hotena: ultra-compact top spacing (mobile + desktop) === */
+/* 핵심: block-container의 기본 top padding 제거 + 첫 요소 여백 제거 */
+section.main > div.block-container,
+div[data-testid="stAppViewContainer"] > div.block-container {
+  padding-top: 0rem !important;
+  margin-top: 0rem !important;
+}
+
+/* 첫 요소(메뉴/버튼 래퍼) 상단 여백 제거 */
+div.block-container > div:first-child {
+  margin-top: 0rem !important;
+  padding-top: 0rem !important;
+}
+
+/* Streamlit 헤더가 만드는 공간 최소화 */
+header[data-testid="stHeader"]{
+  height: 0px !important;
+  min-height: 0px !important;
+}
+
+/* 모바일에서 더 강하게 */
+@media (max-width: 768px){
+  section.main > div.block-container,
+  div[data-testid="stAppViewContainer"] > div.block-container {
+    padding-top: 0rem !important;
+    margin-top: 0rem !important;
+  }
+}
+</style>""", unsafe_allow_html=True)
+    st.session_state["_top_compact_css_applied"] = True
+
+st.session_state["_page_config_set"] = True
 # ============================================================
 # ✅ [SOUND] 사운드 유틸 (모바일 자동재생 정책 대응)
 # ============================================================
@@ -1264,6 +1311,13 @@ import random
 import pandas as pd
 import streamlit as st
 
+# -------------------------------
+# ✅ 한자 헤더 중복 방지 플래그
+# -------------------------------
+if "KANJI_HEADER_RENDERED" not in st.session_state:
+    st.session_state["KANJI_HEADER_RENDERED"] = False
+
+
 def _nfkc_str(x) -> str:
     return unicodedata.normalize("NFKC", str(x or "")).strip()
 
@@ -1916,16 +1970,6 @@ def render_home():
     page_title = "👤 마이페이지" if st.session_state.get("page") == "my" else "✨하테나일본어 한자정복"
 
 
-    st.markdown(
-        f"""
-<div class="jp headbar">
-  <div class="headtitle">{page_title}</div>
-  <div class="headhello">환영합니다 🙂 <span class="mail">{email}</span></div>
-</div>
-""",
-        unsafe_allow_html=True
-    )
-
     quotes = [
         "배움은 매일 새로 시작해도 늦지 않다.",
         "오늘의 한 문제는 내일의 자신감이다.",
@@ -2023,7 +2067,6 @@ if st.session_state.get("page") != "home":
         f"""
 <div class="jp headbar">
   <div class="headtitle">{_title}</div>
-  <div class="headhello">환영합니다 🙂 <span class="mail">{email}</span></div>
 </div>
 """,
         unsafe_allow_html=True
@@ -2153,6 +2196,9 @@ def render_kanji_hub(HUB_MODE: bool = False):
     # ----------------------------
     # 1) 레벨 버튼(N5~N1) 먼저
     # ----------------------------
+    
+    st.markdown('<div class="qtype_hint jp">✨레벨을 선택하세요</div>', unsafe_allow_html=True)
+    
     level_cols = st.columns(len(LEVEL_OPTIONS), gap="small")
     for i, lv in enumerate(LEVEL_OPTIONS):
         is_selected_lv = (lv == st.session_state.level)
@@ -2170,11 +2216,12 @@ def render_kanji_hub(HUB_MODE: bool = False):
                 args=(lv,),
             )
 
-    st.markdown('<div class="qtype_hint jp">✨레벨을 선택하세요</div>', unsafe_allow_html=True)
-
     # ----------------------------
     # 2) 유형 버튼(발음/뜻/한→일)
     # ----------------------------
+    
+    st.markdown('<div class="qtype_hint jp">✨유형을 선택하세요</div>', unsafe_allow_html=True)
+    
     type_cols = st.columns(len(available_types), gap="small")
     for i, qt in enumerate(available_types):
         is_selected = (qt == st.session_state.quiz_type)
@@ -2191,8 +2238,6 @@ def render_kanji_hub(HUB_MODE: bool = False):
                 on_click=on_pick_qtype,
                 args=(qt,),
             )
-
-    st.markdown('<div class="qtype_hint jp">✨유형을 선택하세요</div>', unsafe_allow_html=True)
 
     st.markdown('</div>', unsafe_allow_html=True)
 
