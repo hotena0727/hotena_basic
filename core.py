@@ -405,6 +405,9 @@ def scroll_to_top(nonce: int = 0) -> None:
 
 def render_floating_scroll_top() -> None:
     inject_top_anchor()
+    if st.session_state.get('_core_fab_injected'):
+        return
+    st.session_state['_core_fab_injected'] = True
     components.html(
         """
 <script>
