@@ -2498,7 +2498,6 @@ def render_home():
         f"""
 <div class="jp headbar">
   <div class="headtitle">✨ 왕초보 탈출 하테나일본어</div>
-  <div class="headhello">환영합니다 🙂 <span class="mail">{email}</span></div>
 </div>
 """,
         unsafe_allow_html=True,
@@ -2832,7 +2831,6 @@ if st.session_state.get("page") != "home":
         f"""
 <div class="jp headbar">
   <div class="headtitle">✨ 왕초보 탈출 하테나일본어</div>
-  <div class="headhello">환영합니다 🙂 <span class="mail">{email}</span></div>
 </div>
 """,
         unsafe_allow_html=True,
@@ -3849,7 +3847,4 @@ if st.session_state.get("submitted", False):
     show_naver_talk = (SHOW_NAVER_TALK == "N") or is_admin()
     if show_naver_talk:
         render_naver_talk()
-
-
-
 
