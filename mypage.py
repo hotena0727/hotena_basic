@@ -190,6 +190,60 @@ def _inject_css() -> None:
 /* ✅ messages: card list + spacing */
 .ha-msg-gap{height:12px;}
 
+/* ✅ messages (polish): row layout */
+.ha-msg-scope{margin-top:8px;}
+.ha-msg-rowwrap{
+  border:1px solid var(--ha-line);
+  border-radius:14px;
+  background:#fff;
+  padding:10px 12px;
+  margin-top:10px;
+}
+.ha-msg-rowwrap:hover{background:#fbfbfd;}
+.ha-msg-rowwrap.is-open{
+  border-color: rgba(37,99,235,0.35);
+  box-shadow: 0 2px 10px rgba(0,0,0,0.04);
+}
+.ha-msg-dot{
+  width:8px; height:8px; border-radius:99px;
+  background: var(--ha-blue);
+  display:inline-block;
+  margin-right:8px;
+  transform: translateY(-1px);
+}
+.ha-msg-title2{
+  font-weight:900;
+  letter-spacing:-0.2px;
+  color:var(--ha-text);
+  font-size:15px;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.ha-msg-meta{
+  display:flex;
+  justify-content:flex-end;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+}
+.ha-msg-chevron{
+  color: var(--ha-sub);
+  font-size:14px;
+  margin-left:2px;
+}
+.ha-msg-scope [data-testid="stButton"] > button{
+  background: transparent !important;
+  border: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  box-shadow: none !important;
+  text-align: left !important;
+  width: 100% !important;
+}
+.ha-msg-scope [data-testid="stButton"] > button:hover{background: transparent !important;}
+
+
 /* ✅ messages: minimal rows */
 /* ✅ messages: row toggle (scoped) */
 .ha-msg-scope [data-testid="stButton"] > button{
@@ -1216,19 +1270,46 @@ def _render_msgs(msgs: List[Dict[str, Any]]) -> None:
         body = (mm.get("body") or "").strip()
         dt = _fmt_dt(mm.get("created_at") or "")
         is_unread = not mm.get("read_at")
-
         chip = "읽지 않음" if is_unread else "읽음"
-        dot = "●" if is_unread else ""
-        caret = "▾" if open_id != mid else "▴"
+        chevron = "▾" if open_id != mid else "▴"
+        open_cls = "is-open" if open_id == mid else ""
 
-        label = f"{dot} {title}  ·  {dt}  ·  {chip}  {caret}".strip()
+        # ✅ 한 줄: 왼쪽(제목 클릭) / 오른쪽(칩 + 화살표)
+        st.markdown(f'<div class="ha-msg-rowwrap {open_cls}">', unsafe_allow_html=True)
 
-        if st.button(label, key=f"msg_row_{mid}", use_container_width=True):
-            st.session_state["myp_msg_open_id"] = None if open_id == mid else mid
-            st.rerun()
+        c1, c2 = st.columns([0.72, 0.28], gap="small")
+        with c1:
+            dot_html = '<span class="ha-msg-dot"></span>' if is_unread else ''
+            # 제목 클릭 = 토글
+            if st.button(f"{title}", key=f"msg_toggle_{mid}", use_container_width=True):
+                st.session_state["myp_msg_open_id"] = None if open_id == mid else mid
+                st.rerun()
+            # 버튼 텍스트를 예쁘게 보이게 (CSS로 버튼 크롬 제거, 아래 마크업으로 타이포 통일)
+            st.markdown(
+                f"""
+<div style="margin-top:-34px; pointer-events:none;">
+  <div class="ha-msg-title2">{dot_html}{_escape_html(title)}</div>
+</div>
+""",
+                unsafe_allow_html=True,
+            )
+
+        with c2:
+            st.markdown(
+                f"""
+<div class="ha-msg-meta">
+  <span class="ha-chip">{dt}</span>
+  <span class="ha-badge">{chip}</span>
+  <span class="ha-msg-chevron">{chevron}</span>
+</div>
+""",
+                unsafe_allow_html=True,
+            )
+
+        st.markdown("</div>", unsafe_allow_html=True)  # rowwrap end
 
         if open_id == mid:
-            safe_body = _escape_html(body).replace('\n', '<br>')
+            safe_body = _escape_html(body).replace("\n", "<br>")
             st.markdown(f'<div class="ha-msg-body">{safe_body}</div>', unsafe_allow_html=True)
 
             if is_unread and sb and mid:
@@ -1241,8 +1322,8 @@ def _render_msgs(msgs: List[Dict[str, Any]]) -> None:
                     except Exception:
                         st.warning("읽음 처리에 실패했습니다. (RLS 확인)")
 
-    st.markdown("</div>", unsafe_allow_html=True)
-    st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)  # ha-msg-scope
+    st.markdown("</div>", unsafe_allow_html=True)  # ha-card
 def render() -> None:
     _inject_css()
     _wrap_start()
