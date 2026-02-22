@@ -57,7 +57,7 @@ def _inject_css() -> None:
   -moz-osx-font-smoothing: grayscale;
   max-width: 980px;
   margin: 0 auto;
-  padding: 6px 8px 26px 8px;
+  padding: 2px 8px 18px 8px;
 }
 
 .ha-top {
@@ -65,7 +65,7 @@ def _inject_css() -> None:
   border-radius: 18px;
   background: var(--ha-bg);
   padding: 14px 14px;
-  margin: 8px 0 10px 0;
+  margin: 2px 0 8px 0;
 }
 
 .ha-topbar {
@@ -1298,9 +1298,22 @@ def _to_dt_kst(any_dt: Any) -> Optional[datetime]:
 # Navigation
 # ---------------------------
 def _go_home() -> None:
-    for key in ("hub_page", "page", "current_page"):
-        if key in st.session_state:
-            st.session_state[key] = "home"
+    # ✅ home.py router uses query param "p" to set st.session_state["hub_page"].
+    # If URL still has ?p=my, it can override hub_page on rerun.
+    # So we update BOTH: session_state + query param.
+    try:
+        st.query_params["p"] = "home"
+    except Exception:
+        try:
+            st.experimental_set_query_params(p="home")
+        except Exception:
+            pass
+
+    st.session_state["hub_page"] = "home"
+    # optional compatibility keys (older builds)
+    st.session_state["page"] = "home"
+    st.session_state["current_page"] = "home"
+
     st.rerun()
 
 
@@ -1746,7 +1759,7 @@ def _render_records(attempts: List[Dict[str, Any]], attempts_status: str) -> Non
 
         )
 
-        components.html(_card_iframe_html(title, meta_html), height=64, scrolling=False)
+        components.html(_card_iframe_html(title, meta_html), height=88, scrolling=False)
 
     st.markdown("</div>", unsafe_allow_html=True)
 
