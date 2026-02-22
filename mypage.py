@@ -214,7 +214,6 @@ def _inject_css() -> None:
   color: var(--ha-text);
   letter-spacing: -0.2px;
 }}
-}
 .ha-meta {{
   margin-top: 6px;
   font-size: 12px;
