@@ -324,7 +324,7 @@ def tts_button(text: str, label: str, key: str):
 }})();
 </script>
 """,
-        height=60,
+        height=0,
     )
 
 # ======================================
