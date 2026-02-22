@@ -1154,7 +1154,7 @@ def _render_msgs(msgs: List[Dict[str, Any]]) -> None:
 
     filtered = [x for x in msgs if (not show_unread_only) or (not x.get("read_at"))]
 
-    sb = _get_sb()
+    sb = _sb()
 
     for mm in filtered[:per]:
         title = (mm.get("title") or "메시지").strip()
