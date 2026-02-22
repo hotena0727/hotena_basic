@@ -207,14 +207,14 @@ def _inject_css() -> None:
   background: #fff;
   margin: 8px 0;
 }}
-.ha-card-title {
+.ha-card-title {{
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-{
   font-weight: 900;
   color: var(--ha-text);
   letter-spacing: -0.2px;
 }}
+}
 .ha-meta {{
   margin-top: 6px;
   font-size: 12px;
