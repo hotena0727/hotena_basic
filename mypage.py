@@ -259,6 +259,7 @@ def _inject_css() -> None:
   border:1px solid var(--ha-line);
   border-radius:12px;
   line-height:1.75;
+  margin-bottom:14px;
 }
 
 
