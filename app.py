@@ -440,8 +440,11 @@ sb = st.session_state.get("sb")
 if cookies is None:
     # 단독 실행 대비
     COOKIE_PASSWORD = cfg.get("COOKIE_PASSWORD") or st.secrets.get("COOKIE_PASSWORD", "")
-    cookies = EncryptedCookieManager(prefix="hotena_beginner_", password=COOKIE_PASSWORD)
-    if not cookies.ready():
+    # ✅ cookies manager: singleton (avoid duplicate component iframes)
+if "cookies" not in st.session_state or st.session_state.get("cookies") is None:
+    st.session_state["cookies"] = EncryptedCookieManager(prefix="hotena_beginner_", password=COOKIE_PASSWORD)
+cookies = st.session_state["cookies"]
+if not cookies.ready():
         st.info("잠깐만요! 곧 시작할게요🙂")
         st.stop()
     st.session_state["cookies"] = cookies
