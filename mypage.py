@@ -1016,7 +1016,7 @@ def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None
             f"""
 <div class="ha-msg-card">
   <div class="ha-msg-top">
-    <div class="ha-msg-title">{dot}{title}</div>
+    <div class="ha-msg-title">{title}</div>
     <div class="ha-msg-actions">
       <span class="ha-chip">{dt}</span>
       <span class="ha-badge">{chip}</span>
@@ -1194,7 +1194,7 @@ def _render_msgs(msgs: List[Dict[str, Any]]) -> None:
 <div style="border:1px solid var(--ha-line); border-radius:18px; overflow:hidden; background:#fff;">
   <div style="padding:12px 14px; background:rgba(30,107,255,0.08); border-bottom:1px solid var(--ha-line);">
     <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
-      <div style="font-weight:900; color:var(--ha-text); letter-spacing:-0.2px; font-size:16px;">{dot}{title}</div>
+      <div style="font-weight:900; color:var(--ha-text); letter-spacing:-0.2px; font-size:16px;">{title}</div>
       <div class="ha-inline">
         <span class="ha-chip">{dt}</span>
         <span class="ha-badge">{chip}</span>
