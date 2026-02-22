@@ -6,6 +6,65 @@ from typing import Any, Dict, List, Optional, Tuple
 import streamlit as st
 import streamlit.components.v1 as components
 
+
+# ============================================================
+# ✅ 빈 components.html iframe(회색 블록) 자동 제거 (mypage 포함)
+# ============================================================
+try:
+    import streamlit.components.v1 as components
+    components.html("""
+<script>
+(function(){
+  function cleanEmptyHtmlIframes(){
+    try{
+      var doc = (window.parent && window.parent.document) ? window.parent.document : document;
+      var iframes = doc.querySelectorAll('iframe[title="streamlit.components.v1.html"]');
+      iframes.forEach(function(fr){
+        try{
+          var cd = fr.contentDocument;
+          if(!cd || !cd.body) return;
+          var kids = Array.from(cd.body.children || []);
+          var nonScript = kids.filter(function(el){
+            var t = (el.tagName||'').toUpperCase();
+            return t !== 'SCRIPT' && t !== 'STYLE';
+          });
+          var text = (cd.body.textContent || '').trim();
+          if(nonScript.length === 0 && text === ''){
+            fr.style.height = '0px';
+            fr.style.minHeight = '0px';
+            fr.style.display = 'none';
+            var wrap = fr.closest('[data-testid="stIFrame"]') || fr.parentElement;
+            if(wrap){
+              wrap.style.height = '0px';
+              wrap.style.minHeight = '0px';
+              wrap.style.margin = '0';
+              wrap.style.padding = '0';
+              wrap.style.display = 'none';
+            }
+          }
+        }catch(e){}
+      });
+    }catch(e){}
+  }
+
+  cleanEmptyHtmlIframes();
+  setTimeout(cleanEmptyHtmlIframes, 80);
+  setTimeout(cleanEmptyHtmlIframes, 250);
+  setTimeout(cleanEmptyHtmlIframes, 700);
+
+  var n = 0;
+  var iv = setInterval(function(){
+    cleanEmptyHtmlIframes();
+    n++;
+    if(n >= 20) clearInterval(iv);
+  }, 450);
+})();
+</script>
+""", height=0)
+except Exception:
+    pass
+
+
 # ============================================================
 # ✅ MyPage (Redesign v4 • Fix labels • CTA works • app+pos robust)
 # - (1) "기타, Lv noun" 문제 해결:
