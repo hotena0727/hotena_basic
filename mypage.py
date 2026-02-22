@@ -190,6 +190,51 @@ def _inject_css() -> None:
 /* ✅ messages: card list + spacing */
 .ha-msg-gap{height:12px;}
 
+/* ✅ messages: expander list (stable, no big rounded button) */
+.ha-msg-scope{margin-top:8px;}
+.ha-msg-scope div[data-testid="stExpander"] details{
+  border:0 !important;
+  background:transparent !important;
+  border-radius:0 !important;
+}
+.ha-msg-scope div[data-testid="stExpander"] summary{
+  padding:10px 2px !important;
+  border-bottom:1px solid var(--ha-line) !important;
+  border-radius:0 !important;
+  background:transparent !important;
+  font-weight:900 !important;
+  color:var(--ha-text) !important;
+  letter-spacing:-0.2px !important;
+}
+.ha-msg-scope div[data-testid="stExpander"] summary:hover{
+  background:#fbfbfd !important;
+}
+.ha-msg-scope div[data-testid="stExpander"] summary svg{
+  display:none !important; /* hide default chevron */
+}
+.ha-msg-scope div[data-testid="stExpander"] .streamlit-expanderContent{
+  padding:10px 0 12px 0 !important;
+}
+.ha-msg-bodyA{
+  margin-top:0;
+  padding:10px 12px;
+  background:#f8fafc;
+  border:1px solid var(--ha-line);
+  border-radius:12px;
+  line-height:1.75;
+  position:relative;
+}
+.ha-msg-bodyA:before{
+  content:"";
+  position:absolute;
+  left:0; top:10px; bottom:10px;
+  width:3px;
+  background:rgba(37,99,235,0.55);
+  border-radius:99px;
+}
+.ha-msg-bodyA-inner{padding-left:10px;}
+
+
 /* ✅ messages: inbox list style (A) */
 .ha-msg-scope{margin-top:8px;}
 .ha-msg-rowA{
@@ -1396,9 +1441,7 @@ def _render_msgs(msgs: List[Dict[str, Any]]) -> None:
     per = st.slider("표시 개수", min_value=5, max_value=50, value=20, step=5, key="myp_msg_per")
 
     filtered = [x for x in msgs if (not show_unread_only) or (not x.get("read_at"))]
-
     sb = _sb()
-    open_id = st.session_state.get("myp_msg_open_id")
 
     st.markdown('<div class="ha-msg-scope">', unsafe_allow_html=True)
 
@@ -1409,36 +1452,11 @@ def _render_msgs(msgs: List[Dict[str, Any]]) -> None:
         dt = _fmt_dt(mm.get("created_at") or "")
         is_unread = not mm.get("read_at")
         chip = "읽지 않음" if is_unread else "읽음"
-        chevron = "⌄" if open_id != mid else "⌃"
-        new_badge = '<span class="ha-msg-newA">NEW</span>' if is_unread else ''
-        dot = '<span class="ha-msg-dotA"></span>' if is_unread else '<span style="width:8px; height:8px; display:inline-block;"></span>'
+        dot = "● " if is_unread else ""
 
-        st.markdown('<div class="ha-msg-rowA">', unsafe_allow_html=True)
-        c1, c2 = st.columns([0.72, 0.28], gap="small")
+        label = f"{dot}{title}   ·   {dt}   ·   {chip}"
 
-        with c1:
-            st.markdown('<div class="ha-msg-leftA">', unsafe_allow_html=True)
-            st.markdown(dot, unsafe_allow_html=True)
-            st.markdown('<div class="ha-msg-titlebtnA">', unsafe_allow_html=True)
-            if st.button(title, key=f"msg_toggle_{mid}", use_container_width=True):
-                st.session_state["myp_msg_open_id"] = None if open_id == mid else mid
-                st.rerun()
-            st.markdown('</div></div>', unsafe_allow_html=True)
-
-        with c2:
-            st.markdown(
-                f"""
-<div class="ha-msg-rightA">
-  {new_badge}
-  <span class="ha-chip">{dt}</span>
-  <span class="ha-badge">{chip}</span>
-  <span class="ha-msg-chevronA">{chevron}</span>
-</div>
-""",
-                unsafe_allow_html=True,
-            )
-
-        if open_id == mid:
+        with st.expander(label, expanded=False):
             safe_body = _escape_html(body).replace("\n", "<br>")
             st.markdown(
                 f'<div class="ha-msg-bodyA"><div class="ha-msg-bodyA-inner">{safe_body}</div></div>',
@@ -1449,13 +1467,10 @@ def _render_msgs(msgs: List[Dict[str, Any]]) -> None:
                 if st.button("읽음 처리", key=f"msg_read_{mid}", use_container_width=True):
                     try:
                         sb.table("user_messages").update({"read_at": datetime.utcnow().isoformat()}).eq("id", mid).execute()
-                        st.session_state["myp_msg_open_id"] = None
                         st.success("읽음 처리 완료")
                         st.rerun()
                     except Exception:
                         st.warning("읽음 처리에 실패했습니다. (RLS 확인)")
-
-        st.markdown("</div>", unsafe_allow_html=True)  # rowA end
 
     st.markdown("</div>", unsafe_allow_html=True)  # scope
     st.markdown("</div>", unsafe_allow_html=True)  # card
