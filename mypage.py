@@ -1693,7 +1693,7 @@ def _render_records(attempts: List[Dict[str, Any]], attempts_status: str) -> Non
 
         )
 
-        components.html(_card_iframe_html(title, meta_html), height=92, scrolling=False)
+        components.html(_card_iframe_html(title, meta_html), height=64, scrolling=False)
 
     st.markdown("</div>", unsafe_allow_html=True)
 
