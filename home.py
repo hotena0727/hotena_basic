@@ -1383,6 +1383,10 @@ def render_hub_page_title(page: str):
     if page in (None, ""):
         return
 
+    # ✅ 홈 허브에서는 브랜드 타이틀을 숨깁니다(버튼 3개 중심)
+    if page == "home":
+        return
+
     main_map = {
         "word": "📘 단어 훈련",
         "kanji": "🈶 한자 훈련",
