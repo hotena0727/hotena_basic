@@ -94,7 +94,7 @@ div[data-testid="stDecoration"]{display:none !important;}
     unsafe_allow_html=True,
 )
 
-    st.session_state['_page_config_set'] = True
+st.session_state['_page_config_set'] = True
 # ============================================================
 # ✅ [HOTFIX] Disable onboarding ("60초 이용안내") block entirely
 # - In case any legacy UI is still rendered, forcibly hide/remove it.
