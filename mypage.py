@@ -50,167 +50,178 @@ def _uid() -> Optional[str]:
 HATENA_BLUE = "#1E6BFF"  # ✅ 현재 하테나 블루(필요 시 값만 교체)
 
 def _inject_css() -> None:
-    # NOTE: Do NOT use f-strings for large CSS blocks (curly braces conflict).
-    css = """<style>
-:root {
-  --ha-blue: __HA_BLUE__;
+    st.markdown(
+        f"""
+<style>
+:root {{
+  --ha-blue: {HATENA_BLUE};
   --ha-text: #0f172a;
   --ha-sub: #64748b;
   --ha-line: #e5e7eb;
   --ha-bg: #ffffff;
   --ha-chip: #f1f5f9;
-}
+}}
 
-/* ---- Streamlit buttons: prevent wrapping (PC) ---- */
-.stButton > button, div[data-testid="stHorizontalBlock"] .stButton > button {
-  white-space: nowrap !important;
-  padding-top: 0.35rem !important;
-  padding-bottom: 0.35rem !important;
-  line-height: 1.05 !important;
-}
-
-.ha-wrap {
+.ha-wrap {{
   max-width: 980px;
   margin: 0 auto;
   padding: 10px 8px 30px 8px;
-}
+}}
 
-.ha-topbar {
+.ha-topbar {{
   display:flex;
   align-items:center;
   justify-content:space-between;
   gap:12px;
   padding: 2px 0 14px 0;
-}
+}}
 
-.ha-title {
-  font-size: 22px;
+.ha-title {{
+  font-size: 20px;
   font-weight: 800;
-  letter-spacing: -0.2px;
   color: var(--ha-text);
-  margin: 0;
-}
-
-.ha-subtitle {
-  margin-top: 4px;
+  letter-spacing: -0.3px;
+}}
+.ha-sub {{
+  margin-top: 2px;
+  font-size: 12px;
   color: var(--ha-sub);
-  font-size: 13px;
-}
+}}
 
-.ha-actions {
+.ha-actions {{
   display:flex;
-  align-items:center;
-  justify-content:flex-end;
   gap:8px;
-  flex-wrap: nowrap;
-}
+  align-items:center;
+}}
 
-.ha-actions .stButton > button {
-  font-size: 13px !important;
-  padding-left: 10px !important;
-  padding-right: 10px !important;
-}
-
-.ha-section {
+.ha-btn {{
   border: 1px solid var(--ha-line);
-  border-radius: 14px;
+  background: #fff;
+  color: var(--ha-text);
+  border-radius: 999px;
+  padding: 7px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}}
+.ha-btn-primary {{
+  border: 1px solid rgba(30,107,255,0.35);
+  background: rgba(30,107,255,0.10);
+  color: var(--ha-blue);
+}}
+
+.ha-section {{
+  border: 1px solid var(--ha-line);
+  border-radius: 16px;
   padding: 14px 14px;
   background: var(--ha-bg);
-  margin: 10px 0 14px 0;
-}
+  margin: 10px 0;
+}}
 
-.ha-section h3 {
-  margin: 0 0 10px 0;
-  font-size: 15px;
-  font-weight: 800;
-  color: var(--ha-text);
-}
-
-.ha-kpis {
-  display: grid;
+.ha-kpi {{
+  display:grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 10px;
-}
-
-.ha-kpi {
+}}
+.ha-kpi-item {{
   border: 1px solid var(--ha-line);
   border-radius: 14px;
   padding: 12px 12px;
   background: #fff;
-  text-align: center;
-}
-
-.ha-kpi .num {
-  font-size: 32px;
+}}
+.ha-kpi-num {{
+  font-size: 30px;
   font-weight: 900;
-  letter-spacing: -0.3px;
   color: var(--ha-text);
-}
-
-.ha-kpi .num .accent {
-  color: var(--ha-blue);
-}
-
-.ha-kpi .label {
-  margin-top: 2px;
+  line-height: 1.0;
+}}
+.ha-kpi-lbl {{
+  margin-top: 6px;
   font-size: 12px;
   color: var(--ha-sub);
-}
+  font-weight: 700;
+}}
 
-.ha-seg {
-  margin-top: 10px;
-  border: 1px solid var(--ha-line);
-  border-radius: 999px;
-  background: #fff;
-  overflow: hidden;
+.ha-progress-row {{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 10px;
+  margin-top: 8px;
+}}
+.ha-progress {{
+  width: 100%;
   height: 10px;
-}
-
-.ha-seg > div {
+  background: #f1f5f9;
+  border-radius: 999px;
+  overflow:hidden;
+  border: 1px solid var(--ha-line);
+}}
+.ha-progress > div {{
   height: 100%;
   background: var(--ha-blue);
-}
+  width: 0%;
+}}
 
-.ha-divider {
-  height: 1px;
-  background: var(--ha-line);
-  margin: 12px 0;
-}
+.ha-cta {{
+  display:flex;
+  justify-content:center;
+  gap: 10px;
+  margin-top: 10px;
+}}
 
-.ha-logcard {
+.ha-chip {{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: var(--ha-chip);
+  border: 1px solid var(--ha-line);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ha-sub);
+}}
+.ha-chip b {{ color: var(--ha-text); }}
+
+.ha-card {{
   border: 1px solid var(--ha-line);
   border-radius: 14px;
   padding: 12px 12px;
   background: #fff;
   margin: 8px 0;
-}
-
-.ha-logcard .meta {
+}}
+.ha-card-title {{
+  font-weight: 900;
+  color: var(--ha-text);
+  letter-spacing: -0.2px;
+}}
+.ha-meta {{
+  margin-top: 6px;
   font-size: 12px;
   color: var(--ha-sub);
-  margin-bottom: 6px;
-}
-
-.ha-chip {
-  display:inline-block;
-  font-size: 11px;
-  padding: 2px 8px;
+  display:flex;
+  flex-wrap:wrap;
+  gap: 8px;
+}}
+.ha-dot {{
+  width: 6px;
+  height: 6px;
   border-radius: 999px;
-  background: var(--ha-chip);
-  color: var(--ha-sub);
-  border: 1px solid var(--ha-line);
-  vertical-align: middle;
-}
+  background: var(--ha-blue);
+  display:inline-block;
+  margin-right: 6px;
+  opacity: 0.8;
+}}
 
-.ha-chip.blue {
-  background: rgba(30, 136, 229, 0.08);
-  color: var(--ha-blue);
-  border-color: rgba(30, 136, 229, 0.25);
-}
+@media (max-width: 720px) {{
+  .ha-kpi {{ grid-template-columns: 1fr; }}
+}}
+</style>
+""",
+        unsafe_allow_html=True,
+    )
 
-</style>"""
-    css = css.replace("__HA_BLUE__", str(HATENA_BLUE))
-    st.markdown(css, unsafe_allow_html=True)
 
 def _center_wrap_start() -> None:
     st.markdown('<div class="ha-wrap">', unsafe_allow_html=True)
@@ -319,30 +330,6 @@ def _app_label(app: Optional[str]) -> str:
     if a in ("talk", "conversation", "speech"):
         return "회화"
     return (app or "기타")
-
-POS_LABELS = {
-    "noun": "명사",
-    "verb": "동사",
-    "adj": "형용사",
-    "adjective": "형용사",
-    "adverb": "부사",
-    "particle": "조사",
-    "conjunction": "접속사",
-    "interjection": "감탄사",
-    "pronoun": "대명사",
-    "aux": "조동사",
-    "auxverb": "조동사",
-    "number": "수사",
-    "det": "관형사",
-    "other": "기타",
-}
-
-def _pos_label(x: Optional[str]) -> Optional[str]:
-    if not x:
-        return None
-    k = str(x).strip().lower()
-    return POS_LABELS.get(k, None)
-
 
 
 def _num(n: Any) -> str:
@@ -545,14 +532,7 @@ def _section_records(attempts: List[Dict[str, Any]]) -> None:
         return
 
     for a in attempts[:15]:
-        raw_app = a.get("app")
-        pos = a.get("pos") or a.get("part_of_speech") or a.get("pos_code")
-        # 일부 환경에서는 app 컬럼에 'noun' 같은 품사가 들어올 수 있어요.
-        if not pos and isinstance(raw_app, str) and _pos_label(raw_app):
-            pos = raw_app
-            raw_app = "word"
-        app = _app_label(raw_app)
-        pos_k = _pos_label(pos)
+        app = _app_label(a.get("app"))
         level = a.get("level") or "-"
         dt = _fmt_dt(a.get("created_at"))
 
@@ -574,7 +554,7 @@ def _section_records(attempts: List[Dict[str, Any]]) -> None:
         st.markdown(
             f"""
 <div class="ha-card">
-  <div class="ha-card-title">{app}{(" · "+pos_k) if pos_k else ""} · Lv {level}</div>
+  <div class="ha-card-title">{app} · Lv {level}</div>
   <div class="ha-meta">
     <span class="ha-chip">{dt}</span>
     <span class="ha-chip">점수 <b>{(str(score)+'%') if score is not None else '-'}</b></span>
@@ -608,7 +588,6 @@ def _section_messages(msgs: List[Dict[str, Any]]) -> None:
     for m in ordered[:30]:
         title = m.get("title") or "메시지"
         body = m.get("body") or ""
-        body_html = body.replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br>")
         dt = _fmt_dt(m.get("created_at"))
         is_unread = not m.get("read_at")
         dot = '<span class="ha-dot"></span>' if is_unread else ""
@@ -623,7 +602,7 @@ def _section_messages(msgs: List[Dict[str, Any]]) -> None:
     <span class="ha-chip">{chip}</span>
   </div>
   <div style="margin-top:8px; color: var(--ha-text); font-size: 14px; line-height: 1.55;">
-    {body_html}
+    {body.replace('<', '&lt;').replace('>', '&gt;').replace('\n','<br>')}
   </div>
 </div>
 """,
@@ -686,7 +665,7 @@ def render() -> None:
     _center_wrap_start()
 
     # Topbar (centered)
-    left, mid, right = st.columns([2, 5, 3], vertical_alignment="center")
+    left, mid, right = st.columns([2, 5, 2], vertical_alignment="center")
     with mid:
         st.markdown(
             '<div style="text-align:center;">'
@@ -697,12 +676,12 @@ def render() -> None:
         )
     with right:
         # 작은 버튼 2개
-        c1, c2 = st.columns([1, 1.15], gap="small")
+        c1, c2 = st.columns(2, gap="small")
         with c1:
-            if st.button("🏠 홈", key="myp_home_btn", use_container_width=True):
+            if st.button("🏠 홈", key="myp_home_btn"):
                 _go_home()
         with c2:
-            if st.button("⎋ 로그아웃", key="myp_logout_btn", use_container_width=True):
+            if st.button("로그아웃", key="myp_logout_btn"):
                 _logout()
 
     # Data
@@ -724,16 +703,16 @@ def render() -> None:
             _go_home()
         st.markdown("</div>", unsafe_allow_html=True)
 
-    # Tabs (오답 / 기록 / 메시지)
-    t1, t2, t3 = st.tabs(["📚 오답카드", "📈 학습기록", "📩 받은 메시지"])
-    with t1:
-        _section_wrongs(wrongs, focus=(view == "wrongs_focus"))
-    with t2:
-        if attempts_status == "ok":
-            _section_records(attempts)
-        else:
-            _section_records([])
-    with t3:
-        _section_messages(msgs)
+    # 오답 섹션
+    _section_wrongs(wrongs, focus=(view == "wrongs_focus"))
+
+    # 기록 섹션
+    if attempts_status == "ok":
+        _section_records(attempts)
+    else:
+        _section_records([])
+
+    # 메시지 섹션
+    _section_messages(msgs)
 
     _center_wrap_end()
