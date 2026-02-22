@@ -227,161 +227,12 @@ div[data-testid="stMarkdownContainer"] h3{
 """, unsafe_allow_html=True)
 
 # ============================================================
-# ✅ [D] Scroll Top Anchor + Helpers
 # ============================================================
-st.markdown('<div id="__TOP__"></div>', unsafe_allow_html=True)
+# ✅ [D] Scroll Top Anchor + Helpers (shared core)
+# ============================================================
+from core import inject_top_anchor, scroll_to_top, render_floating_scroll_top
 
-def scroll_to_top(nonce: int = 0):
-    components.html(
-        f"""
-        <script>
-        (function () {{
-          const doc = window.parent.document;
-          const targets = [
-            doc.querySelector('[data-testid="stAppViewContainer"]'),
-            doc.querySelector('[data-testid="stMain"]'),
-            doc.querySelector('section.main'),
-            doc.documentElement,
-            doc.body
-          ].filter(Boolean);
-
-          const go = () => {{
-            try {{
-              const top = doc.getElementById("__TOP__");
-              if (top) top.scrollIntoView({{behavior: "auto", block: "start"}});
-
-              targets.forEach(t => {{
-                if (t && typeof t.scrollTo === "function") t.scrollTo({{top: 0, left: 0, behavior: "auto"}});
-                if (t) t.scrollTop = 0;
-              }});
-              window.parent.scrollTo(0, 0);
-              window.scrollTo(0, 0);
-            }} catch(e) {{}}
-          }};
-
-          go();
-          requestAnimationFrame(go);
-          setTimeout(go, 50);
-          setTimeout(go, 150);
-          setTimeout(go, 350);
-          setTimeout(go, 800);
-        }})();
-        </script>
-        <!-- nonce:{nonce} -->
-        """,
-        height=1,
-    )
-
-def render_floating_scroll_top():
-    components.html(
-        """
-<script>
-(function(){
-  const doc = window.parent.document;
-  if (doc.getElementById("__FAB_TOP__")) return;
-
-  const btn = doc.createElement("button");
-  btn.id = "__FAB_TOP__";
-  btn.textContent = "↑";
-
-  btn.style.position = "fixed";
-  btn.style.right = "14px";
-  btn.style.zIndex = "2147483647";
-  btn.style.width = "46px";
-  btn.style.height = "46px";
-  btn.style.borderRadius = "999px";
-  btn.style.border = "1px solid rgba(120,120,120,0.25)";
-  btn.style.background = "rgba(0,0,0,0.55)";
-  btn.style.color = "#fff";
-  btn.style.fontSize = "18px";
-  btn.style.fontWeight = "900";
-  btn.style.boxShadow = "0 10px 22px rgba(0,0,0,0.25)";
-  btn.style.cursor = "pointer";
-  btn.style.userSelect = "none";
-  btn.style.display = "flex";
-  btn.style.alignItems = "center";
-  btn.style.justifyContent = "center";
-  btn.style.opacity = "0";
-
-  const applyDeviceVisibility = () => {
-    try {
-      const w = window.parent.innerWidth || window.innerWidth;
-      if (w >= 801) btn.style.display = "none";
-      else btn.style.display = "flex";
-    } catch(e) {}
-  };
-
-  const goTop = () => {
-    try {
-      const top = doc.getElementById("__TOP__");
-      if (top) top.scrollIntoView({behavior:"smooth", block:"start"});
-
-      const targets = [
-        doc.querySelector('[data-testid="stAppViewContainer"]'),
-        doc.querySelector('[data-testid="stMain"]'),
-        doc.querySelector('section.main'),
-        doc.documentElement,
-        doc.body
-      ].filter(Boolean);
-
-      targets.forEach(t => {
-        if (t && typeof t.scrollTo === "function") t.scrollTo({top:0, left:0, behavior:"smooth"});
-        if (t) t.scrollTop = 0;
-      });
-
-      window.parent.scrollTo(0,0);
-      window.scrollTo(0,0);
-    } catch(e) {}
-  };
-
-  btn.addEventListener("click", goTop);
-
-  const mount = () => doc.querySelector('[data-testid="stAppViewContainer"]') || doc.body;
-
-  const BASE = 18;
-  const EXTRA = 34;
-
-  const reposition = () => {
-    try {
-      const vv = window.parent.visualViewport || window.visualViewport;
-      const innerH = window.parent.innerHeight || window.innerHeight;
-      const hiddenBottom = vv ? Math.max(0, innerH - vv.height - (vv.offsetTop || 0)) : 0;
-      btn.style.bottom = (BASE + EXTRA + hiddenBottom) + "px";
-      btn.style.opacity = "1";
-    } catch(e) {
-      btn.style.bottom = "220px";
-      btn.style.opacity = "1";
-    }
-    applyDeviceVisibility();
-  };
-
-  const tryAttach = (n=0) => {
-    const root = mount();
-    if (!root) {
-      if (n < 30) return setTimeout(() => tryAttach(n+1), 50);
-      return;
-    }
-    root.appendChild(btn);
-    reposition();
-    setTimeout(reposition, 50);
-    setTimeout(reposition, 200);
-    setTimeout(reposition, 600);
-  };
-
-  tryAttach();
-  window.parent.addEventListener("resize", reposition, {passive:true});
-
-  const vv = window.parent.visualViewport || window.visualViewport;
-  if (vv) {
-    vv.addEventListener("resize", reposition, {passive:true});
-    vv.addEventListener("scroll", reposition, {passive:true});
-  }
-})();
-</script>
-        """,
-        height=1,
-    )
-
+inject_top_anchor()
 render_floating_scroll_top()
 
 if st.session_state.get("_scroll_top_once"):
@@ -390,31 +241,13 @@ if st.session_state.get("_scroll_top_once"):
     scroll_to_top(nonce=st.session_state["_scroll_top_nonce"])
 
 # ============================================================
-# ✅ Cookies
+# ✅ Cookies / Supabase (shared core)
 # ============================================================
-# ✅ cookies/supabase는 Hub(home.py)에서 1회 생성 후 공유합니다.
-cfg = st.session_state.get("cfg", {}) or {}
+from core import ensure_core
+cfg = ensure_core(cookie_prefix="hotena_beginner_", localstorage_keys=("hotena_rt","hotena_at"))
+st.session_state["cfg"] = cfg  # backward compatibility
 cookies = st.session_state.get("cookies")
 sb = st.session_state.get("sb")
-
-if cookies is None:
-    # 단독 실행 대비
-    COOKIE_PASSWORD = cfg.get("COOKIE_PASSWORD") or st.secrets.get("COOKIE_PASSWORD", "")
-    cookies = EncryptedCookieManager(prefix="hotena_beginner_", password=COOKIE_PASSWORD)
-    if not cookies.ready():
-        st.info("잠깐만요! 곧 시작할게요🙂")
-        st.stop()
-    st.session_state["cookies"] = cookies
-
-if sb is None:
-    SUPABASE_URL = cfg.get("SUPABASE_URL") or st.secrets.get("SUPABASE_URL", "")
-    SUPABASE_ANON_KEY = cfg.get("SUPABASE_ANON_KEY") or st.secrets.get("SUPABASE_ANON_KEY", "")
-    if not SUPABASE_URL or not SUPABASE_ANON_KEY:
-        st.error("Supabase 설정값이 없습니다. (SUPABASE_URL / SUPABASE_ANON_KEY)")
-        st.stop()
-    sb = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
-    st.session_state["sb"] = sb
-# ============================================================
 # ✅ Supabase 연결
 # ============================================================
 # Supabase client is provided by hub (home.py)
