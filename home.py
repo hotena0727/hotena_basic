@@ -3222,16 +3222,8 @@ if page == "home":
     # ✅ Home Hub: dashboard view
     render_home_dashboard(sb_authed, user)
 elif page == "my":
-    # ✅ 마이페이지: (1) 받은 메시지(알림) 먼저 노출 → (2) 기존 mypage 모듈 실행
+    # ✅ 마이페이지: 메시지 탭이 있으므로, 허브 상단의 '관리자 메시지(받은 메시지)' 영역은 숨김
     st.session_state['HUB_MODE'] = True
-    try:
-        uid_now = st.session_state.get("user_id") or getattr(user, "id", None)
-        if uid_now and sb_authed:
-            render_user_inbox_section(sb_authed, str(uid_now))
-            st.markdown("---")
-    except Exception:
-        pass
-
     run_module('mypage')
     st.stop()
 
