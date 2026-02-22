@@ -223,14 +223,14 @@ def _inject_css() -> None:
 }
 /* remove content card padding from streamlit */
 .ha-msg-scope div[data-testid="stExpander"] .streamlit-expanderContent{
-  padding:12px 0 18px 0 !important;
+  padding:12px 0 30px 0 !important;
   border:0 !important;
   background:transparent !important;
 }
 /* body: white + only left bar (no card-in-card) */
 .ha-msg-bodyA{
   margin-top:10px;
-  padding:0;
+  padding:0 0 6px 0;
   background:transparent;
   border:0;
   border-radius:0;
@@ -241,6 +241,7 @@ def _inject_css() -> None:
   background:#f8fafc;
   border:1px solid var(--ha-line);
   border-radius:12px;
+  margin-bottom:14px;
 }
 
 
