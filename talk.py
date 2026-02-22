@@ -1,3 +1,4 @@
+BUILD_STAMP_TALK = 'talk-newset-in-progress-v1 2026-02-22 KST (+09:00)'
 # talk.py (v27) - 1문제 집중형 + 말하기 완료 체크(B)
 from __future__ import annotations
 
@@ -253,7 +254,7 @@ tag_options = [t for t in ["daily", "business", "call", "interview", "travel", "
 if not tag_options:
     tag_options = all_tags
 
-c1, c2, c3 = st.columns([1.4, 1, 1])
+c1, c2 = st.columns([1.4, 1], vertical_alignment="bottom")
 with c1:
     tag = st.selectbox(
         "상황 선택",
@@ -273,10 +274,6 @@ with c2:
         key=f"{NS}_level",
     )
 
-with c3:
-    if st.button("새 세트(10문제)", use_container_width=True, key=f"{NS}_new_set"):
-        reset_set()
-        st.rerun()
 
 pool_df = DF[(DF["tag"] == tag) & (DF["level"] == level)].copy().reset_index(drop=True)
 if pool_df.empty:
@@ -377,10 +374,19 @@ answers = st.session_state.get(f"{NS}_answers") or {}
 
 # ============================================================
 # ✅ Progress header (1/10)
+#   - '새 세트' 버튼을 진행 영역 오른쪽으로 이동(필터와 분리)
 # ============================================================
 progress = (idx + 1) / max(1, len(qids))
-st.progress(progress)
-st.caption(f"진행: {idx+1}/{len(qids)}")
+
+p1, p2 = st.columns([1.6, 0.6], vertical_alignment="center")
+with p1:
+    st.progress(progress)
+    st.caption(f"진행: {idx+1}/{len(qids)}")
+
+with p2:
+    if st.button("🔄 새 세트", use_container_width=True, type="secondary", key=f"{NS}_new_set"):
+        reset_set()
+        st.rerun()
 
 # ============================================================
 # ✅ Current question
