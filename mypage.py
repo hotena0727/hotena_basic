@@ -845,6 +845,43 @@ def _inject_css() -> None:
   border-top-color: transparent !important;
 }
 
+
+
+/* ============================================================
+   ✅ V4.9.17 (messages ONLY): 리스트 간격 '사진처럼' 초밀착
+   - 다른 탭/기록/오답 CSS는 건드리지 않음
+   - Streamlit이 expander를 감싸는 컨테이너 기본 마진을 메시지 스코프에서만 0으로
+   ============================================================ */
+
+/* expander를 감싸는 wrapper(여기가 실제 '뜸' 원인) */
+.ha-msg-scope .element-container,
+.ha-msg-scope div[data-testid="stElementContainer"],
+.ha-msg-scope div[data-testid="stVerticalBlock"] > div,
+.ha-msg-scope div[data-testid="stVerticalBlock"] > div > div{
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* vertical gap 제거 */
+.ha-msg-scope div[data-testid="stVerticalBlock"]{
+  gap: 0 !important;
+}
+
+/* expander 사이: 완전 밀착 */
+.ha-msg-scope div[data-testid="stExpander"]{
+  margin: 0 !important;
+}
+.ha-msg-scope div[data-testid="stExpander"] + div[data-testid="stExpander"]{
+  margin-top: 0 !important;
+}
+
+/* 접힌 한 줄(박스) 자체도 높이 줄이기 */
+.ha-msg-scope div[data-testid="stExpander"] summary{
+  margin: 0 !important;
+  padding-top: 4px !important;
+  padding-bottom: 4px !important;
+}
+
 </style>"""
     css = css.replace("__BLUE__", str(HATENA_BLUE))
     st.markdown(css, unsafe_allow_html=True)
