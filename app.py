@@ -5,6 +5,15 @@ from pathlib import Path
 import random
 import pandas as pd
 import streamlit as st
+
+# -------------------------------
+# ✅ Session State 안전 초기화
+# -------------------------------
+if "submitted" not in st.session_state:
+    st.session_state.submitted = False
+if "wrong_list" not in st.session_state:
+    st.session_state.wrong_list = []
+
 import unicodedata
 from supabase import create_client
 from streamlit_cookies_manager import EncryptedCookieManager
@@ -19,6 +28,24 @@ import textwrap
 # NOTE: page config is handled by home.py
 if not st.session_state.get("_page_config_set"):
     st.set_page_config(page_title="Hotena", layout="centered")
+
+# -------------------------------
+# ✅ 한자 퀴즈 타이틀 (중복 방지 버전)
+# -------------------------------
+show_header = True
+
+# 허브에서 kanji로 들어온 경우
+if st.session_state.get("HUB_MODE") and st.session_state.get("hub_target") == "kanji":
+    # home.py에서 이미 상단 훈련 타이틀을 출력하므로
+    # 내부에서 "한자 퀴즈" 타이틀은 한 번만 표시
+    if st.session_state.get("_kanji_header_rendered"):
+        show_header = False
+    else:
+        st.session_state["_kanji_header_rendered"] = True
+
+if show_header:
+    st.markdown("## ✨ 한자 퀴즈")
+
     st.session_state["_page_config_set"] = True
 # ============================================================
 # ✅ [SOUND] 사운드 유틸 (모바일 자동재생 정책 대응)
@@ -1264,6 +1291,15 @@ import random
 import pandas as pd
 import streamlit as st
 
+# -------------------------------
+# ✅ Session State 안전 초기화
+# -------------------------------
+if "submitted" not in st.session_state:
+    st.session_state.submitted = False
+if "wrong_list" not in st.session_state:
+    st.session_state.wrong_list = []
+
+
 def _nfkc_str(x) -> str:
     return unicodedata.normalize("NFKC", str(x or "")).strip()
 
@@ -2007,11 +2043,7 @@ if "level" not in st.session_state:
     st.session_state.level = "N5"
 
 # title (home 제외: 페이지별로 제목 다르게)
-# ✅ HUB_MODE일 때는 home.py에서 이미 헤더를 렌더링하므로 중복 방지
-if st.session_state.get("page") != "home" and not (
-    st.session_state.get("HUB_MODE") and 
-    st.session_state.get("hub_target") == "kanji"
-):
+if st.session_state.get("page") != "home":
     u = st.session_state.get("user")
     email = (getattr(u, "email", None) if u else None) or st.session_state.get("login_email", "")
 
