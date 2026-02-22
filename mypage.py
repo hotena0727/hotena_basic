@@ -900,6 +900,40 @@ body {{ margin:0; font-family: Pretendard, 'Noto Sans KR', 'Apple SD Gothic Neo'
   font-size: 14px;
   line-height: 1.55;
 }}
+
+/* ============================================================
+   ✅ (핵심) 메시지 목록 '완전 밀착' 강제 패치
+   - Streamlit expander/details 기본 여백을 전부 제거
+   - 남는 경우 대비해 expander에 살짝 음수 마진 적용
+   ============================================================ */
+.ha-msg-scope div[data-testid="stExpander"],
+.ha-msg-scope div[data-testid="stExpander"] > div,
+.ha-msg-scope div[data-testid="stExpander"] details{
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+.ha-msg-scope div[data-testid="stExpander"] details{
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+/* summary(닫힌 박스) 자체 간격 제거 */
+.ha-msg-scope div[data-testid="stExpander"] details > summary{
+  margin: 0 !important;
+}
+
+/* ✅ 박스 사이 간격: 완전 붙이기(원하면 -6~-10 조절) */
+.ha-msg-scope div[data-testid="stExpander"]{
+  margin-top: 0 !important;
+  margin-bottom: -10px !important; /* ✅ 카드끼리 확실히 붙이기 */
+}
+
+/* 마지막 요소가 잘리지 않도록 scope에 여유 확보 */
+.ha-msg-scope{
+  padding-bottom: 10px !important;
+}
+
 </style></head>
 <body>
   <div class="card">
