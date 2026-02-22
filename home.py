@@ -27,15 +27,24 @@ def run_module(module_name: str):
     """
     try:
         import sys
+
+        # ✅ IMPORTANT: Avoid importlib.reload on every rerun.
+        # Reloading executes module top-level again, which can create duplicate Streamlit components
+        # (cookie manager / custom components) and leave gray placeholder blocks after F5.
+        #
+        # If you *really* need hot-reload during development, set:
+        #   st.session_state["_dev_hot_reload"] = True
+        dev_hot_reload = bool(st.session_state.get("_dev_hot_reload", False))
+
         if module_name in sys.modules:
-            mod = importlib.reload(sys.modules[module_name])
+            mod = importlib.reload(sys.modules[module_name]) if dev_hot_reload else sys.modules[module_name]
         else:
             mod = importlib.import_module(module_name)
 
         # If module exposes a render() function, call it.
         if hasattr(mod, "render") and callable(getattr(mod, "render")):
             mod.render()
-    except Exception as e:
+except Exception as e:
         st.exception(e)
         raise
 
