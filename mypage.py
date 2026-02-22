@@ -6,11 +6,13 @@ from typing import Any, Dict, List, Optional, Tuple
 import streamlit as st
 
 # ============================================================
-# ✅ MyPage (Redesign v2 • Hatena Blue • Mini Widgets + Chips)
-# - 스크롤 최소화: KPI/진행률 상단 + 탭(오답/기록/메시지)
-# - ✅ 미니 위젯: 최근 7일 학습 캘린더(간단 히트맵)
-# - ✅ 오답: 앱 필터 "칩" + 검색 + 반복오답 토글 + 페이지네이션
-# - ✅ 기록: 개발자 느낌 ↓  → 요약칩 + 최근 7일 위젯 + 카드/리스트 믹스
+# ✅ MyPage (Redesign v3 • Hatena Blue • No Msg Dup • app+pos)
+# - C안 적용: 기록 "최근 카드" 3개만 (중복감 최소화)
+# - 정석(방법2) 대응: quiz_attempts에 app + pos 분리 저장을 전제로 표시
+#   - app: word/kanji/talk
+#   - pos: noun/verb/adj/... (선택)
+# - 호환: 예전 데이터에서 app에 noun/verb...가 들어간 경우 자동 보정
+# - 상단: 메시지(관리자 메세지) 중복 뱃지/영역 제거 → 메시지 탭에서만 확인
 # ============================================================
 
 HATENA_BLUE = "#1E6BFF"
@@ -19,7 +21,6 @@ HATENA_BLUE = "#1E6BFF"
 # Supabase helpers
 # ---------------------------
 def _sb() -> Any:
-    """Return Supabase client with JWT bound for RLS (if available)."""
     sb = st.session_state.get("sb_authed") or st.session_state.get("sb")
     token = st.session_state.get("access_token")
     try:
@@ -28,21 +29,6 @@ def _sb() -> Any:
     except Exception:
         pass
     return sb
-
-
-def _uid() -> Optional[str]:
-    uid = st.session_state.get("user_id") or st.session_state.get("uid")
-    if uid:
-        return str(uid)
-    try:
-        sb = _sb()
-        if sb and hasattr(sb, "auth"):
-            u = sb.auth.get_user()
-            if u and getattr(u, "user", None) and getattr(u.user, "id", None):
-                return str(u.user.id)
-    except Exception:
-        pass
-    return None
 
 
 # ---------------------------
@@ -60,7 +46,6 @@ def _inject_css() -> None:
   --ha-bg: #ffffff;
   --ha-chip: #f1f5f9;
   --ha-soft: rgba(30,107,255,0.08);
-  --ha-soft2: rgba(30,107,255,0.14);
 }}
 
 .ha-wrap {{
@@ -348,14 +333,17 @@ def _load_messages(limit: int = 300) -> List[Dict[str, Any]]:
 
 
 def _load_attempts(limit: int = 500) -> Tuple[List[Dict[str, Any]], str]:
+    """
+    ✅ 방법2 대응: pos 컬럼이 있으면 같이 가져옴
+    """
     sb = _sb()
     if not sb:
         return [], "no-sb"
 
     candidates = [
-        "id, user_id, app, level, total, correct, wrong, score, created_at",
-        "id, user_id, app, level, quiz_len, correct_cnt, wrong_cnt, score, created_at",
-        "id, user_id, app, level, total_questions, correct_answers, wrong_answers, score, created_at",
+        "id, user_id, app, pos, level, total, correct, wrong, score, created_at",
+        "id, user_id, app, pos, level, quiz_len, correct_cnt, wrong_cnt, score, created_at",
+        "id, user_id, app, pos, level, total_questions, correct_answers, wrong_answers, score, created_at",
         "*",
     ]
     last_err = "unknown"
@@ -373,8 +361,41 @@ def _load_attempts(limit: int = 500) -> Tuple[List[Dict[str, Any]], str]:
 
 
 # ---------------------------
-# Formatting helpers
+# Formatting + normalization
 # ---------------------------
+_POS_LIKE = {
+    "noun", "n", "명사",
+    "verb", "v", "동사",
+    "adj", "adjective", "형용사",
+    "adv", "adverb", "부사",
+    "particle", "조사",
+    "conj", "conjunction", "접속사",
+}
+
+
+def _normalize_attempt(a: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    ✅ 호환 처리:
+    - 예전 데이터에서 app='noun' 같은 값이면 app='word'로 보고 pos에 옮김
+    - pos가 있으면 그대로 사용
+    """
+    app_raw = (a.get("app") or "").strip()
+    pos_raw = (a.get("pos") or "").strip()
+
+    app_l = app_raw.lower()
+    pos_l = pos_raw.lower()
+
+    # app에 pos가 들어간 경우
+    if app_l in _POS_LIKE and not pos_raw:
+        a = dict(a)
+        a["pos"] = app_raw
+        a["app"] = "word"
+        return a
+
+    # pos가 비었고, app이 단어앱인데 level/기록에서 'noun' 등 힌트가 다른 컬럼에 있을 수는 없음 → 여기까지만
+    return a
+
+
 def _fmt_dt(s: Any) -> str:
     if not s:
         return "-"
@@ -399,6 +420,28 @@ def _app_label(app: Optional[str]) -> str:
     if a in ("talk", "conversation", "speech"):
         return "회화"
     return (app or "기타")
+
+
+def _pos_label(pos: Optional[str]) -> Optional[str]:
+    p = (pos or "").strip()
+    if not p:
+        return None
+    pl = p.lower()
+    # 영어 → 한글
+    if pl in ("noun", "n"):
+        return "명사"
+    if pl in ("verb", "v"):
+        return "동사"
+    if pl in ("adj", "adjective"):
+        return "형용사"
+    if pl in ("adv", "adverb"):
+        return "부사"
+    if pl in ("particle",):
+        return "조사"
+    if pl in ("conj", "conjunction"):
+        return "접속사"
+    # 이미 한글이면 그대로
+    return p
 
 
 def _num(n: Any) -> str:
@@ -440,7 +483,7 @@ def _to_dt_kst(any_dt: Any) -> Optional[datetime]:
 
 
 # ---------------------------
-# Navigation actions
+# Navigation
 # ---------------------------
 def _go_home() -> None:
     for key in ("hub_page", "page", "current_page"):
@@ -471,7 +514,7 @@ def _logout() -> None:
 
 
 # ---------------------------
-# Mini widgets
+# Mini widget
 # ---------------------------
 def _week_counts(attempts: List[Dict[str, Any]]) -> Tuple[List[datetime], List[int]]:
     now = datetime.now(timezone(timedelta(hours=9)))
@@ -492,13 +535,11 @@ def _week_counts(attempts: List[Dict[str, Any]]) -> Tuple[List[datetime], List[i
 def _render_week_widget(attempts: List[Dict[str, Any]]) -> None:
     days, counts = _week_counts(attempts)
     mx = max(counts) if counts else 0
-    # day labels (한국식)
     dow_kr = ["월", "화", "수", "목", "금", "토", "일"]
-    # map python weekday: Monday=0
+
     blocks = []
     for day, c in zip(days, counts):
         wd = dow_kr[day.weekday()]
-        # intensity
         if mx <= 0:
             bg = "rgba(30,107,255,0.06)"
             bd = "rgba(229,231,235,1)"
@@ -518,7 +559,6 @@ def _render_week_widget(attempts: List[Dict[str, Any]]) -> None:
 
     total = sum(counts)
     streak = 0
-    # streak ending today
     for c in reversed(counts):
         if c > 0:
             streak += 1
@@ -545,10 +585,6 @@ def _render_week_widget(attempts: List[Dict[str, Any]]) -> None:
 
 
 def _render_filter_chips(title: str, key: str) -> List[str]:
-    """
-    기능적으로는 multiselect(안전) + 시각적으로는 선택값을 '칩'처럼 보여줌.
-    반환: 선택된 앱 라벨 목록(예: ["단어","한자"])
-    """
     options = ["단어", "한자", "회화", "기타"]
     selected = st.multiselect(title, options=options, default=st.session_state.get(key, []), key=key)
     if selected:
@@ -560,11 +596,10 @@ def _render_filter_chips(title: str, key: str) -> List[str]:
 
 
 # ---------------------------
-# Top summary (KPI + flow)
+# Top summary (NO messages duplication)
 # ---------------------------
-def _render_top_summary(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, Any]], msgs: List[Dict[str, Any]]) -> None:
+def _render_top_summary(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, Any]]) -> None:
     wrong_total = len(wrongs)
-    unread = sum(1 for m in msgs if not m.get("read_at"))
 
     scores = []
     for a in attempts:
@@ -581,7 +616,6 @@ def _render_top_summary(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, A
         if dt and dt >= week_ago:
             recent_cnt += 1
 
-    # month progress
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
     month_cnt = 0
     for a in attempts:
@@ -604,7 +638,7 @@ def _render_top_summary(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, A
     <div class="ha-logo">は</div>
     <div>
       <div class="ha-title">하테나일본어 · 마이페이지</div>
-      <div class="ha-sub">핵심은 위에, 자세한 내용은 탭으로. 보기 좋게 정돈했습니다.</div>
+      <div class="ha-sub">핵심은 위에, 자세한 내용은 탭에서 확인하세요.</div>
     </div>
   </div>
 </div>
@@ -612,15 +646,14 @@ def _render_top_summary(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, A
         unsafe_allow_html=True,
     )
 
-    # actions
     colA, colB = st.columns([7, 3], vertical_alignment="center")
     with colB:
         b1, b2 = st.columns(2, gap="small")
         with b1:
-            if st.button("🏠 홈", use_container_width=True, key="myp_v2_home"):
+            if st.button("🏠 홈", use_container_width=True, key="myp_v3_home"):
                 _go_home()
         with b2:
-            if st.button("로그아웃", use_container_width=True, key="myp_v2_logout"):
+            if st.button("로그아웃", use_container_width=True, key="myp_v3_logout"):
                 _logout()
 
     st.markdown(
@@ -650,7 +683,6 @@ def _render_top_summary(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, A
   <div class="ha-inline">
     <span class="ha-chip"><b>이번 달</b> {month_cnt}/{goal}회</span>
     <span class="ha-chip"><b>{int(pct)}%</b> 진행</span>
-    {f'<span class="ha-badge">읽지 않은 메시지 {unread}개</span>' if unread else ''}
   </div>
 </div>
 <div class="ha-progress-row">
@@ -660,22 +692,20 @@ def _render_top_summary(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, A
         unsafe_allow_html=True,
     )
 
-    # mini week widget
     _render_week_widget(attempts)
 
-    # Compact CTA
     st.markdown('<div style="margin-top:10px;"></div>', unsafe_allow_html=True)
     c1, c2, c3 = st.columns([1, 1, 1], gap="small")
     with c1:
-        if st.button("📚 오답 복습", use_container_width=True, key="myp_v2_cta_wrongs"):
+        if st.button("📚 오답 복습", use_container_width=True, key="myp_v3_cta_wrongs"):
             st.session_state["myp_tab"] = "wrongs"
             st.rerun()
     with c2:
-        if st.button("📈 기록 보기", use_container_width=True, key="myp_v2_cta_records"):
+        if st.button("📈 기록 보기", use_container_width=True, key="myp_v3_cta_records"):
             st.session_state["myp_tab"] = "records"
             st.rerun()
     with c3:
-        if st.button("📩 메시지 확인", use_container_width=True, key="myp_v2_cta_msgs"):
+        if st.button("📩 메시지 확인", use_container_width=True, key="myp_v3_cta_msgs"):
             st.session_state["myp_tab"] = "msgs"
             st.rerun()
 
@@ -687,27 +717,23 @@ def _render_top_summary(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, A
 # ---------------------------
 def _render_tab_wrongs(wrongs: List[Dict[str, Any]]) -> None:
     st.markdown('<div class="ha-section">', unsafe_allow_html=True)
-    st.markdown('<div class="ha-title">📚 오답</div><div class="ha-sub">앱 필터는 칩 느낌으로, 목록은 접힘(아코디언)으로 구성했습니다.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="ha-title">📚 오답</div><div class="ha-sub">앱 필터(칩) + 검색 + 반복오답 토글 + 접힘 목록.</div>', unsafe_allow_html=True)
 
     if not wrongs:
-        st.info("아직 저장된 오답이 없습니다. (틀린 문제는 자동으로 오답카드에 쌓입니다.)")
+        st.info("아직 저장된 오답이 없습니다.")
         st.markdown("</div>", unsafe_allow_html=True)
         return
 
-    # counts (repeat)
     counts: Dict[str, int] = {}
     for w in wrongs:
         k = (w.get("jp_word") or "").strip()
-        if not k:
-            continue
-        counts[k] = counts.get(k, 0) + 1
+        if k:
+            counts[k] = counts.get(k, 0) + 1
 
-    # controls
     app_selected = _render_filter_chips("앱 필터", "myp_wrongs_app")
     q = st.text_input("검색 (단어/뜻/발음)", value=st.session_state.get("myp_wrongs_q", ""), key="myp_wrongs_q")
     only_repeat = st.toggle("🔥 반복 오답만 보기 (3회+)", value=st.session_state.get("myp_wrongs_repeat", False), key="myp_wrongs_repeat")
     per_page = st.select_slider("표시 개수", options=[10, 20, 30, 50, 100], value=20, key="myp_wrongs_per")
-    st.caption("팁: 단어를 클릭하면 정답/내답/발음/뜻을 펼쳐서 확인할 수 있어요.")
 
     def match(w: Dict[str, Any]) -> bool:
         jp = (w.get("jp_word") or "").lower()
@@ -719,9 +745,8 @@ def _render_tab_wrongs(wrongs: List[Dict[str, Any]]) -> None:
                 return False
         if only_repeat and counts.get((w.get("jp_word") or "").strip(), 0) < 3:
             return False
-        if app_selected:
-            if _app_label(w.get("app")) not in app_selected:
-                return False
+        if app_selected and _app_label(w.get("app")) not in app_selected:
+            return False
         return True
 
     filtered = [w for w in wrongs if match(w)]
@@ -732,12 +757,10 @@ def _render_tab_wrongs(wrongs: List[Dict[str, Any]]) -> None:
         unsafe_allow_html=True,
     )
 
-    # paging
     max_page = max(1, (len(filtered) + per_page - 1) // per_page)
     page = st.number_input("페이지", min_value=1, max_value=max_page, value=min(st.session_state.get("myp_wrongs_page", 1), max_page), step=1, key="myp_wrongs_page")
     start = (page - 1) * per_page
-    end = start + per_page
-    chunk = filtered[start:end]
+    chunk = filtered[start:start + per_page]
 
     for w in chunk:
         jp = w.get("jp_word") or "-"
@@ -761,21 +784,21 @@ def _render_tab_wrongs(wrongs: List[Dict[str, Any]]) -> None:
 
 def _render_tab_records(attempts: List[Dict[str, Any]], attempts_status: str) -> None:
     st.markdown('<div class="ha-section">', unsafe_allow_html=True)
-    st.markdown('<div class="ha-title">📈 기록</div><div class="ha-sub">요약 → 최근 흐름 → 상세(카드/리스트) 순서로 구성했습니다.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="ha-title">📈 기록</div><div class="ha-sub">최근 카드는 3개만. 나머지는 빠른 목록에서 한번에 훑습니다.</div>', unsafe_allow_html=True)
 
     if attempts_status != "ok" or not attempts:
         st.warning("학습 기록을 불러올 수 없습니다. (RLS 또는 테이블/컬럼 확인)")
         st.markdown("</div>", unsafe_allow_html=True)
         return
 
-    # filters
+    attempts = [_normalize_attempt(a) for a in attempts]
+
     app_selected = _render_filter_chips("앱 필터", "myp_rec_app")
     level_q = st.text_input("레벨 검색 (예: N4, 4 등)", value=st.session_state.get("myp_rec_lvlq", ""), key="myp_rec_lvlq")
 
     def match(a: Dict[str, Any]) -> bool:
-        if app_selected:
-            if _app_label(a.get("app")) not in app_selected:
-                return False
+        if app_selected and _app_label(a.get("app")) not in app_selected:
+            return False
         if level_q.strip():
             lv = str(a.get("level") or "").lower()
             if level_q.strip().lower() not in lv:
@@ -784,7 +807,6 @@ def _render_tab_records(attempts: List[Dict[str, Any]], attempts_status: str) ->
 
     filtered = [a for a in attempts if match(a)]
 
-    # summary chips
     scores = [s for s in (_calc_score(a) for a in filtered[:200]) if s is not None]
     best = max(scores) if scores else None
     avg = round(sum(scores) / len(scores), 1) if scores else None
@@ -805,25 +827,27 @@ def _render_tab_records(attempts: List[Dict[str, Any]], attempts_status: str) ->
         unsafe_allow_html=True,
     )
 
-    # mini week widget (records scope)
     _render_week_widget(filtered)
-
     st.divider()
 
-    # Recent 6 cards
-    st.markdown("**최근 학습**")
-    top = filtered[:6]
+    # ✅ C안: 최근 3개만
+    st.markdown("**최근 학습(3개)**")
+    top = filtered[:3]
     for a in top:
         app = _app_label(a.get("app"))
+        pos = _pos_label(a.get("pos"))
         level = a.get("level") or "-"
         dt = _fmt_dt(a.get("created_at"))
         score = _calc_score(a)
         total, wrong = _calc_total_wrong(a)
 
+        # app + pos 표시
+        title = f"{app}" + (f" · {pos}" if pos else "") + f" · Lv {level}"
+
         st.markdown(
             f"""
 <div class="ha-card">
-  <div class="ha-card-title">{app} · Lv {level}</div>
+  <div class="ha-card-title">{title}</div>
   <div class="ha-meta">
     <span class="ha-chip">{dt}</span>
     <span class="ha-chip">점수 <b>{(str(score)+'%') if score is not None else '-'}</b></span>
@@ -837,21 +861,28 @@ def _render_tab_records(attempts: List[Dict[str, Any]], attempts_status: str) ->
 
     st.divider()
 
-    # Compact list (no "developer table" vibe)
     st.markdown("**빠른 목록**")
     show_n = st.select_slider("표시 개수", options=[10, 20, 30, 50, 100, 200], value=30, key="myp_rec_n")
-    for a in filtered[:show_n]:
+    # ✅ 중복감 최소화: 최근3개는 제외하고 목록 시작
+    rest = filtered[3:]
+    for a in rest[:show_n]:
         app = _app_label(a.get("app"))
+        pos = _pos_label(a.get("pos"))
         level = a.get("level") or "-"
         dt = _fmt_dt(a.get("created_at"))
         score = _calc_score(a)
         total, wrong = _calc_total_wrong(a)
+
+        left_badges = f'<span class="ha-badge">{app}</span>'
+        if pos:
+            left_badges += f' <span class="ha-badge">{pos}</span>'
+
         st.markdown(
             f"""
 <div class="ha-card" style="padding:10px 10px;">
   <div class="ha-row">
     <div class="ha-inline">
-      <span class="ha-badge">{app}</span>
+      {left_badges}
       <span class="ha-chip">Lv <b>{level}</b></span>
       <span class="ha-chip">{dt}</span>
     </div>
@@ -956,21 +987,15 @@ def render() -> None:
     attempts, attempts_status = _load_attempts(limit=500)
     attempts_ok = attempts if attempts_status == "ok" else []
 
-    _render_top_summary(wrongs, attempts_ok, msgs)
+    # ✅ 상단에서는 메시지 영역/뱃지 제거 (중복 방지)
+    _render_top_summary(wrongs, attempts_ok)
 
-    # default tab selection (CTA에서 점프)
+    # default tab selection (CTA)
     tab_key = st.session_state.get("myp_tab", "")
     labels = ["📚 오답", "📈 기록", "📩 메시지"]
-    if tab_key == "records":
-        idx = 1
-    elif tab_key == "msgs":
-        idx = 2
-    else:
-        idx = 0
 
     tab1, tab2, tab3 = st.tabs(labels)
 
-    # render in a stable order; CTA uses session_state only for initial focus
     with tab1:
         _render_tab_wrongs(wrongs)
     with tab2:
