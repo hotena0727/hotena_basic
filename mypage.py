@@ -6,12 +6,14 @@ from typing import Any, Dict, List, Optional, Tuple
 import streamlit as st
 
 # ============================================================
-# ✅ MyPage (AdminStyle Clean • Hatena Blue • No Top Msg Dup)
-# - 목적: "개발자 느낌" 제거 + 관리자 탭과 같은 UI 언어로 통일
-# - 위계: 숫자(KPI) → 흐름(상태) → 행동(CTA) → 상세(카드)
+# ✅ MyPage (Redesign v1 • Hatena Blue • Tabs + Compact Layout)
+# - 목표: "한줄에 죽~" 스크롤 문제 해결
+# - 핵심: KPI/진행률은 상단 고정 + 아래는 탭(오답/기록/메시지)
+# - 오답/메시지: 기본 접힘(expander) + 더보기/검색
 # - 데이터: wrong_notes / quiz_attempts(있으면) / user_messages
 # ============================================================
 
+HATENA_BLUE = "#1E6BFF"
 
 # ---------------------------
 # Supabase helpers
@@ -21,7 +23,6 @@ def _sb() -> Any:
     sb = st.session_state.get("sb_authed") or st.session_state.get("sb")
     token = st.session_state.get("access_token")
     try:
-        # postgrest-python supports auth(token)
         if sb and token and hasattr(sb, "postgrest") and hasattr(sb.postgrest, "auth"):
             sb.postgrest.auth(token)
     except Exception:
@@ -47,8 +48,6 @@ def _uid() -> Optional[str]:
 # ---------------------------
 # UI / CSS
 # ---------------------------
-HATENA_BLUE = "#1E6BFF"  # ✅ 현재 하테나 블루(필요 시 값만 교체)
-
 def _inject_css() -> None:
     st.markdown(
         f"""
@@ -60,77 +59,91 @@ def _inject_css() -> None:
   --ha-line: #e5e7eb;
   --ha-bg: #ffffff;
   --ha-chip: #f1f5f9;
+  --ha-soft: rgba(30,107,255,0.08);
 }}
 
 .ha-wrap {{
   max-width: 980px;
   margin: 0 auto;
-  padding: 10px 8px 30px 8px;
+  padding: 6px 8px 26px 8px;
+}}
+
+.ha-top {{
+  border: 1px solid var(--ha-line);
+  border-radius: 18px;
+  background: var(--ha-bg);
+  padding: 14px 14px;
+  margin: 8px 0 10px 0;
 }}
 
 .ha-topbar {{
   display:flex;
   align-items:center;
   justify-content:space-between;
-  gap:12px;
-  padding: 2px 0 14px 0;
+  gap: 10px;
+}}
+
+.ha-brand {{
+  display:flex;
+  align-items:flex-start;
+  gap: 10px;
+}}
+
+.ha-logo {{
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  border: 1px solid rgba(30,107,255,0.25);
+  background: var(--ha-soft);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color: var(--ha-blue);
+  font-weight: 900;
 }}
 
 .ha-title {{
-  font-size: 20px;
-  font-weight: 800;
+  font-size: 18px;
+  font-weight: 900;
   color: var(--ha-text);
   letter-spacing: -0.3px;
+  line-height: 1.15;
 }}
 .ha-sub {{
-  margin-top: 2px;
+  margin-top: 3px;
   font-size: 12px;
   color: var(--ha-sub);
 }}
 
 .ha-actions {{
   display:flex;
-  gap:8px;
+  gap: 8px;
   align-items:center;
 }}
-
-.ha-btn {{
+.ha-pill {{
   border: 1px solid var(--ha-line);
   background: #fff;
   color: var(--ha-text);
   border-radius: 999px;
   padding: 7px 12px;
   font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-}}
-.ha-btn-primary {{
-  border: 1px solid rgba(30,107,255,0.35);
-  background: rgba(30,107,255,0.10);
-  color: var(--ha-blue);
-}}
-
-.ha-section {{
-  border: 1px solid var(--ha-line);
-  border-radius: 16px;
-  padding: 14px 14px;
-  background: var(--ha-bg);
-  margin: 10px 0;
+  font-weight: 800;
 }}
 
 .ha-kpi {{
+  margin-top: 12px;
   display:grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 10px;
 }}
 .ha-kpi-item {{
   border: 1px solid var(--ha-line);
-  border-radius: 14px;
+  border-radius: 16px;
   padding: 12px 12px;
   background: #fff;
 }}
 .ha-kpi-num {{
-  font-size: 30px;
+  font-size: 26px;
   font-weight: 900;
   color: var(--ha-text);
   line-height: 1.0;
@@ -139,7 +152,7 @@ def _inject_css() -> None:
   margin-top: 6px;
   font-size: 12px;
   color: var(--ha-sub);
-  font-weight: 700;
+  font-weight: 800;
 }}
 
 .ha-progress-row {{
@@ -147,7 +160,7 @@ def _inject_css() -> None:
   align-items:center;
   justify-content:space-between;
   gap: 10px;
-  margin-top: 8px;
+  margin-top: 10px;
 }}
 .ha-progress {{
   width: 100%;
@@ -162,14 +175,6 @@ def _inject_css() -> None:
   background: var(--ha-blue);
   width: 0%;
 }}
-
-.ha-cta {{
-  display:flex;
-  justify-content:center;
-  gap: 10px;
-  margin-top: 10px;
-}}
-
 .ha-chip {{
   display:inline-flex;
   align-items:center;
@@ -179,15 +184,47 @@ def _inject_css() -> None:
   background: var(--ha-chip);
   border: 1px solid var(--ha-line);
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 800;
   color: var(--ha-sub);
 }}
 .ha-chip b {{ color: var(--ha-text); }}
 
+.ha-section {{
+  border: 1px solid var(--ha-line);
+  border-radius: 18px;
+  padding: 12px 12px;
+  background: var(--ha-bg);
+  margin: 10px 0;
+}}
+
+.ha-row {{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}}
+.ha-inline {{
+  display:flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items:center;
+}}
+
+.ha-badge {{
+  border: 1px solid rgba(30,107,255,0.25);
+  background: rgba(30,107,255,0.08);
+  color: var(--ha-blue);
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 12px;
+  font-weight: 900;
+}}
+
 .ha-card {{
   border: 1px solid var(--ha-line);
   border-radius: 14px;
-  padding: 12px 12px;
+  padding: 10px 10px;
   background: #fff;
   margin: 8px 0;
 }}
@@ -204,14 +241,15 @@ def _inject_css() -> None:
   flex-wrap:wrap;
   gap: 8px;
 }}
+
 .ha-dot {{
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
   border-radius: 999px;
   background: var(--ha-blue);
   display:inline-block;
   margin-right: 6px;
-  opacity: 0.8;
+  opacity: 0.85;
 }}
 
 @media (max-width: 720px) {{
@@ -223,11 +261,11 @@ def _inject_css() -> None:
     )
 
 
-def _center_wrap_start() -> None:
+def _wrap_start() -> None:
     st.markdown('<div class="ha-wrap">', unsafe_allow_html=True)
 
 
-def _center_wrap_end() -> None:
+def _wrap_end() -> None:
     st.markdown("</div>", unsafe_allow_html=True)
 
 
@@ -251,11 +289,9 @@ def _safe_select(table: str, cols: str = "*", limit: int = 200, order: Optional[
         return []
 
 
-def _load_wrongs(limit: int = 200) -> List[Dict[str, Any]]:
-    # wrong_notes: user_id RLS로 본인 것만
+def _load_wrongs(limit: int = 400) -> List[Dict[str, Any]]:
     cols = "id, user_id, app, level, jp_word, reading, meaning, correct_answer, user_answer, created_at"
     rows = _safe_select("wrong_notes", cols=cols, limit=limit, order="created_at", desc=True)
-    # 유연 처리: 컬럼명이 다를 수 있으니 키 보정
     for r in rows:
         if "jp_word" not in r and "word" in r:
             r["jp_word"] = r.get("word")
@@ -266,17 +302,12 @@ def _load_wrongs(limit: int = 200) -> List[Dict[str, Any]]:
     return rows
 
 
-def _load_messages(limit: int = 200) -> List[Dict[str, Any]]:
+def _load_messages(limit: int = 300) -> List[Dict[str, Any]]:
     cols = "id, user_id, title, body, created_at, read_at"
-    rows = _safe_select("user_messages", cols=cols, limit=limit, order="created_at", desc=True)
-    return rows
+    return _safe_select("user_messages", cols=cols, limit=limit, order="created_at", desc=True)
 
 
-def _load_attempts(limit: int = 300) -> Tuple[List[Dict[str, Any]], str]:
-    """
-    quiz_attempts 스키마가 환경마다 달라서,
-    몇 가지 대표 컬럼 세트를 순서대로 시도합니다.
-    """
+def _load_attempts(limit: int = 500) -> Tuple[List[Dict[str, Any]], str]:
     sb = _sb()
     if not sb:
         return [], "no-sb"
@@ -308,14 +339,12 @@ def _fmt_dt(s: Any) -> str:
     if not s:
         return "-"
     try:
-        # s may be ISO string
         if isinstance(s, str):
             dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
         elif isinstance(s, datetime):
             dt = s
         else:
             return str(s)
-        # show in Asia/Seoul friendly without importing pytz
         return dt.astimezone(timezone(timedelta(hours=9))).strftime("%Y-%m-%d %H:%M")
     except Exception:
         return str(s)
@@ -339,52 +368,131 @@ def _num(n: Any) -> str:
         return "0"
 
 
+def _calc_score(a: Dict[str, Any]) -> Optional[float]:
+    score = a.get("score")
+    if score is not None:
+        try:
+            return float(score)
+        except Exception:
+            return None
+    total = a.get("total") or a.get("quiz_len") or a.get("total_questions")
+    correct = a.get("correct") or a.get("correct_cnt") or a.get("correct_answers")
+    try:
+        if total and correct is not None:
+            return round((float(correct) / float(total)) * 100, 1)
+    except Exception:
+        pass
+    return None
+
+
+def _calc_total_wrong(a: Dict[str, Any]) -> Tuple[Any, Any]:
+    total = a.get("total") or a.get("quiz_len") or a.get("total_questions") or "-"
+    wrong = a.get("wrong") or a.get("wrong_cnt") or a.get("wrong_answers") or "-"
+    return total, wrong
+
+
 # ---------------------------
-# Sections (Admin-style)
+# Navigation actions
 # ---------------------------
-def _kpi_and_flow(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, Any]], msgs: List[Dict[str, Any]]) -> None:
-    # KPI 계산
+def _go_home() -> None:
+    for key in ("hub_page", "page", "current_page"):
+        if key in st.session_state:
+            st.session_state[key] = "home"
+    st.rerun()
+
+
+def _logout() -> None:
+    sb = _sb()
+    try:
+        if sb and hasattr(sb, "auth") and hasattr(sb.auth, "sign_out"):
+            sb.auth.sign_out()
+    except Exception:
+        pass
+
+    for k in [
+        "access_token", "refresh_token", "user_id", "uid", "email",
+        "sb_authed", "sb", "is_admin", "plan", "user_plan"
+    ]:
+        if k in st.session_state:
+            st.session_state[k] = None
+
+    for key in ("hub_page", "page", "current_page"):
+        if key in st.session_state:
+            st.session_state[key] = "home"
+    st.rerun()
+
+
+# ---------------------------
+# Top summary (KPI + flow)
+# ---------------------------
+def _render_top_summary(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, Any]], msgs: List[Dict[str, Any]]) -> None:
     wrong_total = len(wrongs)
     unread = sum(1 for m in msgs if not m.get("read_at"))
-    # 평균점수(가능한 경우)
+
     scores = []
     for a in attempts:
-        sc = a.get("score")
-        if sc is None:
-            # score 없으면 correct/total로 계산 시도
-            total = a.get("total") or a.get("quiz_len") or a.get("total_questions")
-            correct = a.get("correct") or a.get("correct_cnt") or a.get("correct_answers")
-            try:
-                if total and correct is not None:
-                    sc = round((float(correct) / float(total)) * 100, 1)
-            except Exception:
-                sc = None
+        sc = _calc_score(a)
         if sc is not None:
-            try:
-                scores.append(float(sc))
-            except Exception:
-                pass
+            scores.append(sc)
     avg_score = round(sum(scores) / len(scores), 1) if scores else None
 
-    # 최근 7일 학습 횟수
     now = datetime.now(timezone(timedelta(hours=9)))
     week_ago = now - timedelta(days=7)
     recent_cnt = 0
     for a in attempts:
         ca = a.get("created_at")
         try:
-            dt = datetime.fromisoformat(str(ca).replace("Z", "+00:00"))
-            if dt.astimezone(timezone(timedelta(hours=9))) >= week_ago:
+            dt = datetime.fromisoformat(str(ca).replace("Z", "+00:00")).astimezone(timezone(timedelta(hours=9)))
+            if dt >= week_ago:
                 recent_cnt += 1
         except Exception:
             continue
 
-    st.markdown('<div class="ha-section">', unsafe_allow_html=True)
+    # month progress
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    month_cnt = 0
+    for a in attempts:
+        ca = a.get("created_at")
+        try:
+            dt = datetime.fromisoformat(str(ca).replace("Z", "+00:00")).astimezone(timezone(timedelta(hours=9)))
+            if dt >= month_start:
+                month_cnt += 1
+        except Exception:
+            continue
+
+    goal = st.session_state.get("goal_sets") or st.session_state.get("hub_goal_sets") or 20
+    try:
+        goal = max(1, int(goal))
+    except Exception:
+        goal = 20
+    pct = min(100, round((month_cnt / goal) * 100, 0)) if goal else 0
+
+    st.markdown('<div class="ha-top">', unsafe_allow_html=True)
     st.markdown(
-        '<div class="ha-title">마이페이지</div>'
-        '<div class="ha-sub">오답 · 학습 기록 · 받은 메시지를 한 곳에서 정리합니다.</div>',
+        f"""
+<div class="ha-topbar">
+  <div class="ha-brand">
+    <div class="ha-logo">は</div>
+    <div>
+      <div class="ha-title">하테나일본어 · 마이페이지</div>
+      <div class="ha-sub">오답 · 기록 · 메시지를 <b>탭으로</b> 정리해 스크롤을 줄였습니다.</div>
+    </div>
+  </div>
+</div>
+""",
         unsafe_allow_html=True,
     )
+
+    # actions
+    colA, colB = st.columns([7, 3], vertical_alignment="center")
+    with colB:
+        b1, b2 = st.columns(2, gap="small")
+        with b1:
+            if st.button("🏠 홈", use_container_width=True, key="myp_v1_home"):
+                _go_home()
+        with b2:
+            if st.button("로그아웃", use_container_width=True, key="myp_v1_logout"):
+                _logout()
 
     st.markdown(
         f"""
@@ -406,67 +514,55 @@ def _kpi_and_flow(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, Any]], 
         unsafe_allow_html=True,
     )
 
-    # 흐름(이번 달 진행) — “정의”를 단순화: 이번 달 학습횟수 / 목표(기본 20)
-    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    month_cnt = 0
-    for a in attempts:
-        ca = a.get("created_at")
-        try:
-            dt = datetime.fromisoformat(str(ca).replace("Z", "+00:00")).astimezone(timezone(timedelta(hours=9)))
-            if dt >= month_start:
-                month_cnt += 1
-        except Exception:
-            continue
-    # 목표는 홈허브의 goal_sets(또는 20)을 따름. 없으면 20.
-    goal = st.session_state.get("goal_sets") or st.session_state.get("hub_goal_sets") or 20
-    try:
-        goal = max(1, int(goal))
-    except Exception:
-        goal = 20
-    pct = min(100, round((month_cnt / goal) * 100, 0)) if goal else 0
-
-    st.markdown('<div style="margin-top:12px;"></div>', unsafe_allow_html=True)
-    st.markdown(f'<div class="ha-sub"><b>이번 달 학습 흐름</b> · {month_cnt}/{goal}회</div>', unsafe_allow_html=True)
+    st.markdown('<div style="margin-top:10px;"></div>', unsafe_allow_html=True)
     st.markdown(
         f"""
+<div class="ha-row">
+  <div class="ha-inline">
+    <span class="ha-chip"><b>이번 달</b> {month_cnt}/{goal}회</span>
+    <span class="ha-chip"><b>{int(pct)}%</b> 진행</span>
+    {f'<span class="ha-badge">읽지 않은 메시지 {unread}개</span>' if unread else ''}
+  </div>
+</div>
 <div class="ha-progress-row">
   <div class="ha-progress"><div style="width:{pct}%;"></div></div>
-  <div class="ha-chip"><b>{int(pct)}%</b> 진행</div>
 </div>
 """,
         unsafe_allow_html=True,
     )
 
-    # 행동(CTA)
-    st.markdown('<div class="ha-cta">', unsafe_allow_html=True)
-    c1, c2 = st.columns([1, 1], gap="small")
+    # Compact CTA
+    st.markdown('<div style="margin-top:10px;"></div>', unsafe_allow_html=True)
+    c1, c2, c3 = st.columns([1, 1, 1], gap="small")
     with c1:
-        if st.button("🧪 TOP10 재시험", use_container_width=True):
-            # 기존 mypage 구조에서 시험 화면이 있다면 그 라우트로 넘김
-            st.session_state["mypage_view"] = "top10"
+        if st.button("📚 오답 복습", use_container_width=True, key="myp_v1_cta_wrongs"):
+            st.session_state["myp_tab"] = "wrongs"
             st.rerun()
     with c2:
-        if st.button("📚 오답 복습하기", use_container_width=True):
-            st.session_state["mypage_view"] = "wrongs_focus"
+        if st.button("📈 기록 보기", use_container_width=True, key="myp_v1_cta_records"):
+            st.session_state["myp_tab"] = "records"
             st.rerun()
+    with c3:
+        if st.button("📩 메시지 확인", use_container_width=True, key="myp_v1_cta_msgs"):
+            st.session_state["myp_tab"] = "msgs"
+            st.rerun()
+
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # 메시지 안내는 중복 제거: KPI에 읽지않음만 뱃지로 조용히
-    if unread:
-        st.caption(f"읽지 않은 메시지 {unread}개가 있습니다.")
-    st.markdown("</div>", unsafe_allow_html=True)
 
-
-def _section_wrongs(wrongs: List[Dict[str, Any]], focus: bool = False) -> None:
+# ---------------------------
+# Tabs
+# ---------------------------
+def _render_tab_wrongs(wrongs: List[Dict[str, Any]]) -> None:
     st.markdown('<div class="ha-section">', unsafe_allow_html=True)
-    st.markdown('<div class="ha-title">📚 오답카드</div><div class="ha-sub">틀린 문제는 자동으로 쌓이고, 반복 오답은 우선 복습을 추천합니다.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="ha-title">📚 오답</div><div class="ha-sub">기본은 접힌 목록(아코디언)입니다. 반복 오답부터 먼저 확인하세요.</div>', unsafe_allow_html=True)
 
     if not wrongs:
-        st.info("아직 저장된 오답 상세가 없습니다. (앞으로 틀린 문제는 자동으로 오답카드에 쌓입니다.)")
+        st.info("아직 저장된 오답이 없습니다. (틀린 문제는 자동으로 오답카드에 쌓입니다.)")
         st.markdown("</div>", unsafe_allow_html=True)
         return
 
-    # 반복 오답 카운트(같은 jp_word 기준) — 간단 버전
+    # counts (repeat)
     counts: Dict[str, int] = {}
     for w in wrongs:
         k = (w.get("jp_word") or "").strip()
@@ -474,82 +570,97 @@ def _section_wrongs(wrongs: List[Dict[str, Any]], focus: bool = False) -> None:
             continue
         counts[k] = counts.get(k, 0) + 1
 
-    # 추천(3회 이상)
-    repeat = [w for w in wrongs if counts.get((w.get("jp_word") or "").strip(), 0) >= 3]
-    if repeat:
-        st.markdown('<div class="ha-sub"><b>🔥 반복 오답</b> (3회 이상)</div>', unsafe_allow_html=True)
-        for w in repeat[:5]:
-            _wrong_card(w, counts)
-        st.divider()
+    # controls
+    q = st.text_input("검색 (단어/뜻/발음)", value=st.session_state.get("myp_wrongs_q", ""), key="myp_wrongs_q")
+    only_repeat = st.toggle("반복 오답만 보기 (3회+)", value=st.session_state.get("myp_wrongs_repeat", False), key="myp_wrongs_repeat")
+    per_page = st.select_slider("표시 개수", options=[10, 20, 30, 50, 100], value=20, key="myp_wrongs_per")
+    st.caption("팁: 목록에서 단어를 클릭하면 정답/내답/날짜를 펼쳐서 확인할 수 있습니다.")
 
-    st.markdown('<div class="ha-sub"><b>최근 오답</b></div>', unsafe_allow_html=True)
-    show_n = 20 if (focus or st.session_state.get("mypage_view") == "wrongs_focus") else 10
-    for w in wrongs[:show_n]:
-        _wrong_card(w, counts)
+    # filter
+    def match(w: Dict[str, Any]) -> bool:
+        jp = (w.get("jp_word") or "").lower()
+        rd = (w.get("reading") or "").lower()
+        mn = (w.get("meaning") or "").lower()
+        if q.strip():
+            qq = q.strip().lower()
+            if qq not in jp and qq not in rd and qq not in mn:
+                return False
+        if only_repeat:
+            return counts.get((w.get("jp_word") or "").strip(), 0) >= 3
+        return True
+
+    filtered = [w for w in wrongs if match(w)]
+    repeat_cnt = sum(1 for w in filtered if counts.get((w.get("jp_word") or "").strip(), 0) >= 3)
+    st.markdown(
+        f'<div class="ha-meta"><span class="ha-chip">총 <b>{_num(len(filtered))}</b>개</span>'
+        f'<span class="ha-chip">반복 오답 <b>{_num(repeat_cnt)}</b>개</span></div>',
+        unsafe_allow_html=True,
+    )
+
+    # paging
+    page = st.number_input("페이지", min_value=1, max_value=max(1, (len(filtered) + per_page - 1) // per_page), value=1, step=1, key="myp_wrongs_page")
+    start = (page - 1) * per_page
+    end = start + per_page
+    chunk = filtered[start:end]
+
+    for idx, w in enumerate(chunk):
+        jp = w.get("jp_word") or "-"
+        app = _app_label(w.get("app"))
+        level = w.get("level") or "-"
+        dt = _fmt_dt(w.get("created_at"))
+        rep = counts.get((w.get("jp_word") or "").strip(), 0)
+
+        header = f"{jp}  ·  {app}  ·  Lv {level}" + (f"  ·  🔥 {rep}회" if rep >= 3 else "")
+        with st.expander(header, expanded=False):
+            c1, c2 = st.columns([2, 2])
+            with c1:
+                st.markdown(f"**정답**: {w.get('correct_answer') or '-'}")
+                st.markdown(f"**내답**: {w.get('user_answer') or '-'}")
+            with c2:
+                st.markdown(f"**발음**: {w.get('reading') or '-'}")
+                st.markdown(f"**뜻**: {w.get('meaning') or '-'}")
+            st.caption(f"저장: {dt}")
 
     st.markdown("</div>", unsafe_allow_html=True)
 
 
-def _wrong_card(w: Dict[str, Any], counts: Dict[str, int]) -> None:
-    jp = w.get("jp_word") or "-"
-    ca = _fmt_dt(w.get("created_at"))
-    app = _app_label(w.get("app"))
-    level = w.get("level") or "-"
-    correct = w.get("correct_answer") or "-"
-    ua = w.get("user_answer") or "-"
-    c = counts.get((w.get("jp_word") or "").strip(), 0)
-
-    badges = [f"{app}", f"Lv {level}" if level != "-" else None, ca]
-    badges = [b for b in badges if b]
-
-    badge_str = " · ".join(badges)
-    rep = f" · {c}회" if c >= 3 else ""
-
-    st.markdown(
-        f"""
-<div class="ha-card">
-  <div class="ha-card-title">{jp}</div>
-  <div class="ha-meta">
-    <span class="ha-chip">{badge_str}{rep}</span>
-  </div>
-  <div class="ha-meta">
-    <span>정답 <b>{correct}</b></span>
-    <span>내답 <b>{ua}</b></span>
-  </div>
-</div>
-""",
-        unsafe_allow_html=True,
-    )
-
-
-def _section_records(attempts: List[Dict[str, Any]]) -> None:
+def _render_tab_records(attempts: List[Dict[str, Any]], attempts_status: str) -> None:
     st.markdown('<div class="ha-section">', unsafe_allow_html=True)
-    st.markdown('<div class="ha-title">📈 학습 기록</div><div class="ha-sub">최근 학습을 카드 형태로 정리합니다.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="ha-title">📈 기록</div><div class="ha-sub">최근 5개는 카드, 그 아래는 표로 빠르게 훑을 수 있습니다.</div>', unsafe_allow_html=True)
 
-    if not attempts:
-        st.warning("학습 기록을 불러올 수 없습니다. (RLS 또는 테이블 확인)")
+    if attempts_status != "ok" or not attempts:
+        st.warning("학습 기록을 불러올 수 없습니다. (RLS 또는 테이블/컬럼 확인)")
         st.markdown("</div>", unsafe_allow_html=True)
         return
 
-    for a in attempts[:15]:
+    # quick filters
+    app_filter = st.multiselect("앱", options=["단어", "한자", "회화", "기타"], default=[], key="myp_rec_appf")
+    level_q = st.text_input("레벨 검색 (예: N4, 4 등)", value=st.session_state.get("myp_rec_lvlq", ""), key="myp_rec_lvlq")
+
+    def match(a: Dict[str, Any]) -> bool:
+        app = _app_label(a.get("app"))
+        if app_filter:
+            if app not in app_filter:
+                # map "기타"
+                if not (app == "기타" and "기타" in app_filter):
+                    return False
+        if level_q.strip():
+            lv = str(a.get("level") or "").lower()
+            if level_q.strip().lower() not in lv:
+                return False
+        return True
+
+    filtered = [a for a in attempts if match(a)]
+    st.markdown(f'<div class="ha-meta"><span class="ha-chip">총 <b>{_num(len(filtered))}</b>회</span></div>', unsafe_allow_html=True)
+
+    # Top 5 cards
+    top = filtered[:5]
+    for a in top:
         app = _app_label(a.get("app"))
         level = a.get("level") or "-"
         dt = _fmt_dt(a.get("created_at"))
-
-        # score 우선, 없으면 correct/total로 계산
-        score = a.get("score")
-        if score is None:
-            total = a.get("total") or a.get("quiz_len") or a.get("total_questions")
-            correct = a.get("correct") or a.get("correct_cnt") or a.get("correct_answers")
-            try:
-                if total and correct is not None:
-                    score = round((float(correct) / float(total)) * 100, 1)
-            except Exception:
-                score = None
-
-        # 세부 숫자
-        total = a.get("total") or a.get("quiz_len") or a.get("total_questions") or "-"
-        wrong = a.get("wrong") or a.get("wrong_cnt") or a.get("wrong_answers") or "-"
+        score = _calc_score(a)
+        total, wrong = _calc_total_wrong(a)
 
         st.markdown(
             f"""
@@ -566,26 +677,70 @@ def _section_records(attempts: List[Dict[str, Any]]) -> None:
             unsafe_allow_html=True,
         )
 
+    st.divider()
+
+    # Table view (compact)
+    show_n = st.select_slider("표로 표시할 개수", options=[10, 20, 30, 50, 100, 200], value=30, key="myp_rec_n")
+    rows = []
+    for a in filtered[:show_n]:
+        app = _app_label(a.get("app"))
+        dt = _fmt_dt(a.get("created_at"))
+        level = a.get("level") or "-"
+        score = _calc_score(a)
+        total, wrong = _calc_total_wrong(a)
+        rows.append(
+            {
+                "시간": dt,
+                "앱": app,
+                "레벨": level,
+                "점수(%)": score if score is not None else None,
+                "문항": total,
+                "오답": wrong,
+            }
+        )
+    st.dataframe(rows, use_container_width=True, hide_index=True)
+
     st.markdown("</div>", unsafe_allow_html=True)
 
 
-def _section_messages(msgs: List[Dict[str, Any]]) -> None:
+def _render_tab_messages(msgs: List[Dict[str, Any]]) -> None:
     st.markdown('<div class="ha-section">', unsafe_allow_html=True)
-    st.markdown('<div class="ha-title">📩 받은 메시지</div><div class="ha-sub">관리자가 보낸 안내/공지 메시지입니다.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="ha-title">📩 메시지</div><div class="ha-sub">읽지 않은 메시지부터 위에 노출됩니다. 기본은 접힘(아코디언)입니다.</div>', unsafe_allow_html=True)
 
     if not msgs:
         st.info("받은 메시지가 없습니다.")
         st.markdown("</div>", unsafe_allow_html=True)
         return
 
-    # 필터: 읽지않음 우선
+    sb = _sb()
+
     unread = [m for m in msgs if not m.get("read_at")]
     read = [m for m in msgs if m.get("read_at")]
     ordered = unread + read
 
-    sb = _sb()
+    q = st.text_input("검색 (제목/내용)", value=st.session_state.get("myp_msg_q", ""), key="myp_msg_q")
+    only_unread = st.toggle("읽지 않음만", value=st.session_state.get("myp_msg_unread", False), key="myp_msg_unread")
+    per = st.select_slider("표시 개수", options=[5, 10, 20, 30, 50], value=10, key="myp_msg_per")
 
-    for m in ordered[:30]:
+    def match(m: Dict[str, Any]) -> bool:
+        if only_unread and m.get("read_at"):
+            return False
+        if q.strip():
+            qq = q.strip().lower()
+            t = (m.get("title") or "").lower()
+            b = (m.get("body") or "").lower()
+            if qq not in t and qq not in b:
+                return False
+        return True
+
+    filtered = [m for m in ordered if match(m)]
+    st.markdown(
+        f'<div class="ha-meta"><span class="ha-chip">총 <b>{_num(len(filtered))}</b>개</span>'
+        f'<span class="ha-chip">읽지 않음 <b>{_num(sum(1 for m in filtered if not m.get("read_at")))}</b>개</span></div>',
+        unsafe_allow_html=True,
+    )
+
+    for m in filtered[:per]:
         title = m.get("title") or "메시지"
         body = m.get("body") or ""
         dt = _fmt_dt(m.get("created_at"))
@@ -593,8 +748,10 @@ def _section_messages(msgs: List[Dict[str, Any]]) -> None:
         dot = '<span class="ha-dot"></span>' if is_unread else ""
         chip = "읽지 않음" if is_unread else "읽음"
 
-        st.markdown(
-            f"""
+        header = f"{title}  ·  {dt}" + ("  ·  🔵" if is_unread else "")
+        with st.expander(header, expanded=False):
+            st.markdown(
+                f"""
 <div class="ha-card">
   <div class="ha-card-title">{dot}{title}</div>
   <div class="ha-meta">
@@ -602,20 +759,18 @@ def _section_messages(msgs: List[Dict[str, Any]]) -> None:
     <span class="ha-chip">{chip}</span>
   </div>
   <div style="margin-top:8px; color: var(--ha-text); font-size: 14px; line-height: 1.55;">
-    {body.replace('<', '&lt;').replace('>', '&gt;').replace('\n','<br>')}
+    {body.replace('<', '&lt;').replace('>', '&gt;').replace('\\n','<br>')}
   </div>
 </div>
 """,
-            unsafe_allow_html=True,
-        )
+                unsafe_allow_html=True,
+            )
 
-        # 읽음 처리 버튼(읽지 않은 메시지에만)
-        if is_unread and sb:
-            col1, col2, col3 = st.columns([1, 1, 8])
-            with col1:
-                if st.button("읽음", key=f"msg_read_{m.get('id')}"):
+            if is_unread and sb:
+                if st.button("읽음 처리", key=f"msg_read_{m.get('id')}"):
                     try:
                         sb.table("user_messages").update({"read_at": datetime.utcnow().isoformat()}).eq("id", m["id"]).execute()
+                        st.success("읽음 처리 완료")
                         st.rerun()
                     except Exception:
                         st.warning("읽음 처리에 실패했습니다. (RLS 확인)")
@@ -624,95 +779,50 @@ def _section_messages(msgs: List[Dict[str, Any]]) -> None:
 
 
 # ---------------------------
-# Navigation actions (Home / Logout)
-# ---------------------------
-def _go_home() -> None:
-    # home.py에서 hub_page로 라우팅하는 구조를 최대한 존중
-    for key in ("hub_page", "page", "current_page"):
-        if key in st.session_state:
-            st.session_state[key] = "home"
-    st.session_state["mypage_view"] = "default"
-    st.rerun()
-
-
-def _logout() -> None:
-    # 세션 토큰 제거 + 가능하면 supabase sign_out
-    sb = _sb()
-    try:
-        if sb and hasattr(sb, "auth") and hasattr(sb.auth, "sign_out"):
-            sb.auth.sign_out()
-    except Exception:
-        pass
-
-    for k in [
-        "access_token", "refresh_token", "user_id", "uid", "email",
-        "sb_authed", "sb", "is_admin", "plan", "user_plan"
-    ]:
-        if k in st.session_state:
-            st.session_state[k] = None
-    # 홈으로
-    for key in ("hub_page", "page", "current_page"):
-        if key in st.session_state:
-            st.session_state[key] = "home"
-    st.rerun()
-
-
-# ---------------------------
 # Public entrypoint
 # ---------------------------
 def render() -> None:
     _inject_css()
-    _center_wrap_start()
+    _wrap_start()
 
-    # Topbar (centered)
-    left, mid, right = st.columns([2, 5, 2], vertical_alignment="center")
-    with mid:
-        st.markdown(
-            '<div style="text-align:center;">'
-            '<div class="ha-title">하테나일본어 · 마이페이지</div>'
-            '<div class="ha-sub">오답 · 기록 · 메시지를 정돈된 형태로 확인하세요.</div>'
-            '</div>',
-            unsafe_allow_html=True,
-        )
-    with right:
-        # 작은 버튼 2개
-        c1, c2 = st.columns(2, gap="small")
-        with c1:
-            if st.button("🏠 홈", key="myp_home_btn"):
-                _go_home()
-        with c2:
-            if st.button("로그아웃", key="myp_logout_btn"):
-                _logout()
+    wrongs = _load_wrongs(limit=400)
+    msgs = _load_messages(limit=300)
+    attempts, attempts_status = _load_attempts(limit=500)
+    attempts_ok = attempts if attempts_status == "ok" else []
 
-    # Data
-    wrongs = _load_wrongs(limit=300)
-    msgs = _load_messages(limit=200)
-    attempts, attempts_status = _load_attempts(limit=300)
+    _render_top_summary(wrongs, attempts_ok, msgs)
 
-    # KPI + Flow
-    _kpi_and_flow(wrongs, attempts if attempts_status == "ok" else [], msgs)
-
-    # Sections (Info-dense but clean)
-    # View routing for CTA
-    view = st.session_state.get("mypage_view", "default")
-    if view == "top10":
-        st.markdown('<div class="ha-section">', unsafe_allow_html=True)
-        st.markdown('<div class="ha-title">🧪 TOP10 재시험</div><div class="ha-sub">현재 버전에서는 홈허브/기존 시험 화면으로 연결을 권장합니다.</div>', unsafe_allow_html=True)
-        st.info("TOP10 재시험은 기존 시험 화면(단어/한자/회화)로 연결되도록 홈에서 진행하는 방식이 가장 안정적입니다.")
-        if st.button("🏠 홈으로 돌아가기", use_container_width=True):
-            _go_home()
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    # 오답 섹션
-    _section_wrongs(wrongs, focus=(view == "wrongs_focus"))
-
-    # 기록 섹션
-    if attempts_status == "ok":
-        _section_records(attempts)
+    # default tab selection (CTA에서 점프)
+    tab_key = st.session_state.get("myp_tab", "")
+    labels = ["📚 오답", "📈 기록", "📩 메시지"]
+    if tab_key == "records":
+        idx = 1
+    elif tab_key == "msgs":
+        idx = 2
     else:
-        _section_records([])
+        idx = 0
 
-    # 메시지 섹션
-    _section_messages(msgs)
+    tab1, tab2, tab3 = st.tabs(labels)
+    if idx == 0:
+        with tab1:
+            _render_tab_wrongs(wrongs)
+        with tab2:
+            _render_tab_records(attempts, attempts_status)
+        with tab3:
+            _render_tab_messages(msgs)
+    elif idx == 1:
+        with tab2:
+            _render_tab_records(attempts, attempts_status)
+        with tab1:
+            _render_tab_wrongs(wrongs)
+        with tab3:
+            _render_tab_messages(msgs)
+    else:
+        with tab3:
+            _render_tab_messages(msgs)
+        with tab1:
+            _render_tab_wrongs(wrongs)
+        with tab2:
+            _render_tab_records(attempts, attempts_status)
 
-    _center_wrap_end()
+    _wrap_end()
