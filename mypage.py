@@ -53,7 +53,11 @@ def _inject_css() -> None:
   --ha-soft: rgba(30,107,255,0.08);
 }}
 
-.ha-wrap {{
+.ha-wrap {
+  font-family: Pretendard, 'Noto Sans KR', 'Apple SD Gothic Neo', ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+{
   max-width: 980px;
   margin: 0 auto;
   padding: 6px 8px 26px 8px;
@@ -287,6 +291,28 @@ def _inject_css() -> None:
   .ha-kpi {{ grid-template-columns: 1fr; }}
   .ha-week-grid {{ gap: 6px; }}
 }}
+
+/* ✅ 메시지 Expander(접히는 창) 자체 디자인 */
+div[data-testid="stExpander"] details {
+  border: 1px solid var(--ha-line) !important;
+  border-radius: 16px !important;
+  background: #ffffff !important;
+  overflow: hidden !important;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.04);
+}
+div[data-testid="stExpander"] summary {
+  padding: 12px 14px !important;
+  background: rgba(30,107,255,0.06) !important;
+  font-weight: 900 !important;
+  color: var(--ha-text) !important;
+}
+div[data-testid="stExpander"] summary p {
+  margin: 0 !important;
+}
+div[data-testid="stExpander"] div[role="button"] {
+  border-radius: 16px !important;
+}
+
 </style>
 """,
         unsafe_allow_html=True,
@@ -595,31 +621,41 @@ def _num(n: Any) -> str:
 # Wrong quiz (simple 4-choice)
 # ---------------------------
 def _make_wrong_quiz(wrongs: List[Dict[str, Any]], n: int = 10) -> List[Dict[str, Any]]:
+    """오답으로 4지선다 시험 만들기
+    - meaning이 없어도 correct_answer(정답 텍스트)가 있으면 시험 생성
+    """
     import random
-    pool = [w for w in wrongs if (w.get("jp_word") and w.get("meaning"))]
+    def _ans(w: Dict[str, Any]) -> str:
+        return str((w.get("meaning") or w.get("meaning_kr") or w.get("kr_meaning") or w.get("correct_answer") or w.get("correct") or "")).strip()
+
+    pool = [w for w in wrongs if (str(w.get("jp_word") or w.get("word") or w.get("term") or "").strip() and _ans(w))]
     random.shuffle(pool)
-    pool = pool[: max(n, 20)]
-    meanings = list({(w.get("meaning") or "").strip() for w in pool if (w.get("meaning") or "").strip()})
-    quiz = []
+    pool = pool[: max(n, 24)]
+
+    answer_bank = list({ _ans(w) for w in pool if _ans(w) })
+    quiz: List[Dict[str, Any]] = []
+
     for w in pool[:n]:
-        correct = (w.get("meaning") or w.get("correct_answer") or "").strip()
+        jp = str(w.get("jp_word") or w.get("word") or w.get("term") or "").strip()
+        reading = str(w.get("reading") or w.get("yomi") or w.get("kana") or "").strip() or None
+        correct = _ans(w)
         opts = [correct]
-        others = [m for m in meanings if m != correct]
+        others = [a for a in answer_bank if a != correct]
         random.shuffle(others)
         opts += others[:3]
-        # ensure 4 unique
+
+        # ensure 4 unique options
         opts = list(dict.fromkeys([o for o in opts if o]))
         while len(opts) < 4 and others:
             cand = others.pop()
             if cand and cand not in opts:
                 opts.append(cand)
+        # 마지막 보정: 그래도 부족하면 같은 정답 반복 방지용 더미
+        while len(opts) < 4:
+            opts.append("—")
+
         random.shuffle(opts)
-        quiz.append({
-            "jp_word": w.get("jp_word"),
-            "reading": w.get("reading"),
-            "correct": correct,
-            "options": opts[:4],
-        })
+        quiz.append({"jp_word": jp, "reading": reading, "correct": correct, "options": opts[:4]})
     return quiz
 def _calc_score(a: Dict[str, Any]) -> Optional[float]:
     score = a.get("score")
@@ -890,11 +926,12 @@ def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None
         st.session_state["myp_wrong_quiz_ans"] = {}
         st.session_state["myp_wrong_quiz_done"] = False
         st.rerun()
+        st.rerun()
 
     quiz = st.session_state.get("myp_wrong_quiz") or []
-    # 버튼을 눌렀는데 문제가 생성되지 않는 경우(뜻 데이터 없음 등)
-    if False and ("myp_wrong_quiz" in st.session_state) and (not quiz):
-        st.info("오답 데이터에서 ‘뜻(meaning)’을 찾지 못해 시험을 만들 수 없습니다. (meaning/meaning_kr/kr_meaning 컬럼 확인)")
+    if ("myp_wrong_quiz" in st.session_state) and (not quiz):
+        st.info("시험을 만들 오답이 부족합니다. (뜻/정답 텍스트가 있는 오답이 필요해요.)")
+
     if quiz:
         st.markdown('<div class="ha-card" style="padding:12px 12px;">', unsafe_allow_html=True)
         st.markdown('<div class="ha-card-title">오답 시험</div>', unsafe_allow_html=True)
