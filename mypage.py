@@ -62,6 +62,15 @@ def _inject_css() -> None:
   --ha-chip: #f1f5f9;
 }}
 
+/* ---- Streamlit buttons: prevent wrapping (PC) ---- */
+.stButton > button, div[data-testid="stHorizontalBlock"] .stButton > button {
+  white-space: nowrap !important;
+  padding-top: 0.35rem !important;
+  padding-bottom: 0.35rem !important;
+  line-height: 1.05 !important;
+}
+
+
 .ha-wrap {{
   max-width: 980px;
   margin: 0 auto;
@@ -331,6 +340,30 @@ def _app_label(app: Optional[str]) -> str:
         return "회화"
     return (app or "기타")
 
+POS_LABELS = {
+    "noun": "명사",
+    "verb": "동사",
+    "adj": "형용사",
+    "adjective": "형용사",
+    "adverb": "부사",
+    "particle": "조사",
+    "conjunction": "접속사",
+    "interjection": "감탄사",
+    "pronoun": "대명사",
+    "aux": "조동사",
+    "auxverb": "조동사",
+    "number": "수사",
+    "det": "관형사",
+    "other": "기타",
+}
+
+def _pos_label(x: Optional[str]) -> Optional[str]:
+    if not x:
+        return None
+    k = str(x).strip().lower()
+    return POS_LABELS.get(k, None)
+
+
 
 def _num(n: Any) -> str:
     try:
@@ -532,7 +565,14 @@ def _section_records(attempts: List[Dict[str, Any]]) -> None:
         return
 
     for a in attempts[:15]:
-        app = _app_label(a.get("app"))
+        raw_app = a.get("app")
+        pos = a.get("pos") or a.get("part_of_speech") or a.get("pos_code")
+        # 일부 환경에서는 app 컬럼에 'noun' 같은 품사가 들어올 수 있어요.
+        if not pos and isinstance(raw_app, str) and _pos_label(raw_app):
+            pos = raw_app
+            raw_app = "word"
+        app = _app_label(raw_app)
+        pos_k = _pos_label(pos)
         level = a.get("level") or "-"
         dt = _fmt_dt(a.get("created_at"))
 
@@ -554,7 +594,7 @@ def _section_records(attempts: List[Dict[str, Any]]) -> None:
         st.markdown(
             f"""
 <div class="ha-card">
-  <div class="ha-card-title">{app} · Lv {level}</div>
+  <div class="ha-card-title">{app}{(" · "+pos_k) if pos_k else ""} · Lv {level}</div>
   <div class="ha-meta">
     <span class="ha-chip">{dt}</span>
     <span class="ha-chip">점수 <b>{(str(score)+'%') if score is not None else '-'}</b></span>
@@ -588,6 +628,7 @@ def _section_messages(msgs: List[Dict[str, Any]]) -> None:
     for m in ordered[:30]:
         title = m.get("title") or "메시지"
         body = m.get("body") or ""
+        body_html = body.replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br>")
         dt = _fmt_dt(m.get("created_at"))
         is_unread = not m.get("read_at")
         dot = '<span class="ha-dot"></span>' if is_unread else ""
@@ -602,7 +643,7 @@ def _section_messages(msgs: List[Dict[str, Any]]) -> None:
     <span class="ha-chip">{chip}</span>
   </div>
   <div style="margin-top:8px; color: var(--ha-text); font-size: 14px; line-height: 1.55;">
-    {body.replace('<', '&lt;').replace('>', '&gt;').replace('\n','<br>')}
+    {body_html}
   </div>
 </div>
 """,
@@ -665,7 +706,7 @@ def render() -> None:
     _center_wrap_start()
 
     # Topbar (centered)
-    left, mid, right = st.columns([2, 5, 2], vertical_alignment="center")
+    left, mid, right = st.columns([2, 5, 3], vertical_alignment="center")
     with mid:
         st.markdown(
             '<div style="text-align:center;">'
@@ -676,12 +717,12 @@ def render() -> None:
         )
     with right:
         # 작은 버튼 2개
-        c1, c2 = st.columns(2, gap="small")
+        c1, c2 = st.columns([1, 1.15], gap="small")
         with c1:
-            if st.button("🏠 홈", key="myp_home_btn"):
+            if st.button("🏠 홈", key="myp_home_btn", use_container_width=True):
                 _go_home()
         with c2:
-            if st.button("로그아웃", key="myp_logout_btn"):
+            if st.button("⎋ 로그아웃", key="myp_logout_btn", use_container_width=True):
                 _logout()
 
     # Data
@@ -703,16 +744,16 @@ def render() -> None:
             _go_home()
         st.markdown("</div>", unsafe_allow_html=True)
 
-    # 오답 섹션
-    _section_wrongs(wrongs, focus=(view == "wrongs_focus"))
-
-    # 기록 섹션
-    if attempts_status == "ok":
-        _section_records(attempts)
-    else:
-        _section_records([])
-
-    # 메시지 섹션
-    _section_messages(msgs)
+    # Tabs (오답 / 기록 / 메시지)
+    t1, t2, t3 = st.tabs(["📚 오답카드", "📈 학습기록", "📩 받은 메시지"])
+    with t1:
+        _section_wrongs(wrongs, focus=(view == "wrongs_focus"))
+    with t2:
+        if attempts_status == "ok":
+            _section_records(attempts)
+        else:
+            _section_records([])
+    with t3:
+        _section_messages(msgs)
 
     _center_wrap_end()
