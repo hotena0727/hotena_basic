@@ -513,3 +513,87 @@ def render_floating_scroll_top() -> None:
         """,
         height=1,
     )
+
+
+# ----------------------------
+# DB helpers (profiles / attempts)
+# ----------------------------
+def ensure_profile(sb_authed: Any, user: Any) -> None:
+    """Upsert minimal profile row (id/email). Safe to call repeatedly."""
+    try:
+        sb_authed.table("profiles").upsert(
+            {"id": getattr(user, "id", None), "email": getattr(user, "email", None)},
+            on_conflict="id",
+        ).execute()
+    except Exception:
+        pass
+
+
+def load_profile(sb_authed: Any, user_id: str) -> dict[str, Any]:
+    """Load profile row (id,email,is_admin,plan,full_name,progress). Returns {{}} on failure."""
+    try:
+        res = (
+            sb_authed.table("profiles")
+            .select("id,email,is_admin,plan,full_name,progress")
+            .eq("id", user_id)
+            .single()
+            .execute()
+        )
+        if res and getattr(res, "data", None):
+            return res.data or {}
+    except Exception:
+        pass
+    return {}
+
+
+def clear_progress_in_db(sb_authed: Any, user_id: str) -> None:
+    try:
+        sb_authed.table("profiles").upsert(
+            {"id": user_id, "progress": None},
+            on_conflict="id",
+        ).execute()
+    except Exception:
+        pass
+
+
+def delete_all_learning_records(sb_authed: Any, user_id: str) -> None:
+    """Delete attempts + clear progress."""
+    try:
+        sb_authed.table("quiz_attempts").delete().eq("user_id", user_id).execute()
+    except Exception:
+        pass
+    clear_progress_in_db(sb_authed, user_id)
+
+
+def mark_attendance_once(sb_authed: Any) -> Optional[dict[str, Any]]:
+    """Call mark_attendance_kst RPC at most once per session."""
+    if st.session_state.get("attendance_checked"):
+        return None
+    try:
+        res = sb_authed.rpc("mark_attendance_kst", {}).execute()
+        st.session_state.attendance_checked = True
+        return res.data[0] if getattr(res, "data", None) else None
+    except Exception:
+        st.session_state.attendance_checked = True
+        return None
+
+
+def fetch_recent_attempts(sb_authed: Any, user_id: str, limit: int = 10):
+    return (
+        sb_authed.table("quiz_attempts")
+        .select("created_at, level, pos_mode, quiz_len, score, wrong_count, wrong_list")
+        .eq("user_id", user_id)
+        .order("created_at", desc=True)
+        .limit(limit)
+        .execute()
+    )
+
+
+def fetch_all_attempts_admin(sb_authed: Any, limit: int = 500):
+    return (
+        sb_authed.table("quiz_attempts")
+        .select("created_at, user_email, level, pos_mode, quiz_len, score, wrong_count")
+        .order("created_at", desc=True)
+        .limit(limit)
+        .execute()
+    )

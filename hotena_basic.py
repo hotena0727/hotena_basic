@@ -46,8 +46,6 @@ def _wn_warn(msg: str):
 # ✅ HUB에서 호출되면 상단 중복 UI를 숨기기 위한 플래그
 HUB_MODE = st.session_state.get('HUB_MODE', False)
 import unicodedata
-from supabase import create_client
-from streamlit_cookies_manager import EncryptedCookieManager
 import streamlit.components.v1 as components
 from collections import Counter
 import time
@@ -469,7 +467,7 @@ if st.session_state.get("_scroll_top_once"):
 # ============================================================
 # ✅ Cookies + Supabase (shared core)
 # ============================================================
-from core import ensure_core, refresh_session_from_cookie_if_needed, get_authed_sb, clear_auth_everywhere, run_db
+from core import ensure_core, refresh_session_from_cookie_if_needed, get_authed_sb, clear_auth_everywhere, run_db, ensure_profile, mark_attendance_once, fetch_recent_attempts, fetch_all_attempts_admin, delete_all_learning_records, clear_progress_in_db
 
 CFG = ensure_core(cookie_prefix="hotena_beginner_", localstorage_keys=("hotena_rt","hotena_at"))
 COOKIE_PASSWORD = CFG.get("COOKIE_PASSWORD","")
@@ -489,29 +487,8 @@ def to_kst_naive(x):
 # ============================================================
 # ✅ DB functions (기존 테이블 구조 그대로 활용)
 # ============================================================
-def delete_all_learning_records(sb_authed, user_id):
-    sb_authed.table("quiz_attempts").delete().eq("user_id", user_id).execute()
-    clear_progress_in_db(sb_authed, user_id)
 
-def ensure_profile(sb_authed, user):
-    try:
-        sb_authed.table("profiles").upsert(
-            {"id": user.id, "email": getattr(user, "email", None)},
-            on_conflict="id",
-        ).execute()
-    except Exception:
-        pass
 
-def mark_attendance_once(sb_authed):
-    if st.session_state.get("attendance_checked"):
-        return None
-    try:
-        res = sb_authed.rpc("mark_attendance_kst", {}).execute()
-        st.session_state.attendance_checked = True
-        return res.data[0] if res.data else None
-    except Exception:
-        st.session_state.attendance_checked = True
-        return None
 
 def save_attempt_to_db(sb_authed, user_id, user_email, pos, quiz_type, quiz_len, score, wrong_list):
     payload = {
@@ -526,24 +503,7 @@ def save_attempt_to_db(sb_authed, user_id, user_email, pos, quiz_type, quiz_len,
     }
     sb_authed.table("quiz_attempts").insert(payload).execute()
 
-def fetch_recent_attempts(sb_authed, user_id, limit=10):
-    return (
-        sb_authed.table("quiz_attempts")
-        .select("created_at, level, pos_mode, quiz_len, score, wrong_count, wrong_list")
-        .eq("user_id", user_id)
-        .order("created_at", desc=True)
-        .limit(limit)
-        .execute()
-    )
 
-def fetch_all_attempts_admin(sb_authed, limit=500):
-    return (
-        sb_authed.table("quiz_attempts")
-        .select("created_at, user_email, level, pos_mode, quiz_len, score, wrong_count")
-        .order("created_at", desc=True)
-        .limit(limit)
-        .execute()
-    )
 
 def fetch_plan_from_db(sb_authed, user_id) -> str:
     try:
@@ -623,11 +583,6 @@ def save_progress_to_db(sb_authed, user_id: str):
         on_conflict="id",
     ).execute()
 
-def clear_progress_in_db(sb_authed, user_id: str):
-    sb_authed.table("profiles").upsert(
-        {"id": user_id, "progress": None},
-        on_conflict="id",
-    ).execute()
 
 def restore_progress_from_db(sb_authed, user_id: str):
     try:
