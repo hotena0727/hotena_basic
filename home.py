@@ -327,11 +327,8 @@ def _dec(token: str) -> str | None:
 # ============================================================
 cookies = st.session_state.get("cookies")
 if cookies is None:
-    # ✅ cookies manager: singleton (avoid duplicate component iframes)
-if "cookies" not in st.session_state or st.session_state.get("cookies") is None:
-    st.session_state["cookies"] = EncryptedCookieManager(prefix="hotena_beginner_", password=CFG["COOKIE_PASSWORD"])
-cookies = st.session_state["cookies"]
-if not cookies.ready():
+    cookies = EncryptedCookieManager(prefix="hotena_beginner_", password=CFG["COOKIE_PASSWORD"])
+    if not cookies.ready():
         st.info("잠깐만요! 곧 시작할게요🙂")
         st.stop()
     st.session_state["cookies"] = cookies
