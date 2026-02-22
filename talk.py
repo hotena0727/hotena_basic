@@ -1,6 +1,6 @@
-BUILD_STAMP_TALK = 'talk-newset-in-progress-v1 2026-02-22 KST (+09:00)'
 # talk.py (v27) - 1문제 집중형 + 말하기 완료 체크(B)
 from __future__ import annotations
+# BUILD_STAMP_TALK: talk-newset-in-progress-v1 2026-02-22 KST (+09:00)
 
 from pathlib import Path
 from datetime import datetime, timedelta, date
