@@ -33,43 +33,6 @@ import pandas as pd
 import streamlit as st
 
 
-
-# ============================================================
-# ✅ [HOTFIX] session-state shape + mastery key helpers
-# - prevents NameError when module-level code calls mastery_key()
-# ============================================================
-
-def mastery_key(qtype: str | None = None, pos: str | None = None) -> str:
-    """Build a stable key for mastery/exclude state per (pos_group, quiz_type)."""
-    qt = (qtype or st.session_state.get("quiz_type") or st.session_state.get("qtype") or "meaning")
-    ps = (pos or st.session_state.get("pos_group") or st.session_state.get("pos") or "noun")
-    ps = str(ps).lower().strip()
-    qt = str(qt).lower().strip()
-    return f"{ps}__{qt}"
-
-def ensure_mastered_words_shape() -> None:
-    st.session_state.setdefault("mastered_words", {})
-    st.session_state.setdefault("mastered_words_v2", {})
-    # backward compat: per-key sets
-    k = mastery_key()
-    st.session_state["mastered_words"].setdefault(k, set())
-    st.session_state["mastered_words_v2"].setdefault(k, set())
-
-def ensure_excluded_wrong_words_shape() -> None:
-    st.session_state.setdefault("excluded_wrong_words", {})
-    k = mastery_key()
-    st.session_state["excluded_wrong_words"].setdefault(k, set())
-
-def ensure_seen_words_shape() -> None:
-    st.session_state.setdefault("seen_words", {})
-    k = mastery_key()
-    st.session_state["seen_words"].setdefault(k, set())
-
-def ensure_mastery_banner_shape() -> None:
-    st.session_state.setdefault("mastery_banner", {})
-    k = mastery_key()
-    st.session_state["mastery_banner"].setdefault(k, {"shown": False, "ts": None})
-
 # ============================================================
 # ✅ wrong_notes debug helper
 # ============================================================
@@ -105,6 +68,32 @@ if not st.session_state.get('_page_config_set'):
     page_icon="static/icon-192.png",   # 또는 "🟦"
     layout="centered",
 )
+# ============================================================
+# ✅ __HOTENA_COMPACT_TOP__: remove extra top whitespace (PC/Mobile)
+# ============================================================
+st.markdown(
+    """
+<style>
+/* Make content start as high as possible */
+div[data-testid="stAppViewContainer"] .block-container {
+  padding-top: 0rem !important;
+}
+section.main > div.block-container {
+  padding-top: 0rem !important;
+}
+header[data-testid="stHeader"] {
+  height: 0rem !important;
+  min-height: 0rem !important;
+  background: transparent !important;
+}
+div[data-testid="stToolbar"]{display:none !important;}
+div[data-testid="stDecoration"]{display:none !important;}
+.block-container > div:first-child { margin-top: 0 !important; padding-top: 0 !important; }
+</style>
+    """,
+    unsafe_allow_html=True,
+)
+
     st.session_state['_page_config_set'] = True
 # ============================================================
 # ✅ [HOTFIX] Disable onboarding ("60초 이용안내") block entirely

@@ -4,6 +4,32 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 import streamlit as st
+# ============================================================
+# ✅ __HOTENA_COMPACT_TOP__: remove extra top whitespace (PC/Mobile)
+# ============================================================
+st.markdown(
+    """
+<style>
+/* Make content start as high as possible */
+div[data-testid="stAppViewContainer"] .block-container {
+  padding-top: 0rem !important;
+}
+section.main > div.block-container {
+  padding-top: 0rem !important;
+}
+header[data-testid="stHeader"] {
+  height: 0rem !important;
+  min-height: 0rem !important;
+  background: transparent !important;
+}
+div[data-testid="stToolbar"]{display:none !important;}
+div[data-testid="stDecoration"]{display:none !important;}
+.block-container > div:first-child { margin-top: 0 !important; padding-top: 0 !important; }
+</style>
+    """,
+    unsafe_allow_html=True,
+)
+
 import streamlit.components.v1 as components
 
 # ============================================================

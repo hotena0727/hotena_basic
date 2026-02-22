@@ -13,6 +13,8 @@ if "KANJI_HEADER_RENDERED" not in st.session_state:
     st.session_state["KANJI_HEADER_RENDERED"] = False
 
 import unicodedata
+from supabase import create_client
+from streamlit_cookies_manager import EncryptedCookieManager
 import streamlit.components.v1 as components
 from collections import Counter
 import time
@@ -24,6 +26,32 @@ import textwrap
 # NOTE: page config is handled by home.py
 if not st.session_state.get("_page_config_set"):
     st.set_page_config(page_title="Hotena", layout="centered")
+# ============================================================
+# ✅ __HOTENA_COMPACT_TOP__: remove extra top whitespace (PC/Mobile)
+# ============================================================
+st.markdown(
+    """
+<style>
+/* Make content start as high as possible */
+div[data-testid="stAppViewContainer"] .block-container {
+  padding-top: 0rem !important;
+}
+section.main > div.block-container {
+  padding-top: 0rem !important;
+}
+header[data-testid="stHeader"] {
+  height: 0rem !important;
+  min-height: 0rem !important;
+  background: transparent !important;
+}
+div[data-testid="stToolbar"]{display:none !important;}
+div[data-testid="stDecoration"]{display:none !important;}
+.block-container > div:first-child { margin-top: 0 !important; padding-top: 0 !important; }
+</style>
+    """,
+    unsafe_allow_html=True,
+)
+
     st.session_state["_page_config_set"] = True
 # ============================================================
 # ✅ [SOUND] 사운드 유틸 (모바일 자동재생 정책 대응)
@@ -225,12 +253,161 @@ div[data-testid="stMarkdownContainer"] h3{
 """, unsafe_allow_html=True)
 
 # ============================================================
+# ✅ [D] Scroll Top Anchor + Helpers
 # ============================================================
-# ✅ [D] Scroll Top Anchor + Helpers (shared core)
-# ============================================================
-from core import inject_top_anchor, scroll_to_top, render_floating_scroll_top
+st.markdown('<div id="__TOP__"></div>', unsafe_allow_html=True)
 
-inject_top_anchor()
+def scroll_to_top(nonce: int = 0):
+    components.html(
+        f"""
+        <script>
+        (function () {{
+          const doc = window.parent.document;
+          const targets = [
+            doc.querySelector('[data-testid="stAppViewContainer"]'),
+            doc.querySelector('[data-testid="stMain"]'),
+            doc.querySelector('section.main'),
+            doc.documentElement,
+            doc.body
+          ].filter(Boolean);
+
+          const go = () => {{
+            try {{
+              const top = doc.getElementById("__TOP__");
+              if (top) top.scrollIntoView({{behavior: "auto", block: "start"}});
+
+              targets.forEach(t => {{
+                if (t && typeof t.scrollTo === "function") t.scrollTo({{top: 0, left: 0, behavior: "auto"}});
+                if (t) t.scrollTop = 0;
+              }});
+              window.parent.scrollTo(0, 0);
+              window.scrollTo(0, 0);
+            }} catch(e) {{}}
+          }};
+
+          go();
+          requestAnimationFrame(go);
+          setTimeout(go, 50);
+          setTimeout(go, 150);
+          setTimeout(go, 350);
+          setTimeout(go, 800);
+        }})();
+        </script>
+        <!-- nonce:{nonce} -->
+        """,
+        height=1,
+    )
+
+def render_floating_scroll_top():
+    components.html(
+        """
+<script>
+(function(){
+  const doc = window.parent.document;
+  if (doc.getElementById("__FAB_TOP__")) return;
+
+  const btn = doc.createElement("button");
+  btn.id = "__FAB_TOP__";
+  btn.textContent = "↑";
+
+  btn.style.position = "fixed";
+  btn.style.right = "14px";
+  btn.style.zIndex = "2147483647";
+  btn.style.width = "46px";
+  btn.style.height = "46px";
+  btn.style.borderRadius = "999px";
+  btn.style.border = "1px solid rgba(120,120,120,0.25)";
+  btn.style.background = "rgba(0,0,0,0.55)";
+  btn.style.color = "#fff";
+  btn.style.fontSize = "18px";
+  btn.style.fontWeight = "900";
+  btn.style.boxShadow = "0 10px 22px rgba(0,0,0,0.25)";
+  btn.style.cursor = "pointer";
+  btn.style.userSelect = "none";
+  btn.style.display = "flex";
+  btn.style.alignItems = "center";
+  btn.style.justifyContent = "center";
+  btn.style.opacity = "0";
+
+  const applyDeviceVisibility = () => {
+    try {
+      const w = window.parent.innerWidth || window.innerWidth;
+      if (w >= 801) btn.style.display = "none";
+      else btn.style.display = "flex";
+    } catch(e) {}
+  };
+
+  const goTop = () => {
+    try {
+      const top = doc.getElementById("__TOP__");
+      if (top) top.scrollIntoView({behavior:"smooth", block:"start"});
+
+      const targets = [
+        doc.querySelector('[data-testid="stAppViewContainer"]'),
+        doc.querySelector('[data-testid="stMain"]'),
+        doc.querySelector('section.main'),
+        doc.documentElement,
+        doc.body
+      ].filter(Boolean);
+
+      targets.forEach(t => {
+        if (t && typeof t.scrollTo === "function") t.scrollTo({top:0, left:0, behavior:"smooth"});
+        if (t) t.scrollTop = 0;
+      });
+
+      window.parent.scrollTo(0,0);
+      window.scrollTo(0,0);
+    } catch(e) {}
+  };
+
+  btn.addEventListener("click", goTop);
+
+  const mount = () => doc.querySelector('[data-testid="stAppViewContainer"]') || doc.body;
+
+  const BASE = 18;
+  const EXTRA = 34;
+
+  const reposition = () => {
+    try {
+      const vv = window.parent.visualViewport || window.visualViewport;
+      const innerH = window.parent.innerHeight || window.innerHeight;
+      const hiddenBottom = vv ? Math.max(0, innerH - vv.height - (vv.offsetTop || 0)) : 0;
+      btn.style.bottom = (BASE + EXTRA + hiddenBottom) + "px";
+      btn.style.opacity = "1";
+    } catch(e) {
+      btn.style.bottom = "220px";
+      btn.style.opacity = "1";
+    }
+    applyDeviceVisibility();
+  };
+
+  const tryAttach = (n=0) => {
+    const root = mount();
+    if (!root) {
+      if (n < 30) return setTimeout(() => tryAttach(n+1), 50);
+      return;
+    }
+    root.appendChild(btn);
+    reposition();
+    setTimeout(reposition, 50);
+    setTimeout(reposition, 200);
+    setTimeout(reposition, 600);
+  };
+
+  tryAttach();
+  window.parent.addEventListener("resize", reposition, {passive:true});
+
+  const vv = window.parent.visualViewport || window.visualViewport;
+  if (vv) {
+    vv.addEventListener("resize", reposition, {passive:true});
+    vv.addEventListener("scroll", reposition, {passive:true});
+  }
+})();
+</script>
+        """,
+        height=1,
+    )
+
 render_floating_scroll_top()
 
 if st.session_state.get("_scroll_top_once"):
@@ -239,13 +416,31 @@ if st.session_state.get("_scroll_top_once"):
     scroll_to_top(nonce=st.session_state["_scroll_top_nonce"])
 
 # ============================================================
-# ✅ Cookies / Supabase (shared core)
+# ✅ Cookies
 # ============================================================
-from core import ensure_core, get_authed_sb, refresh_session_from_cookie_if_needed, clear_auth_everywhere, run_db, ensure_profile, mark_attendance_once, fetch_recent_attempts, fetch_all_attempts_admin, delete_all_learning_records, clear_progress_in_db
-cfg = ensure_core(cookie_prefix="hotena_beginner_", localstorage_keys=("hotena_rt","hotena_at"))
-st.session_state["cfg"] = cfg  # backward compatibility
+# ✅ cookies/supabase는 Hub(home.py)에서 1회 생성 후 공유합니다.
+cfg = st.session_state.get("cfg", {}) or {}
 cookies = st.session_state.get("cookies")
 sb = st.session_state.get("sb")
+
+if cookies is None:
+    # 단독 실행 대비
+    COOKIE_PASSWORD = cfg.get("COOKIE_PASSWORD") or st.secrets.get("COOKIE_PASSWORD", "")
+    cookies = EncryptedCookieManager(prefix="hotena_beginner_", password=COOKIE_PASSWORD)
+    if not cookies.ready():
+        st.info("잠깐만요! 곧 시작할게요🙂")
+        st.stop()
+    st.session_state["cookies"] = cookies
+
+if sb is None:
+    SUPABASE_URL = cfg.get("SUPABASE_URL") or st.secrets.get("SUPABASE_URL", "")
+    SUPABASE_ANON_KEY = cfg.get("SUPABASE_ANON_KEY") or st.secrets.get("SUPABASE_ANON_KEY", "")
+    if not SUPABASE_URL or not SUPABASE_ANON_KEY:
+        st.error("Supabase 설정값이 없습니다. (SUPABASE_URL / SUPABASE_ANON_KEY)")
+        st.stop()
+    sb = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+    st.session_state["sb"] = sb
+# ============================================================
 # ✅ Supabase 연결
 # ============================================================
 # Supabase client is provided by hub (home.py)
@@ -434,6 +629,9 @@ def run_db(callable_fn):
             st.rerun()
         raise
 
+def refresh_session_from_cookie_if_needed(force: bool = False) -> bool:
+    if not force and st.session_state.get("user") and st.session_state.get("access_token"):
+        return True
 
     rt = cookies.get("refresh_token")
     at = cookies.get("access_token")
@@ -475,6 +673,16 @@ def run_db(callable_fn):
 
     return False
 
+def get_authed_sb():
+    """Return an authed Supabase client.
+    In the hub architecture, home.py is responsible for creating the base client
+    and restoring the session. This function reuses that client to avoid
+    missing secret vars / duplicate setup.
+    """
+    # ✅ Prefer a client already prepared by home.py
+    sb = st.session_state.get("supabase_authed") or st.session_state.get("sb_authed")
+    if sb is not None:
+        return sb
 
     # ✅ Ensure token exists (home should have restored it)
     if not st.session_state.get("access_token"):

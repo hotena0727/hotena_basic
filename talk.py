@@ -13,6 +13,32 @@ import streamlit as st
 
 
 # ============================================================
+# ✅ __HOTENA_COMPACT_TOP__: remove extra top whitespace (PC/Mobile)
+# ============================================================
+st.markdown(
+    """
+<style>
+/* Make content start as high as possible */
+div[data-testid="stAppViewContainer"] .block-container {
+  padding-top: 0rem !important;
+}
+section.main > div.block-container {
+  padding-top: 0rem !important;
+}
+header[data-testid="stHeader"] {
+  height: 0rem !important;
+  min-height: 0rem !important;
+  background: transparent !important;
+}
+div[data-testid="stToolbar"]{display:none !important;}
+div[data-testid="stDecoration"]{display:none !important;}
+.block-container > div:first-child { margin-top: 0 !important; padding-top: 0 !important; }
+</style>
+    """,
+    unsafe_allow_html=True,
+)
+
+# ============================================================
 # ✅ wrong_notes debug helper
 # ============================================================
 _WN_DEBUG = bool(st.session_state.get("is_admin", False)) or bool(st.session_state.get("is_admin_cached", False))
@@ -33,6 +59,7 @@ if st.session_state.get("_entered_talk"):
 
 
 import streamlit.components.v1 as components
+from supabase import create_client
 
 # ============================================================
 # ✅ Settings
@@ -58,14 +85,61 @@ st.title("회화 훈련 · 상황판단")
 st.caption("1문제씩: 상황 → 상대 발화(🔊/PRO) → 보기 선택 → 제출 → 정답/설명 → (선택)말하기 완료 체크")
 
 # ============================================================
+# ✅ Supabase client (hub reuse)
 # ============================================================
-# ✅ Supabase client (shared core)
+
+def get_cfg(key: str) -> str:
+    cfg = st.session_state.get("cfg") or {}
+    v = cfg.get(key)
+    if v:
+        return v
+    try:
+        return st.secrets[key]
+    except Exception:
+        return ""
+
+
+def get_sb():
+    sb = st.session_state.get("sb")
+    if sb is not None:
+        return sb
+
+
+def get_authed_sb():
+    # 홈허브 로그인 세션의 access_token을 사용해 PostgREST 권한 요청을 보냅니다.
+    token = st.session_state.get("access_token")
+    if not token:
+        return None
+
+    cached = st.session_state.get("_sb_authed_talk")
+    cached_token = st.session_state.get("_sb_authed_talk_token")
+    if cached is not None and cached_token == token:
+        return cached
+
+    sb2 = get_sb()
+    try:
+        # supabase-py: postgrest.auth(token)
+        sb2.postgrest.auth(token)
+    except Exception:
+        # 일부 버전은 내부 client 설정이 다를 수 있음
+        pass
+
+    st.session_state["_sb_authed_talk"] = sb2
+    st.session_state["_sb_authed_talk_token"] = token
+    return sb2
+    url = get_cfg("SUPABASE_URL")
+    key = get_cfg("SUPABASE_ANON_KEY")
+    if not url or not key:
+        st.error("Supabase 설정이 없습니다. (SUPABASE_URL / SUPABASE_ANON_KEY)")
+        st.stop()
+    sb = create_client(url, key)
+    st.session_state["sb"] = sb
+    return sb
+
+
+sb = get_sb()
+
 # ============================================================
-from core import ensure_core, get_authed_sb
-
-ensure_core(cookie_prefix="hotena_beginner_", localstorage_keys=("hotena_rt","hotena_at"))
-sb = st.session_state.get("sb")
-
 # ✅ CSV load
 # ============================================================
 BASE_DIR = Path(__file__).resolve().parent
