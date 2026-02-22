@@ -782,12 +782,38 @@ def _inject_css() -> None:
 
 
 /* ============================================================
-   ✅ V4.9.13 ULTRA TIGHT: message list spacing (붙여서 정돈)
-   - Streamlit wrapper margin/padding 제거
-   - Expander 사이 간격 2px (0px로 바꾸면 완전 밀착)
+   ✅ V4.9.12 HOTFIX: message list spacing tighter
+   - Streamlit wraps expanders in element-container with default margins.
+   - Force near-zero spacing only inside message scope.
+   ============================================================ */
+.ha-msg-scope div[data-testid="element-container"]{
+  margin: 0 !important;
+  padding: 0 !important;
+}
+.ha-msg-scope div[data-testid="stVerticalBlock"]{
+  gap: 0 !important;
+}
+.ha-msg-scope div[data-testid="stExpander"]{
+  margin: 0 !important;
+}
+.ha-msg-scope div[data-testid="stExpander"] + div[data-testid="stExpander"]{
+  margin-top: 0px !important; /* almost 붙이기 */
+}
+
+/* Optional: a hairline separation without big gap */
+.ha-msg-scope div[data-testid="stExpander"] summary{
+  padding-top: 6px !important;
+  padding-bottom: 6px !important;
+}
+
+
+/* ============================================================
+   ✅ V4.9.15: 메시지 목록 '붙이기' 최종
+   - Streamlit wrapper 기본 여백 완전 제거
+   - Expander 사이 간격 0px (완전 밀착)
+   - 보더 겹침 방지(윗선 투명)
    ============================================================ */
 
-/* wrapper들 기본 margin/padding 제거 (메시지 스코프만) */
 .ha-msg-scope div[data-testid="stVerticalBlock"] > div,
 .ha-msg-scope div[data-testid="stVerticalBlock"] > div > div,
 .ha-msg-scope div[data-testid="stElementContainer"],
@@ -798,21 +824,23 @@ def _inject_css() -> None:
 }
 .ha-msg-scope div[data-testid="stVerticalBlock"]{ gap: 0 !important; }
 
-/* expander 자체 간격 0 */
-.ha-msg-scope div[data-testid="stExpander"]{ margin: 0 !important; }
-
-/* 목록 박스끼리: 2px만 (원하면 0px) */
-.ha-msg-scope div[data-testid="stExpander"] + div[data-testid="stExpander"]{
-  margin-top: 2px !important;
+.ha-msg-scope div[data-testid="stExpander"]{
+  margin: 0 !important;
 }
 
-/* summary 높이도 타이트하게 */
+/* ✅ 완전 밀착 */
+.ha-msg-scope div[data-testid="stExpander"] + div[data-testid="stExpander"]{
+  margin-top: 0 !important;
+}
+
+/* summary(닫힌 상태 박스)도 여백 최소 */
 .ha-msg-scope div[data-testid="stExpander"] summary{
+  margin: 0 !important;
   padding-top: 6px !important;
   padding-bottom: 6px !important;
 }
 
-/* 보더 겹쳐 보이면 상단선 제거 */
+/* 보더가 두 줄처럼 보이면: 위 카드의 아래선만 남기기 */
 .ha-msg-scope div[data-testid="stExpander"] + div[data-testid="stExpander"] summary{
   border-top-color: transparent !important;
 }
@@ -900,40 +928,6 @@ body {{ margin:0; font-family: Pretendard, 'Noto Sans KR', 'Apple SD Gothic Neo'
   font-size: 14px;
   line-height: 1.55;
 }}
-
-/* ============================================================
-   ✅ (핵심) 메시지 목록 '완전 밀착' 강제 패치
-   - Streamlit expander/details 기본 여백을 전부 제거
-   - 남는 경우 대비해 expander에 살짝 음수 마진 적용
-   ============================================================ */
-.ha-msg-scope div[data-testid="stExpander"],
-.ha-msg-scope div[data-testid="stExpander"] > div,
-.ha-msg-scope div[data-testid="stExpander"] details{
-  margin: 0 !important;
-  padding: 0 !important;
-}
-
-.ha-msg-scope div[data-testid="stExpander"] details{
-  border: 0 !important;
-  box-shadow: none !important;
-}
-
-/* summary(닫힌 박스) 자체 간격 제거 */
-.ha-msg-scope div[data-testid="stExpander"] details > summary{
-  margin: 0 !important;
-}
-
-/* ✅ 박스 사이 간격: 완전 붙이기(원하면 -6~-10 조절) */
-.ha-msg-scope div[data-testid="stExpander"]{
-  margin-top: 0 !important;
-  margin-bottom: -10px !important; /* ✅ 카드끼리 확실히 붙이기 */
-}
-
-/* 마지막 요소가 잘리지 않도록 scope에 여유 확보 */
-.ha-msg-scope{
-  padding-bottom: 10px !important;
-}
-
 </style></head>
 <body>
   <div class="card">
