@@ -190,74 +190,6 @@ def _inject_css() -> None:
 /* ✅ messages: card list + spacing */
 .ha-msg-gap{height:12px;}
 
-/* ✅ messages (polish): row layout */
-.ha-msg-scope{margin-top:8px;}
-.ha-msg-rowwrap{
-  border:1px solid var(--ha-line);
-  border-radius:14px;
-  background:#fff;
-  padding:10px 12px;
-  margin-top:10px;
-}
-.ha-msg-rowwrap:hover{background:#fbfbfd;}
-.ha-msg-rowwrap.is-open{
-  border-color: rgba(37,99,235,0.35);
-  box-shadow: 0 2px 10px rgba(0,0,0,0.04);
-}
-.ha-msg-dot{
-  width:8px; height:8px; border-radius:99px;
-  background: var(--ha-blue);
-  display:inline-block;
-  margin-right:8px;
-  transform: translateY(-1px);
-}
-.ha-msg-title2{
-  font-weight:900;
-  letter-spacing:-0.2px;
-  color:var(--ha-text);
-  font-size:15px;
-  white-space:nowrap;
-  overflow:hidden;
-  text-overflow:ellipsis;
-}
-.ha-msg-meta{
-  display:flex;
-  justify-content:flex-end;
-  align-items:center;
-  gap:8px;
-  flex-wrap:wrap;
-}
-.ha-msg-chevron{
-
-  color: var(--ha-sub);
-  font-size:14px;
-  margin-left:2px;
-}
-
-.ha-msg-new{
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  padding:2px 8px;
-  border-radius:999px;
-  font-size:12px;
-  font-weight:900;
-  color:#fff;
-  background: var(--ha-blue);
-}
-
-.ha-msg-scope [data-testid="stButton"] > button{
-  background: transparent !important;
-  border: 0 !important;
-  padding: 0 !important;
-  margin: 0 !important;
-  box-shadow: none !important;
-  text-align: left !important;
-  width: 100% !important;
-}
-.ha-msg-scope [data-testid="stButton"] > button:hover{background: transparent !important;}
-
-
 /* ✅ messages: minimal rows */
 /* ✅ messages: row toggle (scoped) */
 .ha-msg-scope [data-testid="stButton"] > button{
@@ -426,6 +358,103 @@ def _inject_css() -> None:
   .ha-kpi { grid-template-columns: 1fr; }
   .ha-week-grid { gap: 6px; }
 }
+
+/* ✅ messages: clean minimal toggle row */
+.ha-msg-scope{margin-top:8px;}
+.ha-msg-row{
+  border:1px solid var(--ha-line);
+  border-radius:14px;
+  background:#fff;
+  padding:10px 12px;
+  margin-top:10px;
+}
+.ha-msg-row:hover{background:#fbfbfd;}
+.ha-msg-row.is-open{
+  border-color: rgba(37,99,235,0.35);
+  box-shadow: 0 2px 10px rgba(0,0,0,0.04);
+}
+.ha-msg-click [data-testid="stButton"] > button{
+  width:100%;
+  border:0 !important;
+  background:transparent !important;
+  padding:0 !important;
+  margin:0 !important;
+  box-shadow:none !important;
+  min-height:44px;
+}
+.ha-msg-click [data-testid="stButton"] > button:hover{background:transparent !important;}
+.ha-msg-line{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+}
+.ha-msg-left{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  min-width:0;
+}
+.ha-msg-dot{
+  width:8px; height:8px; border-radius:99px;
+  background: var(--ha-blue);
+  display:inline-block;
+  transform: translateY(-1px);
+}
+.ha-msg-title{
+  font-weight:900;
+  letter-spacing:-0.2px;
+  color:var(--ha-text);
+  font-size:15px;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.ha-msg-right{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-shrink:0;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+}
+.ha-msg-new{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding:2px 8px;
+  border-radius:999px;
+  font-size:12px;
+  font-weight:900;
+  color:#fff;
+  background: var(--ha-blue);
+}
+.ha-msg-chevron{
+  color: var(--ha-sub);
+  font-size:14px;
+  margin-left:2px;
+}
+.ha-msg-body2{
+  border:1px solid var(--ha-line);
+  border-radius:14px;
+  background:#f8fafc;
+  padding:12px 12px;
+  margin-top:8px;
+  color:var(--ha-text);
+  font-size:14px;
+  line-height:1.75;
+  position:relative;
+}
+.ha-msg-body2:before{
+  content:"";
+  position:absolute;
+  left:0; top:10px; bottom:10px;
+  width:3px;
+  border-radius:99px;
+  background: var(--ha-blue);
+}
+.ha-msg-body2-inner{ padding-left:10px; }
+
 </style>"""
     css = css.replace("__BLUE__", str(HATENA_BLUE))
     st.markdown(css, unsafe_allow_html=True)
@@ -1266,6 +1295,7 @@ def _render_msgs(msgs: List[Dict[str, Any]]) -> None:
 """,
         unsafe_allow_html=True,
     )
+
     st.markdown('<div class="ha-msg-gap"></div>', unsafe_allow_html=True)
 
     show_unread_only = st.toggle("읽지 않은 것만 보기", value=False, key="myp_msg_unread_only")
@@ -1284,49 +1314,43 @@ def _render_msgs(msgs: List[Dict[str, Any]]) -> None:
         body = (mm.get("body") or "").strip()
         dt = _fmt_dt(mm.get("created_at") or "")
         is_unread = not mm.get("read_at")
-        chip = "읽지 않음" if is_unread else "읽음"
         chevron = "⌄" if open_id != mid else "⌃"
         open_cls = "is-open" if open_id == mid else ""
 
-        # ✅ 한 줄: 왼쪽(제목 클릭) / 오른쪽(칩 + 화살표)
-        st.markdown(f'<div class="ha-msg-rowwrap {open_cls}">', unsafe_allow_html=True)
+        st.markdown(f'<div class="ha-msg-row {open_cls}">', unsafe_allow_html=True)
+        st.markdown('<div class="ha-msg-click">', unsafe_allow_html=True)
 
-        c1, c2 = st.columns([0.72, 0.28], gap="small")
-        with c1:
-            dot_html = '<span class="ha-msg-dot"></span>' if is_unread else ''
-            # 제목 클릭 = 토글
-            if st.button(f"{title}", key=f"msg_toggle_{mid}", use_container_width=True):
-                st.session_state["myp_msg_open_id"] = None if open_id == mid else mid
-                st.rerun()
-            # 버튼 텍스트를 예쁘게 보이게 (CSS로 버튼 크롬 제거, 아래 마크업으로 타이포 통일)
-            st.markdown(
-                f"""
-<div style="margin-top:-34px; pointer-events:none;">
-  <div class="ha-msg-title2">{dot_html}{_escape_html(title)}</div>
+        # ✅ 클릭 영역(버튼 크롬은 CSS로 제거)
+        if st.button(" ", key=f"msg_toggle_{mid}", use_container_width=True):
+            st.session_state["myp_msg_open_id"] = None if open_id == mid else mid
+            st.rerun()
+
+        # ✅ 실제 UI (버튼 위에 덮기)
+        new_badge = '<span class="ha-msg-new">NEW</span>' if is_unread else ''
+        dot_html = '<span class="ha-msg-dot"></span>' if is_unread else ''
+        chip = "읽지 않음" if is_unread else "읽음"
+
+        st.markdown(
+            f"""
+<div style="margin-top:-44px; pointer-events:none;">
+  <div class="ha-msg-line">
+    <div class="ha-msg-left">{dot_html}<div class="ha-msg-title">{_escape_html(title)}</div></div>
+    <div class="ha-msg-right">{new_badge}<span class="ha-chip">{dt}</span><span class="ha-badge">{chip}</span><span class="ha-msg-chevron">{chevron}</span></div>
+  </div>
 </div>
 """,
-                unsafe_allow_html=True,
-            )
+            unsafe_allow_html=True,
+        )
 
-        with c2:
-            new_badge = '<span class="ha-msg-new">NEW</span>' if is_unread else ''
-            st.markdown(
-                f"""
-<div class="ha-msg-meta">
-  {new_badge}
-  <span class="ha-chip">{dt}</span>
-  <span class="ha-badge">{chip}</span>
-  <span class="ha-msg-chevron">{chevron}</span>
-</div>
-""",
-                unsafe_allow_html=True,
-            )
-
-        st.markdown("</div>", unsafe_allow_html=True)  # rowwrap end
+        st.markdown("</div>", unsafe_allow_html=True)  # click
+        st.markdown("</div>", unsafe_allow_html=True)  # row
 
         if open_id == mid:
             safe_body = _escape_html(body).replace("\n", "<br>")
-            st.markdown(f'<div class="ha-msg-body">{safe_body}</div>', unsafe_allow_html=True)
+            st.markdown(
+                f'<div class="ha-msg-body2"><div class="ha-msg-body2-inner">{safe_body}</div></div>',
+                unsafe_allow_html=True,
+            )
 
             if is_unread and sb and mid:
                 if st.button("읽음 처리", key=f"msg_read_{mid}", use_container_width=True):
@@ -1338,8 +1362,8 @@ def _render_msgs(msgs: List[Dict[str, Any]]) -> None:
                     except Exception:
                         st.warning("읽음 처리에 실패했습니다. (RLS 확인)")
 
-    st.markdown("</div>", unsafe_allow_html=True)  # ha-msg-scope
-    st.markdown("</div>", unsafe_allow_html=True)  # ha-card
+    st.markdown("</div>", unsafe_allow_html=True)  # scope
+    st.markdown("</div>", unsafe_allow_html=True)  # card
 def render() -> None:
     _inject_css()
     _wrap_start()
