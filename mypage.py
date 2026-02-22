@@ -1240,7 +1240,7 @@ def _make_wrong_quiz(wrongs: List[Dict[str, Any]], n: int = 10) -> List[Dict[str
     import random
     pool = [w for w in wrongs if (w.get("jp_word") and (w.get("meaning") or w.get("correct_answer")))]
     random.shuffle(pool)
-    pool = pool[: max(n, 20)]
+    pool = pool[: max(n, 10)]
     meanings = list({((w.get("meaning") or w.get("correct_answer") or "")).strip() for w in pool if ((w.get("meaning") or w.get("correct_answer") or "")).strip()})
     quiz = []
     for w in pool[:n]:
