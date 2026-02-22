@@ -8,56 +8,47 @@ import streamlit.components.v1 as components
 
 
 # ============================================================
-# ✅ 빈 components.html iframe(회색 블록) 자동 제거 (mypage 포함)
+# ✅ (최종) components.html이 만드는 iframe 블록 강제 제거
+# - 일부 환경(F5)에서 contentDocument 접근이 막혀 '빈 iframe' 판별이 실패함
+# - 따라서 streamlit.components.v1.html iframe은 무조건 숨김(스크립트 주입용으로만 사용한다는 전제)
 # ============================================================
 try:
     import streamlit.components.v1 as components
     components.html("""
 <script>
 (function(){
-  function cleanEmptyHtmlIframes(){
+  function hideAllComponentsHtmlIframes(){
     try{
       var doc = (window.parent && window.parent.document) ? window.parent.document : document;
       var iframes = doc.querySelectorAll('iframe[title="streamlit.components.v1.html"]');
       iframes.forEach(function(fr){
         try{
-          var cd = fr.contentDocument;
-          if(!cd || !cd.body) return;
-          var kids = Array.from(cd.body.children || []);
-          var nonScript = kids.filter(function(el){
-            var t = (el.tagName||'').toUpperCase();
-            return t !== 'SCRIPT' && t !== 'STYLE';
-          });
-          var text = (cd.body.textContent || '').trim();
-          if(nonScript.length === 0 && text === ''){
-            fr.style.height = '0px';
-            fr.style.minHeight = '0px';
-            fr.style.display = 'none';
-            var wrap = fr.closest('[data-testid="stIFrame"]') || fr.parentElement;
-            if(wrap){
-              wrap.style.height = '0px';
-              wrap.style.minHeight = '0px';
-              wrap.style.margin = '0';
-              wrap.style.padding = '0';
-              wrap.style.display = 'none';
-            }
+          fr.style.display = 'none';
+          fr.style.height = '0px';
+          fr.style.minHeight = '0px';
+          // wrapper까지 숨겨 gap 제거
+          var wrap = fr.closest('[data-testid="stIFrame"]') || fr.parentElement;
+          if(wrap){
+            wrap.style.display = 'none';
+            wrap.style.height = '0px';
+            wrap.style.minHeight = '0px';
+            wrap.style.margin = '0';
+            wrap.style.padding = '0';
           }
         }catch(e){}
       });
     }catch(e){}
   }
-
-  cleanEmptyHtmlIframes();
-  setTimeout(cleanEmptyHtmlIframes, 80);
-  setTimeout(cleanEmptyHtmlIframes, 250);
-  setTimeout(cleanEmptyHtmlIframes, 700);
-
-  var n = 0;
-  var iv = setInterval(function(){
-    cleanEmptyHtmlIframes();
+  hideAllComponentsHtmlIframes();
+  setTimeout(hideAllComponentsHtmlIframes, 50);
+  setTimeout(hideAllComponentsHtmlIframes, 200);
+  setTimeout(hideAllComponentsHtmlIframes, 600);
+  var n=0;
+  var iv=setInterval(function(){
+    hideAllComponentsHtmlIframes();
     n++;
-    if(n >= 20) clearInterval(iv);
-  }, 450);
+    if(n>=30) clearInterval(iv);
+  }, 400);
 })();
 </script>
 """, height=0)
