@@ -191,6 +191,46 @@ def _inject_css() -> None:
 .ha-msg-gap{height:12px;}
 
 /* ✅ messages: minimal rows */
+
+/* ✅ messages: clickable row button (scoped) */
+.ha-msg-scope [data-testid="stButton"] > button{
+  width:100%;
+  border:1px solid var(--ha-line) !important;
+  border-radius:14px !important;
+  background:#fff !important;
+  padding:10px 12px !important;
+  text-align:left !important;
+  box-shadow:none !important;
+}
+.ha-msg-scope [data-testid="stButton"] > button:hover{background:#fbfbfd !important;}
+.ha-msg-scope .ha-msg-line{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+}
+.ha-msg-scope .ha-msg-left{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  min-width:0;
+}
+.ha-msg-scope .ha-msg-title{
+  font-weight:900;
+  color:var(--ha-text);
+  letter-spacing:-0.2px;
+  font-size:15px;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.ha-msg-scope .ha-msg-right{
+  display:flex;
+  gap:8px;
+  align-items:center;
+  flex-shrink:0;
+}
+
 .ha-msg-row{
   border:1px solid var(--ha-line);
   border-radius:14px;
@@ -1142,14 +1182,16 @@ def _render_records(attempts: List[Dict[str, Any]], attempts_status: str) -> Non
         score = _calc_score(a)
         total, wrong = _calc_total_wrong(a)
 
-        left_badges = f'<span class="ha-badge">{app}</span>'
-        if pos:
-            left_badges += f' <span class="ha-badge">{pos}</span>'
+        # ✅ 타이틀에서 앱/품사만 1회 표시 (중복 제거)
+        title = f"{app}" + (f" · {pos}" if pos else "")
 
-        lv_chip = f'<span class="ha-chip">Lv <b>{level}</b></span>' if str(level).strip() else ""
-
-        title = f"{app}" + (f" · {pos}" if pos else "") + (f" · Lv {level}" if str(level).strip() else "")
-        meta_html = f"{left_badges} {lv_chip} <span class='chip'>{dt}</span> " + f"<span class='chip'>점수 <b>{(str(score)+'%') if score is not None else '-'}</b></span> " + f"<span class='chip'>문항 <b>{total}</b></span> <span class='chip'>오답 <b>{wrong}</b></span>"
+        # ✅ 메타는 날짜/점수/문항/오답만
+        meta_html = (
+            f"<span class='chip'>{dt}</span> "
+            + f"<span class='chip'>점수 <b>{(str(score)+'%') if score is not None else '-'}</b></span> "
+            + f"<span class='chip'>문항 <b>{total}</b></span> "
+            + f"<span class='chip'>오답 <b>{wrong}</b></span>"
+        )
         components.html(_card_iframe_html(title, meta_html), height=92, scrolling=False)
 
     st.markdown("</div>", unsafe_allow_html=True)
@@ -1185,6 +1227,8 @@ def _render_msgs(msgs: List[Dict[str, Any]]) -> None:
     sb = _sb()
     open_id = st.session_state.get("myp_msg_open_id")
 
+    st.markdown('<div class="ha-msg-scope">', unsafe_allow_html=True)
+
     for mm in filtered[:per]:
         mid = mm.get("id")
         title = (mm.get("title") or "메시지").strip()
@@ -1192,43 +1236,34 @@ def _render_msgs(msgs: List[Dict[str, Any]]) -> None:
         dt = _fmt_dt(mm.get("created_at") or "")
         is_unread = not mm.get("read_at")
         chip = "읽지 않음" if is_unread else "읽음"
-        dot = '<span class="ha-dot"></span>' if is_unread else ""
+        dot = "●" if is_unread else ""
+        caret = "▾" if open_id != mid else "▴"
 
-        # ✅ 심플: 제목만(카드) + 버튼으로 열기/닫기
-        c1, c2 = st.columns([0.78, 0.22], gap="small")
-        with c1:
-            st.markdown(
-                f"""
-<div class="ha-msg-row">
-  <div class="ha-msg-row-title">{dot}{_escape_html(title)}</div>
-  <div class="ha-inline" style="margin-top:6px;">
-    <span class="ha-chip">{dt}</span>
-    <span class="ha-badge">{chip}</span>
-  </div>
-</div>
-""",
-                unsafe_allow_html=True,
-            )
-        with c2:
-            label = "열기" if open_id != mid else "닫기"
-            if st.button(label, key=f"msg_toggle_{mid}", use_container_width=True):
-                st.session_state["myp_msg_open_id"] = None if open_id == mid else mid
-                st.rerun()
+        # ✅ 한 줄: 제목 + 정보(날짜/상태) + 토글 느낌(caret)
+        label = f"
+  <div class='ha-msg-left'><span style='color:var(--ha-blue); font-size:12px;'>{dot}</span><span class='ha-msg-title'>{_escape_html(title)}</span></div>
+  <div class='ha-msg-right'><span class='ha-chip'>{dt}</span><span class='ha-badge'>{chip}</span><span style='color:var(--ha-sub); font-size:14px;'>{caret}</span></div>
+</div>"""
+
+        if st.button(label_html, key=f"msg_row_{mid}", use_container_width=True):
+            st.session_state["myp_msg_open_id"] = None if open_id == mid else mid
+            st.rerun()
 
         if open_id == mid:
             safe_body = _escape_html(body).replace("\n", "<br>")
             st.markdown(f'<div class="ha-msg-body">{safe_body}</div>', unsafe_allow_html=True)
 
             if is_unread and sb and mid:
-                if st.button("읽음 처리", key=f"msg_read_{mid}"):
+                if st.button("읽음 처리", key=f"msg_read_{mid}", use_container_width=True):
                     try:
                         sb.table("user_messages").update({"read_at": datetime.utcnow().isoformat()}).eq("id", mid).execute()
-                        st.success("읽음 처리 완료")
                         st.session_state["myp_msg_open_id"] = None
+                        st.success("읽음 처리 완료")
                         st.rerun()
                     except Exception:
                         st.warning("읽음 처리에 실패했습니다. (RLS 확인)")
 
+    st.markdown("</div>", unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 def render() -> None:
     _inject_css()
