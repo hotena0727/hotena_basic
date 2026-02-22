@@ -121,7 +121,7 @@ def _inject_css() -> None:
 }
 .ha-kpi-num {
   font-size: 26px;
-  font-weight: 850;
+  font-weight: 800;
   color: var(--ha-text);
   line-height: 1.0;
 }
@@ -175,7 +175,7 @@ def _inject_css() -> None:
   border-radius: 999px;
   padding: 3px 8px;
   font-size: 12px;
-  font-weight: 850;
+  font-weight: 900;
   white-space: nowrap;
 }
 
@@ -186,8 +186,6 @@ def _inject_css() -> None:
   gap: 10px;
   flex-wrap: wrap;
 }
-.ha-msg-spacer{height:10px;}
-
 .ha-inline {
   display:flex;
   gap: 8px;
@@ -213,7 +211,7 @@ def _inject_css() -> None:
 .ha-card-title {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  font-weight: 850;
+  font-weight: 900;
   color: var(--ha-text);
   letter-spacing: -0.2px;
 }
@@ -225,6 +223,35 @@ def _inject_css() -> None:
   flex-wrap:wrap;
   gap: 8px;
 }
+
+
+/* ✅ messages: spacing + card list */
+.ha-msg-gap{height:12px;}
+.ha-msg-card{
+  border:1px solid var(--ha-line);
+  border-radius:14px;
+  background:#fff;
+  padding:12px 14px;
+  margin-top:10px;
+}
+.ha-msg-top{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:10px;
+  flex-wrap:wrap;
+}
+.ha-msg-title{
+  font-weight:900;
+  color:var(--ha-text);
+  letter-spacing:-0.2px;
+  font-size:15px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.ha-msg-actions{display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
+.ha-expander-wrap{margin-top:8px; margin-bottom:12px;}
 
 .ha-dot {
   width: 7px;
@@ -253,7 +280,7 @@ def _inject_css() -> None:
 }
 .ha-week-title {
   font-size: 13px;
-  font-weight: 850;
+  font-weight: 900;
   color: var(--ha-text);
 }
 .ha-week-grid {
@@ -271,12 +298,12 @@ def _inject_css() -> None:
 .ha-day-top {
   font-size: 11px;
   color: var(--ha-sub);
-  font-weight: 850;
+  font-weight: 900;
 }
 .ha-day-num {
   margin-top: 4px;
   font-size: 16px;
-  font-weight: 850;
+  font-weight: 900;
   color: var(--ha-text);
 }
 .ha-day-sub {
@@ -330,7 +357,7 @@ body {{ margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI
   box-sizing: border-box;
 }}
 .title {{
-  font-weight: 850;
+  font-weight: 900;
   color: var(--ha-text);
   letter-spacing: -0.2px;
   font-size: 16px;
@@ -364,13 +391,13 @@ body {{ margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI
   border-radius: 999px;
   padding: 3px 8px;
   font-size: 12px;
-  font-weight: 850;
+  font-weight: 900;
   white-space: nowrap;
 }}
 .body {{
   margin-top: 8px;
   color: var(--ha-text);
-  font-size: 15px;
+  font-size: 14px;
   line-height: 1.55;
 }}
 </style></head>
@@ -984,27 +1011,41 @@ def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None
         level = w.get("level") or "-"
         dt = _fmt_dt(w.get("created_at"))
         rep = counts.get((w.get("jp_word") or "").strip(), 0)
-        header = f"{jp}  ·  {app}  ·  Lv {level}" + (f"  ·  🔥 {rep}회" if rep >= 3 else "")
-        with st.expander(header, expanded=False):
-            st.markdown("<div style=\"height:8px\"></div>", unsafe_allow_html=True)
-            c1, c2 = st.columns([2, 2])
-            with c1:
-                st.markdown(f"**정답**: {w.get('correct_answer') or '-'}")
-                st.markdown(f"**내답**: {w.get('user_answer') or '-'}")
-            with c2:
-                st.markdown(f"**발음**: {w.get('reading') or '-'}")
-                st.markdown(f"**뜻**: {w.get('meaning') or '-'}")
-            st.caption(f"저장: {dt}")
+        header = f"{jp}  ·  {app}  ·  Lv {level}" + (f"  ·  🔥 {rep}회" if rep >= 3 else "")        # ✅ 리스트 카드(헤더) + '내용 보기'만 expander로 (디자인 심심함/붙음 해결)
+        st.markdown(
+            f"""
+<div class="ha-msg-card">
+  <div class="ha-msg-top">
+    <div class="ha-msg-title">{dot}{title}</div>
+    <div class="ha-msg-actions">
+      <span class="ha-chip">{dt}</span>
+      <span class="ha-badge">{chip}</span>
+    </div>
+  </div>
+</div>
+""",
+            unsafe_allow_html=True,
+        )
 
-    st.markdown("</div>", unsafe_allow_html=True)
+        with st.expander("내용 보기", expanded=False):
+            safe_body = (body or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br>")
+            st.markdown(
+                f"""
+<div style="border:1px solid var(--ha-line); border-radius:14px; background:#f8fafc; padding:12px 12px; color:var(--ha-text); font-size:14px; line-height:1.75;">
+  {safe_body}
+</div>
+""",
+                unsafe_allow_html=True,
+            )
 
-
-def _render_records(attempts: List[Dict[str, Any]], attempts_status: str) -> None:
-    st.markdown('<div class="ha-section">', unsafe_allow_html=True)
-    st.markdown('<div class="ha-title">📈 기록</div><div class="ha-sub">최근 3개 + 빠른 목록(중복 제거). app + 품사(pos)를 깔끔히 표시합니다.</div>', unsafe_allow_html=True)
-
-    if attempts_status != "ok" or not attempts:
-        st.warning("학습 기록을 불러올 수 없습니다. (RLS 또는 테이블/컬럼 확인)")
+            if is_unread and sb:
+                if st.button("읽음 처리", key=f"msg_read_{m.get('id')}"):
+                    try:
+                        sb.table("user_messages").update({"read_at": datetime.utcnow().isoformat()}).eq("id", m["id"]).execute()
+                        st.success("읽음 처리 완료")
+                        st.rerun()
+                    except Exception:
+                        st.warning("읽음 처리에 실패했습니다. (RLS 확인)")
         st.markdown("</div>", unsafe_allow_html=True)
         return
 
@@ -1135,6 +1176,7 @@ def _render_msgs(msgs: List[Dict[str, Any]]) -> None:
         f'<span class="ha-chip">읽지 않음 <b>{_num(sum(1 for m in filtered if not m.get("read_at")))}</b>개</span></div>',
         unsafe_allow_html=True,
     )
+    st.markdown('<div class="ha-msg-gap"></div>', unsafe_allow_html=True)
 
     for m in filtered[:per]:
         title = m.get("title") or "메시지"
@@ -1146,11 +1188,10 @@ def _render_msgs(msgs: List[Dict[str, Any]]) -> None:
         header = f"{title}  ·  {dt}" + ("  ·  🔵" if is_unread else "")
 
         with st.expander(header, expanded=False):
-            st.markdown("<div style=\"height:8px\"></div>", unsafe_allow_html=True)
             safe_body = (body or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br>")
             st.markdown(
                 f"""
-<div style="border:1px solid var(--ha-line); border-radius:16px; overflow:hidden; background:#fff;">
+<div style="border:1px solid var(--ha-line); border-radius:18px; overflow:hidden; background:#fff;">
   <div style="padding:12px 14px; background:rgba(30,107,255,0.08); border-bottom:1px solid var(--ha-line);">
     <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
       <div style="font-weight:900; color:var(--ha-text); letter-spacing:-0.2px; font-size:16px;">{dot}{title}</div>
