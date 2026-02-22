@@ -101,6 +101,46 @@ import html as html_module  # ✅ for html escaping in admin cards
 # ✅ Page Config (Hub only)
 # ============================================================
 st.set_page_config(page_title="Hotena Hub", layout="centered")
+
+
+# ============================================================
+# ✅ TOP SPACING FIX (PC + Mobile)
+# - Remove Streamlit's default top padding/space
+# - Applied once per session
+# ============================================================
+if not st.session_state.get("_top_compact_css_applied"):
+    st.markdown("""<style>
+/* === Hotena: ultra-compact top spacing (mobile + desktop) === */
+/* 핵심: block-container의 기본 top padding 제거 + 첫 요소 여백 제거 */
+section.main > div.block-container,
+div[data-testid="stAppViewContainer"] > div.block-container {
+  padding-top: 0rem !important;
+  margin-top: 0rem !important;
+}
+
+/* 첫 요소(메뉴/버튼 래퍼) 상단 여백 제거 */
+div.block-container > div:first-child {
+  margin-top: 0rem !important;
+  padding-top: 0rem !important;
+}
+
+/* Streamlit 헤더가 만드는 공간 최소화 */
+header[data-testid="stHeader"]{
+  height: 0px !important;
+  min-height: 0px !important;
+}
+
+/* 모바일에서 더 강하게 */
+@media (max-width: 768px){
+  section.main > div.block-container,
+  div[data-testid="stAppViewContainer"] > div.block-container {
+    padding-top: 0rem !important;
+    margin-top: 0rem !important;
+  }
+}
+</style>""", unsafe_allow_html=True)
+    st.session_state["_top_compact_css_applied"] = True
+
 # ✅ TOP anchor for floating button (no-JS)
 st.markdown('<div id="hotena-top"></div>', unsafe_allow_html=True)
 
@@ -116,21 +156,13 @@ st.markdown(
    ========================================================== */
 
 header[data-testid="stHeader"]{
-  height: 0rem !important;
-  min-height: 0rem !important;
-  background: transparent !important;
+  height: auto !important;
+  min-height: 3.25rem !important;
 }
 
-
-/* ✅ Hide Streamlit toolbar/decoration spacing */
-div[data-testid="stToolbar"]{display:none !important;}
-div[data-testid="stDecoration"]{display:none !important;}
-
 /* Container spacing */
-section.main > div.block-container{padding-top:0rem !important;}
-
 div[data-testid="stAppViewContainer"] .block-container{
-  padding-top: 0rem !important;
+  padding-top: 0.25rem !important;
   padding-bottom: 5.25rem !important; /* bottom breathing room for mobile */
 }
 
@@ -193,7 +225,7 @@ div[data-testid="stMetric"]{
   div[data-testid="stAppViewContainer"] .block-container{
     padding-left: 1.0rem !important;
     padding-right: 1.0rem !important;
-    padding-top: 0rem !important;
+    padding-top: 0.15rem !important;
     padding-bottom: 6.0rem !important;
   }
 

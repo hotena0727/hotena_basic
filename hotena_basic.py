@@ -68,31 +68,45 @@ if not st.session_state.get('_page_config_set'):
     page_icon="static/icon-192.png",   # 또는 "🟦"
     layout="centered",
 )
+    
+
 # ============================================================
-# ✅ __HOTENA_COMPACT_TOP__: remove extra top whitespace (PC/Mobile)
+# ✅ TOP SPACING FIX (PC + Mobile)
+# - Remove Streamlit's default top padding/space
+# - Applied once per session
 # ============================================================
-st.markdown(
-    """
-<style>
-/* Make content start as high as possible */
-div[data-testid="stAppViewContainer"] .block-container {
+if not st.session_state.get("_top_compact_css_applied"):
+    st.markdown("""<style>
+/* === Hotena: ultra-compact top spacing (mobile + desktop) === */
+/* 핵심: block-container의 기본 top padding 제거 + 첫 요소 여백 제거 */
+section.main > div.block-container,
+div[data-testid="stAppViewContainer"] > div.block-container {
+  padding-top: 0rem !important;
+  margin-top: 0rem !important;
+}
+
+/* 첫 요소(메뉴/버튼 래퍼) 상단 여백 제거 */
+div.block-container > div:first-child {
+  margin-top: 0rem !important;
   padding-top: 0rem !important;
 }
-section.main > div.block-container {
-  padding-top: 0rem !important;
+
+/* Streamlit 헤더가 만드는 공간 최소화 */
+header[data-testid="stHeader"]{
+  height: 0px !important;
+  min-height: 0px !important;
 }
-header[data-testid="stHeader"] {
-  height: 0rem !important;
-  min-height: 0rem !important;
-  background: transparent !important;
+
+/* 모바일에서 더 강하게 */
+@media (max-width: 768px){
+  section.main > div.block-container,
+  div[data-testid="stAppViewContainer"] > div.block-container {
+    padding-top: 0rem !important;
+    margin-top: 0rem !important;
+  }
 }
-div[data-testid="stToolbar"]{display:none !important;}
-div[data-testid="stDecoration"]{display:none !important;}
-.block-container > div:first-child { margin-top: 0 !important; padding-top: 0 !important; }
-</style>
-    """,
-    unsafe_allow_html=True,
-)
+</style>""", unsafe_allow_html=True)
+    st.session_state["_top_compact_css_applied"] = True
 
 st.session_state['_page_config_set'] = True
 # ============================================================
