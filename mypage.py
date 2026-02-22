@@ -198,22 +198,21 @@ def _inject_css() -> None:
   margin:0 !important;
   padding:0 !important;
 }
-/* ✅ ensure expanded container has inner bottom padding (prevents overlap with outer border) */
-.ha-card div[data-testid="stExpander"] > details[open]{
-  padding-bottom:14px !important;
-  box-sizing:border-box !important;
-}
-
 .ha-card div[data-testid="stExpander"] summary{
   position:relative;
   margin:0 !important;
   padding:6px 2px 6px 30px !important; /* ✅ tighter list */
-  border-bottom:1px solid var(--ha-line) !important; /* ✅ keep original */
+  border-bottom:1px solid var(--ha-line) !important;
   border-radius:0 !important;
   background:transparent !important;
   font-weight:900 !important;
   color:var(--ha-text) !important;
   letter-spacing:-0.2px !important;
+}
+/* ✅ ensure expanded container has inner bottom padding (prevents overlap with outer border) */
+.ha-card div[data-testid="stExpander"] > details[open]{
+  padding-bottom:14px !important;
+  box-sizing:border-box !important;
 }
 .ha-card div[data-testid="stExpander"] summary:hover{background:#fbfbfd !important;}
 .ha-card div[data-testid="stExpander"] summary svg{display:none !important;}
@@ -252,14 +251,17 @@ def _inject_css() -> None:
 }
 /* ✅ reduce gap between list items */
 .ha-card div[data-testid="stExpander"] + div[data-testid="stExpander"]{margin-top:4px !important;}
-.ha-msg-bodyA{margin-top:8px; padding:0 0 14px 0;}
+.ha-msg-bodyA{margin-top:8px; padding:0;}
 .ha-msg-bodyA-inner{
-  padding:10px 12px 14px 12px;
+  padding:12px 14px 16px 14px;
   background:#f8fafc;
-  border:1px solid var(--ha-line);
+  /* ✅ inner box: use accent + subtle outline (prevents "double bottom line" look) */
+  border:0 !important;
+  box-shadow: inset 0 0 0 1px var(--ha-line);
+  border-left:4px solid var(--ha-blue);
   border-radius:12px;
   line-height:1.75;
-  margin-bottom: 0px;
+  margin:10px 0 18px 0; /* ✅ create clear separation from outer card bottom line */
 }
 
 
@@ -707,6 +709,33 @@ def _inject_css() -> None:
 }
 .ha-msg-body2-inner{ padding-left:10px; }
 
+
+/* ============================================================
+   ✅ 메시지 탭(ha-msg-card) 하단 겹침/라인 중복 방지 패치
+   - 바깥 카드 하단선과 내부 박스 하단이 붙지 않게 여유 확보
+   - Streamlit expander 기본 테두리/그림자 제거(강제)
+   ============================================================ */
+.ha-msg-card{
+  padding-bottom: 18px !important;
+}
+
+/* expander 전체 외곽선/그림자 완전 제거 */
+.ha-msg-card div[data-testid="stExpander"],
+.ha-msg-card div[data-testid="stExpander"] > div,
+.ha-msg-card div[data-testid="stExpander"] details,
+.ha-msg-card div[data-testid="stExpander"] details > summary,
+.ha-msg-card div[data-testid="stExpander"] .streamlit-expanderContent{
+  border: 0 !important;
+  box-shadow: none !important;
+  outline: 0 !important;
+  background: transparent !important;
+}
+
+/* 펼친 영역은 아래 여백을 넉넉히(내부 박스가 카드 하단선에 닿지 않게) */
+.ha-msg-card div[data-testid="stExpander"] .streamlit-expanderContent{
+  padding: 14px 14px 34px 14px !important;
+}
+
 </style>"""
     css = css.replace("__BLUE__", str(HATENA_BLUE))
     st.markdown(css, unsafe_allow_html=True)
@@ -717,6 +746,8 @@ def _wrap_start() -> None:
 
 def _wrap_end() -> None:
     st.markdown("</div>", unsafe_allow_html=True)
+
+
 
 # ---------------------------
 # Card renderer (iframe) to prevent HTML tags being shown as text
@@ -1526,7 +1557,7 @@ def _render_records(attempts: List[Dict[str, Any]], attempts_status: str) -> Non
 
 
 def _render_msgs(msgs: List[Dict[str, Any]]) -> None:
-    st.markdown('<div class="ha-card">', unsafe_allow_html=True)
+    st.markdown('<div class="ha-card ha-msg-card">', unsafe_allow_html=True)
     st.markdown('<div class="ha-card-title">메시지</div>', unsafe_allow_html=True)
 
     if not msgs:
