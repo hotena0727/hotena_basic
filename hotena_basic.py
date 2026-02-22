@@ -32,6 +32,17 @@ import random
 import pandas as pd
 import streamlit as st
 
+
+# ============================================================
+# ✅ wrong_notes debug helper
+# ============================================================
+_WN_DEBUG = bool(st.session_state.get("is_admin", False)) or bool(st.session_state.get("is_admin_cached", False))
+def _wn_warn(msg: str):
+    if _WN_DEBUG:
+        try:
+            st.warning(msg)
+        except Exception:
+            pass
 # ✅ HUB에서 호출되면 상단 중복 UI를 숨기기 위한 플래그
 HUB_MODE = st.session_state.get('HUB_MODE', False)
 import unicodedata
@@ -57,7 +68,47 @@ if not st.session_state.get('_page_config_set'):
     page_icon="static/icon-192.png",   # 또는 "🟦"
     layout="centered",
 )
-    st.session_state['_page_config_set'] = True
+    
+
+# ============================================================
+# ✅ TOP SPACING FIX (PC + Mobile)
+# - Remove Streamlit's default top padding/space
+# - Applied once per session
+# ============================================================
+if not st.session_state.get("_top_compact_css_applied"):
+    st.markdown("""<style>
+/* === Hotena: ultra-compact top spacing (mobile + desktop) === */
+/* 핵심: block-container의 기본 top padding 제거 + 첫 요소 여백 제거 */
+section.main > div.block-container,
+div[data-testid="stAppViewContainer"] > div.block-container {
+  padding-top: 0rem !important;
+  margin-top: 0rem !important;
+}
+
+/* 첫 요소(메뉴/버튼 래퍼) 상단 여백 제거 */
+div.block-container > div:first-child {
+  margin-top: 0rem !important;
+  padding-top: 0rem !important;
+}
+
+/* Streamlit 헤더가 만드는 공간 최소화 */
+header[data-testid="stHeader"]{
+  height: 0px !important;
+  min-height: 0px !important;
+}
+
+/* 모바일에서 더 강하게 */
+@media (max-width: 768px){
+  section.main > div.block-container,
+  div[data-testid="stAppViewContainer"] > div.block-container {
+    padding-top: 0rem !important;
+    margin-top: 0rem !important;
+  }
+}
+</style>""", unsafe_allow_html=True)
+    st.session_state["_top_compact_css_applied"] = True
+
+st.session_state['_page_config_set'] = True
 # ============================================================
 # ✅ [HOTFIX] Disable onboarding ("60초 이용안내") block entirely
 # - In case any legacy UI is still rendered, forcibly hide/remove it.
@@ -2487,7 +2538,6 @@ def render_home():
         f"""
 <div class="jp headbar">
   <div class="headtitle">✨ 왕초보 탈출 하테나일본어</div>
-  <div class="headhello">환영합니다 🙂 <span class="mail">{email}</span></div>
 </div>
 """,
         unsafe_allow_html=True,
@@ -2821,7 +2871,6 @@ if st.session_state.get("page") != "home":
         f"""
 <div class="jp headbar">
   <div class="headtitle">✨ 왕초보 탈출 하테나일본어</div>
-  <div class="headhello">환영합니다 🙂 <span class="mail">{email}</span></div>
 </div>
 """,
         unsafe_allow_html=True,
@@ -3535,6 +3584,39 @@ if st.session_state.submitted:
 
     st.session_state.wrong_list = wrong_list
 
+    # ============================================================
+    # ✅ 오답 상세 저장 (wrong_notes) — 3회 이상 반복오답/Top10 복습용
+# - 홈/마이페이지에서 '단어/정답/내답' 카드 복원을 위해 필요
+rows = []
+sb_authed = get_authed_sb()
+u_id = getattr(st.session_state.get("user"), "id", None)
+if not u_id and st.session_state.get("access_token"):
+    try:
+        u = sb.auth.get_user(st.session_state.get("access_token"))
+        u_id = getattr(getattr(u, "user", None), "id", None) or getattr(u, "id", None)
+    except Exception:
+        u_id = None
+
+if sb_authed is None:
+    _wn_warn("오답 저장 실패: authed client 없음(access_token).")
+elif not u_id:
+    _wn_warn("오답 저장 실패: user_id(uid) 없음. 로그인 세션을 확인하세요.")
+else:
+    for w in (st.session_state.get("wrong_list") or []):
+        rows.append({
+            "user_id": str(u_id),
+            "quiz_type": "word",
+            "question": str(w.get("단어") or w.get("question") or ""),
+            "correct_answer": str(w.get("정답") or w.get("correct") or ""),
+            "user_answer": str(w.get("내 답") or w.get("user") or ""),
+            "level": str(st.session_state.get("level", "") or ""),
+        })
+    if rows:
+        try:
+            sb_authed.table("wrong_notes").insert(rows).execute()
+        except Exception as e:
+            _wn_warn(f"오답 저장 실패: {e}")
+
     st.success(f"점수: {score} / {quiz_len}")
 
     # ✅ FREE 제한 카운트 누적 (제출 1회 = quiz_len 소비)
@@ -3805,7 +3887,4 @@ if st.session_state.get("submitted", False):
     show_naver_talk = (SHOW_NAVER_TALK == "N") or is_admin()
     if show_naver_talk:
         render_naver_talk()
-
-
-
 
