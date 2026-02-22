@@ -8,7 +8,7 @@ import streamlit as st
 
 
 # ============================================================
-# ✅ MyPage (Refactor v8 - Hatena Blue Lounge)
+# ✅ MyPage (Refactor v10 - AdminStyle Clean (Hub/Home + No Top Msg))
 # - "개발자 느낌" 제거: 표/기본차트/엑셀형 UI 지양
 # - 위계: 숫자(KPI) → 흐름(상태) → 행동(CTA) → 상세(카드)
 # - 색: 하테나 블루(강조/액션) + 중립 톤
@@ -119,77 +119,95 @@ def _css():
         """
 <style>
 :root{
-  --ha-blue: #2F6BFF;    /* Hatena Blue (keep bright) */
-  --ha-text: #0f172a;
-  --ha-muted: rgba(15, 23, 42, .60);
-  --ha-line: #e7edf6;
-  --ha-bg: #ffffff;
-  --ha-soft: #f6f8fc;
+  --ha-blue:#2F6BFF;
+  --ha-text:#0f172a;
+  --ha-muted:rgba(15,23,42,.60);
+  --ha-line:rgba(0,0,0,.08);
+  --ha-soft:rgba(0,0,0,.04);
 }
 
-/* container */
-.ha-wrap{max-width: 980px; margin: 0 auto; padding-bottom: 10px;}
-.ha-center{display:flex; flex-direction:column; align-items:center; text-align:center;}
-.ha-title{font-size: 22px; font-weight: 850; color: var(--ha-text); letter-spacing:-0.2px; margin: 4px 0 0;}
-.ha-sub{margin-top:6px; font-size: 13px; color: var(--ha-muted);}
 
-/* top mini nav */
-.ha-topnav{width:100%; display:flex; gap:10px; justify-content:center; margin: 10px 0 12px;}
-.ha-topnav button{border-radius:999px !important; padding:.40rem .85rem !important;}
+.ha-wrap{max-width:none;width:100%;margin:0;box-sizing:border-box;}
+.ha-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:10px 0 14px;}
+.ha-card{background:linear-gradient(180deg, rgba(0,0,0,.035), rgba(0,0,0,.015));
+  border:1px solid rgba(0,0,0,.08);border-radius:18px;padding:14px 14px 12px;}
+.ha-k{font-size:12px;opacity:.65;margin-bottom:6px;}
+.ha-v{font-size:24px;font-weight:800;letter-spacing:-0.02em;line-height:1.1;}
+.ha-s{font-size:12px;opacity:.55;margin-top:6px;}
+.ha-section{border:1px solid rgba(0,0,0,.08);border-radius:18px;padding:14px;margin:10px 0;background:rgba(255,255,255,.65);}
+.ha-title{font-size:15px;font-weight:800;margin:0 0 8px 0;}
+.ha-sub{font-size:12px;opacity:.65;margin:0 0 10px 0;}
+.ha-pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;
+  background:rgba(0,0,0,.04);border:1px solid rgba(0,0,0,.08);font-size:12px;opacity:.85;}
+@media (max-width:900px){.ha-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
 
-/* KPI row */
-.ha-kpi{width:100%; background: var(--ha-bg); border: 1px solid var(--ha-line); border-radius: 18px; padding: 14px 14px; }
-.ha-kpi-row{display:flex; gap:8px; justify-content:space-between; align-items:stretch; flex-wrap:wrap;}
-.ha-kpi-item{flex:1; min-width: 160px; padding: 10px 10px; border-radius: 14px; background: #fff;}
-.ha-kpi-num{font-size: 40px; font-weight: 900; line-height: 1.0; letter-spacing:-0.8px; color: var(--ha-text);}
-.ha-kpi-num .blue{color: var(--ha-blue);}
-.ha-kpi-lbl{margin-top: 6px; font-size: 12px; color: var(--ha-muted);}
+.ha-log{display:flex;flex-direction:column;gap:10px;margin-top:10px;}
+.ha-logcard{background:rgba(255,255,255,.82);border:1px solid rgba(0,0,0,.08);border-radius:18px;padding:14px;}
+.ha-logtop{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;}
+.ha-email{font-weight:800;letter-spacing:-0.02em;}
+.ha-time{font-size:12px;opacity:.65;margin-top:2px;display:flex;align-items:center;gap:6px;}
+.ha-badges{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;}
+.ha-badge{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;
+  background:rgba(0,0,0,.04);border:1px solid rgba(0,0,0,.08);font-size:12px;opacity:.9;}
+.ha-badge.ok{background:rgba(0,128,0,.06);border-color:rgba(0,128,0,.18);}
+.ha-badge.bad{background:rgba(220,0,0,.06);border-color:rgba(220,0,0,.18);}
+.ha-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:10px;}
+.ha-mini{display:flex;flex-direction:column;gap:2px;}
+.ha-mini .k{font-size:12px;opacity:.6;}
+.ha-mini .v{font-size:16px;font-weight:800;}
+.ha-ring{width:46px;height:46px;border-radius:999px;display:grid;place-items:center;
+  background:conic-gradient(rgba(0,0,0,.55) var(--p), rgba(0,0,0,.08) 0);}
+.ha-ring > div{width:36px;height:36px;border-radius:999px;background:white;display:grid;place-items:center;
+  font-size:12px;font-weight:800;}
 
-/* flow */
-.ha-flow{width:100%; margin-top: 12px; border:1px solid var(--ha-line); border-radius: 18px; padding: 14px 14px; background:#fff;}
-.ha-flow-title{font-weight:800; font-size:14px; color: var(--ha-text); margin:0;}
-.ha-flow-sub{font-size:12px; color: var(--ha-muted); margin: 6px 0 0;}
-.ha-bar{width:100%; height: 8px; background: var(--ha-soft); border:1px solid var(--ha-line); border-radius: 999px; overflow:hidden; margin-top:10px;}
-.ha-bar > div{height:100%; background: var(--ha-blue); border-radius: 999px;}
 
-/* section switch */
-.ha-switch{width:100%; margin-top: 12px;}
-.ha-switch .stRadio div[role="radiogroup"]{justify-content:center;}
-.ha-switch label{font-size: 13px;}
-/* reduce default radio spacing */
-.ha-switch .stRadio div[role="radiogroup"] > label{background: #fff; border: 1px solid var(--ha-line); border-radius: 999px; padding: 6px 12px; margin-right: 8px;}
-.ha-switch .stRadio div[role="radiogroup"] > label:has(input:checked){border-color: rgba(47,107,255,.55); box-shadow: 0 0 0 3px rgba(47,107,255,.12);}
 
-/* card list */
-.ha-card{background:#fff; border: 1px solid var(--ha-line); border-radius: 18px; padding: 14px 14px;}
-.ha-card + .ha-card{margin-top:10px;}
-.ha-card h4{margin:0 0 8px 0; font-size: 15px; font-weight: 850; letter-spacing:-0.1px;}
-.ha-meta{font-size:12px; color: var(--ha-muted);}
-.ha-divider{height:1px; background: var(--ha-line); margin: 10px 0;}
-.ha-pill{display:inline-flex; align-items:center; gap:6px; border: 1px solid var(--ha-line); background: var(--ha-soft); padding: 3px 10px; border-radius: 999px; font-size: 12px; color: var(--ha-muted);}
-.ha-dot{display:inline-block; width:8px; height:8px; border-radius:999px; background: var(--ha-blue);}
+.ha-wrap{max-width:980px;width:100%;margin:0 auto;box-sizing:border-box;}
+.ha-center{text-align:center;}
+.ha-header{margin:6px 0 12px;}
+.ha-header .ha-title{font-size:16px;}
+.ha-header .ha-sub{margin-top:-2px;}
 
-/* wrong card */
-.ha-wq{font-size: 15px; font-weight: 800; color: var(--ha-text); margin: 6px 0 0;}
-.ha-ans{margin-top: 8px; font-size: 13px; line-height: 1.35;}
-.ha-ans .k{color: var(--ha-muted);}
-.ha-ans .ok{font-weight:800; color: #0f7a44;}
-.ha-ans .bad{font-weight:800; color: #b42318;}
+.ha-grid-3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:10px 0 14px;}
+@media (max-width:900px){.ha-grid-3{grid-template-columns:repeat(1,minmax(0,1fr));}}
 
-/* segment bar */
-.ha-seg{width:100%; height: 10px; background: var(--ha-soft); border:1px solid var(--ha-line); border-radius: 999px; overflow:hidden;}
-.ha-seg > span{display:block; height:100%; float:left;}
-.ha-seg .w1{background: rgba(47,107,255,.90);}
-.ha-seg .w2{background: rgba(47,107,255,.65);}
-.ha-seg .w3{background: rgba(47,107,255,.40);}
+.ha-card .ha-v .blue{color:var(--ha-blue);}
+.ha-progress{height:10px;border-radius:999px;background:rgba(0,0,0,.06);overflow:hidden;border:1px solid rgba(0,0,0,.08);}
+.ha-progress > div{height:100%;background:var(--ha-blue);border-radius:999px;}
 
+.ha-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-top:10px;}
+.ha-btn{display:inline-flex;align-items:center;justify-content:center;padding:8px 14px;border-radius:999px;
+  border:1px solid rgba(0,0,0,.12);background:rgba(255,255,255,.85);font-weight:700;font-size:13px;}
+.ha-btn.primary{background:var(--ha-blue);border-color:var(--ha-blue);color:white;}
+.ha-btn:hover{filter:brightness(.98);}
+
+.ha-switch{display:flex;justify-content:center;margin:8px 0 4px;}
+/* Streamlit radio horizontal as segmented */
+.ha-switch [role="radiogroup"]{background:rgba(0,0,0,.04);border:1px solid rgba(0,0,0,.08);border-radius:999px;padding:4px;gap:4px;}
+.ha-switch label{margin:0 !important;}
+.ha-switch div[data-baseweb="radio"]>div{display:none;}
+.ha-switch div[data-baseweb="radio"]{padding:0 !important;}
+.ha-switch span{font-size:12px;font-weight:800;opacity:.78;}
+.ha-switch input:checked + div + span{opacity:1;}
+.ha-switch input:checked + div + span{color:var(--ha-blue);}
+
+.ha-meta{font-size:12px;opacity:.65;display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.ha-tag{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;
+  background:rgba(0,0,0,.04);border:1px solid rgba(0,0,0,.08);font-size:12px;opacity:.85;}
+.ha-empty{opacity:.65;font-size:13px;padding:10px 4px;text-align:center;}
+
+/* Compact top nav buttons (MyPage) */
+div[data-testid="column"] .stButton button{
+  border-radius:12px;
+}
+button[kind="secondary"], button[kind="primary"]{
+  border-radius:12px;
+}
 </style>
         """,
         unsafe_allow_html=True,
     )
 
-
-# ---------- data ----------
 def _load_wrong_notes(limit: int = 300) -> List[Dict[str, Any]]:
     sb = _sb()
     if not sb:
@@ -240,22 +258,33 @@ def _type_label(raw: str) -> str:
 
 
 # ---------- KPI / flow ----------
-def _kpi(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, Any]]) -> Dict[str, Any]:
+def _kpi(
+    wrongs: List[Dict[str, Any]],
+    attempts: List[Dict[str, Any]],
+    msgs: Optional[List[Dict[str, Any]]] = None,
+) -> Dict[str, Any]:
     now = _now_utc()
+
+    # wrongs last 7d + repeat(>=3)
     w7 = 0
+    wrep = 0
     for w in wrongs:
         dt = _parse_dt(w.get("created_at"))
         if dt and (now - dt) <= timedelta(days=7):
             w7 += 1
+        wc = w.get("wrong_count") or w.get("count") or w.get("mistakes")
+        if isinstance(wc, (int, float)) and float(wc) >= 3:
+            wrep += 1
 
-    scores = []
+    # average score
+    scores: List[float] = []
     for a in attempts:
         sc = a.get("score")
         if isinstance(sc, (int, float)):
             scores.append(float(sc))
     avg_score = (sum(scores) / len(scores)) if scores else None
 
-    # attempts last 7 days
+    # attempts last 7/30 days
     a7 = 0
     a30 = 0
     for a in attempts:
@@ -267,22 +296,34 @@ def _kpi(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, Any]]) -> Dict[s
         if (now - dt) <= timedelta(days=30):
             a30 += 1
 
-    # monthly flow target: 30회(일 단위가 아니라 "학습 이벤트" 기준)
+    # messages stats
+    msgs = msgs or []
+    mu = 0
+    m7 = 0
+    for m in msgs:
+        if not m.get("read_at"):
+            mu += 1
+        dt = _parse_dt(m.get("created_at"))
+        if dt and (now - dt) <= timedelta(days=7):
+            m7 += 1
+
+    # monthly flow target: 30회(학습 이벤트 기준)
     target = 30
-    pct = 0
-    if target > 0:
-        pct = max(0, min(100, int(round((a30 / target) * 100))))
+    pct = max(0, min(100, int(round((a30 / target) * 100)))) if target > 0 else 0
+
     return {
         "wrong_total": len(wrongs),
         "wrong_7d": w7,
+        "wrong_repeat": wrep,
         "avg_score": avg_score,
         "attempt_7d": a7,
         "attempt_30d": a30,
         "flow_pct": pct,
         "flow_target": target,
+        "msg_total": len(msgs),
+        "msg_unread": mu,
+        "msg_7d": m7,
     }
-
-
 def _segment_counts(wrongs: List[Dict[str, Any]]) -> Dict[str, int]:
     c = {"단어": 0, "한자": 0, "회화": 0}
     for w in wrongs:
@@ -312,12 +353,20 @@ def _mark_message_read(msg_id: str):
 
 # ---------- components ----------
 def _nav_back_and_logout():
-    c1, c2 = st.columns([1, 1], vertical_alignment="center")
-    with c1:
-        if st.button("← 홈허브", key="mypage_back_hub", use_container_width=True):
+    """Top navigation for MyPage.
+    - Keep it minimal and consistent with admin-style UI (no big full-width buttons).
+    - '홈' sends the user back to hub (home).
+    - '로그아웃' clears auth/session keys.
+    """
+    # Spacer + compact buttons (aligned to the right)
+    sp, b1, b2 = st.columns([6, 1.4, 1.6], vertical_alignment="center")
+    with sp:
+        st.markdown("""<div style="height:4px"></div>""", unsafe_allow_html=True)
+    with b1:
+        if st.button("🏠 홈", key="mypage_back_hub", use_container_width=True):
             st.session_state["hub_page"] = "home"
             st.rerun()
-    with c2:
+    with b2:
         if st.button("로그아웃", key="mypage_logout", use_container_width=True):
             for k in ["user", "sb_authed", "access_token", "refresh_token", "hub_page"]:
                 st.session_state.pop(k, None)
@@ -642,11 +691,11 @@ def render():
 
     st.markdown('<div class="ha-wrap">', unsafe_allow_html=True)
 
-    # Header center
+    # Header
     st.markdown(
         f"""
-<div class="ha-center">
-  <div class="ha-title">복습 · 기록</div>
+<div class="ha-header ha-center">
+  <div class="ha-title">마이페이지</div>
   <div class="ha-sub">{email or ""}</div>
 </div>
         """,
@@ -656,67 +705,51 @@ def render():
     _nav_back_and_logout()
 
     # Load data once
-    wrongs = _load_wrong_notes(limit=350)
-    attempts, attempts_err = _load_attempts(limit=80)
+    wrongs = _load_wrong_notes(limit=300)
+    attempts, attempts_err = _load_attempts(limit=120)
 
-    k = _kpi(wrongs, attempts if not attempts_err else [])
+    msgs = _load_messages(limit=200)
+    k = _kpi(wrongs, attempts if not attempts_err else [], msgs)
 
-    # KPI block (A)
-    st.markdown('<div class="ha-kpi">', unsafe_allow_html=True)
-    st.markdown('<div class="ha-kpi-row">', unsafe_allow_html=True)
-
+    # --- KPI (A): numbers first ---
     avg_txt = f"{k['avg_score']:.0f}" if isinstance(k.get("avg_score"), (int, float)) else "—"
-    # KPI 1: wrong total
     st.markdown(
         f"""
-<div class="ha-kpi-item">
-  <div class="ha-kpi-num"><span class="blue">{k['wrong_total']}</span></div>
-  <div class="ha-kpi-lbl">오답</div>
-</div>
-        """,
-        unsafe_allow_html=True,
-    )
-    # KPI 2: average score
-    st.markdown(
-        f"""
-<div class="ha-kpi-item">
-  <div class="ha-kpi-num">{avg_txt}<span style="font-size:18px; font-weight:800; margin-left:4px; color:var(--ha-muted);">점</span></div>
-  <div class="ha-kpi-lbl">평균 점수</div>
-</div>
-        """,
-        unsafe_allow_html=True,
-    )
-    # KPI 3: last 7 days activity
-    st.markdown(
-        f"""
-<div class="ha-kpi-item">
-  <div class="ha-kpi-num"><span class="blue">{k['attempt_7d']}</span></div>
-  <div class="ha-kpi-lbl">최근 7일 학습</div>
-</div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    st.markdown("</div></div>", unsafe_allow_html=True)
-
-    # Flow block (B)
-    st.markdown(
-        f"""
-<div class="ha-flow ha-center">
-  <div style="width:100%;">
-    <div class="ha-flow-title">이번 달 학습 흐름</div>
-    <div class="ha-flow-sub">최근 30일 학습 {k['attempt_30d']}회 · 목표 {k['flow_target']}회</div>
-    <div class="ha-bar"><div style="width:{k['flow_pct']}%;"></div></div>
-    <div class="ha-flow-sub" style="margin-top:8px;">{k['flow_pct']}% 진행 중</div>
+<div class="ha-grid-3">
+  <div class="ha-card">
+    <div class="ha-k">오답</div>
+    <div class="ha-v"><span class="blue">{k['wrong_total']}</span></div>
+    <div class="ha-s">반복 오답 {k['wrong_repeat']} · 최근 7일 {k['wrong_7d']}</div>
+  </div>
+  <div class="ha-card">
+    <div class="ha-k">평균 점수</div>
+    <div class="ha-v">{avg_txt}<span style="font-size:16px;font-weight:800;opacity:.55;margin-left:4px;">점</span></div>
+    <div class="ha-s">최근 7일 학습 {k['attempt_7d']}회</div>
+  </div>
+  <div class="ha-card">
+    <div class="ha-k">받은 메시지</div>
+    <div class="ha-v"><span class="blue">{k['msg_unread']}</span><span style="font-size:16px;font-weight:800;opacity:.55;margin-left:6px;">안 읽음</span></div>
+    <div class="ha-s">전체 {k['msg_total']} · 최근 7일 {k['msg_7d']}</div>
   </div>
 </div>
         """,
         unsafe_allow_html=True,
     )
 
-    # Actions (C) - keep minimal, no routing. Focus switch via section.
-    st.markdown('<div style="height:6px;"></div>', unsafe_allow_html=True)
+    # --- Flow (B): subtle progress, no charts ---
+    st.markdown(
+        f"""
+<div class="ha-section">
+  <div class="ha-title">이번 달 학습 흐름</div>
+  <div class="ha-sub">최근 30일 {k['attempt_30d']}회 · 목표 {k['flow_target']}회</div>
+  <div class="ha-progress"><div style="width:{k['flow_pct']}%;"></div></div>
+  <div class="ha-sub" style="margin-top:8px;">{k['flow_pct']}% 진행 중</div>
+</div>
+        """,
+        unsafe_allow_html=True,
+    )
 
+    # --- Switch (C): calm segmented navigation ---
     st.markdown('<div class="ha-switch">', unsafe_allow_html=True)
     section = st.radio(
         "",
@@ -727,13 +760,12 @@ def render():
     )
     st.markdown("</div>", unsafe_allow_html=True)
 
-    st.markdown('<div style="height:6px;"></div>', unsafe_allow_html=True)
-
     if section == "오답":
-        _section_wrongs(wrongs)
+        _section_wrongs_adminstyle(wrongs)
     elif section == "학습 기록":
-        _section_records(attempts, attempts_err)
+        _section_records_adminstyle(attempts, attempts_err)
     else:
-        _section_messages()
+        _section_messages_adminstyle()
 
     st.markdown("</div>", unsafe_allow_html=True)
+
