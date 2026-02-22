@@ -228,10 +228,24 @@ def _inject_css() -> None:
   flex-wrap:wrap;
 }
 .ha-msg-chevron{
+
   color: var(--ha-sub);
   font-size:14px;
   margin-left:2px;
 }
+
+.ha-msg-new{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding:2px 8px;
+  border-radius:999px;
+  font-size:12px;
+  font-weight:900;
+  color:#fff;
+  background: var(--ha-blue);
+}
+
 .ha-msg-scope [data-testid="stButton"] > button{
   background: transparent !important;
   border: 0 !important;
@@ -1271,7 +1285,7 @@ def _render_msgs(msgs: List[Dict[str, Any]]) -> None:
         dt = _fmt_dt(mm.get("created_at") or "")
         is_unread = not mm.get("read_at")
         chip = "읽지 않음" if is_unread else "읽음"
-        chevron = "▾" if open_id != mid else "▴"
+        chevron = "⌄" if open_id != mid else "⌃"
         open_cls = "is-open" if open_id == mid else ""
 
         # ✅ 한 줄: 왼쪽(제목 클릭) / 오른쪽(칩 + 화살표)
@@ -1295,9 +1309,11 @@ def _render_msgs(msgs: List[Dict[str, Any]]) -> None:
             )
 
         with c2:
+            new_badge = '<span class="ha-msg-new">NEW</span>' if is_unread else ''
             st.markdown(
                 f"""
 <div class="ha-msg-meta">
+  {new_badge}
   <span class="ha-chip">{dt}</span>
   <span class="ha-badge">{chip}</span>
   <span class="ha-msg-chevron">{chevron}</span>
