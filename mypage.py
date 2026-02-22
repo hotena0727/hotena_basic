@@ -193,16 +193,21 @@ def _inject_css() -> None:
 /* ✅ messages: minimal rows */
 /* ✅ messages: row toggle (scoped) */
 .ha-msg-scope [data-testid="stButton"] > button{
-  width:100%;
-  border:1px solid var(--ha-line) !important;
-  border-radius:14px !important;
-  background:#fff !important;
-  padding:10px 12px !important;
-  text-align:left !important;
+  width:100% !important;
+  border:0 !important;
+  background:transparent !important;
+  padding:0 !important;
+  margin:0 !important;
   box-shadow:none !important;
+  text-align:left !important;
+  font-weight:900 !important;
+  color: var(--ha-text) !important;
+  letter-spacing:-0.2px !important;
+  font-size:15px !important;
 }
-.ha-msg-scope [data-testid="stButton"] > button:hover{background:#fbfbfd !important;}
-
+.ha-msg-scope [data-testid="stButton"] > button:hover{
+  background:transparent !important;
+}
 .ha-msg-row{
   border:1px solid var(--ha-line);
   border-radius:14px;
@@ -1295,7 +1300,6 @@ def _render_msgs(msgs: List[Dict[str, Any]]) -> None:
 """,
         unsafe_allow_html=True,
     )
-
     st.markdown('<div class="ha-msg-gap"></div>', unsafe_allow_html=True)
 
     show_unread_only = st.toggle("읽지 않은 것만 보기", value=False, key="myp_msg_unread_only")
@@ -1314,36 +1318,32 @@ def _render_msgs(msgs: List[Dict[str, Any]]) -> None:
         body = (mm.get("body") or "").strip()
         dt = _fmt_dt(mm.get("created_at") or "")
         is_unread = not mm.get("read_at")
+        chip = "읽지 않음" if is_unread else "읽음"
         chevron = "⌄" if open_id != mid else "⌃"
         open_cls = "is-open" if open_id == mid else ""
 
-        st.markdown(f'<div class="ha-msg-row {open_cls}">', unsafe_allow_html=True)
-        st.markdown('<div class="ha-msg-click">', unsafe_allow_html=True)
-
-        # ✅ 클릭 영역(버튼 크롬은 CSS로 제거)
-        if st.button(" ", key=f"msg_toggle_{mid}", use_container_width=True):
-            st.session_state["myp_msg_open_id"] = None if open_id == mid else mid
-            st.rerun()
-
-        # ✅ 실제 UI (버튼 위에 덮기)
         new_badge = '<span class="ha-msg-new">NEW</span>' if is_unread else ''
-        dot_html = '<span class="ha-msg-dot"></span>' if is_unread else ''
-        chip = "읽지 않음" if is_unread else "읽음"
 
-        st.markdown(
-            f"""
-<div style="margin-top:-44px; pointer-events:none;">
-  <div class="ha-msg-line">
-    <div class="ha-msg-left">{dot_html}<div class="ha-msg-title">{_escape_html(title)}</div></div>
-    <div class="ha-msg-right">{new_badge}<span class="ha-chip">{dt}</span><span class="ha-badge">{chip}</span><span class="ha-msg-chevron">{chevron}</span></div>
-  </div>
+        # ✅ 한 줄(가벼움): 제목(클릭) + 오른쪽 메타
+        st.markdown(f'<div class="ha-msg-row {open_cls}">', unsafe_allow_html=True)
+        c1, c2 = st.columns([0.72, 0.28], gap="small")
+        with c1:
+            if st.button(title, key=f"msg_toggle_{mid}", use_container_width=True):
+                st.session_state["myp_msg_open_id"] = None if open_id == mid else mid
+                st.rerun()
+        with c2:
+            st.markdown(
+                f"""
+<div class="ha-msg-right" style="justify-content:flex-end;">
+  {new_badge}
+  <span class="ha-chip">{dt}</span>
+  <span class="ha-badge">{chip}</span>
+  <span class="ha-msg-chevron">{chevron}</span>
 </div>
 """,
-            unsafe_allow_html=True,
-        )
-
-        st.markdown("</div>", unsafe_allow_html=True)  # click
-        st.markdown("</div>", unsafe_allow_html=True)  # row
+                unsafe_allow_html=True,
+            )
+        st.markdown("</div>", unsafe_allow_html=True)
 
         if open_id == mid:
             safe_body = _escape_html(body).replace("\n", "<br>")
