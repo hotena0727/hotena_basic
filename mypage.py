@@ -121,7 +121,7 @@ def _inject_css() -> None:
 }
 .ha-kpi-num {
   font-size: 26px;
-  font-weight: 900;
+  font-weight: 850;
   color: var(--ha-text);
   line-height: 1.0;
 }
@@ -175,7 +175,7 @@ def _inject_css() -> None:
   border-radius: 999px;
   padding: 3px 8px;
   font-size: 12px;
-  font-weight: 900;
+  font-weight: 850;
   white-space: nowrap;
 }
 
@@ -186,6 +186,8 @@ def _inject_css() -> None:
   gap: 10px;
   flex-wrap: wrap;
 }
+.ha-msg-spacer{height:10px;}
+
 .ha-inline {
   display:flex;
   gap: 8px;
@@ -211,7 +213,7 @@ def _inject_css() -> None:
 .ha-card-title {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  font-weight: 900;
+  font-weight: 850;
   color: var(--ha-text);
   letter-spacing: -0.2px;
 }
@@ -251,7 +253,7 @@ def _inject_css() -> None:
 }
 .ha-week-title {
   font-size: 13px;
-  font-weight: 900;
+  font-weight: 850;
   color: var(--ha-text);
 }
 .ha-week-grid {
@@ -269,12 +271,12 @@ def _inject_css() -> None:
 .ha-day-top {
   font-size: 11px;
   color: var(--ha-sub);
-  font-weight: 900;
+  font-weight: 850;
 }
 .ha-day-num {
   margin-top: 4px;
   font-size: 16px;
-  font-weight: 900;
+  font-weight: 850;
   color: var(--ha-text);
 }
 .ha-day-sub {
@@ -328,7 +330,7 @@ body {{ margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI
   box-sizing: border-box;
 }}
 .title {{
-  font-weight: 900;
+  font-weight: 850;
   color: var(--ha-text);
   letter-spacing: -0.2px;
   font-size: 16px;
@@ -362,13 +364,13 @@ body {{ margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI
   border-radius: 999px;
   padding: 3px 8px;
   font-size: 12px;
-  font-weight: 900;
+  font-weight: 850;
   white-space: nowrap;
 }}
 .body {{
   margin-top: 8px;
   color: var(--ha-text);
-  font-size: 14px;
+  font-size: 15px;
   line-height: 1.55;
 }}
 </style></head>
@@ -984,6 +986,7 @@ def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None
         rep = counts.get((w.get("jp_word") or "").strip(), 0)
         header = f"{jp}  ·  {app}  ·  Lv {level}" + (f"  ·  🔥 {rep}회" if rep >= 3 else "")
         with st.expander(header, expanded=False):
+            st.markdown("<div style=\"height:8px\"></div>", unsafe_allow_html=True)
             c1, c2 = st.columns([2, 2])
             with c1:
                 st.markdown(f"**정답**: {w.get('correct_answer') or '-'}")
@@ -1143,10 +1146,11 @@ def _render_msgs(msgs: List[Dict[str, Any]]) -> None:
         header = f"{title}  ·  {dt}" + ("  ·  🔵" if is_unread else "")
 
         with st.expander(header, expanded=False):
+            st.markdown("<div style=\"height:8px\"></div>", unsafe_allow_html=True)
             safe_body = (body or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br>")
             st.markdown(
                 f"""
-<div style="border:1px solid var(--ha-line); border-radius:18px; overflow:hidden; background:#fff;">
+<div style="border:1px solid var(--ha-line); border-radius:16px; overflow:hidden; background:#fff;">
   <div style="padding:12px 14px; background:rgba(30,107,255,0.08); border-bottom:1px solid var(--ha-line);">
     <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
       <div style="font-weight:900; color:var(--ha-text); letter-spacing:-0.2px; font-size:16px;">{dot}{title}</div>
