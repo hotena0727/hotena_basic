@@ -270,6 +270,27 @@ div[data-testid="stMetric"]{
 """,
     unsafe_allow_html=True,
 )
+
+# ✅ Fix: F5(하드 리로드) 시 block-container 패딩이 다시 살아나는 현상 방지
+# - Streamlit DOM 구조가 바뀌어도, section.main 아래 첫 block-container만 직접 스타일로 고정
+components.html(r"""
+<script>
+(() => {
+  const apply = () => {
+    const bc = document.querySelector("section.main div.block-container");
+    if (!bc) return;
+    bc.style.paddingTop = "0.6rem";
+    bc.style.marginTop = "0rem";
+  };
+  // 즉시 + 지연 재시도 (초기 렌더/리렌더 타이밍 대비)
+  apply();
+  window.addEventListener("load", apply);
+  setTimeout(apply, 50);
+  setTimeout(apply, 200);
+  setTimeout(apply, 600);
+})();
+</script>
+""", height=0)
 st.session_state["_page_config_set"] = True  # children should not call set_page_config
 
 BASE_DIR = Path(__file__).resolve().parent
