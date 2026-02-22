@@ -40,50 +40,50 @@ def _sb() -> Any:
 # UI / CSS
 # ---------------------------
 def _inject_css() -> None:
-    # ✅ CSS는 f-string에서 '{' '}' 처리가 깨지면 바로 Syntax/NameError가 납니다.
-    #    그래서 이 함수는 '중괄호 이스케이프( {{ }} )'를 엄격히 지킨 안전 템플릿으로 고정합니다.
-    st.markdown(
-        f"""<style>
+    css = """
+<style>
 :root {{
-  --ha-blue: {HATENA_BLUE};
+  --ha-font: Pretendard, 'Noto Sans KR', 'Apple SD Gothic Neo', ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+{{
+  --ha-blue: {{HATENA_BLUE}};
   --ha-text: #0f172a;
   --ha-sub: #64748b;
   --ha-line: #e5e7eb;
   --ha-bg: #ffffff;
   --ha-chip: #f1f5f9;
   --ha-soft: rgba(30,107,255,0.08);
-}}
+}}}}
 
-.ha-wrap {{
-  font-family: Pretendard, 'Noto Sans KR', 'Apple SD Gothic Neo', ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+.ha-wrap {
+  font-family: var(--ha-font);
+{{{
   max-width: 980px;
   margin: 0 auto;
   padding: 6px 8px 26px 8px;
-}}
+}}}}
 
-.ha-top {{
+.ha-top {{{{
   border: 1px solid var(--ha-line);
   border-radius: 18px;
   background: var(--ha-bg);
   padding: 14px 14px;
   margin: 8px 0 10px 0;
-}}
+}}}}
 
-.ha-topbar {{
+.ha-topbar {{{{
   display:flex;
-  align-items:flex-start;
+  align-items:center;
   justify-content:space-between;
-  gap: 12px;
-}}
-
-.ha-brand {{
-  display:flex;
   gap: 10px;
+}}}}
+
+.ha-brand {{{{
+  display:flex;
   align-items:flex-start;
-}}
-.ha-logo {{
+  gap: 10px;
+}}}}
+
+.ha-logo {{{{
   width: 34px;
   height: 34px;
   border-radius: 12px;
@@ -93,54 +93,75 @@ def _inject_css() -> None:
   align-items:center;
   justify-content:center;
   color: var(--ha-blue);
-  font-weight: 900;
-}}
-.ha-title {{
+  font-weight: 800;
+}}}}
+
+.ha-title {
+  font-family: var(--ha-font);
+{{{
   font-size: 18px;
-  font-weight: 900;
+  font-weight: 800;
   color: var(--ha-text);
   letter-spacing: -0.3px;
   line-height: 1.15;
-}}
-.ha-sub {{
+}}}}
+.ha-sub {
+  font-family: var(--ha-font);
+{{{
   margin-top: 3px;
   font-size: 12px;
   color: var(--ha-sub);
-}}
+}}}}
 
-.ha-kpi {{
+.ha-kpi {{{{
   margin-top: 12px;
   display:grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 10px;
-}}
-.ha-kpi-item {{
+}}}}
+.ha-kpi-item {{{{
   border: 1px solid var(--ha-line);
   border-radius: 16px;
   padding: 12px 12px;
   background: #fff;
-}}
-.ha-kpi-num {{
+}}}}
+.ha-kpi-num {{{{
   font-size: 26px;
   font-weight: 900;
   color: var(--ha-text);
   line-height: 1.0;
-}}
-.ha-kpi-lbl {{
+}}}}
+.ha-kpi-lbl {{{{
   margin-top: 6px;
   font-size: 12px;
   color: var(--ha-sub);
-  font-weight: 900;
-}}
+  font-weight: 800;
+}}}}
 
-.ha-inline {{
+.ha-progress-row {{{{
   display:flex;
-  gap: 8px;
-  flex-wrap: wrap;
   align-items:center;
-}}
+  justify-content:space-between;
+  gap: 10px;
+  margin-top: 10px;
+}}}}
+.ha-progress {{{{
+  width: 100%;
+  height: 10px;
+  background: #f1f5f9;
+  border-radius: 999px;
+  overflow:hidden;
+  border: 1px solid var(--ha-line);
+}}}}
+.ha-progress > div {{{{
+  height: 100%;
+  background: var(--ha-blue);
+  width: 0%;
+}}}}
 
-.ha-chip {{
+.ha-chip {
+  font-family: var(--ha-font);
+{{{
   display:inline-flex;
   align-items:center;
   gap:6px;
@@ -152,10 +173,10 @@ def _inject_css() -> None:
   font-weight: 800;
   color: var(--ha-sub);
   white-space: nowrap;
-}}
-.ha-chip b {{ color: var(--ha-text); }}
+}}}}
+.ha-chip b {{{{ color: var(--ha-text); }}}}
 
-.ha-badge {{
+.ha-badge {{{{
   border: 1px solid rgba(30,107,255,0.25);
   background: rgba(30,107,255,0.08);
   color: var(--ha-blue);
@@ -164,42 +185,130 @@ def _inject_css() -> None:
   font-size: 12px;
   font-weight: 900;
   white-space: nowrap;
-}}
+}}}}
 
-.ha-section {{
+.ha-row {{{{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}}}}
+.ha-inline {{{{
+  display:flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items:center;
+}}}}
+
+.ha-section {{{{
   border: 1px solid var(--ha-line);
   border-radius: 18px;
   padding: 12px 12px;
-  background: #fff;
+  background: var(--ha-bg);
   margin: 10px 0;
-}}
+}}}}
 
-.ha-card {{
+.ha-card {{{{
   border: 1px solid var(--ha-line);
-  border-radius: 16px;
-  padding: 12px 12px;
+  border-radius: 14px;
+  padding: 10px 10px;
   background: #fff;
-}}
-
-.ha-card-title {{
-  font-size: 14px;
+  margin: 8px 0;
+}}}}
+.ha-card-title {
+  font-family: var(--ha-font);
+{{{
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
   font-weight: 900;
   color: var(--ha-text);
   letter-spacing: -0.2px;
-}}
+}}}}
+.ha-meta {{{{
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--ha-sub);
+  display:flex;
+  flex-wrap:wrap;
+  gap: 8px;
+}}}}
 
-.ha-hr {{
-  height: 1px;
-  background: var(--ha-line);
-  margin: 10px 0;
-}}
+.ha-dot {{{{
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: var(--ha-blue);
+  display:inline-block;
+  margin-right: 6px;
+  opacity: 0.85;
+}}}}
 
-@media (max-width: 720px) {{
-  .ha-kpi {{ grid-template-columns: 1fr; }}
-}}
-</style>""",
-        unsafe_allow_html=True,
-    )
+/* mini calendar */
+.ha-week {{{{
+  margin-top: 10px;
+  border: 1px solid var(--ha-line);
+  border-radius: 16px;
+  padding: 10px 10px;
+  background: #fff;
+}}}}
+.ha-week-head {{{{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}}}}
+.ha-week-title {{{{
+  font-size: 13px;
+  font-weight: 900;
+  color: var(--ha-text);
+}}}}
+.ha-week-grid {{{{
+  display:grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+}}}}
+.ha-day {{{{
+  border: 1px solid var(--ha-line);
+  border-radius: 14px;
+  padding: 8px 6px;
+  text-align:center;
+  background: #fff;
+}}}}
+.ha-day-top {{{{
+  font-size: 11px;
+  color: var(--ha-sub);
+  font-weight: 900;
+}}}}
+.ha-day-num {{{{
+  margin-top: 4px;
+  font-size: 16px;
+  font-weight: 900;
+  color: var(--ha-text);
+}}}}
+.ha-day-sub {{{{
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--ha-sub);
+  font-weight: 800;
+}}}}
+
+@media (max-width: 720px) {{{{
+  .ha-kpi {{{{ grid-template-columns: 1fr; }}}}
+  .ha-week-grid {{{{ gap: 6px; }}}}
+}}}}
+</style>
+
+/* ✅ 메시지 expander(접고 펴는 창) 자체 디자인 */
+div[data-testid="stExpander"] {{ margin-top: 12px; border: 1px solid var(--ha-line); border-radius: 16px; overflow: hidden; background: #fff; }}
+div[data-testid="stExpander"] > details {{ padding: 0; }}
+div[data-testid="stExpander"] summary {{ padding: 12px 14px !important; background: rgba(30,107,255,0.06); }}
+div[data-testid="stExpander"] summary:hover {{ background: rgba(30,107,255,0.08); }}
+div[data-testid="stExpander"] summary p {{ font-weight: 900 !important; color: var(--ha-text) !important; }}
+div[data-testid="stExpander"] .streamlit-expanderContent {{ padding: 14px 14px 16px 14px !important; }}
+""".format(blue=HATENA_BLUE)
+    st.markdown(css, unsafe_allow_html=True)
 
 
 def _wrap_start() -> None:
@@ -260,7 +369,7 @@ body {{ margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI
   background: var(--ha-chip);
   border: 1px solid var(--ha-line);
   font-size: 12px;
-  font-weight: 900;
+  font-weight: 800;
   color: var(--ha-sub);
   white-space: nowrap;
 }}
@@ -504,41 +613,31 @@ def _num(n: Any) -> str:
 # Wrong quiz (simple 4-choice)
 # ---------------------------
 def _make_wrong_quiz(wrongs: List[Dict[str, Any]], n: int = 10) -> List[Dict[str, Any]]:
-    """오답으로 4지선다 시험 만들기
-    - meaning이 없어도 correct_answer(정답 텍스트)가 있으면 시험 생성
-    """
     import random
-    def _ans(w: Dict[str, Any]) -> str:
-        return str((w.get("meaning") or w.get("meaning_kr") or w.get("kr_meaning") or w.get("correct_answer") or w.get("correct") or "")).strip()
-
-    pool = [w for w in wrongs if (str(w.get("jp_word") or w.get("word") or w.get("term") or "").strip() and _ans(w))]
+    pool = [w for w in wrongs if (w.get("jp_word") and (w.get("meaning") or w.get("correct_answer")))]
     random.shuffle(pool)
-    pool = pool[: max(n, 24)]
-
-    answer_bank = list({ _ans(w) for w in pool if _ans(w) })
-    quiz: List[Dict[str, Any]] = []
-
+    pool = pool[: max(n, 20)]
+    meanings = list({((w.get("meaning") or w.get("correct_answer") or "")).strip() for w in pool if ((w.get("meaning") or w.get("correct_answer") or "")).strip()})
+    quiz = []
     for w in pool[:n]:
-        jp = str(w.get("jp_word") or w.get("word") or w.get("term") or "").strip()
-        reading = str(w.get("reading") or w.get("yomi") or w.get("kana") or "").strip() or None
-        correct = _ans(w)
+        correct = (w.get("meaning") or w.get("correct_answer") or "").strip()
         opts = [correct]
-        others = [a for a in answer_bank if a != correct]
+        others = [m for m in meanings if m != correct]
         random.shuffle(others)
         opts += others[:3]
-
-        # ensure 4 unique options
+        # ensure 4 unique
         opts = list(dict.fromkeys([o for o in opts if o]))
         while len(opts) < 4 and others:
             cand = others.pop()
             if cand and cand not in opts:
                 opts.append(cand)
-        # 마지막 보정: 그래도 부족하면 같은 정답 반복 방지용 더미
-        while len(opts) < 4:
-            opts.append("—")
-
         random.shuffle(opts)
-        quiz.append({"jp_word": jp, "reading": reading, "correct": correct, "options": opts[:4]})
+        quiz.append({
+            "jp_word": w.get("jp_word"),
+            "reading": w.get("reading"),
+            "correct": correct,
+            "options": opts[:4],
+        })
     return quiz
 def _calc_score(a: Dict[str, Any]) -> Optional[float]:
     score = a.get("score")
@@ -809,12 +908,11 @@ def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None
         st.session_state["myp_wrong_quiz_ans"] = {}
         st.session_state["myp_wrong_quiz_done"] = False
         st.rerun()
-        st.rerun()
 
     quiz = st.session_state.get("myp_wrong_quiz") or []
+    # 버튼을 눌렀는데 문제가 생성되지 않는 경우(뜻 데이터 없음 등)
     if ("myp_wrong_quiz" in st.session_state) and (not quiz):
-        st.info("시험을 만들 오답이 부족합니다. (뜻/정답 텍스트가 있는 오답이 필요해요.)")
-
+        st.info("시험을 만들 수 있는 오답이 부족합니다. (뜻/정답 텍스트 컬럼이 비어있을 수 있어요.)")
     if quiz:
         st.markdown('<div class="ha-card" style="padding:12px 12px;">', unsafe_allow_html=True)
         st.markdown('<div class="ha-card-title">오답 시험</div>', unsafe_allow_html=True)
@@ -1067,7 +1165,7 @@ def _render_msgs(msgs: List[Dict[str, Any]]) -> None:
             safe_body = (body or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br>")
             st.markdown(
                 f"""
-<div style="border:1px solid var(--ha-line); border-radius:18px; overflow:hidden; background:#ffffff; box-shadow:0 6px 18px rgba(0,0,0,0.05);">
+<div style="border:1px solid var(--ha-line); border-radius:18px; overflow:hidden; background:#fff;">
   <div style="padding:12px 14px; background:rgba(30,107,255,0.08); border-bottom:1px solid var(--ha-line);">
     <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
       <div style="font-weight:900; color:var(--ha-text); letter-spacing:-0.2px; font-size:16px;">{dot}{title}</div>
