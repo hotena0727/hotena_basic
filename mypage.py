@@ -40,50 +40,50 @@ def _sb() -> Any:
 # UI / CSS
 # ---------------------------
 def _inject_css() -> None:
-    css = """
+    css = r"""
 <style>
-:root {{
+:root {
   --ha-font: Pretendard, 'Noto Sans KR', 'Apple SD Gothic Neo', ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
-{{
-  --ha-blue: {{HATENA_BLUE}};
+{
+  --ha-blue: {HATENA_BLUE};
   --ha-text: #0f172a;
   --ha-sub: #64748b;
   --ha-line: #e5e7eb;
   --ha-bg: #ffffff;
   --ha-chip: #f1f5f9;
   --ha-soft: rgba(30,107,255,0.08);
-}}}}
+}
 
 .ha-wrap {
   font-family: var(--ha-font);
-{{{
+{{
   max-width: 980px;
   margin: 0 auto;
   padding: 6px 8px 26px 8px;
-}}}}
+}
 
-.ha-top {{{{
+.ha-top {
   border: 1px solid var(--ha-line);
   border-radius: 18px;
   background: var(--ha-bg);
   padding: 14px 14px;
   margin: 8px 0 10px 0;
-}}}}
+}
 
-.ha-topbar {{{{
+.ha-topbar {
   display:flex;
   align-items:center;
   justify-content:space-between;
   gap: 10px;
-}}}}
+}
 
-.ha-brand {{{{
+.ha-brand {
   display:flex;
   align-items:flex-start;
   gap: 10px;
-}}}}
+}
 
-.ha-logo {{{{
+.ha-logo {
   width: 34px;
   height: 34px;
   border-radius: 12px;
@@ -94,74 +94,74 @@ def _inject_css() -> None:
   justify-content:center;
   color: var(--ha-blue);
   font-weight: 800;
-}}}}
+}
 
 .ha-title {
   font-family: var(--ha-font);
-{{{
+{{
   font-size: 18px;
   font-weight: 800;
   color: var(--ha-text);
   letter-spacing: -0.3px;
   line-height: 1.15;
-}}}}
+}
 .ha-sub {
   font-family: var(--ha-font);
-{{{
+{{
   margin-top: 3px;
   font-size: 12px;
   color: var(--ha-sub);
-}}}}
+}
 
-.ha-kpi {{{{
+.ha-kpi {
   margin-top: 12px;
   display:grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 10px;
-}}}}
-.ha-kpi-item {{{{
+}
+.ha-kpi-item {
   border: 1px solid var(--ha-line);
   border-radius: 16px;
   padding: 12px 12px;
   background: #fff;
-}}}}
-.ha-kpi-num {{{{
+}
+.ha-kpi-num {
   font-size: 26px;
   font-weight: 900;
   color: var(--ha-text);
   line-height: 1.0;
-}}}}
-.ha-kpi-lbl {{{{
+}
+.ha-kpi-lbl {
   margin-top: 6px;
   font-size: 12px;
   color: var(--ha-sub);
   font-weight: 800;
-}}}}
+}
 
-.ha-progress-row {{{{
+.ha-progress-row {
   display:flex;
   align-items:center;
   justify-content:space-between;
   gap: 10px;
   margin-top: 10px;
-}}}}
-.ha-progress {{{{
+}
+.ha-progress {
   width: 100%;
   height: 10px;
   background: #f1f5f9;
   border-radius: 999px;
   overflow:hidden;
   border: 1px solid var(--ha-line);
-}}}}
-.ha-progress > div {{{{
+}
+.ha-progress > div {
   height: 100%;
   background: var(--ha-blue);
   width: 0%;
-}}}}
+}
 
 .ha-chip {
   font-family: var(--ha-font);
-{{{
+{{
   display:inline-flex;
   align-items:center;
   gap:6px;
@@ -173,10 +173,10 @@ def _inject_css() -> None:
   font-weight: 800;
   color: var(--ha-sub);
   white-space: nowrap;
-}}}}
-.ha-chip b {{{{ color: var(--ha-text); }}}}
+}
+.ha-chip b { color: var(--ha-text); }
 
-.ha-badge {{{{
+.ha-badge {
   border: 1px solid rgba(30,107,255,0.25);
   background: rgba(30,107,255,0.08);
   color: var(--ha-blue);
@@ -185,56 +185,56 @@ def _inject_css() -> None:
   font-size: 12px;
   font-weight: 900;
   white-space: nowrap;
-}}}}
+}
 
-.ha-row {{{{
+.ha-row {
   display:flex;
   align-items:center;
   justify-content:space-between;
   gap: 10px;
   flex-wrap: wrap;
-}}}}
-.ha-inline {{{{
+}
+.ha-inline {
   display:flex;
   gap: 8px;
   flex-wrap: wrap;
   align-items:center;
-}}}}
+}
 
-.ha-section {{{{
+.ha-section {
   border: 1px solid var(--ha-line);
   border-radius: 18px;
   padding: 12px 12px;
   background: var(--ha-bg);
   margin: 10px 0;
-}}}}
+}
 
-.ha-card {{{{
+.ha-card {
   border: 1px solid var(--ha-line);
   border-radius: 14px;
   padding: 10px 10px;
   background: #fff;
   margin: 8px 0;
-}}}}
+}
 .ha-card-title {
   font-family: var(--ha-font);
-{{{
+{{
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   font-weight: 900;
   color: var(--ha-text);
   letter-spacing: -0.2px;
-}}}}
-.ha-meta {{{{
+}
+.ha-meta {
   margin-top: 6px;
   font-size: 12px;
   color: var(--ha-sub);
   display:flex;
   flex-wrap:wrap;
   gap: 8px;
-}}}}
+}
 
-.ha-dot {{{{
+.ha-dot {
   width: 7px;
   height: 7px;
   border-radius: 999px;
@@ -242,72 +242,73 @@ def _inject_css() -> None:
   display:inline-block;
   margin-right: 6px;
   opacity: 0.85;
-}}}}
+}
 
 /* mini calendar */
-.ha-week {{{{
+.ha-week {
   margin-top: 10px;
   border: 1px solid var(--ha-line);
   border-radius: 16px;
   padding: 10px 10px;
   background: #fff;
-}}}}
-.ha-week-head {{{{
+}
+.ha-week-head {
   display:flex;
   align-items:center;
   justify-content:space-between;
   gap: 10px;
   margin-bottom: 8px;
-}}}}
-.ha-week-title {{{{
+}
+.ha-week-title {
   font-size: 13px;
   font-weight: 900;
   color: var(--ha-text);
-}}}}
-.ha-week-grid {{{{
+}
+.ha-week-grid {
   display:grid;
   grid-template-columns: repeat(7, 1fr);
   gap: 8px;
-}}}}
-.ha-day {{{{
+}
+.ha-day {
   border: 1px solid var(--ha-line);
   border-radius: 14px;
   padding: 8px 6px;
   text-align:center;
   background: #fff;
-}}}}
-.ha-day-top {{{{
+}
+.ha-day-top {
   font-size: 11px;
   color: var(--ha-sub);
   font-weight: 900;
-}}}}
-.ha-day-num {{{{
+}
+.ha-day-num {
   margin-top: 4px;
   font-size: 16px;
   font-weight: 900;
   color: var(--ha-text);
-}}}}
-.ha-day-sub {{{{
+}
+.ha-day-sub {
   margin-top: 2px;
   font-size: 11px;
   color: var(--ha-sub);
   font-weight: 800;
-}}}}
+}
 
-@media (max-width: 720px) {{{{
-  .ha-kpi {{{{ grid-template-columns: 1fr; }}}}
-  .ha-week-grid {{{{ gap: 6px; }}}}
-}}}}
+@media (max-width: 720px) {
+  .ha-kpi { grid-template-columns: 1fr; }
+  .ha-week-grid { gap: 6px; }
+}
 </style>
 
 /* ✅ 메시지 expander(접고 펴는 창) 자체 디자인 */
-div[data-testid="stExpander"] {{ margin-top: 12px; border: 1px solid var(--ha-line); border-radius: 16px; overflow: hidden; background: #fff; }}
-div[data-testid="stExpander"] > details {{ padding: 0; }}
-div[data-testid="stExpander"] summary {{ padding: 12px 14px !important; background: rgba(30,107,255,0.06); }}
-div[data-testid="stExpander"] summary:hover {{ background: rgba(30,107,255,0.08); }}
-div[data-testid="stExpander"] summary p {{ font-weight: 900 !important; color: var(--ha-text) !important; }}
-div[data-testid="stExpander"] .streamlit-expanderContent {{ padding: 14px 14px 16px 14px !important; }}
-""".format(blue=HATENA_BLUE)
+div[data-testid="stExpander"] { margin-top: 12px; border: 1px solid var(--ha-line); border-radius: 16px; overflow: hidden; background: #fff; }
+div[data-testid="stExpander"] > details { padding: 0; }
+div[data-testid="stExpander"] summary { padding: 12px 14px !important; background: rgba(30,107,255,0.06); }
+div[data-testid="stExpander"] summary:hover { background: rgba(30,107,255,0.08); }
+div[data-testid="stExpander"] summary p { font-weight: 900 !important; color: var(--ha-text) !important; }
+div[data-testid="stExpander"] .streamlit-expanderContent { padding: 14px 14px 16px 14px !important; }
+"""
+    css = css.replace("{blue}", str(HATENA_BLUE))
     st.markdown(css, unsafe_allow_html=True)
 
 
