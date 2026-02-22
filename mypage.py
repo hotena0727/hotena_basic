@@ -191,6 +191,30 @@ def _inject_css() -> None:
 .ha-msg-gap{height:12px;}
 
 /* ✅ messages: expander list (FLAT) */
+
+/* ✅ force-kill expander outer box border */
+.ha-msg-scope div[data-testid="stExpander"] > details{
+  border:0 !important;
+  outline:0 !important;
+  box-shadow:none !important;
+  background:transparent !important;
+  border-radius:0 !important;
+}
+.ha-msg-scope div[data-testid="stExpander"] > details[open]{
+  border:0 !important;
+  outline:0 !important;
+  box-shadow:none !important;
+  background:transparent !important;
+  border-radius:0 !important;
+}
+.ha-msg-scope div[data-testid="stExpander"]{
+  border:0 !important;
+  outline:0 !important;
+  box-shadow:none !important;
+  background:transparent !important;
+  border-radius:0 !important;
+}
+
 .ha-msg-scope{margin-top:6px;}
 /* remove expander outer box completely */
 .ha-msg-scope div[data-testid="stExpander"]{
@@ -223,13 +247,13 @@ def _inject_css() -> None:
 }
 /* remove content card padding from streamlit */
 .ha-msg-scope div[data-testid="stExpander"] .streamlit-expanderContent{
-  padding:14px 12px 26px 12px !important;
+  padding:14px 12px 28px 12px !important;
   border:0 !important;
   background:transparent !important;
 }
 /* body: white + only left bar (no card-in-card) */
 .ha-msg-bodyA{
-  margin-top:10px;
+  margin-top:14px;
   padding:0; /* spacing handled by expander content padding */
   background:transparent;
   border:0;
