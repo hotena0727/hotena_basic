@@ -51,6 +51,48 @@ def _inject_css() -> None:
   --ha-soft: rgba(30,107,255,0.08);
 }
 
+/* ============================================================
+   ✅ TOP COMPACT + NO VERTICAL CENTER (MyPage only)
+   - Streamlit 기본 상단 여백 제거
+   - 혹시 적용된 세로 중앙정렬(flex center) 강제 해제
+   ============================================================ */
+
+header[data-testid="stHeader"]{ height:0px !important; min-height:0px !important; }
+div[data-testid="stToolbar"]{ display:none !important; }
+footer{ display:none !important; }
+
+section.main > div.block-container{
+  padding-top: 0rem !important;
+  margin-top: 0rem !important;
+  padding-bottom: 1.2rem !important;
+}
+
+/* 세로 가운데 정렬을 만드는 래퍼 강제 해제 */
+div[data-testid="stAppViewContainer"] section.main,
+div[data-testid="stAppViewContainer"] .main{
+  justify-content: flex-start !important;
+  align-items: stretch !important;
+}
+
+/* 일부 빌드에서 main이 flex+center로 잡히는 경우 */
+div[data-testid="stAppViewContainer"] .main > div{
+  justify-content: flex-start !important;
+  align-items: stretch !important;
+}
+
+/* 첫 요소 상단 여백도 제거 */
+div.block-container > div:first-child{
+  margin-top: 0rem !important;
+  padding-top: 0rem !important;
+}
+
+@media (max-width: 768px){
+  section.main > div.block-container{
+    padding-top: 0rem !important;
+    margin-top: 0rem !important;
+  }
+}
+
 .ha-wrap {
   font-family: Pretendard, 'Noto Sans KR', 'Apple SD Gothic Neo', ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
   -webkit-font-smoothing: antialiased;
