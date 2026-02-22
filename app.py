@@ -1930,17 +1930,7 @@ def render_home():
     page_title = "👤 마이페이지" if st.session_state.get("page") == "my" else "✨하테나일본어 한자정복"
 
 
-    st.markdown(
-        f"""
-<div class="jp headbar">
-  <div class="headtitle">{page_title}</div>
-  <div class="headhello">환영합니다 🙂 <span class="mail">{email}</span></div>
-</div>
-""",
-        unsafe_allow_html=True
-    )
-
-    quotes = [
+        quotes = [
         "배움은 매일 새로 시작해도 늦지 않다.",
         "오늘의 한 문제는 내일의 자신감이다.",
         "조금이라도 손을 움직인 날은 실패가 아니다.",
@@ -2037,7 +2027,6 @@ if st.session_state.get("page") != "home":
         f"""
 <div class="jp headbar">
   <div class="headtitle">{_title}</div>
-  <div class="headhello">환영합니다 🙂 <span class="mail">{email}</span></div>
 </div>
 """,
         unsafe_allow_html=True
@@ -2167,9 +2156,6 @@ def render_kanji_hub(HUB_MODE: bool = False):
     # ----------------------------
     # 1) 레벨 버튼(N5~N1) 먼저
     # ----------------------------
-    
-    st.markdown('<div class="qtype_hint jp">✨레벨을 선택하세요</div>', unsafe_allow_html=True)
-
     level_cols = st.columns(len(LEVEL_OPTIONS), gap="small")
     for i, lv in enumerate(LEVEL_OPTIONS):
         is_selected_lv = (lv == st.session_state.level)
@@ -2187,12 +2173,11 @@ def render_kanji_hub(HUB_MODE: bool = False):
                 args=(lv,),
             )
 
+    st.markdown('<div class="qtype_hint jp">✨레벨을 선택하세요</div>', unsafe_allow_html=True)
+
     # ----------------------------
     # 2) 유형 버튼(발음/뜻/한→일)
     # ----------------------------
-    
-    st.markdown('<div class="qtype_hint jp">✨유형을 선택하세요</div>', unsafe_allow_html=True)
-
     type_cols = st.columns(len(available_types), gap="small")
     for i, qt in enumerate(available_types):
         is_selected = (qt == st.session_state.quiz_type)
@@ -2209,6 +2194,8 @@ def render_kanji_hub(HUB_MODE: bool = False):
                 on_click=on_pick_qtype,
                 args=(qt,),
             )
+
+    st.markdown('<div class="qtype_hint jp">✨유형을 선택하세요</div>', unsafe_allow_html=True)
 
     st.markdown('</div>', unsafe_allow_html=True)
 
