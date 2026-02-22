@@ -1393,7 +1393,7 @@ def render_hub_page_title(page: str):
     }
 
     title_main = "✨ 왕초보 탈출 하테나일본어" if page == "home" else main_map.get(page, "")
-    title_sub = "" if page == "home" else "하테나일본어"
+    title_sub = ""
 
     if not title_main:
         return

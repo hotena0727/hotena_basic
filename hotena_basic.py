@@ -2990,6 +2990,7 @@ def render_plan_banner():
 render_topcard()
 render_plan_banner()
 render_sound_toggle()
+HUB_MODE = st.session_state.get('HUB_MODE', False)  # refresh
 
 if not st.session_state.get("HUB_MODE", False):
     streak = st.session_state.get("streak_count")
