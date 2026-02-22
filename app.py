@@ -28,6 +28,69 @@ if not st.session_state.get("_page_config_set"):
     st.set_page_config(page_title="Hotena", layout="centered")
     
 
+
+
+# ============================================================
+# ✅ 빈 components.html iframe(회색 블록) 자동 제거
+# - F5(하드 새로고침) 후에도 남는 '스크립트 주입용' 빈 iframe을 DOM에서 숨김
+# - 실제 UI용 HTML iframe을 쓰는 경우엔(내용이 있으면) 숨기지 않음
+# ============================================================
+try:
+    import streamlit.components.v1 as components
+    components.html("""
+<script>
+(function(){
+  function cleanEmptyHtmlIframes(){
+    try{
+      var doc = (window.parent && window.parent.document) ? window.parent.document : document;
+      var iframes = doc.querySelectorAll('iframe[title="streamlit.components.v1.html"]');
+      iframes.forEach(function(fr){
+        try{
+          var cd = fr.contentDocument;
+          if(!cd || !cd.body) return;
+          var kids = Array.from(cd.body.children || []);
+          var nonScript = kids.filter(function(el){
+            var t = (el.tagName||'').toUpperCase();
+            return t !== 'SCRIPT' && t !== 'STYLE';
+          });
+          var text = (cd.body.textContent || '').trim();
+          // 내용이 없고(script/style만 있거나) 텍스트가 비면 '빈 iframe'으로 간주
+          if(nonScript.length === 0 && text === ''){
+            fr.style.height = '0px';
+            fr.style.minHeight = '0px';
+            fr.style.display = 'none';
+            // Streamlit 래퍼까지 숨겨 gap 제거
+            var wrap = fr.closest('[data-testid="stIFrame"]') || fr.parentElement;
+            if(wrap){
+              wrap.style.height = '0px';
+              wrap.style.minHeight = '0px';
+              wrap.style.margin = '0';
+              wrap.style.padding = '0';
+              wrap.style.display = 'none';
+            }
+          }
+        }catch(e){}
+      });
+    }catch(e){}
+  }
+
+  cleanEmptyHtmlIframes();
+  setTimeout(cleanEmptyHtmlIframes, 80);
+  setTimeout(cleanEmptyHtmlIframes, 250);
+  setTimeout(cleanEmptyHtmlIframes, 700);
+
+  var n = 0;
+  var iv = setInterval(function(){
+    cleanEmptyHtmlIframes();
+    n++;
+    if(n >= 20) clearInterval(iv);
+  }, 450);
+})();
+</script>
+""", height=0)
+except Exception:
+    pass
+
 # ============================================================
 # ✅ TOP SPACING FIX (PC + Mobile)
 # - Remove Streamlit's default top padding/space
@@ -309,7 +372,7 @@ def scroll_to_top(nonce: int = 0):
         </script>
         <!-- nonce:{nonce} -->
         """,
-        height=0,
+        height=1,
     )
 
 def render_floating_scroll_top():
@@ -419,7 +482,7 @@ def render_floating_scroll_top():
 })();
 </script>
         """,
-        height=0,
+        height=1,
     )
 
 render_floating_scroll_top()
