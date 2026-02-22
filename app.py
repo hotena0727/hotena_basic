@@ -5,17 +5,6 @@ from pathlib import Path
 import random
 import pandas as pd
 import streamlit as st
-
-# ============================================================
-# ✅ wrong_notes debug helper
-# ============================================================
-_WN_DEBUG = bool(st.session_state.get("is_admin", False)) or bool(st.session_state.get("is_admin_cached", False))
-def _wn_warn(msg: str):
-    if _WN_DEBUG:
-        try:
-            st.warning(msg)
-        except Exception:
-            pass
 import unicodedata
 from supabase import create_client
 from streamlit_cookies_manager import EncryptedCookieManager
@@ -459,34 +448,6 @@ if st.session_state.level not in LEVEL_OPTIONS:
     st.session_state.level = "N5"
 if st.session_state.quiz_type not in QUIZ_TYPES_USER:
     st.session_state.quiz_type = "reading"
-
-# ---- 한자 퀴즈 필수 세션 기본값 ----
-if "quiz" not in st.session_state:
-    st.session_state.quiz = []
-
-if "answers" not in st.session_state:
-    st.session_state.answers = []
-
-if "submitted" not in st.session_state:
-    st.session_state.submitted = False
-
-if "wrong_list" not in st.session_state:
-    st.session_state.wrong_list = []
-
-if "quiz_version" not in st.session_state:
-    st.session_state.quiz_version = 0
-
-if "saved_this_attempt" not in st.session_state:
-    st.session_state.saved_this_attempt = False
-
-if "stats_saved_this_attempt" not in st.session_state:
-    st.session_state.stats_saved_this_attempt = False
-
-if "session_stats_applied_this_attempt" not in st.session_state:
-    st.session_state.session_stats_applied_this_attempt = False
-
-if "progress_dirty" not in st.session_state:
-    st.session_state.progress_dirty = False
   
 # ============================================================
 # ✅ Utils: 위젯 잔상(q_...) 제거
@@ -2046,7 +2007,8 @@ if "level" not in st.session_state:
     st.session_state.level = "N5"
 
 # title (home 제외: 페이지별로 제목 다르게)
-if st.session_state.get("page") != "home":
+# ✅ HUB_MODE일 때는 home.py에서 이미 헤더를 렌더링하므로 중복 방지
+if (not st.session_state.get("HUB_MODE")) and st.session_state.get("page") != "home":
     u = st.session_state.get("user")
     email = (getattr(u, "email", None) if u else None) or st.session_state.get("login_email", "")
 
@@ -2418,37 +2380,6 @@ def render_kanji_hub(HUB_MODE: bool = False):
                 })
 
         st.session_state.wrong_list = wrong_list
-            # ============================================================
-        # ✅ 오답 상세 저장 (wrong_notes) — 반복오답/Top10 복습용
-rows = []
-sb_authed = get_authed_sb()
-u_id = getattr(st.session_state.get("user"), "id", None)
-if not u_id and st.session_state.get("access_token"):
-    try:
-        u = sb.auth.get_user(st.session_state.get("access_token"))
-        u_id = getattr(getattr(u, "user", None), "id", None) or getattr(u, "id", None)
-    except Exception:
-        u_id = None
-
-if sb_authed is None:
-    _wn_warn("오답 저장 실패: authed client 없음(access_token).")
-elif not u_id:
-    _wn_warn("오답 저장 실패: user_id(uid) 없음. 로그인 세션을 확인하세요.")
-else:
-    for w in (st.session_state.get("wrong_list") or []):
-        rows.append({
-            "user_id": str(u_id),
-            "quiz_type": "kanji",
-            "question": str(w.get("단어") or w.get("question") or ""),
-            "correct_answer": str(w.get("정답") or w.get("correct") or ""),
-            "user_answer": str(w.get("내 답") or w.get("user") or ""),
-            "level": str(st.session_state.get("level", "") or ""),
-        })
-    if rows:
-        try:
-            sb_authed.table("wrong_notes").insert(rows).execute()
-        except Exception as e:
-            _wn_warn(f"오답 저장 실패: {e}")
 
         quiz_len = len(st.session_state.quiz)
         st.success(f"점수: {score} / {quiz_len}")
@@ -2622,7 +2553,7 @@ else:
     # ============================================================
     # ✅ 오답노트 + 다시풀기
     # ============================================================
-    if st.session_state.get("submitted", False) and st.session_state.get("wrong_list"):
+    if st.session_state.submitted and st.session_state.wrong_list:
         st.subheader("❌ 오답 노트")
 
         st.markdown(
