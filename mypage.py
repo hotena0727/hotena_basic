@@ -190,12 +190,20 @@ def _inject_css() -> None:
 /* ✅ messages: card list + spacing */
 .ha-msg-gap{height:12px;}
 
-/* ✅ messages: expander list (stable, no big rounded button) */
-.ha-msg-scope{margin-top:8px;}
+/* ✅ messages: expander list (FLAT) */
+.ha-msg-scope{margin-top:6px;}
+/* remove expander outer box completely */
+.ha-msg-scope div[data-testid="stExpander"]{
+  border:0 !important;
+  background:transparent !important;
+  border-radius:0 !important;
+  box-shadow:none !important;
+}
 .ha-msg-scope div[data-testid="stExpander"] details{
   border:0 !important;
   background:transparent !important;
   border-radius:0 !important;
+  box-shadow:none !important;
 }
 .ha-msg-scope div[data-testid="stExpander"] summary{
   padding:10px 2px !important;
@@ -209,30 +217,41 @@ def _inject_css() -> None:
 .ha-msg-scope div[data-testid="stExpander"] summary:hover{
   background:#fbfbfd !important;
 }
+/* hide default chevron */
 .ha-msg-scope div[data-testid="stExpander"] summary svg{
-  display:none !important; /* hide default chevron */
+  display:none !important;
 }
+/* remove content card padding from streamlit */
 .ha-msg-scope div[data-testid="stExpander"] .streamlit-expanderContent{
   padding:10px 0 12px 0 !important;
+  border:0 !important;
+  background:transparent !important;
 }
+/* body: white + only left bar (no card-in-card) */
 .ha-msg-bodyA{
   margin-top:0;
-  padding:10px 12px;
-  background:#f8fafc;
-  border:1px solid var(--ha-line);
-  border-radius:12px;
+  padding:0;
+  background:transparent;
+  border:0;
+  border-radius:0;
   line-height:1.75;
   position:relative;
 }
-.ha-msg-bodyA:before{
+.ha-msg-bodyA-inner{
+  padding:10px 12px 10px 18px;
+  background:transparent;
+  border:0;
+  border-radius:0;
+  position:relative;
+}
+.ha-msg-bodyA-inner:before{
   content:"";
   position:absolute;
-  left:0; top:10px; bottom:10px;
+  left:8px; top:10px; bottom:10px;
   width:3px;
   background:rgba(37,99,235,0.55);
   border-radius:99px;
 }
-.ha-msg-bodyA-inner{padding-left:10px;}
 
 
 /* ✅ messages: inbox list style (A) */
@@ -1454,7 +1473,7 @@ def _render_msgs(msgs: List[Dict[str, Any]]) -> None:
         chip = "읽지 않음" if is_unread else "읽음"
         dot = "● " if is_unread else ""
 
-        label = f"{dot}{title}   ·   {dt}   ·   {chip}"
+        label = f"{dot}{title} · {dt} · {chip}"
 
         with st.expander(label, expanded=False):
             safe_body = _escape_html(body).replace("\n", "<br>")
