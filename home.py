@@ -103,46 +103,6 @@ import html as html_module  # ✅ for html escaping in admin cards
 st.set_page_config(page_title="Hotena Hub", layout="centered")
 
 
-
-
-# ============================================================
-# ✅ F5(새로고침) 시 스크롤 복원 방지 (부모 문서 기준으로 항상 맨 위로)
-# ============================================================
-try:
-    import streamlit.components.v1 as components
-    components.html("""
-<script>
-(function() {
-  function topScroll() {
-    try {
-      var w = window.parent || window;
-      if (w.history && 'scrollRestoration' in w.history) {
-        w.history.scrollRestoration = 'manual';
-      }
-      w.scrollTo(0, 0);
-      if (w.document && w.document.documentElement) w.document.documentElement.scrollTop = 0;
-      if (w.document && w.document.body) w.document.body.scrollTop = 0;
-    } catch(e) {}
-  }
-  topScroll();
-  setTimeout(topScroll, 50);
-  setTimeout(topScroll, 200);
-  setTimeout(topScroll, 600);
-  try {
-    var n = 0;
-    function rafLoop(){
-      topScroll();
-      n++;
-      if (n < 20) requestAnimationFrame(rafLoop);
-    }
-    requestAnimationFrame(rafLoop);
-  } catch(e) {}
-})();
-</script>
-""", height=0)
-except Exception:
-    pass
-
 # ============================================================
 # ✅ TOP SPACING FIX (PC + Mobile)
 # - Remove Streamlit's default top padding/space
@@ -176,6 +136,19 @@ div[data-testid="stToolbar"]{
   visibility:hidden !important;
 }
 footer{display:none !important;}
+
+/* ✅ 더 안정적인 타겟(단일 메인 컨테이너): Streamlit DOM이 바뀌어도 고정 */
+div[data-testid="stMainBlockContainer"]{
+  padding-top: 0rem !important;
+  margin-top: 0rem !important;
+}
+/* 첫 요소 상단 여백 제거(메인 컨테이너 한정) */
+div[data-testid="stMainBlockContainer"] > div:first-child{
+  margin-top: 0rem !important;
+  padding-top: 0rem !important;
+}
+
+
 
 /* Container spacing: pull content to the very top */
 div[data-testid="stAppViewContainer"]{
