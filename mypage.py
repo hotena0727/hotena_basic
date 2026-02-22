@@ -192,6 +192,13 @@ def _inject_css() -> None:
 
 /* ✅ messages: expander list (FLAT) */
 
+/* ✅ extra breathing room so expanded body never touches the outer (card) border */
+.ha-card .ha-msg-scope{padding:0 0 16px 0;}
+.ha-card .ha-msg-scope div[data-testid="stExpander"] .streamlit-expanderContent{
+  padding:14px 14px 32px 14px !important; /* stronger */
+}
+
+
 /* ✅ force-kill expander outer box border */
 .ha-msg-scope div[data-testid="stExpander"] > details{
   border:0 !important;
