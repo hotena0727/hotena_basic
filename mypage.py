@@ -846,40 +846,35 @@ def _inject_css() -> None:
 }
 
 
-
 /* ============================================================
-   ✅ V4.9.17 (messages ONLY): 리스트 간격 '사진처럼' 초밀착
-   - 다른 탭/기록/오답 CSS는 건드리지 않음
-   - Streamlit이 expander를 감싸는 컨테이너 기본 마진을 메시지 스코프에서만 0으로
+   ✅ 메시지 목록 간격만 "붙게" (iframe 카드 포함)
+   - 다른 탭 영향 X: .ha-msg-scope 안에서만 적용
    ============================================================ */
-
-/* expander를 감싸는 wrapper(여기가 실제 '뜸' 원인) */
-.ha-msg-scope .element-container,
 .ha-msg-scope div[data-testid="stElementContainer"],
+.ha-msg-scope .element-container,
 .ha-msg-scope div[data-testid="stVerticalBlock"] > div,
 .ha-msg-scope div[data-testid="stVerticalBlock"] > div > div{
   margin: 0 !important;
   padding: 0 !important;
 }
 
-/* vertical gap 제거 */
-.ha-msg-scope div[data-testid="stVerticalBlock"]{
-  gap: 0 !important;
+/* iframe 카드(components.html) 아래쪽 기본 여백 제거 */
+.ha-msg-scope iframe{
+  display:block !important;
+  margin: 0 !important;
 }
 
-/* expander 사이: 완전 밀착 */
+/* iframe 카드들 사이 간격: 0~2px (완전 붙이려면 0) */
+.ha-msg-scope div[data-testid="stElementContainer"] + div[data-testid="stElementContainer"]{
+  margin-top: 2px !important;
+}
+
+/* expander를 쓰는 경우도 동일하게 붙이기 */
 .ha-msg-scope div[data-testid="stExpander"]{
   margin: 0 !important;
 }
 .ha-msg-scope div[data-testid="stExpander"] + div[data-testid="stExpander"]{
-  margin-top: 0 !important;
-}
-
-/* 접힌 한 줄(박스) 자체도 높이 줄이기 */
-.ha-msg-scope div[data-testid="stExpander"] summary{
-  margin: 0 !important;
-  padding-top: 4px !important;
-  padding-bottom: 4px !important;
+  margin-top: 2px !important;
 }
 
 </style>"""
@@ -902,8 +897,14 @@ def _escape_html(s: str) -> str:
     return (s or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 def _card_iframe_html(title: str, meta_html: str, body_html: str = "") -> str:
-    return f"""<!doctype html>
-<html><head><meta charset="utf-8"/>
+    """Small HTML card rendered inside components.html iframe.
+
+    NOTE: Keep this function extremely simple to avoid accidental CSS/Python leakage.
+    """
+    html = f"""<!doctype html>
+<html>
+<head>
+<meta charset="utf-8"/>
 <style>
 :root {{
   --ha-blue: {HATENA_BLUE};
@@ -911,9 +912,13 @@ def _card_iframe_html(title: str, meta_html: str, body_html: str = "") -> str:
   --ha-sub: #64748b;
   --ha-line: #e5e7eb;
   --ha-chip: #f1f5f9;
-  --ha-soft: rgba(30,107,255,0.08);
 }}
-body {{ margin:0; font-family: Pretendard, 'Noto Sans KR', 'Apple SD Gothic Neo', ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }}
+body {{
+  margin:0;
+  font-family: Pretendard, 'Noto Sans KR', 'Apple SD Gothic Neo', ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}}
 .card {{
   border: 1px solid var(--ha-line);
   border-radius: 14px;
@@ -949,79 +954,24 @@ body {{ margin:0; font-family: Pretendard, 'Noto Sans KR', 'Apple SD Gothic Neo'
   white-space: nowrap;
 }}
 .chip b {{ color: var(--ha-text); }}
-.badge {{
-  border: 1px solid rgba(30,107,255,0.25);
-  background: rgba(30,107,255,0.08);
-  color: var(--ha-blue);
-  border-radius: 999px;
-  padding: 3px 8px;
-  font-size: 12px;
-  font-weight: 900;
-  white-space: nowrap;
-}}
 .body {{
   margin-top: 8px;
   color: var(--ha-text);
   font-size: 14px;
   line-height: 1.55;
 }}
-
-/* ============================================================
-   ✅ 메시지 목록 "큰 공백" 제거 (중요)
-   - 각 항목마다 st.markdown('<div>') / st.markdown('</div>')로 생기는
-     빈 Markdown 블록의 기본 여백을 0으로 눌러서 리스트를 붙입니다.
-   ============================================================ */
-
-/* Streamlit markdown 블록 자체 여백 제거 (메시지 스코프 한정) */
-.ha-msg-scope div[data-testid="stMarkdown"]{
-  margin: 0 !important;
-  padding: 0 !important;
-}
-.ha-msg-scope div[data-testid="stMarkdown"] > div{
-  margin: 0 !important;
-  padding: 0 !important;
-}
-
-/* wrapper div(읽음/안읽음) 자체가 줄간격을 만들지 않게 */
-.ha-msg-scope .ha-msg-unread,
-.ha-msg-scope .ha-msg-read,
-.ha-msg-scope > div{
-  margin: 0 !important;
-  padding: 0 !important;
-}
-
-/* wrapper를 레이아웃에서 제거(간격 생성 방지) */
-.ha-msg-scope .ha-msg-unread,
-.ha-msg-scope .ha-msg-read{
-  display: contents !important;
-}
-
-</style></head>
+</style>
+</head>
 <body>
   <div class="card">
-    <div class="title">{_escape_html(title)}</div>
+    <div class="title">{title}</div>
     <div class="meta">{meta_html}</div>
-    {('<div class="body">'+body_html+'</div>') if body_html else ''}
+    {f'<div class="body">{body_html}</div>' if body_html else ''}
   </div>
-</body></html>"""
-# ---------------------------
-# Data loaders (RLS-safe)
-# ---------------------------
-def _safe_select(table: str, cols: str = "*", limit: int = 200, order: Optional[str] = None, desc: bool = True) -> List[Dict[str, Any]]:
-    sb = _sb()
-    if not sb:
-        return []
-    try:
-        q = sb.table(table).select(cols)
-        if order:
-            q = q.order(order, desc=desc)
-        if limit:
-            q = q.limit(limit)
-        res = q.execute()
-        data = getattr(res, "data", None)
-        return data if isinstance(data, list) else []
-    except Exception:
-        return []
+</body>
+</html>"""
+    return html
+
 
 
 def _load_wrongs(limit: int = 400) -> Tuple[List[Dict[str, Any]], str]:
