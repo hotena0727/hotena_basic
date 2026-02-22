@@ -80,11 +80,7 @@ def ensure_core(
             st.error("streamlit-cookies-manager가 설치되지 않았습니다.")
             st.stop()
 
-        # ✅ cookies manager: singleton (avoid duplicate component iframes)
-if "cookies" not in st.session_state or st.session_state.get("cookies") is None:
-    st.session_state["cookies"] = EncryptedCookieManager(prefix=cookie_prefix, password=str(cfg["COOKIE_PASSWORD"]))
-cookies = st.session_state["cookies"]
-)
+        cookies = EncryptedCookieManager(prefix=cookie_prefix, password=str(cfg["COOKIE_PASSWORD"]))
         if not cookies.ready():
             st.info("잠깐만요! 곧 시작할게요🙂")
             st.stop()
