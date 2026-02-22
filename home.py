@@ -107,10 +107,9 @@ st.set_page_config(page_title="Hotena Hub", layout="centered")
 
 # ============================================================
 # ✅ F5(새로고침) 시 스크롤 복원 방지 (부모 문서 기준으로 항상 맨 위로)
-# - components.html은 iframe 안에서 실행되므로 window.parent를 조작해야 함
 # ============================================================
 try:
-    import streamlit.components.v1 as components  # already present in many files
+    import streamlit.components.v1 as components
     components.html("""
 <script>
 (function() {
@@ -125,12 +124,10 @@ try:
       if (w.document && w.document.body) w.document.body.scrollTop = 0;
     } catch(e) {}
   }
-
   topScroll();
   setTimeout(topScroll, 50);
   setTimeout(topScroll, 200);
   setTimeout(topScroll, 600);
-
   try {
     var n = 0;
     function rafLoop(){
