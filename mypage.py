@@ -252,6 +252,18 @@ def _load_attempts(limit: int = 80) -> Tuple[List[Dict[str, Any]], Optional[str]
         return [], "학습 기록을 불러올 수 없습니다. (RLS 또는 테이블 확인)"
 
 
+
+
+def _load_messages(limit: int = 200) -> List[Dict[str, Any]]:
+    sb = _sb()
+    if not sb:
+        return []
+    try:
+        r = sb.table("user_messages").select("*").order("created_at", desc=True).limit(limit).execute()
+        return getattr(r, "data", None) or []
+    except Exception:
+        return []
+
 def _type_label(raw: str) -> str:
     m = {"word": "단어", "kanji": "한자", "talk": "회화"}
     return m.get((raw or "").lower(), (raw or "").upper() or "QUIZ")
