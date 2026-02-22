@@ -1,7 +1,7 @@
 # home.py
 from __future__ import annotations
 
-BUILD_STAMP = 'home-clean-no-spacer-v2 2026-02-22 KST (+09:00)'
+BUILD_STAMP = 'home-clean-no-spacer-v3 (fix run_module reload) 2026-02-22 KST (+09:00)'
 from pathlib import Path
 import os
 import runpy
@@ -19,14 +19,23 @@ import streamlit.components.v1 as components
 # - Import (or reload) a module by name so it renders in the SAME Streamlit flow
 # ============================================================
 def run_module(module_name: str):
+    """Import (or reload) a module by name so it renders in the SAME Streamlit flow.
+
+    IMPORTANT:
+    - Do NOT import + reload in the same run (it executes the module twice),
+      which can cause StreamlitDuplicateElementKey for widgets defined at import time.
+    """
     try:
-        mod = importlib.import_module(module_name)
-        importlib.reload(mod)  # reflect latest edits during dev
+        import sys
+        if module_name in sys.modules:
+            mod = importlib.reload(sys.modules[module_name])
+        else:
+            mod = importlib.import_module(module_name)
+
         # If module exposes a render() function, call it.
         if hasattr(mod, "render") and callable(getattr(mod, "render")):
             mod.render()
     except Exception as e:
-        # Surface useful error in-app
         st.exception(e)
         raise
 
