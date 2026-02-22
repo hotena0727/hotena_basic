@@ -62,6 +62,7 @@ def _js_bridge_localstorage_to_queryparam(ls_key: str, qp_key: str):
 }})();
 </script>""".replace("LS_KEY", ls_key).replace("QP_KEY", qp_key),
             height=0,
+            height=0,
         )
     except Exception:
         pass
@@ -112,16 +113,14 @@ if not st.session_state.get("_top_compact_css_applied"):
     st.markdown("""<style>
 /* === Hotena: ultra-compact top spacing (mobile + desktop) === */
 /* 핵심: block-container의 기본 top padding 제거 + 첫 요소 여백 제거 */
-/* ✅ Only the FIRST main block-container (prevents side effects on nested containers) */
-div[data-testid="stAppViewContainer"] div.block-container:first-of-type,
-section.main div.block-container:first-of-type {
+section.main > div.block-container,
+div[data-testid="stAppViewContainer"] > div.block-container {
   padding-top: 0rem !important;
   margin-top: 0rem !important;
 }
 
 /* 첫 요소(메뉴/버튼 래퍼) 상단 여백 제거 */
-div[data-testid="stAppViewContainer"] div.block-container:first-of-type > div:first-child,
-section.main div.block-container:first-of-type > div:first-child {
+div.block-container > div:first-child {
   margin-top: 0rem !important;
   padding-top: 0rem !important;
 }
@@ -163,9 +162,8 @@ div[data-testid="stAppViewContainer"]{
   margin-top: 0 !important;
 }
 
-/* Tighten very top whitespace (first main container only) */
-div[data-testid="stAppViewContainer"] div.block-container:first-of-type > div:first-child { margin-top: 0 !important; }
-section.main div.block-container:first-of-type > div:first-child { margin-top: 0 !important; }
+/* Tighten very top whitespace */
+.block-container > div:first-child { margin-top: 0 !important; }
 
 /* Buttons: minimum tap size + readable text */
 div[data-testid="stAppViewContainer"] .stButton > button,
@@ -210,7 +208,7 @@ div[data-testid="stMetric"]{
   div[data-testid="stAppViewContainer"] .block-container{
     padding-left: 1.0rem !important;
     padding-right: 1.0rem !important;
-    padding-top: 0rem !important;
+    padding-top: 0.15rem !important;
     padding-bottom: 6.0rem !important;
   }
 
