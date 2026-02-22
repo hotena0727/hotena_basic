@@ -268,10 +268,19 @@ def _inject_css() -> None:
   line-height:1.75;
 }
 .ha-msg-bodyA-inner{
-  padding:10px 12px 14px 12px;
+  padding:10px 12px 14px 18px;
   background:#f8fafc;
-  border:1px solid var(--ha-line);
+  border:0;
   border-radius:12px;
+  position:relative;
+}
+.ha-msg-bodyA-inner:before{
+  content:"";
+  position:absolute;
+  left:8px; top:10px; bottom:10px;
+  width:3px;
+  background:rgba(37,99,235,0.55);
+  border-radius:99px;
 }
 
 
@@ -331,7 +340,7 @@ def _inject_css() -> None:
   margin-top:8px;
   padding:10px 12px;
   background:#f8fafc;
-  border:1px solid var(--ha-line);
+  border:0;
   border-radius:12px;
   line-height:1.75;
   position:relative;
@@ -384,7 +393,7 @@ def _inject_css() -> None:
   background:transparent !important;
 }
 .ha-msg-row{
-  border:1px solid var(--ha-line);
+  border:0;
   border-radius:14px;
   background:#fff;
   padding:10px 12px;
@@ -401,7 +410,7 @@ def _inject_css() -> None:
   gap:8px;
 }
 .ha-msg-body{
-  border:1px solid var(--ha-line);
+  border:0;
   border-radius:14px;
   background:#f8fafc;
   padding:12px 12px;
@@ -412,7 +421,7 @@ def _inject_css() -> None:
 }
 
 .ha-msg-card{
-  border:1px solid var(--ha-line);
+  border:0;
   border-radius:14px;
   background:#fff;
   padding:12px 14px;
@@ -542,7 +551,7 @@ def _inject_css() -> None:
 /* ✅ messages: clean minimal toggle row */
 .ha-msg-scope{margin-top:8px;}
 .ha-msg-row{
-  border:1px solid var(--ha-line);
+  border:0;
   border-radius:14px;
   background:#fff;
   padding:10px 12px;
@@ -615,7 +624,7 @@ def _inject_css() -> None:
   margin-left:2px;
 }
 .ha-msg-body2{
-  border:1px solid var(--ha-line);
+  border:0;
   border-radius:14px;
   background:#f8fafc;
   padding:12px 12px;
