@@ -7,16 +7,15 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 # ============================================================
-# ✅ MyPage (Redesign v5)
-# - Fix #1: "Lv noun / 기타" 레거시 정규화 강화 + '기타' 최소화
-# - Fix #2: 상단 CTA(오답복습/기록보기/메시지확인) 제거 → 하단 뷰 스위처만 유지
-# - Fix #3: 오답 데이터 미로딩 대응:
-#     - wrong_notes가 비면 wrong_note / wrongs 테이블도 순차 시도(레거시 호환)
-# - Feature #4: 오답으로 시험보기(간단 퀴즈) 추가
-# - Fix #5: 메시지 탭을 "리스트(좌) + 미리보기(우)" 형태로 예쁘게(Expander 제거)
+# ✅ MyPage (Redesign v6 • "비주얼 복구" 안정판)
+# - v5가 "개발자 느낌"이었던 이유: Streamlit 기본 위젯(버튼/캡션) 중심 렌더링 때문
+# - v6는 다시 '카드형 UI'로 복구하되, HTML이 코드로 노출되는 문제를 막기 위해
+#   기록/메시지 '카드'는 components.html(iframe)로 렌더링합니다. (태그 노출 0%)
+# - 오답 로딩: wrong_notes → wrong_note → wrongs 자동 탐색 유지
+# - 오답 탭: 오답으로 시험보기 유지(간단 4지선다)
 #
 # ⚠️ 참고:
-#  - "프로 이용중입니다 / 관리자 메세지" 상단 배너는 mypage가 아니라 home.py(허브 상단)에서 출력됩니다.
+#  - "프로 이용중입니다 / 관리자 메세지" 배너는 mypage가 아니라 home.py(허브 상단)에서 출력됩니다.
 # ============================================================
 
 KST = timezone(timedelta(hours=9))
@@ -36,7 +35,7 @@ def _sb() -> Any:
     return sb
 
 # ---------------------------
-# CSS (chips only; no inline HTML cards)
+# CSS
 # ---------------------------
 def _inject_css() -> None:
     st.markdown(
@@ -161,6 +160,12 @@ def _inject_css() -> None:
   margin: 10px 0;
 }}
 
+.ha-hr {{
+  height: 1px;
+  background: var(--ha-line);
+  margin: 10px 0;
+}}
+
 @media (max-width: 720px) {{
   .ha-kpi {{ grid-template-columns: 1fr; }}
 }}
@@ -195,7 +200,6 @@ def _safe_select(table: str, cols: str = "*", limit: int = 200, order: Optional[
         return []
 
 def _load_wrongs(limit: int = 400) -> Tuple[List[Dict[str, Any]], str]:
-    # 레거시 호환: wrong_notes → wrong_note → wrongs
     cols = "id, user_id, app, level, jp_word, reading, meaning, correct_answer, user_answer, created_at"
     for table in ("wrong_notes", "wrong_note", "wrongs"):
         rows = _safe_select(table, cols=cols, limit=limit, order="created_at", desc=True)
@@ -256,30 +260,26 @@ def _normalize_attempt(a: Dict[str, Any]) -> Dict[str, Any]:
     pos = (a.get("pos") or "").strip()
     level = (a.get("level") or "").strip()
 
-    # app에 pos가 들어간 경우
     if _looks_like_pos(app) and not pos:
         a["pos"] = app
         a["app"] = "word"
         app = "word"
 
-    # level에 pos가 들어간 경우 (Lv noun 방지)
     if _looks_like_pos(level) and not pos:
         a["pos"] = level
         a["level"] = ""
         level = ""
 
-    # app이 비었는데 pos만 있다 → 단어로 간주
     if not app and pos:
         a["app"] = "word"
 
-    # app이 이상한 값인데 pos가 있으면 → 단어로 간주 (기타 최소화)
     if app and (not _looks_like_app(app)) and (pos or _looks_like_pos(app) or _looks_like_pos(level)):
         a["app"] = "word"
 
     return a
 
 # ---------------------------
-# Labels
+# Labels / formatting
 # ---------------------------
 def _app_label(app: Optional[str]) -> str:
     a = (app or "").strip().lower()
@@ -345,11 +345,8 @@ def _calc_total_wrong(a: Dict[str, Any]) -> Tuple[Any, Any]:
     wrong = a.get("wrong") or a.get("wrong_cnt") or a.get("wrong_answers") or "-"
     return total, wrong
 
-def _to_dt_kst(any_dt: Any) -> Optional[datetime]:
-    try:
-        return datetime.fromisoformat(str(any_dt).replace("Z","+00:00")).astimezone(KST)
-    except Exception:
-        return None
+def _escape_html(s: str) -> str:
+    return (s or "").replace("&","&amp;").replace("<","&lt;").replace(">","&gt;")
 
 # ---------------------------
 # Navigation
@@ -373,7 +370,7 @@ def _logout() -> None:
     _go_home()
 
 # ---------------------------
-# View switcher (single source of truth)
+# View switcher
 # ---------------------------
 def _view_switcher() -> str:
     label_map = {"wrongs":"📚 오답", "records":"📈 기록", "msgs":"📩 메시지"}
@@ -392,20 +389,33 @@ def _view_switcher() -> str:
     return st.session_state["myp_view"]
 
 # ---------------------------
-# Top summary (no message area)
+# Top summary
 # ---------------------------
 def _render_top(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, Any]]) -> None:
     wrong_total = len(wrongs)
-
     scores = [s for s in (_calc_score(a) for a in attempts) if s is not None]
     avg_score = round(sum(scores)/len(scores), 1) if scores else None
 
     now = datetime.now(KST)
     week_ago = now - timedelta(days=7)
-    recent_cnt = sum(1 for a in attempts if (dt := _to_dt_kst(a.get("created_at"))) and dt >= week_ago)
+    recent_cnt = 0
+    for a in attempts:
+        try:
+            dt = datetime.fromisoformat(str(a.get("created_at")).replace("Z","+00:00")).astimezone(KST)
+            if dt >= week_ago:
+                recent_cnt += 1
+        except Exception:
+            pass
 
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-    month_cnt = sum(1 for a in attempts if (dt := _to_dt_kst(a.get("created_at"))) and dt >= month_start)
+    month_cnt = 0
+    for a in attempts:
+        try:
+            dt = datetime.fromisoformat(str(a.get("created_at")).replace("Z","+00:00")).astimezone(KST)
+            if dt >= month_start:
+                month_cnt += 1
+        except Exception:
+            pass
 
     goal = st.session_state.get("goal_sets") or st.session_state.get("hub_goal_sets") or 20
     try:
@@ -432,10 +442,10 @@ def _render_top(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, Any]]) ->
     with colB:
         b1, b2 = st.columns(2, gap="small")
         with b1:
-            if st.button("🏠 홈", use_container_width=True, key="myp_v5_home"):
+            if st.button("🏠 홈", use_container_width=True, key="myp_v6_home"):
                 _go_home()
         with b2:
-            if st.button("로그아웃", use_container_width=True, key="myp_v5_logout"):
+            if st.button("로그아웃", use_container_width=True, key="myp_v6_logout"):
                 _logout()
 
     st.markdown(
@@ -464,18 +474,104 @@ def _render_top(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, Any]]) ->
     st.markdown("</div>", unsafe_allow_html=True)
 
     st.progress(int(pct))
-
     st.markdown("</div>", unsafe_allow_html=True)
+
+# ---------------------------
+# Card renderer via iframe (no tag leakage)
+# ---------------------------
+def _card_html(title: str, chips_left: List[str], chips_right: List[str], subtitle: str = "") -> str:
+    chips_l = "".join([f'<span class="ha-badge">{_escape_html(c)}</span> ' for c in chips_left if c])
+    chips_r = "".join([f'<span class="ha-chip">{_escape_html(c)}</span> ' for c in chips_right if c])
+    sub = f'<div style="margin-top:6px; font-size:12px; color:var(--ha-sub);">{_escape_html(subtitle)}</div>' if subtitle else ""
+    return f"""
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+  :root {{
+    --ha-blue: {HATENA_BLUE};
+    --ha-text: #0f172a;
+    --ha-sub: #64748b;
+    --ha-line: #e5e7eb;
+    --ha-chip: #f1f5f9;
+  }}
+  body {{ margin:0; padding:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; }}
+  .card {{
+    border:1px solid var(--ha-line);
+    border-radius:14px;
+    padding:10px 12px;
+    background:#fff;
+    box-sizing:border-box;
+  }}
+  .row {{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:10px;
+    flex-wrap:wrap;
+  }}
+  .title {{
+    font-weight:900;
+    color:var(--ha-text);
+    letter-spacing:-0.2px;
+    font-size:14px;
+  }}
+  .badge {{
+    border: 1px solid rgba(30,107,255,0.25);
+    background: rgba(30,107,255,0.08);
+    color: var(--ha-blue);
+    border-radius: 999px;
+    padding: 3px 8px;
+    font-size: 12px;
+    font-weight: 900;
+    white-space: nowrap;
+    display:inline-block;
+  }}
+  .chip {{
+    display:inline-flex;
+    align-items:center;
+    gap:6px;
+    padding: 4px 9px;
+    border-radius: 999px;
+    background: var(--ha-chip);
+    border: 1px solid var(--ha-line);
+    font-size: 12px;
+    font-weight: 800;
+    color: var(--ha-sub);
+    white-space: nowrap;
+  }}
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="row">
+      <div>
+        <div class="title">{_escape_html(title)}</div>
+        {sub}
+      </div>
+      <div class="row" style="justify-content:flex-end;">
+        <div>{chips_l}</div>
+        <div>{chips_r}</div>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+"""
+
+def _render_card(title: str, chips_left: List[str], chips_right: List[str], subtitle: str = "", height: int = 86) -> None:
+    html = _card_html(title, chips_left, chips_right, subtitle=subtitle)
+    components.html(html, height=height, scrolling=False)
 
 # ---------------------------
 # Wrong quiz (simple)
 # ---------------------------
 def _make_wrong_quiz(wrongs: List[Dict[str, Any]], n: int = 10) -> List[Dict[str, Any]]:
-    # quiz item: jp_word -> choose meaning among 4
     import random
     pool = [w for w in wrongs if (w.get("jp_word") and w.get("meaning"))]
     random.shuffle(pool)
-    pool = pool[: max(n, 12)]
+    pool = pool[: max(n, 16)]
     meanings = list({w.get("meaning") for w in pool if w.get("meaning")})
     quiz = []
     for w in pool[:n]:
@@ -484,65 +580,61 @@ def _make_wrong_quiz(wrongs: List[Dict[str, Any]], n: int = 10) -> List[Dict[str
         others = [m for m in meanings if m != correct]
         random.shuffle(others)
         opts += others[:3]
-        opts = list(dict.fromkeys(opts))  # unique, keep order
+        opts = list(dict.fromkeys(opts))
         while len(opts) < 4 and others:
             opts.append(others.pop())
         random.shuffle(opts)
-        quiz.append(
-            {
-                "jp_word": w.get("jp_word"),
-                "reading": w.get("reading"),
-                "correct": correct,
-                "options": opts[:4],
-            }
-        )
+        quiz.append({"jp_word": w.get("jp_word"), "reading": w.get("reading"), "correct": correct, "options": opts[:4]})
     return quiz
 
+# ---------------------------
+# Views
+# ---------------------------
 def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table_used: str) -> None:
     st.markdown('<div class="ha-section">', unsafe_allow_html=True)
-    st.markdown('<div class="ha-title">📚 오답</div><div class="ha-sub">필터/검색 + 오답으로 시험보기.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="ha-title">📚 오답</div><div class="ha-sub">검색 + 오답으로 시험보기.</div>', unsafe_allow_html=True)
 
     if not wrongs:
-        # 데이터 미로딩/테이블 불일치 가능성이 큼 → 안내 강화
         st.warning("오답 데이터를 불러오지 못했습니다. (테이블이 비었거나 RLS/테이블명이 다를 수 있어요.)")
         st.caption(f"시도한 테이블: wrong_notes → wrong_note → wrongs (현재: {wrongs_table_used})")
         st.markdown("</div>", unsafe_allow_html=True)
         return
 
-    # 오답 시험보기
-    st.markdown('<div class="ha-inline">', unsafe_allow_html=True)
-    n = st.select_slider("시험 문항 수", options=[5, 10, 15, 20], value=10, key="myp_wrong_quiz_n")
-    if st.button("📝 오답으로 시험보기", use_container_width=False, key="myp_wrong_quiz_start"):
-        st.session_state["myp_wrong_quiz"] = _make_wrong_quiz(wrongs, n=n)
+    colA, colB = st.columns([7,3], vertical_alignment="center")
+    with colA:
+        qtxt = st.text_input("검색 (단어/뜻/발음)", value=st.session_state.get("myp_wrongs_q", ""), key="myp_wrongs_q")
+    with colB:
+        n = st.selectbox("시험 문항 수", options=[5, 10, 15, 20], index=1, key="myp_wrong_quiz_n")
+
+    if st.button("📝 오답으로 시험보기", use_container_width=True, key="myp_wrong_quiz_start"):
+        st.session_state["myp_wrong_quiz"] = _make_wrong_quiz(wrongs, n=int(n))
         st.session_state["myp_wrong_quiz_ans"] = {}
         st.session_state["myp_wrong_quiz_done"] = False
-    st.markdown("</div>", unsafe_allow_html=True)
+        st.rerun()
 
     quiz = st.session_state.get("myp_wrong_quiz") or []
     if quiz:
-        st.divider()
+        st.markdown('<div class="ha-hr"></div>', unsafe_allow_html=True)
         st.subheader("오답 시험")
         ans: Dict[int, str] = st.session_state.get("myp_wrong_quiz_ans") or {}
         for i, q in enumerate(quiz, start=1):
-            col1, col2 = st.columns([7,3], vertical_alignment="center")
-            with col1:
-                st.markdown(f"**{i}. {q['jp_word']}**" + (f"  _( {q.get('reading','-')} )_" if q.get("reading") else ""))
-            with col2:
-                ans[i] = st.radio(
-                    "선택",
-                    options=q["options"],
-                    index=q["options"].index(ans[i]) if i in ans and ans[i] in q["options"] else 0,
-                    key=f"mq_{i}",
-                    label_visibility="collapsed",
-                )
+            st.markdown(f"**{i}. {q['jp_word']}**" + (f"  _( {q.get('reading','-')} )_" if q.get("reading") else ""))
+            ans[i] = st.radio(
+                "선택",
+                options=q["options"],
+                index=q["options"].index(ans[i]) if i in ans and ans[i] in q["options"] else 0,
+                key=f"mq_{i}",
+                label_visibility="collapsed",
+            )
         st.session_state["myp_wrong_quiz_ans"] = ans
 
         c1, c2 = st.columns([1,1], gap="small")
         with c1:
             if st.button("채점하기", use_container_width=True, key="myp_wrong_quiz_grade"):
                 st.session_state["myp_wrong_quiz_done"] = True
+                st.rerun()
         with c2:
-            if st.button("시험 초기화", use_container_width=True, key="myp_wrong_quiz_reset"):
+            if st.button("시험 닫기", use_container_width=True, key="myp_wrong_quiz_close"):
                 st.session_state["myp_wrong_quiz"] = []
                 st.session_state["myp_wrong_quiz_ans"] = {}
                 st.session_state["myp_wrong_quiz_done"] = False
@@ -559,38 +651,38 @@ def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table_used: str) -> None
                     if ans.get(i) != q["correct"]:
                         st.markdown(f"- **{i}. {q['jp_word']}** → 정답: **{q['correct']}** / 선택: {ans.get(i)}")
 
-    st.divider()
+        st.markdown('<div class="ha-hr"></div>', unsafe_allow_html=True)
 
-    # 기본 오답 리스트 (간단)
-    qtxt = st.text_input("검색 (단어/뜻/발음)", value=st.session_state.get("myp_wrongs_q", ""), key="myp_wrongs_q")
+    # list
+    qq = (qtxt or "").strip().lower()
     per = st.select_slider("표시 개수", options=[10, 20, 30, 50, 100], value=20, key="myp_wrongs_per")
-    filtered = []
-    qq = qtxt.strip().lower()
+    shown = 0
     for w in wrongs:
-        jp = (w.get("jp_word") or "").lower()
-        rd = (w.get("reading") or "").lower()
-        mn = (w.get("meaning") or "").lower()
-        if qq and (qq not in jp and qq not in rd and qq not in mn):
+        jp = (w.get("jp_word") or "").strip()
+        rd = (w.get("reading") or "").strip()
+        mn = (w.get("meaning") or "").strip()
+        if not jp:
             continue
-        filtered.append(w)
-
-    st.caption(f"표시: {len(filtered)}개")
-    for w in filtered[:per]:
-        jp = w.get("jp_word") or "-"
-        rd = w.get("reading") or "-"
-        mn = w.get("meaning") or "-"
-        dt = _fmt_dt(w.get("created_at"))
-        st.markdown(f"**{jp}**  ·  {rd}  ·  {mn}")
-        st.caption(f"저장: {dt}")
+        if qq:
+            if qq not in jp.lower() and qq not in rd.lower() and qq not in mn.lower():
+                continue
+        title = jp
+        subtitle = f"{rd} · {mn}"
+        chips_left = [_app_label(w.get("app"))]
+        lv = str(w.get("level") or "").strip()
+        if lv:
+            chips_left.append(f"Lv {lv}")
+        chips_right = [_fmt_dt(w.get("created_at"))]
+        _render_card(title, chips_left, chips_right, subtitle=subtitle, height=92)
+        shown += 1
+        if shown >= int(per):
+            break
 
     st.markdown("</div>", unsafe_allow_html=True)
 
-# ---------------------------
-# Records
-# ---------------------------
 def _render_records(attempts: List[Dict[str, Any]], status: str) -> None:
     st.markdown('<div class="ha-section">', unsafe_allow_html=True)
-    st.markdown('<div class="ha-title">📈 기록</div><div class="ha-sub">최근 3개 + 목록. (HTML 카드 대신 Streamlit 컴포넌트로 안전 렌더)</div>', unsafe_allow_html=True)
+    st.markdown('<div class="ha-title">📈 기록</div><div class="ha-sub">카드형(태그 노출 방지: iframe 렌더링).</div>', unsafe_allow_html=True)
 
     if status != "ok" or not attempts:
         st.warning("학습 기록을 불러올 수 없습니다. (RLS 또는 테이블/컬럼 확인)")
@@ -611,7 +703,6 @@ def _render_records(attempts: List[Dict[str, Any]], status: str) -> None:
         return True
 
     filtered = [a for a in attempts if match(a)]
-
     scores = [s for s in (_calc_score(a) for a in filtered[:200]) if s is not None]
     best = max(scores) if scores else None
     avg = round(sum(scores)/len(scores), 1) if scores else None
@@ -622,8 +713,9 @@ def _render_records(attempts: List[Dict[str, Any]], status: str) -> None:
     st.markdown(f'<span class="ha-chip">최고 <b>{(str(best)+"%") if best is not None else "-"}</b></span>', unsafe_allow_html=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
-    st.divider()
+    st.markdown('<div class="ha-hr"></div>', unsafe_allow_html=True)
     st.markdown("**최근 학습(3개)**")
+
     for a in filtered[:3]:
         app = _app_label(a.get("app"))
         pos = _pos_label(a.get("pos"))
@@ -633,18 +725,19 @@ def _render_records(attempts: List[Dict[str, Any]], status: str) -> None:
         total, wrong = _calc_total_wrong(a)
 
         title = app + (f" · {pos}" if pos else "") + (f" · Lv {level}" if level else "")
-        c1, c2 = st.columns([7,3])
-        with c1:
-            st.markdown(f"**{title}**")
-            st.caption(dt)
-        with c2:
-            st.markdown(f"점수 **{(str(score)+'%') if score is not None else '-'}**")
-            st.caption(f"문항 {total} · 오답 {wrong}")
+        chips_left = []
+        if app: chips_left.append(app)
+        if pos: chips_left.append(pos)
+        if level: chips_left.append(f"Lv {level}")
+        chips_right = [dt, f"점수 {score}%" if score is not None else "점수 -", f"문항 {total}", f"오답 {wrong}"]
+        _render_card(title, chips_left=[], chips_right=chips_right, subtitle="", height=96)
 
-    st.divider()
+    st.markdown('<div class="ha-hr"></div>', unsafe_allow_html=True)
     st.markdown("**목록**")
-    show_n = st.select_slider("표시 개수", options=[10, 20, 30, 50, 100, 200], value=30, key="myp_rec_n")
-    for a in filtered[3:3+show_n]:
+    show_n = st.select_slider("표시 개수", options=[10, 20, 30, 50, 100], value=30, key="myp_rec_n")
+
+    shown = 0
+    for a in filtered[3:]:
         app = _app_label(a.get("app"))
         pos = _pos_label(a.get("pos"))
         level = str(a.get("level") or "").strip()
@@ -652,25 +745,26 @@ def _render_records(attempts: List[Dict[str, Any]], status: str) -> None:
         score = _calc_score(a)
         total, wrong = _calc_total_wrong(a)
 
-        left = app + (f" · {pos}" if pos else "") + (f" · Lv {level}" if level else "")
-        st.markdown(f"**{left}**")
-        st.caption(f"{dt} · 점수 {(str(score)+'%') if score is not None else '-'} · 문항 {total} · 오답 {wrong}")
+        title = app + (f" · {pos}" if pos else "") + (f" · Lv {level}" if level else "")
+        chips_left = [app] + ([pos] if pos else []) + ([f"Lv {level}"] if level else [])
+        chips_right = [dt, f"{score}%" if score is not None else "-", f"문항 {total}", f"오답 {wrong}"]
+        _render_card(title, chips_left=chips_left, chips_right=chips_right, subtitle="", height=92)
+
+        shown += 1
+        if shown >= int(show_n):
+            break
 
     st.markdown("</div>", unsafe_allow_html=True)
 
-# ---------------------------
-# Messages (list + preview)
-# ---------------------------
 def _render_msgs(msgs: List[Dict[str, Any]]) -> None:
     st.markdown('<div class="ha-section">', unsafe_allow_html=True)
-    st.markdown('<div class="ha-title">📩 메시지</div><div class="ha-sub">펼침(Expander) 대신: 왼쪽 목록 + 오른쪽 미리보기.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="ha-title">📩 메시지</div><div class="ha-sub">목록 + 미리보기(카드형).</div>', unsafe_allow_html=True)
 
     if not msgs:
         st.info("받은 메시지가 없습니다.")
         st.markdown("</div>", unsafe_allow_html=True)
         return
 
-    # filters
     q = st.text_input("검색 (제목/내용)", value=st.session_state.get("myp_msg_q",""), key="myp_msg_q")
     only_unread = st.toggle("읽지 않음만", value=st.session_state.get("myp_msg_unread", False), key="myp_msg_unread")
 
@@ -685,8 +779,7 @@ def _render_msgs(msgs: List[Dict[str, Any]]) -> None:
 
     unread = [m for m in msgs if not m.get("read_at")]
     read = [m for m in msgs if m.get("read_at")]
-    ordered = unread + read
-    filtered = [m for m in ordered if match(m)]
+    filtered = [m for m in (unread + read) if match(m)]
 
     st.markdown('<div class="ha-inline" style="margin-top:6px;">', unsafe_allow_html=True)
     st.markdown(f'<span class="ha-chip">총 <b>{_num(len(filtered))}</b>개</span>', unsafe_allow_html=True)
@@ -695,7 +788,6 @@ def _render_msgs(msgs: List[Dict[str, Any]]) -> None:
 
     left, right = st.columns([4,6], gap="medium")
 
-    # selected
     sel_id = st.session_state.get("myp_msg_sel")
     if sel_id is None and filtered:
         st.session_state["myp_msg_sel"] = filtered[0].get("id")
@@ -703,20 +795,16 @@ def _render_msgs(msgs: List[Dict[str, Any]]) -> None:
 
     with left:
         st.markdown("**목록**")
-        for m in filtered[:50]:
+        for m in filtered[:60]:
             mid = m.get("id")
             title = m.get("title") or "메시지"
             dt = _fmt_dt(m.get("created_at"))
             is_unread = not m.get("read_at")
-            prefix = "🔵 " if is_unread else "⚪ "
-            active = (mid == sel_id)
-            label = f"{prefix}{title}"
+            label = ("🔵 " if is_unread else "⚪ ") + title
             if st.button(label, use_container_width=True, key=f"msg_pick_{mid}"):
                 st.session_state["myp_msg_sel"] = mid
                 st.rerun()
             st.caption(dt)
-            if active:
-                st.markdown('<span class="ha-badge">선택됨</span>', unsafe_allow_html=True)
 
     with right:
         st.markdown("**내용**")
@@ -729,17 +817,59 @@ def _render_msgs(msgs: List[Dict[str, Any]]) -> None:
             dt = _fmt_dt(current.get("created_at"))
             is_unread = not current.get("read_at")
 
-            st.markdown(f"### {title}")
-            st.caption(dt)
-            if is_unread:
-                st.markdown('<span class="ha-badge">읽지 않음</span>', unsafe_allow_html=True)
-            st.markdown("---")
-            st.markdown(body)
+            body_html = _escape_html(body).replace("\n", "<br>")
+            chips_left = ["읽지 않음" if is_unread else "읽음"]
+            chips_right = [dt]
+            # 더 큰 카드
+            html = f"""
+<!doctype html>
+<html><head><meta charset="utf-8"/>
+<style>
+  :root {{
+    --ha-blue: {HATENA_BLUE};
+    --ha-text: #0f172a;
+    --ha-sub: #64748b;
+    --ha-line: #e5e7eb;
+    --ha-chip: #f1f5f9;
+  }}
+  body {{ margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; }}
+  .card {{ border:1px solid var(--ha-line); border-radius:16px; padding:14px 14px; background:#fff; }}
+  .title {{ font-weight:900; font-size:18px; color:var(--ha-text); letter-spacing:-0.2px; }}
+  .meta {{ margin-top:8px; display:flex; gap:8px; flex-wrap:wrap; }}
+  .chip {{
+    display:inline-flex; align-items:center; gap:6px;
+    padding: 4px 9px; border-radius: 999px;
+    background: var(--ha-chip); border: 1px solid var(--ha-line);
+    font-size: 12px; font-weight: 800; color: var(--ha-sub); white-space: nowrap;
+  }}
+  .badge {{
+    border: 1px solid rgba(30,107,255,0.25);
+    background: rgba(30,107,255,0.08);
+    color: var(--ha-blue);
+    border-radius: 999px;
+    padding: 3px 8px;
+    font-size: 12px;
+    font-weight: 900;
+    white-space: nowrap;
+  }}
+  .body {{ margin-top:12px; color:var(--ha-text); font-size:14px; line-height:1.6; }}
+</style>
+</head><body>
+  <div class="card">
+    <div class="title">{_escape_html(title)}</div>
+    <div class="meta">
+      <span class="badge">{chips_left[0]}</span>
+      <span class="chip">{_escape_html(dt)}</span>
+    </div>
+    <div class="body">{body_html}</div>
+  </div>
+</body></html>
+"""
+            components.html(html, height=320, scrolling=True)
 
-            # mark as read
             if is_unread:
                 sb = _sb()
-                if sb and st.button("읽음 처리", key="msg_mark_read", use_container_width=False):
+                if sb and st.button("읽음 처리", key="msg_mark_read", use_container_width=True):
                     try:
                         sb.table("user_messages").update({"read_at": datetime.utcnow().isoformat()}).eq("id", sel_id).execute()
                         st.success("읽음 처리 완료")
