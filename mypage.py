@@ -878,6 +878,59 @@ def _inject_css() -> None:
   margin-top: 0px !important;
 }
 
+
+/* ============================================================
+   ✅ 10분 컷: 메시지 목록 UI 업그레이드 (간격은 그대로 유지)
+   - summary를 '리스트 카드'처럼 보이게
+   - hover/active 반응
+   - open 상태에서 content와 자연스럽게 연결
+   ============================================================ */
+
+.ha-msg-scope div[data-testid="stExpander"]{
+  margin: 0 !important;
+}
+
+/* 리스트 행(닫힌 상태) */
+.ha-msg-scope div[data-testid="stExpander"] summary{
+  margin: 0 !important;
+  padding: 10px 12px !important;
+  border: 1px solid var(--ha-line) !important;
+  border-radius: 14px !important;
+  background: #fff !important;
+  box-shadow: none !important;
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+/* hover */
+.ha-msg-scope div[data-testid="stExpander"] summary:hover{
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.06) !important;
+}
+
+/* open일 때: summary와 본문을 하나의 카드처럼 연결 */
+.ha-msg-scope div[data-testid="stExpander"] > details[open] > summary{
+  border-bottom-left-radius: 0 !important;
+  border-bottom-right-radius: 0 !important;
+  border-bottom: 0 !important;
+  box-shadow: none !important;
+}
+
+/* 펼친 본문 */
+.ha-msg-scope div[data-testid="stExpander"] .streamlit-expanderContent{
+  margin: 0 !important;
+  padding: 10px 12px 12px 12px !important;
+  border: 1px solid var(--ha-line) !important;
+  border-top: 0 !important;
+  border-bottom-left-radius: 14px !important;
+  border-bottom-right-radius: 14px !important;
+  background: #fff !important;
+}
+
+/* expander 행간: 완전 밀착 유지(원하면 2px로) */
+.ha-msg-scope div[data-testid="stExpander"] + div[data-testid="stExpander"]{
+  margin-top: 2px !important;
+}
+
 </style>"""
     css = css.replace("__BLUE__", str(HATENA_BLUE))
     st.markdown(css, unsafe_allow_html=True)
