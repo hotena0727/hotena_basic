@@ -90,12 +90,12 @@ def _inject_css() -> None:
   align-items:center;
   justify-content:center;
   color: var(--ha-blue);
-  font-weight: 900;
+  font-weight: 800;
 }}
 
 .ha-title {{
   font-size: 18px;
-  font-weight: 900;
+  font-weight: 800;
   color: var(--ha-text);
   letter-spacing: -0.3px;
   line-height: 1.15;
@@ -207,7 +207,10 @@ def _inject_css() -> None:
   background: #fff;
   margin: 8px 0;
 }}
-.ha-card-title {{
+.ha-card-title {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+{
   font-weight: 900;
   color: var(--ha-text);
   letter-spacing: -0.2px;
@@ -399,59 +402,35 @@ def _safe_select(table: str, cols: str = "*", limit: int = 200, order: Optional[
 
 
 def _load_wrongs(limit: int = 400) -> Tuple[List[Dict[str, Any]], str]:
-    """오답 데이터 로더 (✅ 환경 차이 강인성)
-    - 테이블명 자동 탐색
-    - 컬럼 스키마가 달라도 cols→* 순으로 재시도
-    - 필드명 alias 최대한 흡수
+    """오답 테이블명이 환경마다 달라질 수 있어 자동 탐색합니다.
+    - 테이블 후보를 순회하고, 컬럼 지정 조회가 실패하면 '*' 조회로 재시도합니다.
+    - 필드명이 다른 경우(alias)도 최대한 흡수합니다.
     """
-    base_cols = "id, user_id, app, level, jp_word, reading, meaning, correct_answer, user_answer, created_at"
-    table_candidates = (
-        "wrong_notes",
-        "wrong_note",
-        "wrongs",
-        "wrong_answers",
-        "wrong_words",
-        "wrong_items",
-    )
-
-    def _normalize_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        out = []
-        for r in rows:
-            rr = dict(r)
-
-            # word field
-            if not rr.get("jp_word"):
-                rr["jp_word"] = rr.get("word") or rr.get("jp") or rr.get("term") or rr.get("question") or rr.get("quiz_word")
-
-            # meaning field
-            if not rr.get("meaning"):
-                rr["meaning"] = rr.get("definition") or rr.get("meaning_kr") or rr.get("kr") or rr.get("answer_meaning") or rr.get("correct_meaning")
-
-            # reading field
-            if not rr.get("reading"):
-                rr["reading"] = rr.get("yomi") or rr.get("kana") or rr.get("pron") or rr.get("pronunciation")
-
-            # correct / user answers
-            if "correct_answer" not in rr or rr.get("correct_answer") is None:
-                rr["correct_answer"] = rr.get("correct") or rr.get("correct_option") or rr.get("answer")
-            if "user_answer" not in rr or rr.get("user_answer") is None:
-                rr["user_answer"] = rr.get("user") or rr.get("picked") or rr.get("user_option")
-
-            # created_at
-            if not rr.get("created_at"):
-                rr["created_at"] = rr.get("created") or rr.get("inserted_at") or rr.get("ts")
-
-            out.append(rr)
-        return out
-
-    for table in table_candidates:
-        rows = _safe_select(table, cols=base_cols, limit=limit, order="created_at", desc=True)
+    # 1차: 흔한 컬럼 세트
+    cols1 = "id, user_id, app, pos, level, jp_word, word, term, reading, yomi, kana, meaning, meaning_kr, kr_meaning, correct_answer, correct, user_answer, answer, created_at"
+    for table in ("wrong_notes", "wrong_note", "wrongs"):
+        rows = _safe_select(table, cols=cols1, limit=limit, order="created_at", desc=True)
         if not rows:
-            # cols 스키마가 다르면 예외가 나서 []가 될 수 있음 → *로 재시도
+            # 2차: 스키마가 달라 cols select가 실패하는 환경을 대비 → 전체 조회
             rows = _safe_select(table, cols="*", limit=limit, order="created_at", desc=True)
         if rows:
-            return _normalize_rows(rows), table
-
+            for r in rows:
+                # jp_word / word / term
+                if not r.get("jp_word"):
+                    r["jp_word"] = r.get("word") or r.get("term") or r.get("jp") or r.get("question")
+                # reading
+                if not r.get("reading"):
+                    r["reading"] = r.get("yomi") or r.get("kana") or r.get("furigana")
+                # meaning
+                if not r.get("meaning"):
+                    r["meaning"] = r.get("meaning_kr") or r.get("kr_meaning") or r.get("ko_meaning")
+                # correct / user answer
+                if "correct_answer" not in r or r.get("correct_answer") in (None, ""):
+                    r["correct_answer"] = r.get("correct_answer") or r.get("correct") or r.get("gold") or r.get("target")
+                if "user_answer" not in r or r.get("user_answer") in (None, ""):
+                    r["user_answer"] = r.get("user_answer") or r.get("answer") or r.get("pred") or r.get("user")
+            # user별 필터가 필요할 수 있음 (RLS로 처리되는 경우가 많아서 여기서는 건드리지 않음)
+            return rows, table
     return [], "wrong_notes"
 def _load_messages(limit: int = 300) -> List[Dict[str, Any]]:
     cols = "id, user_id, title, body, created_at, read_at"
@@ -911,9 +890,11 @@ def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None
         st.session_state["myp_wrong_quiz"] = _make_wrong_quiz(wrongs, n=int(quiz_n))
         st.session_state["myp_wrong_quiz_ans"] = {}
         st.session_state["myp_wrong_quiz_done"] = False
-        st.rerun()
 
     quiz = st.session_state.get("myp_wrong_quiz") or []
+    # 버튼을 눌렀는데 문제가 생성되지 않는 경우(뜻 데이터 없음 등)
+    if ("myp_wrong_quiz" in st.session_state) and (not quiz):
+        st.info("오답 데이터에서 ‘뜻(meaning)’을 찾지 못해 시험을 만들 수 없습니다. (meaning/meaning_kr/kr_meaning 컬럼 확인)")
     if quiz:
         st.markdown('<div class="ha-card" style="padding:12px 12px;">', unsafe_allow_html=True)
         st.markdown('<div class="ha-card-title">오답 시험</div>', unsafe_allow_html=True)
@@ -1163,16 +1144,23 @@ def _render_msgs(msgs: List[Dict[str, Any]]) -> None:
         header = f"{title}  ·  {dt}" + ("  ·  🔵" if is_unread else "")
 
         with st.expander(header, expanded=False):
+            safe_body = (body or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br>")
             st.markdown(
                 f"""
-<div class="ha-card">
-  <div class="ha-card-title">{dot}{title}</div>
-  <div class="ha-meta">
-    <span class="ha-chip">{dt}</span>
-    <span class="ha-chip">{chip}</span>
+<div style="border:1px solid var(--ha-line); border-radius:18px; overflow:hidden; background:#fff;">
+  <div style="padding:12px 14px; background:rgba(30,107,255,0.08); border-bottom:1px solid var(--ha-line);">
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+      <div style="font-weight:900; color:var(--ha-text); letter-spacing:-0.2px; font-size:16px;">{dot}{title}</div>
+      <div class="ha-inline">
+        <span class="ha-chip">{dt}</span>
+        <span class="ha-badge">{chip}</span>
+      </div>
+    </div>
   </div>
-  <div style="margin-top:8px; color: var(--ha-text); font-size: 14px; line-height: 1.55;">
-    {body.replace('<', '&lt;').replace('>', '&gt;').replace('\\n','<br>')}
+  <div style="padding:14px 14px;">
+    <div style="border:1px solid var(--ha-line); border-radius:14px; background:#f8fafc; padding:12px 12px; color:var(--ha-text); font-size:14px; line-height:1.7;">
+      {safe_body}
+    </div>
   </div>
 </div>
 """,
@@ -1191,30 +1179,6 @@ def _render_msgs(msgs: List[Dict[str, Any]]) -> None:
     st.markdown("</div>", unsafe_allow_html=True)
 
 
-def _render_view_switcher() -> str:
-    """
-    ✅ 탭 대신 확실히 동작하는 뷰 스위처
-    """
-    label_map = {
-        "wrongs": "📚 오답",
-        "records": "📈 기록",
-        "msgs": "📩 메시지",
-    }
-    inv = {v: k for k, v in label_map.items()}
-    current = st.session_state.get("myp_view") or "wrongs"
-    current_label = label_map.get(current, "📚 오답")
-
-    choice = st.radio(
-        "보기",
-        options=list(label_map.values()),
-        index=list(label_map.values()).index(current_label),
-        horizontal=True,
-        label_visibility="collapsed",
-        key="myp_view_radio",
-    )
-    st.session_state["myp_view"] = inv.get(choice, "wrongs")
-    return st.session_state["myp_view"]
-
 
 # ---------------------------
 # Public entrypoint
@@ -1231,13 +1195,13 @@ def render() -> None:
 
     _render_top_summary(wrongs, attempts_ok)
 
-    view = _render_view_switcher()
-
-    if view == "records":
-        _render_records(attempts_ok, "ok" if attempts_ok else attempts_status)
-    elif view == "msgs":
-        _render_msgs(msgs)
-    else:
+    # ✅ 탭 방식 (요청 사항)
+    tab_w, tab_r, tab_m = st.tabs(["📚 오답", "📈 기록", "📩 메시지"])
+    with tab_w:
         _render_wrongs(wrongs, wrongs_table)
+    with tab_r:
+        _render_records(attempts_ok, "ok" if attempts_ok else attempts_status)
+    with tab_m:
+        _render_msgs(msgs)
 
     _wrap_end()
