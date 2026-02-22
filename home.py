@@ -1,8 +1,7 @@
 # home.py
 from __future__ import annotations
 
-BUILD_STAMP = 'home-min-clean-v2 (replace dashboard) 2026-02-20 KST (+09:00)'
-
+BUILD_STAMP = 'home-clean-no-spacer-v1 2026-02-22 KST (+09:00)'
 from pathlib import Path
 import os
 import runpy
@@ -1878,10 +1877,6 @@ def render_bottom_nav(active: str = "home"):
 </div>"""
     st.markdown(html, unsafe_allow_html=True)
 
-def render_training_header(sb_authed, user, kind: str, title: str, subtitle: str):
-    """A) Unified title + compact daily goal progress strip on training pages."""
-    progress_all = st.session_state.get("progress_all", {}) or {}
-    goal_sets = int((progress_all.get("daily_goal_sets") or 3))
 
     attempts = fetch_today_attempts(sb_authed, user.id)
     sm = summarize_attempts(attempts)
