@@ -187,50 +187,47 @@ def _inject_css() -> None:
   flex-wrap: wrap;
 }
 
-/* ✅ messages: FORCE but keep existing box design */
-.ha-card div[data-testid="stExpander"],
-.ha-card div[data-testid="stExpander"] > details{
-  border:0 !important;
-  outline:0 !important;
-  box-shadow:none !important;
-  background:transparent !important;
-  border-radius:0 !important;
+/* ✅ messages: FORCE (no scope dependency) */
+div[data-testid="stExpander"]{
   margin:0 !important;
   padding:0 !important;
+  border:0 !important;
+  background:transparent !important;
+  box-shadow:none !important;
 }
-.ha-card div[data-testid="stExpander"] summary{
+div[data-testid="stExpander"] > details{
+  margin:0 !important;
+  border:0 !important;
+  background:transparent !important;
+  box-shadow:none !important;
+  border-radius:0 !important;
+}
+div[data-testid="stExpander"] summary{
   position:relative;
   margin:0 !important;
-  padding:6px 2px 6px 30px !important; /* ✅ tighter list */
-  border-bottom:1px solid var(--ha-line) !important;
-  border-radius:0 !important;
-  background:transparent !important;
+  padding:6px 10px 6px 30px !important;  /* tighter + left gutter */
+  border:1px solid var(--ha-line) !important; /* row outline */
+  border-radius:12px !important;
+  background:#fff !important;
   font-weight:900 !important;
   color:var(--ha-text) !important;
   letter-spacing:-0.2px !important;
 }
-/* ✅ ensure expanded container has inner bottom padding (prevents overlap with outer border) */
-.ha-card div[data-testid="stExpander"] > details[open]{
-  padding-bottom:14px !important;
-  box-sizing:border-box !important;
-}
-.ha-card div[data-testid="stExpander"] summary:hover{background:#fbfbfd !important;}
-.ha-card div[data-testid="stExpander"] summary svg{display:none !important;}
-/* timeline line + dot */
-.ha-card div[data-testid="stExpander"] summary:before{
+div[data-testid="stExpander"] summary:hover{background:#fbfbfd !important;}
+div[data-testid="stExpander"] summary svg{display:none !important;}
+/* timeline gutter */
+div[data-testid="stExpander"] summary:before{
   content:"";
   position:absolute;
-  left:12px;
-  top:0; bottom:0;
+  left:14px; top:0; bottom:0;
   width:2px;
   background:rgba(37,99,235,0.16);
   border-radius:99px;
 }
-.ha-card div[data-testid="stExpander"] summary:after{
+div[data-testid="stExpander"] summary:after{
   content:"";
   position:absolute;
-  left:9px;
-  top:50%;
+  left:11px; top:50%;
   transform:translateY(-50%);
   width:10px; height:10px;
   border-radius:999px;
@@ -238,30 +235,29 @@ def _inject_css() -> None:
   border:2px solid #fff;
   box-shadow:0 0 0 2px rgba(37,99,235,0.10);
 }
-.ha-msg-unread .ha-card div[data-testid="stExpander"] summary:after{
+/* unread (only when wrapper class exists) */
+.ha-msg-unread div[data-testid="stExpander"] summary:after{
   background:var(--ha-blue);
   box-shadow:0 0 0 2px rgba(37,99,235,0.18);
 }
-/* ✅ bigger white container ONLY (no design change) */
-.ha-card div[data-testid="stExpander"] .streamlit-expanderContent{
+/* expanded "white container" */
+div[data-testid="stExpander"] .streamlit-expanderContent{
   margin-top:8px !important;
-  padding:14px 16px 30px 30px !important; /* ✅ extra bottom space so inner box doesn't touch outer border */
-  border:0 !important;
-  background:transparent !important;
+  padding:14px 16px 20px 30px !important;  /* ✅ bigger white container */
+  background:#fff !important;
+  border:1px solid var(--ha-line) !important;
+  border-radius:12px !important;
 }
-/* ✅ reduce gap between list items */
-.ha-card div[data-testid="stExpander"] + div[data-testid="stExpander"]{margin-top:2px !important;}
-.ha-msg-bodyA{margin-top:8px; padding:0;}
+/* reduce gap between items (stack like list) */
+div[data-testid="stExpander"] + div[data-testid="stExpander"]{margin-top:8px !important;}
+/* body card inside (gray) */
+.ha-msg-bodyA{margin-top:0; padding:0;}
 .ha-msg-bodyA-inner{
-  padding:12px 14px 16px 14px;
+  padding:10px 12px 14px 12px;
   background:#f8fafc;
-  /* ✅ inner box: use accent + subtle outline (prevents "double bottom line" look) */
-  border:0 !important;
-  box-shadow: inset 0 0 0 1px var(--ha-line);
-  border-left:4px solid var(--ha-blue);
+  border:1px solid var(--ha-line);
   border-radius:12px;
   line-height:1.75;
-  margin:10px 0 18px 0; /* ✅ create clear separation from outer card bottom line */
 }
 
 
@@ -327,9 +323,9 @@ def _inject_css() -> None:
 }
 /* remove content card padding from streamlit */
 .ha-msg-scope div[data-testid="stExpander"] .streamlit-expanderContent{
-  padding:10px 12px 14px 30px !important;
+  padding:14px 16px 20px 30px !important; /* ✅ bigger white container */
   border:0 !important;
-  background:transparent !important;
+  background:#fff !important;
 }
 /* body: white + only left bar (no card-in-card) */
 .ha-msg-bodyA{
@@ -708,142 +704,6 @@ def _inject_css() -> None:
   background: var(--ha-blue);
 }
 .ha-msg-body2-inner{ padding-left:10px; }
-
-
-/* ============================================================
-   ✅ 메시지 탭(ha-msg-card) 하단 겹침/라인 중복 방지 패치
-   - 바깥 카드 하단선과 내부 박스 하단이 붙지 않게 여유 확보
-   - Streamlit expander 기본 테두리/그림자 제거(강제)
-   ============================================================ */
-.ha-msg-card{
-  padding-bottom: 18px !important;
-}
-
-/* expander 전체 외곽선/그림자 완전 제거 */
-.ha-msg-card div[data-testid="stExpander"],
-.ha-msg-card div[data-testid="stExpander"] > div,
-.ha-msg-card div[data-testid="stExpander"] details,
-.ha-msg-card div[data-testid="stExpander"] details > summary,
-.ha-msg-card div[data-testid="stExpander"] .streamlit-expanderContent{
-  border: 0 !important;
-  box-shadow: none !important;
-  outline: 0 !important;
-  background: transparent !important;
-}
-
-/* 펼친 영역은 아래 여백을 넉넉히(내부 박스가 카드 하단선에 닿지 않게) */
-.ha-msg-card div[data-testid="stExpander"] .streamlit-expanderContent{
-  padding: 14px 14px 34px 14px !important;
-}
-
-
-/* ============================================================
-   ✅ v4_9_10 overrides (message tab polish)
-   - inner box background removed
-   - inner left line lighter
-   - outer padding tightened
-   ============================================================ */
-.ha-msg-bodyA-inner{
-  background: transparent !important;
-  box-shadow: none !important;
-  border: 0 !important;
-}
-
-.ha-msg-bodyA{
-  background: transparent !important;
-  padding: 0 !important;
-  margin-top: 8px !important;
-}
-
-/* left accent line (lighter) */
-.ha-msg-bodyA:before{
-  background: rgba(37,99,235,0.20) !important;
-  width: 3px !important;
-}
-
-/* tighten outer spacing so it doesn't feel too tall */
-.ha-card div[data-testid="stExpander"] > details[open]{
-  padding-bottom: 4px !important;
-}
-.ha-card div[data-testid="stExpander"] .streamlit-expanderContent{
-  padding: 8px 10px 12px 26px !important;
-}
-.ha-card .ha-msg-scope div[data-testid="stExpander"] .streamlit-expanderContent{
-  padding: 8px 10px 12px 12px !important;
-}
-
-/* reduce extra margin that can make bottom feel double-lined */
-.ha-msg-bodyA-inner{
-  margin: 6px 0 8px 0 !important;
-  padding: 8px 10px 10px 16px !important;
-  border-radius: 12px !important;
-}
-
-
-
-/* ============================================================
-   ✅ V4.9.12 HOTFIX: message list spacing tighter
-   - Streamlit wraps expanders in element-container with default margins.
-   - Force near-zero spacing only inside message scope.
-   ============================================================ */
-.ha-msg-scope div[data-testid="element-container"]{
-  margin: 0 !important;
-  padding: 0 !important;
-}
-.ha-msg-scope div[data-testid="stVerticalBlock"]{
-  gap: 0 !important;
-}
-.ha-msg-scope div[data-testid="stExpander"]{
-  margin: 0 !important;
-}
-.ha-msg-scope div[data-testid="stExpander"] + div[data-testid="stExpander"]{
-  margin-top: 0px !important; /* almost 붙이기 */
-}
-
-/* Optional: a hairline separation without big gap */
-.ha-msg-scope div[data-testid="stExpander"] summary{
-  padding-top: 6px !important;
-  padding-bottom: 6px !important;
-}
-
-
-/* ============================================================
-   ✅ V4.9.15: 메시지 목록 '붙이기' 최종
-   - Streamlit wrapper 기본 여백 완전 제거
-   - Expander 사이 간격 0px (완전 밀착)
-   - 보더 겹침 방지(윗선 투명)
-   ============================================================ */
-
-.ha-msg-scope div[data-testid="stVerticalBlock"] > div,
-.ha-msg-scope div[data-testid="stVerticalBlock"] > div > div,
-.ha-msg-scope div[data-testid="stElementContainer"],
-.ha-msg-scope div[data-testid="element-container"],
-.ha-msg-scope .element-container{
-  margin: 0 !important;
-  padding: 0 !important;
-}
-.ha-msg-scope div[data-testid="stVerticalBlock"]{ gap: 0 !important; }
-
-.ha-msg-scope div[data-testid="stExpander"]{
-  margin: 0 !important;
-}
-
-/* ✅ 완전 밀착 */
-.ha-msg-scope div[data-testid="stExpander"] + div[data-testid="stExpander"]{
-  margin-top: 0 !important;
-}
-
-/* summary(닫힌 상태 박스)도 여백 최소 */
-.ha-msg-scope div[data-testid="stExpander"] summary{
-  margin: 0 !important;
-  padding-top: 6px !important;
-  padding-bottom: 6px !important;
-}
-
-/* 보더가 두 줄처럼 보이면: 위 카드의 아래선만 남기기 */
-.ha-msg-scope div[data-testid="stExpander"] + div[data-testid="stExpander"] summary{
-  border-top-color: transparent !important;
-}
 
 </style>"""
     css = css.replace("__BLUE__", str(HATENA_BLUE))
@@ -1666,7 +1526,7 @@ def _render_records(attempts: List[Dict[str, Any]], attempts_status: str) -> Non
 
 
 def _render_msgs(msgs: List[Dict[str, Any]]) -> None:
-    st.markdown('<div class="ha-card ha-msg-card">', unsafe_allow_html=True)
+    st.markdown('<div class="ha-card">', unsafe_allow_html=True)
     st.markdown('<div class="ha-card-title">메시지</div>', unsafe_allow_html=True)
 
     if not msgs:
