@@ -103,39 +103,6 @@ import html as html_module  # ✅ for html escaping in admin cards
 st.set_page_config(page_title="Hotena Hub", layout="centered")
 
 
-
-
-# ============================================================
-# ✅ F5(새로고침) 시 '마지막 화면 상태' 복원 방지: reload 감지 토큰 주입
-# - navigation.type === 'reload'일 때만 토큰을 새로 만들어 URL에 _nav= 로 심어둠
-# - Python에서 토큰 변경을 감지해 hub_page를 home으로 리셋
-# ============================================================
-try:
-    import streamlit.components.v1 as components
-    components.html("""
-<script>
-(function(){
-  try{
-    var nav = (performance.getEntriesByType && performance.getEntriesByType('navigation') || [])[0];
-    var navType = nav && nav.type ? nav.type : '';
-    var key = 'hotena_nav_tok';
-    var tok = sessionStorage.getItem(key) || '';
-    if (!tok || navType === 'reload') {
-      tok = String(Date.now()) + '_' + Math.random().toString(16).slice(2);
-      sessionStorage.setItem(key, tok);
-    }
-    var url = new URL(window.location.href);
-    if (url.searchParams.get('_nav') !== tok) {
-      url.searchParams.set('_nav', tok);
-      window.history.replaceState({}, '', url.toString());
-    }
-  }catch(e){}
-})();
-</script>
-""", height=0)
-except Exception:
-    pass
-
 # ============================================================
 # ✅ TOP SPACING FIX (PC + Mobile)
 # - Remove Streamlit's default top padding/space
@@ -145,14 +112,16 @@ if not st.session_state.get("_top_compact_css_applied"):
     st.markdown("""<style>
 /* === Hotena: ultra-compact top spacing (mobile + desktop) === */
 /* 핵심: block-container의 기본 top padding 제거 + 첫 요소 여백 제거 */
-section.main > div.block-container,
-div[data-testid="stAppViewContainer"] > div.block-container {
+/* ✅ Only the FIRST main block-container (prevents side effects on nested containers) */
+div[data-testid="stAppViewContainer"] div.block-container:first-of-type,
+section.main div.block-container:first-of-type {
   padding-top: 0rem !important;
   margin-top: 0rem !important;
 }
 
 /* 첫 요소(메뉴/버튼 래퍼) 상단 여백 제거 */
-div.block-container > div:first-child {
+div[data-testid="stAppViewContainer"] div.block-container:first-of-type > div:first-child,
+section.main div.block-container:first-of-type > div:first-child {
   margin-top: 0rem !important;
   padding-top: 0rem !important;
 }
@@ -194,8 +163,9 @@ div[data-testid="stAppViewContainer"]{
   margin-top: 0 !important;
 }
 
-/* Tighten very top whitespace */
-.block-container > div:first-child { margin-top: 0 !important; }
+/* Tighten very top whitespace (first main container only) */
+div[data-testid="stAppViewContainer"] div.block-container:first-of-type > div:first-child { margin-top: 0 !important; }
+section.main div.block-container:first-of-type > div:first-child { margin-top: 0 !important; }
 
 /* Buttons: minimum tap size + readable text */
 div[data-testid="stAppViewContainer"] .stButton > button,
