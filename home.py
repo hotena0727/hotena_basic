@@ -112,16 +112,14 @@ if not st.session_state.get("_top_compact_css_applied"):
     st.markdown("""<style>
 /* === Hotena: ultra-compact top spacing (mobile + desktop) === */
 /* 핵심: block-container의 기본 top padding 제거 + 첫 요소 여백 제거 */
-/* ✅ Only the FIRST main block-container (prevents side effects on nested containers) */
-div[data-testid="stAppViewContainer"] div.block-container:first-of-type,
-section.main div.block-container:first-of-type {
+section.main > div.block-container,
+div[data-testid="stAppViewContainer"] > div.block-container {
   padding-top: 0rem !important;
   margin-top: 0rem !important;
 }
 
 /* 첫 요소(메뉴/버튼 래퍼) 상단 여백 제거 */
-div[data-testid="stAppViewContainer"] div.block-container:first-of-type > div:first-child,
-section.main div.block-container:first-of-type > div:first-child {
+div.block-container > div:first-child {
   margin-top: 0rem !important;
   padding-top: 0rem !important;
 }
@@ -163,9 +161,8 @@ div[data-testid="stAppViewContainer"]{
   margin-top: 0 !important;
 }
 
-/* Tighten very top whitespace (first main container only) */
-div[data-testid="stAppViewContainer"] div.block-container:first-of-type > div:first-child { margin-top: 0 !important; }
-section.main div.block-container:first-of-type > div:first-child { margin-top: 0 !important; }
+/* Tighten very top whitespace */
+.block-container > div:first-child { margin-top: 0 !important; }
 
 /* Buttons: minimum tap size + readable text */
 div[data-testid="stAppViewContainer"] .stButton > button,
@@ -210,7 +207,7 @@ div[data-testid="stMetric"]{
   div[data-testid="stAppViewContainer"] .block-container{
     padding-left: 1.0rem !important;
     padding-right: 1.0rem !important;
-    padding-top: 0rem !important;
+    padding-top: 0.15rem !important;
     padding-bottom: 6.0rem !important;
   }
 
@@ -1352,6 +1349,65 @@ def render_float_top_anchor_button():
 def render_plan_pill():
     plan = (st.session_state.get("user_plan") or "free").lower()
     txt = "✨ PRO 이용 중입니다" if plan == "pro" else "🆓 FREE 이용 중"
+
+    # ✅ CSS는 f-string을 쓰지 않고 별도로 주입(중괄호 문제 방지)
+    st.markdown(
+        """<style>
+.hub-plan-wrap{
+  position:fixed;
+  top:0.75rem;
+  left:0.85rem;
+  z-index:2147483647;
+  display:flex;
+  justify-content:flex-start;
+  margin:0 !important;
+}
+.hub-plan-pill{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:.32rem .55rem;
+  border-radius:999px;
+  background:rgba(255,255,255,0.92);
+  border:1px solid rgba(0,0,0,0.08);
+  box-shadow:0 10px 22px rgba(0,0,0,0.08);
+  backdrop-filter: blur(10px);
+  font-weight:700;
+  font-size:.90rem;
+  color:rgba(0,0,0,0.72);
+}
+.hub-plan-gear{
+  width:28px;
+  height:28px;
+  border-radius:999px;
+  border:1px solid rgba(0,0,0,0.08);
+  background:rgba(255,255,255,0.85);
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+}
+@media (max-width: 480px){
+  .hub-plan-wrap{top:0.60rem;left:0.65rem;}
+  .hub-plan-pill{font-size:.84rem;padding:.28rem .48rem;}
+  .hub-plan-gear{width:26px;height:26px;}
+}
+</style>""",
+        unsafe_allow_html=True,
+    )
+
+    # ✅ 텍스트만 f-string으로 주입 (CSS 중괄호 없음)
+    st.markdown(
+        f"""
+<div class="hub-plan-wrap">
+  <div class="hub-plan-pill">
+    <span>{txt}</span>
+    <span class="hub-plan-gear" title="설정">⚙️</span>
+  </div>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
 
     is_admin = bool(st.session_state.get("is_admin", False))
     base = _hub_build_base_qs()
