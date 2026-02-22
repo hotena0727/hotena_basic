@@ -62,6 +62,12 @@ def _inject_css() -> None:
   --ha-chip: #f1f5f9;
 }}
 
+/* ---- Streamlit buttons: prevent wrapping on desktop ---- */
+.stButton > button {
+  white-space: nowrap !important;
+}
+
+
 .ha-wrap {{
   max-width: 980px;
   margin: 0 auto;
@@ -323,13 +329,39 @@ def _fmt_dt(s: Any) -> str:
 
 def _app_label(app: Optional[str]) -> str:
     a = (app or "").lower().strip()
+    # 앱/모듈 라벨
     if a in ("word", "words", "vocab"):
         return "단어"
     if a in ("kanji", "hanja"):
         return "한자"
     if a in ("talk", "conversation", "speech"):
         return "회화"
+    # 품사(pos) 라벨이 들어오는 케이스 대응 (예: noun)
+    pos_ko = {
+        "noun": "명사",
+        "verb": "동사",
+        "adj": "형용사",
+        "adjective": "형용사",
+        "adv": "부사",
+        "adverb": "부사",
+        "prep": "전치사",
+        "preposition": "전치사",
+        "conj": "접속사",
+        "conjunction": "접속사",
+        "interj": "감탄사",
+        "interjection": "감탄사",
+        "pron": "대명사",
+        "pronoun": "대명사",
+        "det": "관형사",
+        "determiner": "관형사",
+        "particle": "조사",
+        "aux": "조동사",
+        "auxiliary": "조동사",
+    }
+    if a in pos_ko:
+        return pos_ko[a]
     return (app or "기타")
+
 
 
 def _num(n: Any) -> str:
@@ -665,7 +697,7 @@ def render() -> None:
     _center_wrap_start()
 
     # Topbar (centered)
-    left, mid, right = st.columns([2, 5, 2], vertical_alignment="center")
+    left, mid, right = st.columns([3, 6, 3], vertical_alignment="center")
     with mid:
         st.markdown(
             '<div style="text-align:center;">'
@@ -678,10 +710,10 @@ def render() -> None:
         # 작은 버튼 2개
         c1, c2 = st.columns(2, gap="small")
         with c1:
-            if st.button("🏠 홈", key="myp_home_btn"):
+            if st.button("🏠 홈", key="myp_home_btn", use_container_width=True):
                 _go_home()
         with c2:
-            if st.button("로그아웃", key="myp_logout_btn"):
+            if st.button("로그아웃", key="myp_logout_btn", use_container_width=True):
                 _logout()
 
     # Data
@@ -692,27 +724,30 @@ def render() -> None:
     # KPI + Flow
     _kpi_and_flow(wrongs, attempts if attempts_status == "ok" else [], msgs)
 
-    # Sections (Info-dense but clean)
-    # View routing for CTA
-    view = st.session_state.get("mypage_view", "default")
-    if view == "top10":
-        st.markdown('<div class="ha-section">', unsafe_allow_html=True)
-        st.markdown('<div class="ha-title">🧪 TOP10 재시험</div><div class="ha-sub">현재 버전에서는 홈허브/기존 시험 화면으로 연결을 권장합니다.</div>', unsafe_allow_html=True)
-        st.info("TOP10 재시험은 기존 시험 화면(단어/한자/회화)로 연결되도록 홈에서 진행하는 방식이 가장 안정적입니다.")
-        if st.button("🏠 홈으로 돌아가기", use_container_width=True):
-            _go_home()
-        st.markdown("</div>", unsafe_allow_html=True)
+    # Sections (tabs)
+    tabs = st.tabs(["📚 오답카드", "📈 학습기록", "📩 받은 메시지"])
 
-    # 오답 섹션
-    _section_wrongs(wrongs, focus=(view == "wrongs_focus"))
+    with tabs[0]:
+        # 오답 섹션
+        _section_wrongs(wrongs, focus=(view == "wrongs_focus"))
 
-    # 기록 섹션
-    if attempts_status == "ok":
-        _section_records(attempts)
-    else:
-        _section_records([])
+        # TOP10 안내는 오답 탭에서만 노출
+        if view == "top10":
+            st.divider()
+            st.info("TOP10 재시험은 기존 시험 화면(단어/한자/회화)로 연결해 진행하는 방식이 가장 안정적입니다.")
+            if st.button("🏠 홈으로 돌아가기", use_container_width=True):
+                _go_home()
 
-    # 메시지 섹션
-    _section_messages(msgs)
+    with tabs[1]:
+        # 기록 섹션
+        if attempts_status == "ok":
+            _section_records(attempts)
+        else:
+            _section_records([])
+
+    with tabs[2]:
+        # 메시지 섹션
+        _section_messages(msgs)
 
     _center_wrap_end()
+
