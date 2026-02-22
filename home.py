@@ -2015,46 +2015,6 @@ def um_template_set(title: str, body: str):
     st.session_state["admin_msg_title"] = title
     st.session_state["admin_msg_body"] = body
 
-
-
-def render_user_inbox_section(sb_authed, user_id: str):
-    """Render inbox UI (safe) - can be placed on My page."""
-    st.markdown("## 📩 관리자 메시지")
-    if not _um_table_ready(sb_authed):
-        st.info("메시지함이 아직 준비되지 않았습니다.")
-        return
-    msgs = um_fetch_inbox(sb_authed, user_id, limit=50)
-    if not msgs:
-        st.info("받은 메시지가 없습니다.")
-        return
-
-    unread_ids = []
-    for m in msgs:
-        unread = (m.get("read_at") is None)
-        if unread:
-            unread_ids.append(str(m.get("id")))
-        title = (m.get("title") or "메시지").strip()
-        header = f"{'🟡 ' if unread else ''}{title}"
-        with st.expander(header, expanded=unread):
-            st.write(m.get("body") or "")
-            st.caption(str(m.get("created_at") or ""))
-            if unread and st.button("읽음 처리", key=f"um_read_{m.get('id')}"):
-                try:
-                    um_mark_read(sb_authed, [str(m.get("id"))])
-                    st.rerun()
-                except Exception as e:
-                    st.error(f"읽음 처리 실패: {e}")
-
-    # optional: mark all as read with one click
-    if unread_ids:
-        if st.button("모두 읽음 처리", use_container_width=True, key="um_read_all"):
-            try:
-                um_mark_read(sb_authed, unread_ids)
-                st.rerun()
-            except Exception as e:
-                st.error(f"읽음 처리 실패: {e}")
-
-
 def render_admin_dashboard(sb_authed):
     """
     Hatena-style admin dashboard.
