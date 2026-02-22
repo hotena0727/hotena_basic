@@ -5,6 +5,13 @@ from pathlib import Path
 import random
 import pandas as pd
 import streamlit as st
+
+# -------------------------------
+# ✅ 한자 헤더 중복 방지 플래그
+# -------------------------------
+if "KANJI_HEADER_RENDERED" not in st.session_state:
+    st.session_state["KANJI_HEADER_RENDERED"] = False
+
 import unicodedata
 from supabase import create_client
 from streamlit_cookies_manager import EncryptedCookieManager
@@ -19,17 +26,6 @@ import textwrap
 # NOTE: page config is handled by home.py
 if not st.session_state.get("_page_config_set"):
     st.set_page_config(page_title="Hotena", layout="centered")
-
-# -------------------------------
-# ✅ 단일 한자 퀴즈 헤더
-# -------------------------------
-col1, col2 = st.columns([3, 2])
-with col1:
-    st.markdown("## ✨ 한자 퀴즈")
-with col2:
-    if "user_email" in st.session_state:
-        st.markdown(f"환영합니다 😊 {st.session_state.user_email}")
-
     st.session_state["_page_config_set"] = True
 # ============================================================
 # ✅ [SOUND] 사운드 유틸 (모바일 자동재생 정책 대응)
@@ -1022,6 +1018,7 @@ def require_login():
     background: rgba(255,255,255,0.03);
   ">
     <div style="font-weight:900; font-size:22px; line-height:1.15;">
+      ✨ 한자 퀴즈
     </div>
     <div style="margin-top:6px; opacity:.85; font-size:13px; line-height:1.55;">
       하루 10문항으로 가볍게 루틴을 만들어요.<br/>
@@ -1197,6 +1194,7 @@ READ_KW = dict(
 def load_pool(csv_path_str: str) -> pd.DataFrame:
     df = pd.read_csv(csv_path_str, **READ_KW)
 
+    # ✅ 한자 퀴즈 필수 컬럼 (+pos 추가)
     required_cols = {"level", "jp_word", "reading", "meaning", "pos"}
     missing = required_cols - set(df.columns)
     if missing:
@@ -1272,6 +1270,13 @@ import unicodedata
 import random
 import pandas as pd
 import streamlit as st
+
+# -------------------------------
+# ✅ 한자 헤더 중복 방지 플래그
+# -------------------------------
+if "KANJI_HEADER_RENDERED" not in st.session_state:
+    st.session_state["KANJI_HEADER_RENDERED"] = False
+
 
 def _nfkc_str(x) -> str:
     return unicodedata.normalize("NFKC", str(x or "")).strip()
@@ -2026,6 +2031,7 @@ if st.session_state.get("page") != "home":
     elif _p == "admin":
         _title = "🛠 관리자"
     else:
+        _title = "✨ 한자 퀴즈"
 
     st.markdown(
         f"""
