@@ -112,16 +112,14 @@ if not st.session_state.get("_top_compact_css_applied"):
     st.markdown("""<style>
 /* === Hotena: ultra-compact top spacing (mobile + desktop) === */
 /* 핵심: block-container의 기본 top padding 제거 + 첫 요소 여백 제거 */
-/* ✅ Only the FIRST main block-container (prevents side effects on nested containers) */
-div[data-testid="stAppViewContainer"] div.block-container:first-of-type,
-section.main div.block-container:first-of-type {
+section.main > div.block-container,
+div[data-testid="stAppViewContainer"] > div.block-container {
   padding-top: 0rem !important;
   margin-top: 0rem !important;
 }
 
 /* 첫 요소(메뉴/버튼 래퍼) 상단 여백 제거 */
-div[data-testid="stAppViewContainer"] div.block-container:first-of-type > div:first-child,
-section.main div.block-container:first-of-type > div:first-child {
+div.block-container > div:first-child {
   margin-top: 0rem !important;
   padding-top: 0rem !important;
 }
@@ -163,9 +161,8 @@ div[data-testid="stAppViewContainer"]{
   margin-top: 0 !important;
 }
 
-/* Tighten very top whitespace (first main container only) */
-div[data-testid="stAppViewContainer"] div.block-container:first-of-type > div:first-child { margin-top: 0 !important; }
-section.main div.block-container:first-of-type > div:first-child { margin-top: 0 !important; }
+/* Tighten very top whitespace */
+.block-container > div:first-child { margin-top: 0 !important; }
 
 /* Buttons: minimum tap size + readable text */
 div[data-testid="stAppViewContainer"] .stButton > button,
@@ -210,7 +207,7 @@ div[data-testid="stMetric"]{
   div[data-testid="stAppViewContainer"] .block-container{
     padding-left: 1.0rem !important;
     padding-right: 1.0rem !important;
-    padding-top: 0rem !important;
+    padding-top: 0.15rem !important;
     padding-bottom: 6.0rem !important;
   }
 
@@ -274,7 +271,7 @@ div[data-testid="stMetric"]{
     unsafe_allow_html=True,
 )
 st.session_state["_page_config_set"] = True  # children should not call set_page_config
-st.session_state["_top_compact_css_applied"] = True
+
 BASE_DIR = Path(__file__).resolve().parent
 
 # ============================================================
@@ -1369,6 +1366,12 @@ def render_plan_pill():
   text-decoration:none !important;border:1px solid rgba(0,0,0,.10);background:rgba(0,0,0,.02);font-size:16px;line-height:1;}}
 .hub-admin-gear:hover{{background:rgba(0,0,0,.04);}}
 .hub-plan-pill a{{text-decoration:none !important;}}
+
+@media (max-width: 480px){
+  .hub-plan-wrap{top:0.65rem;right:0.65rem;}
+  .hub-plan-pill{font-size:.82rem;padding:.24rem .48rem;}
+}
+
 </style>
 <div class="hub-plan-wrap">
   <div class="hub-plan-pill">{txt}{gear}</div>
