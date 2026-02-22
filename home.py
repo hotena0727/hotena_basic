@@ -1105,6 +1105,21 @@ def render_home_dashboard(sb_authed, user):
         st.query_params["p"] = rec_kind
         st.rerun()
 
+    # ---- Wrong routine CTA (compact) ----
+    st.markdown("<div style='height:0.25rem'></div>", unsafe_allow_html=True)
+    c_wr1, c_wr2 = st.columns([2, 1])
+    with c_wr1:
+        st.markdown("<div class='h-sub' style='margin-top:.10rem'>오답 루틴(반복오답)으로 복습까지 마무리해요.</div>", unsafe_allow_html=True)
+    with c_wr2:
+        if st.button("🔁 반복오답 루틴", use_container_width=True, key="hub_cta_wrongs"):
+            st.query_params["p"] = "my"
+            st.session_state["p"] = "my"
+            st.session_state["hub_page"] = "my"
+            # mypage 쪽에서 사용하면 자동 반영 (없어도 무해)
+            st.session_state["mypage_tab"] = "wrongs"
+            st.session_state["wrongs_repeat_only"] = True
+            st.rerun()
+
 
 def summarize_attempts(attempts: list[dict]) -> dict:
     out = {
@@ -3157,16 +3172,9 @@ if page == "home":
     # ✅ Home Hub: dashboard view
     render_home_dashboard(sb_authed, user)
 elif page == "my":
-    # ✅ 마이페이지: (1) 받은 메시지(알림) 먼저 노출 → (2) 기존 mypage 모듈 실행
+    # ✅ 마이페이지: 홈 허브에서는 관리자 메시지(받은 메시지) 영역을 숨깁니다.
+    # - 메시지 탭은 mypage 내부에 이미 있으므로 중복 노출 방지
     st.session_state['HUB_MODE'] = True
-    try:
-        uid_now = st.session_state.get("user_id") or getattr(user, "id", None)
-        if uid_now and sb_authed:
-            render_user_inbox_section(sb_authed, str(uid_now))
-            st.markdown("---")
-    except Exception:
-        pass
-
     run_module('mypage')
     st.stop()
 
