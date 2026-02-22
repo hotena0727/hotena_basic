@@ -5,15 +5,6 @@ from pathlib import Path
 import random
 import pandas as pd
 import streamlit as st
-
-# -------------------------------
-# ✅ Session State 안전 초기화
-# -------------------------------
-if "submitted" not in st.session_state:
-    st.session_state.submitted = False
-if "wrong_list" not in st.session_state:
-    st.session_state.wrong_list = []
-
 import unicodedata
 from supabase import create_client
 from streamlit_cookies_manager import EncryptedCookieManager
@@ -28,17 +19,6 @@ import textwrap
 # NOTE: page config is handled by home.py
 if not st.session_state.get("_page_config_set"):
     st.set_page_config(page_title="Hotena", layout="centered")
-
-# -------------------------------
-# ✅ 한자 퀴즈 타이틀 (단일 표시)
-# -------------------------------
-col1, col2 = st.columns([3, 2])
-with col1:
-    st.markdown("## ✨ 한자 퀴즈")
-with col2:
-    if "user_email" in st.session_state:
-        st.markdown(f"환영합니다 😊 {st.session_state.user_email}")
-
     st.session_state["_page_config_set"] = True
 # ============================================================
 # ✅ [SOUND] 사운드 유틸 (모바일 자동재생 정책 대응)
@@ -1283,15 +1263,6 @@ import unicodedata
 import random
 import pandas as pd
 import streamlit as st
-
-# -------------------------------
-# ✅ Session State 안전 초기화
-# -------------------------------
-if "submitted" not in st.session_state:
-    st.session_state.submitted = False
-if "wrong_list" not in st.session_state:
-    st.session_state.wrong_list = []
-
 
 def _nfkc_str(x) -> str:
     return unicodedata.normalize("NFKC", str(x or "")).strip()
