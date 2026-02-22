@@ -126,44 +126,26 @@ div.block-container > div:first-child {
 
 /* Streamlit 헤더가 만드는 공간 최소화 */
 header[data-testid="stHeader"]{
-  height: 0px !important;
-  min-height: 0px !important;
+  display:none !important;
+  height:0 !important;
+  min-height:0 !important;
 }
-
-/* 모바일에서 더 강하게 */
-@media (max-width: 768px){
-  section.main > div.block-container,
-  div[data-testid="stAppViewContainer"] > div.block-container {
-    padding-top: 0rem !important;
-    margin-top: 0rem !important;
-  }
+div[data-testid="stToolbar"]{
+  display:none !important;
+  height:0 !important;
+  visibility:hidden !important;
 }
-</style>""", unsafe_allow_html=True)
-    st.session_state["_top_compact_css_applied"] = True
+footer{display:none !important;}
 
-# ✅ TOP anchor for floating button (no-JS)
-st.markdown('<div id="hotena-top"></div>', unsafe_allow_html=True)
-
-# ✅ CSS reset (child pages may hide Streamlit header; keep top UI from being clipped)
-st.markdown(
-    """
-<style>
-/* ==========================================================
-   ✅ HUB Global CSS (Mobile-first polish)
-   - Keep header visible (child pages may hide)
-   - Make tap targets big enough
-   - Normalize spacing/typography for "app-like" feel
-   ========================================================== */
-
-header[data-testid="stHeader"]{
-  height: auto !important;
-  min-height: 3.25rem !important;
+/* Container spacing: pull content to the very top */
+div[data-testid="stAppViewContainer"]{
+  padding-top: 0 !important;
+  margin-top: 0 !important;
 }
-
-/* Container spacing */
 div[data-testid="stAppViewContainer"] .block-container{
-  padding-top: 0.25rem !important;
-  padding-bottom: 5.25rem !important; /* bottom breathing room for mobile */
+  padding-top: 0 !important;
+  margin-top: 0 !important;
+  padding-bottom: 5.25rem !important; /* keep breathing room for bottom nav */
 }
 
 /* Headlines: tighter */
