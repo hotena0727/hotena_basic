@@ -736,6 +736,49 @@ def _inject_css() -> None:
   padding: 14px 14px 34px 14px !important;
 }
 
+
+/* ============================================================
+   ✅ v4_9_10 overrides (message tab polish)
+   - inner box background removed
+   - inner left line lighter
+   - outer padding tightened
+   ============================================================ */
+.ha-msg-bodyA-inner{
+  background: transparent !important;
+  box-shadow: none !important;
+  border: 0 !important;
+}
+
+.ha-msg-bodyA{
+  background: transparent !important;
+  padding: 0 !important;
+  margin-top: 8px !important;
+}
+
+/* left accent line (lighter) */
+.ha-msg-bodyA:before{
+  background: rgba(37,99,235,0.20) !important;
+  width: 3px !important;
+}
+
+/* tighten outer spacing so it doesn't feel too tall */
+.ha-card div[data-testid="stExpander"] > details[open]{
+  padding-bottom: 8px !important;
+}
+.ha-card div[data-testid="stExpander"] .streamlit-expanderContent{
+  padding: 10px 12px 18px 30px !important;
+}
+.ha-card .ha-msg-scope div[data-testid="stExpander"] .streamlit-expanderContent{
+  padding: 10px 12px 18px 14px !important;
+}
+
+/* reduce extra margin that can make bottom feel double-lined */
+.ha-msg-bodyA-inner{
+  margin: 8px 0 10px 0 !important;
+  padding: 10px 12px 12px 18px !important;
+  border-radius: 12px !important;
+}
+
 </style>"""
     css = css.replace("__BLUE__", str(HATENA_BLUE))
     st.markdown(css, unsafe_allow_html=True)
