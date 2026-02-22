@@ -34,8 +34,7 @@ if not st.session_state.get("_page_config_set"):
 # - Applied once per session
 # ============================================================
 if not st.session_state.get("_top_compact_css_applied"):
-    if not st.session_state.get('HUB_MODE', False):
-    st.markdown("""<style>
+    if not st.session_state.get('HUB_MODE', False): st.markdown("""<style>
 /* === Hotena: ultra-compact top spacing (mobile + desktop) === */
 /* 핵심: block-container의 기본 top padding 제거 + 첫 요소 여백 제거 */
 section.main > div.block-container,
