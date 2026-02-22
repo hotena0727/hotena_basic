@@ -330,7 +330,7 @@ body {{ margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI
   font-weight: 900;
   color: var(--ha-text);
   letter-spacing: -0.2px;
-  font-size: 14px;
+  font-size: 16px;
 }}
 .meta {{
   margin-top: 6px;
@@ -399,20 +399,59 @@ def _safe_select(table: str, cols: str = "*", limit: int = 200, order: Optional[
 
 
 def _load_wrongs(limit: int = 400) -> Tuple[List[Dict[str, Any]], str]:
-    """오답 테이블명이 환경마다 달라질 수 있어 자동 탐색합니다."""
-    cols = "id, user_id, app, level, jp_word, reading, meaning, correct_answer, user_answer, created_at"
-    for table in ("wrong_notes", "wrong_note", "wrongs"):
-        rows = _safe_select(table, cols=cols, limit=limit, order="created_at", desc=True)
+    """오답 데이터 로더 (✅ 환경 차이 강인성)
+    - 테이블명 자동 탐색
+    - 컬럼 스키마가 달라도 cols→* 순으로 재시도
+    - 필드명 alias 최대한 흡수
+    """
+    base_cols = "id, user_id, app, level, jp_word, reading, meaning, correct_answer, user_answer, created_at"
+    table_candidates = (
+        "wrong_notes",
+        "wrong_note",
+        "wrongs",
+        "wrong_answers",
+        "wrong_words",
+        "wrong_items",
+    )
+
+    def _normalize_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        out = []
+        for r in rows:
+            rr = dict(r)
+
+            # word field
+            if not rr.get("jp_word"):
+                rr["jp_word"] = rr.get("word") or rr.get("jp") or rr.get("term") or rr.get("question") or rr.get("quiz_word")
+
+            # meaning field
+            if not rr.get("meaning"):
+                rr["meaning"] = rr.get("definition") or rr.get("meaning_kr") or rr.get("kr") or rr.get("answer_meaning") or rr.get("correct_meaning")
+
+            # reading field
+            if not rr.get("reading"):
+                rr["reading"] = rr.get("yomi") or rr.get("kana") or rr.get("pron") or rr.get("pronunciation")
+
+            # correct / user answers
+            if "correct_answer" not in rr or rr.get("correct_answer") is None:
+                rr["correct_answer"] = rr.get("correct") or rr.get("correct_option") or rr.get("answer")
+            if "user_answer" not in rr or rr.get("user_answer") is None:
+                rr["user_answer"] = rr.get("user") or rr.get("picked") or rr.get("user_option")
+
+            # created_at
+            if not rr.get("created_at"):
+                rr["created_at"] = rr.get("created") or rr.get("inserted_at") or rr.get("ts")
+
+            out.append(rr)
+        return out
+
+    for table in table_candidates:
+        rows = _safe_select(table, cols=base_cols, limit=limit, order="created_at", desc=True)
+        if not rows:
+            # cols 스키마가 다르면 예외가 나서 []가 될 수 있음 → *로 재시도
+            rows = _safe_select(table, cols="*", limit=limit, order="created_at", desc=True)
         if rows:
-            # field aliases
-            for r in rows:
-                if "jp_word" not in r and "word" in r:
-                    r["jp_word"] = r.get("word")
-                if "correct_answer" not in r and "correct" in r:
-                    r["correct_answer"] = r.get("correct")
-                if "user_answer" not in r and "answer" in r:
-                    r["user_answer"] = r.get("answer")
-            return rows, table
+            return _normalize_rows(rows), table
+
     return [], "wrong_notes"
 def _load_messages(limit: int = 300) -> List[Dict[str, Any]]:
     cols = "id, user_id, title, body, created_at, read_at"
