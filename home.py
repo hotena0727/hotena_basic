@@ -103,6 +103,28 @@ import html as html_module  # ✅ for html escaping in admin cards
 st.set_page_config(page_title="Hotena Hub", layout="centered")
 
 
+
+
+# ============================================================
+# ✅ F5(새로고침) 시 브라우저 스크롤 복원 방지 (항상 맨 위로)
+# ============================================================
+try:
+    import streamlit.components.v1 as components  # 이미 import 되어 있으면 중복 harmless
+    components.html("""
+<script>
+(function() {
+  try {
+    if ('scrollRestoration' in history) {
+      history.scrollRestoration = 'manual';
+    }
+    window.scrollTo(0, 0);
+  } catch(e) {}
+})();
+</script>
+""", height=0)
+except Exception:
+    pass
+
 # ============================================================
 # ✅ TOP SPACING FIX (PC + Mobile)
 # - Remove Streamlit's default top padding/space
@@ -270,27 +292,6 @@ div[data-testid="stMetric"]{
 """,
     unsafe_allow_html=True,
 )
-
-# ✅ Fix: F5(하드 리로드) 시 block-container 패딩이 다시 살아나는 현상 방지
-# - Streamlit DOM 구조가 바뀌어도, section.main 아래 첫 block-container만 직접 스타일로 고정
-components.html(r"""
-<script>
-(() => {
-  const apply = () => {
-    const bc = document.querySelector("section.main div.block-container");
-    if (!bc) return;
-    bc.style.paddingTop = "0.6rem";
-    bc.style.marginTop = "0rem";
-  };
-  // 즉시 + 지연 재시도 (초기 렌더/리렌더 타이밍 대비)
-  apply();
-  window.addEventListener("load", apply);
-  setTimeout(apply, 50);
-  setTimeout(apply, 200);
-  setTimeout(apply, 600);
-})();
-</script>
-""", height=0)
 st.session_state["_page_config_set"] = True  # children should not call set_page_config
 
 BASE_DIR = Path(__file__).resolve().parent
