@@ -70,46 +70,6 @@ if not st.session_state.get('_page_config_set'):
 )
     
 
-
-
-# ============================================================
-# ✅ F5(새로고침) 시 스크롤 복원 방지 (부모 문서 기준으로 항상 맨 위로)
-# ============================================================
-try:
-    import streamlit.components.v1 as components
-    components.html("""
-<script>
-(function() {
-  function topScroll() {
-    try {
-      var w = window.parent || window;
-      if (w.history && 'scrollRestoration' in w.history) {
-        w.history.scrollRestoration = 'manual';
-      }
-      w.scrollTo(0, 0);
-      if (w.document && w.document.documentElement) w.document.documentElement.scrollTop = 0;
-      if (w.document && w.document.body) w.document.body.scrollTop = 0;
-    } catch(e) {}
-  }
-  topScroll();
-  setTimeout(topScroll, 50);
-  setTimeout(topScroll, 200);
-  setTimeout(topScroll, 600);
-  try {
-    var n = 0;
-    function rafLoop(){
-      topScroll();
-      n++;
-      if (n < 20) requestAnimationFrame(rafLoop);
-    }
-    requestAnimationFrame(rafLoop);
-  } catch(e) {}
-})();
-</script>
-""", height=0)
-except Exception:
-    pass
-
 # ============================================================
 # ✅ TOP SPACING FIX (PC + Mobile)
 # - Remove Streamlit's default top padding/space
@@ -1442,7 +1402,9 @@ def render_pronounce_button(text: str, uid: str, label: str = "🔊 발음"):
     let cand = ja.find(v => prefer.test(String(v.name || "")));
     if (cand) return cand;
 
-    // 2) avoid는 피하고 남은 것 중 첫번째
+    // 2,
+    height=0,
+) avoid는 피하고 남은 것 중 첫번째
     cand = ja.find(v => !avoid.test(String(v.name || "")));
     if (cand) return cand;
 
