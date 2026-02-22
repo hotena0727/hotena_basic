@@ -50,17 +50,16 @@ def _uid() -> Optional[str]:
 HATENA_BLUE = "#1E6BFF"  # ✅ 현재 하테나 블루(필요 시 값만 교체)
 
 def _inject_css() -> None:
-    st.markdown(
-        f"""
-<style>
-:root {{
-  --ha-blue: {HATENA_BLUE};
+    # NOTE: Do NOT use f-strings for large CSS blocks (curly braces conflict).
+    css = """<style>
+:root {
+  --ha-blue: __HA_BLUE__;
   --ha-text: #0f172a;
   --ha-sub: #64748b;
   --ha-line: #e5e7eb;
   --ha-bg: #ffffff;
   --ha-chip: #f1f5f9;
-}}
+}
 
 /* ---- Streamlit buttons: prevent wrapping (PC) ---- */
 .stButton > button, div[data-testid="stHorizontalBlock"] .stButton > button {
@@ -70,167 +69,148 @@ def _inject_css() -> None:
   line-height: 1.05 !important;
 }
 
-
-.ha-wrap {{
+.ha-wrap {
   max-width: 980px;
   margin: 0 auto;
   padding: 10px 8px 30px 8px;
-}}
+}
 
-.ha-topbar {{
+.ha-topbar {
   display:flex;
   align-items:center;
   justify-content:space-between;
   gap:12px;
   padding: 2px 0 14px 0;
-}}
+}
 
-.ha-title {{
-  font-size: 20px;
+.ha-title {
+  font-size: 22px;
   font-weight: 800;
+  letter-spacing: -0.2px;
   color: var(--ha-text);
-  letter-spacing: -0.3px;
-}}
-.ha-sub {{
-  margin-top: 2px;
-  font-size: 12px;
+  margin: 0;
+}
+
+.ha-subtitle {
+  margin-top: 4px;
   color: var(--ha-sub);
-}}
+  font-size: 13px;
+}
 
-.ha-actions {{
+.ha-actions {
   display:flex;
-  gap:8px;
   align-items:center;
-}}
+  justify-content:flex-end;
+  gap:8px;
+  flex-wrap: nowrap;
+}
 
-.ha-btn {{
-  border: 1px solid var(--ha-line);
-  background: #fff;
-  color: var(--ha-text);
-  border-radius: 999px;
-  padding: 7px 12px;
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-}}
-.ha-btn-primary {{
-  border: 1px solid rgba(30,107,255,0.35);
-  background: rgba(30,107,255,0.10);
-  color: var(--ha-blue);
-}}
+.ha-actions .stButton > button {
+  font-size: 13px !important;
+  padding-left: 10px !important;
+  padding-right: 10px !important;
+}
 
-.ha-section {{
+.ha-section {
   border: 1px solid var(--ha-line);
-  border-radius: 16px;
+  border-radius: 14px;
   padding: 14px 14px;
   background: var(--ha-bg);
-  margin: 10px 0;
-}}
+  margin: 10px 0 14px 0;
+}
 
-.ha-kpi {{
-  display:grid;
+.ha-section h3 {
+  margin: 0 0 10px 0;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--ha-text);
+}
+
+.ha-kpis {
+  display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 10px;
-}}
-.ha-kpi-item {{
+}
+
+.ha-kpi {
   border: 1px solid var(--ha-line);
   border-radius: 14px;
   padding: 12px 12px;
   background: #fff;
-}}
-.ha-kpi-num {{
-  font-size: 30px;
+  text-align: center;
+}
+
+.ha-kpi .num {
+  font-size: 32px;
   font-weight: 900;
+  letter-spacing: -0.3px;
   color: var(--ha-text);
-  line-height: 1.0;
-}}
-.ha-kpi-lbl {{
-  margin-top: 6px;
+}
+
+.ha-kpi .num .accent {
+  color: var(--ha-blue);
+}
+
+.ha-kpi .label {
+  margin-top: 2px;
   font-size: 12px;
   color: var(--ha-sub);
-  font-weight: 700;
-}}
+}
 
-.ha-progress-row {{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap: 10px;
-  margin-top: 8px;
-}}
-.ha-progress {{
-  width: 100%;
-  height: 10px;
-  background: #f1f5f9;
-  border-radius: 999px;
-  overflow:hidden;
+.ha-seg {
+  margin-top: 10px;
   border: 1px solid var(--ha-line);
-}}
-.ha-progress > div {{
+  border-radius: 999px;
+  background: #fff;
+  overflow: hidden;
+  height: 10px;
+}
+
+.ha-seg > div {
   height: 100%;
   background: var(--ha-blue);
-  width: 0%;
-}}
+}
 
-.ha-cta {{
-  display:flex;
-  justify-content:center;
-  gap: 10px;
-  margin-top: 10px;
-}}
+.ha-divider {
+  height: 1px;
+  background: var(--ha-line);
+  margin: 12px 0;
+}
 
-.ha-chip {{
-  display:inline-flex;
-  align-items:center;
-  gap:6px;
-  padding: 4px 9px;
-  border-radius: 999px;
-  background: var(--ha-chip);
-  border: 1px solid var(--ha-line);
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--ha-sub);
-}}
-.ha-chip b {{ color: var(--ha-text); }}
-
-.ha-card {{
+.ha-logcard {
   border: 1px solid var(--ha-line);
   border-radius: 14px;
   padding: 12px 12px;
   background: #fff;
   margin: 8px 0;
-}}
-.ha-card-title {{
-  font-weight: 900;
-  color: var(--ha-text);
-  letter-spacing: -0.2px;
-}}
-.ha-meta {{
-  margin-top: 6px;
+}
+
+.ha-logcard .meta {
   font-size: 12px;
   color: var(--ha-sub);
-  display:flex;
-  flex-wrap:wrap;
-  gap: 8px;
-}}
-.ha-dot {{
-  width: 6px;
-  height: 6px;
-  border-radius: 999px;
-  background: var(--ha-blue);
+  margin-bottom: 6px;
+}
+
+.ha-chip {
   display:inline-block;
-  margin-right: 6px;
-  opacity: 0.8;
-}}
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--ha-chip);
+  color: var(--ha-sub);
+  border: 1px solid var(--ha-line);
+  vertical-align: middle;
+}
 
-@media (max-width: 720px) {{
-  .ha-kpi {{ grid-template-columns: 1fr; }}
-}}
-</style>
-""",
-        unsafe_allow_html=True,
-    )
+.ha-chip.blue {
+  background: rgba(30, 136, 229, 0.08);
+  color: var(--ha-blue);
+  border-color: rgba(30, 136, 229, 0.25);
+}
 
+</style>"""
+    css = css.replace("__HA_BLUE__", str(HATENA_BLUE))
+    st.markdown(css, unsafe_allow_html=True)
 
 def _center_wrap_start() -> None:
     st.markdown('<div class="ha-wrap">', unsafe_allow_html=True)
