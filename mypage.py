@@ -761,23 +761,63 @@ def render():
         unsafe_allow_html=True,
     )
 
-    # --- Switch (C): calm segmented navigation ---
-    st.markdown('<div class="ha-switch">', unsafe_allow_html=True)
-    section = st.radio(
-        "",
-        ["오답", "학습 기록", "받은 메시지"],
-        horizontal=True,
-        key="mypage_section",
-        label_visibility="collapsed",
-    )
-    st.markdown("</div>", unsafe_allow_html=True)
+# ===============================
+# ADMIN STYLE SECTIONS (PATCH)
+# ===============================
 
-    if section == "오답":
-        _section_wrongs_adminstyle(wrongs)
-    elif section == "학습 기록":
-        _section_records_adminstyle(attempts, attempts_err)
-    else:
-        _section_messages_adminstyle()
+def _section_wrongs_adminstyle(wrongs):
+    import streamlit as st
 
-    st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown("### 📚 오답 상세")
 
+    if not wrongs:
+        st.info("저장된 오답이 없습니다.")
+        return
+
+    for w in wrongs[:20]:
+        with st.container():
+            st.markdown(f"""
+            <div class="ha-card">
+                <b>{w.get("jp_word","-")}</b><br>
+                정답: {w.get("correct_answer","-")}<br>
+                내답: {w.get("user_answer","-")}
+            </div>
+            """, unsafe_allow_html=True)
+
+
+def _section_records_adminstyle(records):
+    import streamlit as st
+
+    st.markdown("### 📈 학습 기록")
+
+    if not records:
+        st.info("학습 기록이 없습니다.")
+        return
+
+    for r in records[:20]:
+        with st.container():
+            st.markdown(f"""
+            <div class="ha-card">
+                날짜: {r.get("created_at","-")}<br>
+                점수: {r.get("score","-")}
+            </div>
+            """, unsafe_allow_html=True)
+
+
+def _section_messages_adminstyle(msgs):
+    import streamlit as st
+
+    st.markdown("### 📩 받은 메시지")
+
+    if not msgs:
+        st.info("받은 메시지가 없습니다.")
+        return
+
+    for m in msgs[:20]:
+        with st.container():
+            st.markdown(f"""
+            <div class="ha-card">
+                <b>{m.get("title","-")}</b><br>
+                {m.get("content","-")}
+            </div>
+            """, unsafe_allow_html=True)
