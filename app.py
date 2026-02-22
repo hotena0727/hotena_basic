@@ -30,21 +30,14 @@ if not st.session_state.get("_page_config_set"):
     st.set_page_config(page_title="Hotena", layout="centered")
 
 # -------------------------------
-# ✅ 한자 퀴즈 타이틀 (중복 방지 버전)
+# ✅ 한자 퀴즈 타이틀 (단일 표시)
 # -------------------------------
-show_header = True
-
-# 허브에서 kanji로 들어온 경우
-if st.session_state.get("HUB_MODE") and st.session_state.get("hub_target") == "kanji":
-    # home.py에서 이미 상단 훈련 타이틀을 출력하므로
-    # 내부에서 "한자 퀴즈" 타이틀은 한 번만 표시
-    if st.session_state.get("_kanji_header_rendered"):
-        show_header = False
-    else:
-        st.session_state["_kanji_header_rendered"] = True
-
-if show_header:
+col1, col2 = st.columns([3, 2])
+with col1:
     st.markdown("## ✨ 한자 퀴즈")
+with col2:
+    if "user_email" in st.session_state:
+        st.markdown(f"환영합니다 😊 {st.session_state.user_email}")
 
     st.session_state["_page_config_set"] = True
 # ============================================================
