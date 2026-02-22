@@ -1047,8 +1047,18 @@ def auth_box():
     st.markdown("</div>", unsafe_allow_html=True)
 
 def require_login():
+    """한자 앱 로그인 가드.
+    - HUB_MODE=True: 허브에서 이미 로그인/세션을 관리하므로, user가 없으면 간단 메시지만 보여주고 중단
+    - HUB_MODE=False: 단독 실행 시 기존 로그인 UI(auth_box) 노출
+    """
+    HUB_MODE = st.session_state.get("HUB_MODE", False)
+
     if st.session_state.get("user") is None:
-    if not st.session_state.get('HUB_MODE', False):
+        if HUB_MODE:
+            st.info("로그인이 필요합니다. 홈으로 이동해 로그인 후 다시 시도해 주세요.")
+            st.stop()
+
+        # 단독 실행(허브 없이)일 때만 상단 안내 + 로그인/회원가입 UI
         st.markdown(
             """
 <div class="jp" style="margin: 8px 0 14px 0;">
