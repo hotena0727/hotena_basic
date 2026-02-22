@@ -1014,6 +1014,45 @@ body {{ margin:0; font-family: Pretendard, 'Noto Sans KR', 'Apple SD Gothic Neo'
   font-size: 14px;
   line-height: 1.55;
 }}
+
+/* ============================================================
+   ✅ v4_9_24: 메시지 목록 '덜 정신없게' (Calm List)
+   - 박스 대비/선명도 낮추고, 패딩/모서리/간격 정돈
+   - 메시지 탭(.ha-msg-scope) 안에서만 적용
+   ============================================================ */
+
+/* 전체 리스트가 '붙어있는' 느낌 유지 */
+.ha-msg-scope div[data-testid="stExpander"] + div[data-testid="stExpander"]{
+  margin-top: 0px !important;   /* ✅ 완전 밀착 */
+}
+
+/* 각 행(요약줄) 더 차분하게: 라인 연하게 + 배경 제거 */
+.ha-msg-scope div[data-testid="stExpander"] summary{
+  background: transparent !important;
+  border: 1px solid rgba(0,0,0,0.10) !important;  /* ✅ 선 연하게 */
+  box-shadow: none !important;
+  border-radius: 14px !important;
+  padding: 10px 12px 10px 30px !important;        /* ✅ 아이콘 공간 + 컴팩트 */
+  letter-spacing: -0.1px !important;
+}
+
+/* hover도 과하지 않게 */
+.ha-msg-scope div[data-testid="stExpander"] summary:hover{
+  background: rgba(0,0,0,0.02) !important;
+}
+
+/* 펼친 콘텐츠도 덜 과하게 */
+.ha-msg-scope div[data-testid="stExpander"] .streamlit-expanderContent{
+  padding: 8px 12px 10px 12px !important;
+  border: 0 !important;
+  background: transparent !important;
+}
+
+/* 펼쳤을 때 아래 카드가 '덜 커 보이게' */
+.ha-msg-scope .ha-msg-bodyA{
+  padding: 10px 12px 10px 12px !important;
+}
+
 </style></head>
 <body>
   <div class="card">
