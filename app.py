@@ -459,6 +459,34 @@ if st.session_state.level not in LEVEL_OPTIONS:
     st.session_state.level = "N5"
 if st.session_state.quiz_type not in QUIZ_TYPES_USER:
     st.session_state.quiz_type = "reading"
+
+# ---- 한자 퀴즈 필수 세션 기본값 ----
+if "quiz" not in st.session_state:
+    st.session_state.quiz = []
+
+if "answers" not in st.session_state:
+    st.session_state.answers = []
+
+if "submitted" not in st.session_state:
+    st.session_state.submitted = False
+
+if "wrong_list" not in st.session_state:
+    st.session_state.wrong_list = []
+
+if "quiz_version" not in st.session_state:
+    st.session_state.quiz_version = 0
+
+if "saved_this_attempt" not in st.session_state:
+    st.session_state.saved_this_attempt = False
+
+if "stats_saved_this_attempt" not in st.session_state:
+    st.session_state.stats_saved_this_attempt = False
+
+if "session_stats_applied_this_attempt" not in st.session_state:
+    st.session_state.session_stats_applied_this_attempt = False
+
+if "progress_dirty" not in st.session_state:
+    st.session_state.progress_dirty = False
   
 # ============================================================
 # ✅ Utils: 위젯 잔상(q_...) 제거
@@ -2594,7 +2622,7 @@ else:
     # ============================================================
     # ✅ 오답노트 + 다시풀기
     # ============================================================
-    if st.session_state.submitted and st.session_state.wrong_list:
+    if st.session_state.get("submitted", False) and st.session_state.get("wrong_list"):
         st.subheader("❌ 오답 노트")
 
         st.markdown(
