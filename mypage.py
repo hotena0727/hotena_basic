@@ -190,6 +190,10 @@ def _inject_css() -> None:
 /* ✅ messages: timeline (B) */
 .ha-msg-scope{margin-top:6px; position:relative;}
 /* spacing tighten */
+/* collapse vertical gaps */
+.ha-msg-scope div[data-testid="stExpander"] + div[data-testid="stExpander"]{margin-top:-1px !important;}
+.ha-msg-scope div[data-testid="stExpander"]{padding:0 !important;}
+
 .ha-msg-scope div[data-testid="stExpander"]{margin:0 !important; padding:0 !important;}
 .ha-msg-scope div[data-testid="stExpander"] > details{margin:0 !important;}
 .ha-msg-scope .ha-msg-unread, .ha-msg-scope .ha-msg-unread *, .ha-msg-scope div{box-sizing:border-box;}
@@ -204,7 +208,7 @@ def _inject_css() -> None:
 }
 .ha-msg-scope div[data-testid="stExpander"] summary{
   position:relative;
-  padding:8px 2px 8px 30px !important; /* left space for line/dot */
+  padding:6px 2px 6px 30px !important; /* left space for line/dot */
   border-bottom:1px solid var(--ha-line) !important;
   border-radius:0 !important;
   background:transparent !important;
@@ -243,11 +247,11 @@ def _inject_css() -> None:
   box-shadow:0 0 0 2px rgba(37,99,235,0.18);
 }
 .ha-msg-scope div[data-testid="stExpander"] .streamlit-expanderContent{
-  padding:10px 12px 14px 30px !important;
+  padding:14px 16px 20px 30px !important; /* ✅ bigger white container */
   border:0 !important;
-  background:transparent !important;
+  background:#fff !important;
 }
-.ha-msg-bodyA{margin-top:10px; padding:0;}
+.ha-msg-bodyA{margin-top:8px; padding:0;}
 .ha-msg-bodyA-inner{
   padding:10px 12px 14px 12px;
   background:#f8fafc;
@@ -319,9 +323,9 @@ def _inject_css() -> None:
 }
 /* remove content card padding from streamlit */
 .ha-msg-scope div[data-testid="stExpander"] .streamlit-expanderContent{
-  padding:10px 12px 14px 30px !important;
+  padding:14px 16px 20px 30px !important; /* ✅ bigger white container */
   border:0 !important;
-  background:transparent !important;
+  background:#fff !important;
 }
 /* body: white + only left bar (no card-in-card) */
 .ha-msg-bodyA{
