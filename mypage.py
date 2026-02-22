@@ -187,71 +187,71 @@ def _inject_css() -> None:
   flex-wrap: wrap;
 }
 
-/* ✅ messages: timeline (B) */
-.ha-msg-scope{margin-top:6px; position:relative;}
-/* spacing tighten */
-/* collapse vertical gaps */
-.ha-msg-scope div[data-testid="stExpander"] + div[data-testid="stExpander"]{margin-top:-1px !important;}
-.ha-msg-scope div[data-testid="stExpander"]{padding:0 !important;}
-
-.ha-msg-scope div[data-testid="stExpander"]{margin:0 !important; padding:0 !important;}
-.ha-msg-scope div[data-testid="stExpander"] > details{margin:0 !important;}
-.ha-msg-scope .ha-msg-unread, .ha-msg-scope .ha-msg-unread *, .ha-msg-scope div{box-sizing:border-box;}
-/* kill expander outer box */
-.ha-msg-scope div[data-testid="stExpander"],
-.ha-msg-scope div[data-testid="stExpander"] > details{
+/* ✅ messages: FORCE (no scope dependency) */
+div[data-testid="stExpander"]{
+  margin:0 !important;
+  padding:0 !important;
   border:0 !important;
-  outline:0 !important;
-  box-shadow:none !important;
   background:transparent !important;
+  box-shadow:none !important;
+}
+div[data-testid="stExpander"] > details{
+  margin:0 !important;
+  border:0 !important;
+  background:transparent !important;
+  box-shadow:none !important;
   border-radius:0 !important;
 }
-.ha-msg-scope div[data-testid="stExpander"] summary{
+div[data-testid="stExpander"] summary{
   position:relative;
-  padding:6px 2px 6px 30px !important; /* left space for line/dot */
-  border-bottom:1px solid var(--ha-line) !important;
-  border-radius:0 !important;
-  background:transparent !important;
+  margin:0 !important;
+  padding:6px 10px 6px 30px !important;  /* tighter + left gutter */
+  border:1px solid var(--ha-line) !important; /* row outline */
+  border-radius:12px !important;
+  background:#fff !important;
   font-weight:900 !important;
   color:var(--ha-text) !important;
   letter-spacing:-0.2px !important;
 }
-.ha-msg-scope div[data-testid="stExpander"] summary:hover{background:#fbfbfd !important;}
-.ha-msg-scope div[data-testid="stExpander"] summary svg{display:none !important;}
-/* timeline line + dot */
-.ha-msg-scope div[data-testid="stExpander"] summary:before{
+div[data-testid="stExpander"] summary:hover{background:#fbfbfd !important;}
+div[data-testid="stExpander"] summary svg{display:none !important;}
+/* timeline gutter */
+div[data-testid="stExpander"] summary:before{
   content:"";
   position:absolute;
-  left:12px;
-  top:0;
-  bottom:0;
+  left:14px; top:0; bottom:0;
   width:2px;
   background:rgba(37,99,235,0.16);
   border-radius:99px;
 }
-.ha-msg-scope div[data-testid="stExpander"] summary:after{
+div[data-testid="stExpander"] summary:after{
   content:"";
   position:absolute;
-  left:9px;
-  top:50%;
+  left:11px; top:50%;
   transform:translateY(-50%);
-  width:10px;
-  height:10px;
+  width:10px; height:10px;
   border-radius:999px;
   background:#cbd5e1;
   border:2px solid #fff;
   box-shadow:0 0 0 2px rgba(37,99,235,0.10);
 }
-.ha-msg-scope .ha-msg-unread summary:after{
+/* unread (only when wrapper class exists) */
+.ha-msg-unread div[data-testid="stExpander"] summary:after{
   background:var(--ha-blue);
   box-shadow:0 0 0 2px rgba(37,99,235,0.18);
 }
-.ha-msg-scope div[data-testid="stExpander"] .streamlit-expanderContent{
-  padding:14px 16px 20px 30px !important; /* ✅ bigger white container */
-  border:0 !important;
+/* expanded "white container" */
+div[data-testid="stExpander"] .streamlit-expanderContent{
+  margin-top:8px !important;
+  padding:14px 16px 20px 30px !important;  /* ✅ bigger white container */
   background:#fff !important;
+  border:1px solid var(--ha-line) !important;
+  border-radius:12px !important;
 }
-.ha-msg-bodyA{margin-top:8px; padding:0;}
+/* reduce gap between items (stack like list) */
+div[data-testid="stExpander"] + div[data-testid="stExpander"]{margin-top:8px !important;}
+/* body card inside (gray) */
+.ha-msg-bodyA{margin-top:0; padding:0;}
 .ha-msg-bodyA-inner{
   padding:10px 12px 14px 12px;
   background:#f8fafc;
