@@ -121,7 +121,7 @@ def _inject_css() -> None:
 }
 .ha-kpi-num {
   font-size: 26px;
-  font-weight: 800;
+  font-weight: 900;
   color: var(--ha-text);
   line-height: 1.0;
 }
@@ -186,6 +186,34 @@ def _inject_css() -> None:
   gap: 10px;
   flex-wrap: wrap;
 }
+
+/* ✅ messages: card list + spacing */
+.ha-msg-gap{height:12px;}
+.ha-msg-card{
+  border:1px solid var(--ha-line);
+  border-radius:14px;
+  background:#fff;
+  padding:12px 14px;
+  margin-top:10px;
+}
+.ha-msg-top{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:10px;
+  flex-wrap:wrap;
+}
+.ha-msg-title{
+  font-weight:900;
+  color:var(--ha-text);
+  letter-spacing:-0.2px;
+  font-size:15px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.ha-msg-actions{display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
+
 .ha-inline {
   display:flex;
   gap: 8px;
@@ -223,35 +251,6 @@ def _inject_css() -> None:
   flex-wrap:wrap;
   gap: 8px;
 }
-
-
-/* ✅ messages: spacing + card list */
-.ha-msg-gap{height:12px;}
-.ha-msg-card{
-  border:1px solid var(--ha-line);
-  border-radius:14px;
-  background:#fff;
-  padding:12px 14px;
-  margin-top:10px;
-}
-.ha-msg-top{
-  display:flex;
-  align-items:flex-start;
-  justify-content:space-between;
-  gap:10px;
-  flex-wrap:wrap;
-}
-.ha-msg-title{
-  font-weight:900;
-  color:var(--ha-text);
-  letter-spacing:-0.2px;
-  font-size:15px;
-  display:flex;
-  align-items:center;
-  gap:8px;
-}
-.ha-msg-actions{display:flex; gap:8px; align-items:center; flex-wrap:wrap;}
-.ha-expander-wrap{margin-top:8px; margin-bottom:12px;}
 
 .ha-dot {
   width: 7px;
@@ -1011,41 +1010,26 @@ def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None
         level = w.get("level") or "-"
         dt = _fmt_dt(w.get("created_at"))
         rep = counts.get((w.get("jp_word") or "").strip(), 0)
-        header = f"{jp}  ·  {app}  ·  Lv {level}" + (f"  ·  🔥 {rep}회" if rep >= 3 else "")        # ✅ 리스트 카드(헤더) + '내용 보기'만 expander로 (디자인 심심함/붙음 해결)
-        st.markdown(
-            f"""
-<div class="ha-msg-card">
-  <div class="ha-msg-top">
-    <div class="ha-msg-title">{title}</div>
-    <div class="ha-msg-actions">
-      <span class="ha-chip">{dt}</span>
-      <span class="ha-badge">{chip}</span>
-    </div>
-  </div>
-</div>
-""",
-            unsafe_allow_html=True,
-        )
+        header = f"{jp}  ·  {app}  ·  Lv {level}" + (f"  ·  🔥 {rep}회" if rep >= 3 else "")
+        with st.expander(header, expanded=False):
+            c1, c2 = st.columns([2, 2])
+            with c1:
+                st.markdown(f"**정답**: {w.get('correct_answer') or '-'}")
+                st.markdown(f"**내답**: {w.get('user_answer') or '-'}")
+            with c2:
+                st.markdown(f"**발음**: {w.get('reading') or '-'}")
+                st.markdown(f"**뜻**: {w.get('meaning') or '-'}")
+            st.caption(f"저장: {dt}")
 
-        with st.expander("내용 보기", expanded=False):
-            safe_body = (body or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br>")
-            st.markdown(
-                f"""
-<div style="border:1px solid var(--ha-line); border-radius:14px; background:#f8fafc; padding:12px 12px; color:var(--ha-text); font-size:14px; line-height:1.75;">
-  {safe_body}
-</div>
-""",
-                unsafe_allow_html=True,
-            )
+    st.markdown("</div>", unsafe_allow_html=True)
 
-            if is_unread and sb:
-                if st.button("읽음 처리", key=f"msg_read_{m.get('id')}"):
-                    try:
-                        sb.table("user_messages").update({"read_at": datetime.utcnow().isoformat()}).eq("id", m["id"]).execute()
-                        st.success("읽음 처리 완료")
-                        st.rerun()
-                    except Exception:
-                        st.warning("읽음 처리에 실패했습니다. (RLS 확인)")
+
+def _render_records(attempts: List[Dict[str, Any]], attempts_status: str) -> None:
+    st.markdown('<div class="ha-section">', unsafe_allow_html=True)
+    st.markdown('<div class="ha-title">📈 기록</div><div class="ha-sub">최근 3개 + 빠른 목록(중복 제거). app + 품사(pos)를 깔끔히 표시합니다.</div>', unsafe_allow_html=True)
+
+    if attempts_status != "ok" or not attempts:
+        st.warning("학습 기록을 불러올 수 없습니다. (RLS 또는 테이블/컬럼 확인)")
         st.markdown("</div>", unsafe_allow_html=True)
         return
 
@@ -1142,91 +1126,85 @@ def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None
 
 
 def _render_msgs(msgs: List[Dict[str, Any]]) -> None:
-    st.markdown('<div class="ha-section">', unsafe_allow_html=True)
-    st.markdown('<div class="ha-title">📩 메시지</div><div class="ha-sub">읽지 않은 메시지를 먼저 보여주고, 기본은 접힘(아코디언)입니다.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="ha-card">', unsafe_allow_html=True)
+    st.markdown('<div class="ha-card-title">메시지</div>', unsafe_allow_html=True)
 
     if not msgs:
-        st.info("받은 메시지가 없습니다.")
+        st.info("새 메시지가 없습니다.")
         st.markdown("</div>", unsafe_allow_html=True)
         return
 
-    sb = _sb()
-    unread = [m for m in msgs if not m.get("read_at")]
-    read = [m for m in msgs if m.get("read_at")]
-    ordered = unread + read
-
-    q = st.text_input("검색 (제목/내용)", value=st.session_state.get("myp_msg_q", ""), key="myp_msg_q")
-    only_unread = st.toggle("읽지 않음만", value=st.session_state.get("myp_msg_unread", False), key="myp_msg_unread")
-    per = st.select_slider("표시 개수", options=[5, 10, 20, 30, 50], value=10, key="myp_msg_per")
-
-    def match(m: Dict[str, Any]) -> bool:
-        if only_unread and m.get("read_at"):
-            return False
-        if q.strip():
-            qq = q.strip().lower()
-            t = (m.get("title") or "").lower()
-            b = (m.get("body") or "").lower()
-            if qq not in t and qq not in b:
-                return False
-        return True
-
-    filtered = [m for m in ordered if match(m)]
+    # ✅ 상단 집계
+    total = len(msgs)
+    unread = sum(1 for x in msgs if not x.get("read_at"))
     st.markdown(
-        f'<div class="ha-meta"><span class="ha-chip">총 <b>{_num(len(filtered))}</b>개</span>'
-        f'<span class="ha-chip">읽지 않음 <b>{_num(sum(1 for m in filtered if not m.get("read_at")))}</b>개</span></div>',
+        f"""
+<div class="ha-inline" style="margin-top:6px;">
+  <span class="ha-chip">총 <b>{total}</b> 개</span>
+  <span class="ha-chip">읽지 않음 <b>{unread}</b> 개</span>
+</div>
+""",
         unsafe_allow_html=True,
     )
     st.markdown('<div class="ha-msg-gap"></div>', unsafe_allow_html=True)
 
-    for m in filtered[:per]:
-        title = m.get("title") or "메시지"
-        body = m.get("body") or ""
-        dt = _fmt_dt(m.get("created_at"))
-        is_unread = not m.get("read_at")
-        dot = '<span class="ha-dot"></span>' if is_unread else ""
-        chip = "읽지 않음" if is_unread else "읽음"
-        header = f"{title}  ·  {dt}" + ("  ·  🔵" if is_unread else "")
+    # ✅ 필터
+    show_unread_only = st.toggle("읽지 않은 것만 보기", value=False, key="myp_msg_unread_only")
+    per = st.slider("표시 개수", min_value=5, max_value=50, value=20, step=5, key="myp_msg_per")
 
-        with st.expander(header, expanded=False):
-            safe_body = (body or "").replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\n", "<br>")
+    filtered = [x for x in msgs if (not show_unread_only) or (not x.get("read_at"))]
+
+    sb = _get_sb()
+
+    for mm in filtered[:per]:
+        title = (mm.get("title") or "메시지").strip()
+        body = (mm.get("body") or "").strip()
+        created_at = mm.get("created_at") or ""
+        dt = _fmt_dt(created_at)
+        is_unread = not mm.get("read_at")
+
+        chip = "읽지 않음" if is_unread else "읽음"
+        # dot 표시(읽지 않음만)
+        dot = '<span class="ha-dot"></span>' if is_unread else ""
+
+        # ✅ 카드 헤더(예쁜 리스트)
+        st.markdown(
+            f"""
+<div class="ha-msg-card">
+  <div class="ha-msg-top">
+    <div class="ha-msg-title">{dot}{_escape_html(title)}</div>
+    <div class="ha-msg-actions">
+      <span class="ha-chip">{dt}</span>
+      <span class="ha-badge">{chip}</span>
+    </div>
+  </div>
+</div>
+""",
+            unsafe_allow_html=True,
+        )
+
+        # ✅ 본문은 expander로만 (기본 expander 바의 심심함을 줄이고, 카드가 헤더 역할)
+        with st.expander("내용 보기", expanded=False):
+            safe_body = _escape_html(body).replace("\n", "<br>")
             st.markdown(
                 f"""
-<div style="border:1px solid var(--ha-line); border-radius:18px; overflow:hidden; background:#fff;">
-  <div style="padding:12px 14px; background:rgba(30,107,255,0.08); border-bottom:1px solid var(--ha-line);">
-    <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
-      <div style="font-weight:900; color:var(--ha-text); letter-spacing:-0.2px; font-size:16px;">{title}</div>
-      <div class="ha-inline">
-        <span class="ha-chip">{dt}</span>
-        <span class="ha-badge">{chip}</span>
-      </div>
-    </div>
-  </div>
-  <div style="padding:14px 14px;">
-    <div style="border:1px solid var(--ha-line); border-radius:14px; background:#f8fafc; padding:12px 12px; color:var(--ha-text); font-size:14px; line-height:1.7;">
-      {safe_body}
-    </div>
-  </div>
+<div style="border:1px solid var(--ha-line); border-radius:14px; background:#f8fafc; padding:12px 12px; color:var(--ha-text); font-size:14px; line-height:1.75;">
+  {safe_body}
 </div>
 """,
                 unsafe_allow_html=True,
             )
 
             if is_unread and sb:
-                if st.button("읽음 처리", key=f"msg_read_{m.get('id')}"):
+                if st.button("읽음 처리", key=f"msg_read_{mm.get('id')}"):
                     try:
-                        sb.table("user_messages").update({"read_at": datetime.utcnow().isoformat()}).eq("id", m["id"]).execute()
+                        sb.table("user_messages").update({"read_at": datetime.utcnow().isoformat()}).eq("id", mm["id"]).execute()
                         st.success("읽음 처리 완료")
                         st.rerun()
                     except Exception:
                         st.warning("읽음 처리에 실패했습니다. (RLS 확인)")
 
     st.markdown("</div>", unsafe_allow_html=True)
-
-
-
-# ---------------------------
-# Public entrypoint
-# ---------------------------
 def render() -> None:
     _inject_css()
     _wrap_start()
