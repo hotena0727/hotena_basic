@@ -46,7 +46,9 @@ def _js_bridge_localstorage_to_queryparam(ls_key: str, qp_key: str):
     try:
         components.html(
             f"""<script>
-(function(){{
+(function(,
+            height=0,
+        ){{
   try {{
     const lsKey = {json.dumps("LS_KEY")};
     const qpKey = {json.dumps("QP_KEY")};
@@ -71,7 +73,9 @@ def _js_set_localstorage(key: str, value: str):
         components.html(
             f"""<script>
 try {{
-  localStorage.setItem({json.dumps("K")}, {json.dumps("V")});
+  localStorage.setItem({json.dumps("K",
+            height=0,
+        )}, {json.dumps("V")});
 }} catch(e) {{}}
 </script>""".replace("K", key).replace("V", value),
             height=0,
@@ -84,7 +88,9 @@ def _js_remove_localstorage(key: str):
         components.html(
             f"""<script>
 try {{
-  localStorage.removeItem({json.dumps("K")});
+  localStorage.removeItem({json.dumps("K",
+            height=0,
+        )});
 }} catch(e) {{}}
 </script>""".replace("K", key),
             height=0,
@@ -1512,7 +1518,9 @@ def fire_in_app_reminder_if_enabled(user):
     components.html(
         f"""
 <script>
-  (function(){{
+  (function(,
+            height=0,
+        ){{
     try {{
       const delay = {delay_ms};
       const message = {msg};
