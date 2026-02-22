@@ -30,61 +30,6 @@ except Exception:  # pragma: no cover
     create_client = None  # type: ignore
 
 
-
-def _inject_top_iframe_cleanup() -> None:
-    \"\"\"Hide top-of-page leftover iframes (custom components) that create gray blocks after F5.\"\"\"
-    if st.session_state.get("_top_iframe_cleanup_injected"):
-        return
-    st.session_state["_top_iframe_cleanup_injected"] = True
-    try:
-        components.html(
-            \"\"\"
-<script>
-(function(){
-  function hideTopComponentIframes(){
-    try{
-      var doc = (window.parent && window.parent.document) ? window.parent.document : document;
-      var iframes = doc.querySelectorAll('iframe[title^="streamlit.components.v1."]');
-      iframes.forEach(function(fr){
-        try{
-          var r = fr.getBoundingClientRect();
-          // Only touch ones near the very top that look like placeholder blocks
-          if (r.top < 260 && r.height > 20 && r.height < 260){
-            fr.style.display='none';
-            fr.style.height='0px';
-            fr.style.minHeight='0px';
-            var wrap = fr.closest('[data-testid="stIFrame"]') || fr.parentElement;
-            if(wrap){
-              wrap.style.display='none';
-              wrap.style.height='0px';
-              wrap.style.minHeight='0px';
-              wrap.style.margin='0';
-              wrap.style.padding='0';
-            }
-          }
-        }catch(e){}
-      });
-    }catch(e){}
-  }
-  hideTopComponentIframes();
-  setTimeout(hideTopComponentIframes, 60);
-  setTimeout(hideTopComponentIframes, 220);
-  setTimeout(hideTopComponentIframes, 700);
-  var n=0;
-  var iv=setInterval(function(){
-    hideTopComponentIframes();
-    n++;
-    if(n>=30) clearInterval(iv);
-  }, 350);
-})();
-</script>
-\"\"\",
-            height=0,
-        )
-    except Exception:
-        pass
-
-
 # ----------------------------
 # Config (env -> secrets)
 # ----------------------------
@@ -135,7 +80,11 @@ def ensure_core(
             st.error("streamlit-cookies-manager가 설치되지 않았습니다.")
             st.stop()
 
-        cookies = EncryptedCookieManager(prefix=cookie_prefix, password=str(cfg["COOKIE_PASSWORD"]))
+        # ✅ cookies manager: singleton (avoid duplicate component iframes)
+if "cookies" not in st.session_state or st.session_state.get("cookies") is None:
+    st.session_state["cookies"] = EncryptedCookieManager(prefix=cookie_prefix, password=str(cfg["COOKIE_PASSWORD"]))
+cookies = st.session_state["cookies"]
+)
         if not cookies.ready():
             st.info("잠깐만요! 곧 시작할게요🙂")
             st.stop()

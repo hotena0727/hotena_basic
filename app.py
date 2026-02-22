@@ -28,56 +28,6 @@ if not st.session_state.get("_page_config_set"):
     st.set_page_config(page_title="Hotena", layout="centered")
     
 
-
-
-# ============================================================
-# ✅ (최종) components.html이 만드는 iframe 블록 강제 제거
-# - 일부 환경(F5)에서 contentDocument 접근이 막혀 '빈 iframe' 판별이 실패함
-# - 따라서 streamlit.components.v1.html iframe은 무조건 숨김(스크립트 주입용으로만 사용한다는 전제)
-# ============================================================
-try:
-    import streamlit.components.v1 as components
-    components.html("""
-<script>
-(function(){
-  function hideAllComponentsHtmlIframes(){
-    try{
-      var doc = (window.parent && window.parent.document) ? window.parent.document : document;
-      var iframes = doc.querySelectorAll('iframe[title="streamlit.components.v1.html"]');
-      iframes.forEach(function(fr){
-        try{
-          fr.style.display = 'none';
-          fr.style.height = '0px';
-          fr.style.minHeight = '0px';
-          // wrapper까지 숨겨 gap 제거
-          var wrap = fr.closest('[data-testid="stIFrame"]') || fr.parentElement;
-          if(wrap){
-            wrap.style.display = 'none';
-            wrap.style.height = '0px';
-            wrap.style.minHeight = '0px';
-            wrap.style.margin = '0';
-            wrap.style.padding = '0';
-          }
-        }catch(e){}
-      });
-    }catch(e){}
-  }
-  hideAllComponentsHtmlIframes();
-  setTimeout(hideAllComponentsHtmlIframes, 50);
-  setTimeout(hideAllComponentsHtmlIframes, 200);
-  setTimeout(hideAllComponentsHtmlIframes, 600);
-  var n=0;
-  var iv=setInterval(function(){
-    hideAllComponentsHtmlIframes();
-    n++;
-    if(n>=30) clearInterval(iv);
-  }, 400);
-})();
-</script>
-""", height=0)
-except Exception:
-    pass
-
 # ============================================================
 # ✅ TOP SPACING FIX (PC + Mobile)
 # - Remove Streamlit's default top padding/space
@@ -490,8 +440,11 @@ sb = st.session_state.get("sb")
 if cookies is None:
     # 단독 실행 대비
     COOKIE_PASSWORD = cfg.get("COOKIE_PASSWORD") or st.secrets.get("COOKIE_PASSWORD", "")
-    cookies = EncryptedCookieManager(prefix="hotena_beginner_", password=COOKIE_PASSWORD)
-    if not cookies.ready():
+    # ✅ cookies manager: singleton (avoid duplicate component iframes)
+if "cookies" not in st.session_state or st.session_state.get("cookies") is None:
+    st.session_state["cookies"] = EncryptedCookieManager(prefix="hotena_beginner_", password=COOKIE_PASSWORD)
+cookies = st.session_state["cookies"]
+if not cookies.ready():
         st.info("잠깐만요! 곧 시작할게요🙂")
         st.stop()
     st.session_state["cookies"] = cookies
