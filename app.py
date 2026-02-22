@@ -34,6 +34,7 @@ if not st.session_state.get("_page_config_set"):
 # - Applied once per session
 # ============================================================
 if not st.session_state.get("_top_compact_css_applied"):
+    if not st.session_state.get('HUB_MODE', False):
     st.markdown("""<style>
 /* === Hotena: ultra-compact top spacing (mobile + desktop) === */
 /* 핵심: block-container의 기본 top padding 제거 + 첫 요소 여백 제거 */
@@ -1048,6 +1049,7 @@ def auth_box():
 
 def require_login():
     if st.session_state.get("user") is None:
+    if not st.session_state.get('HUB_MODE', False):
         st.markdown(
             """
 <div class="jp" style="margin: 8px 0 14px 0;">
@@ -2705,5 +2707,6 @@ if __name__ == '__main__':
 
 
 def render():
+    HUB_MODE = st.session_state.get('HUB_MODE', False)  # refresh
     """Home hub에서 import 후 호출되는 진입점."""
     render_kanji_hub(HUB_MODE=True)
