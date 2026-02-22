@@ -26,6 +26,7 @@ import textwrap
 # NOTE: page config is handled by home.py
 if not st.session_state.get("_page_config_set"):
     st.set_page_config(page_title="Hotena", layout="centered")
+    st.session_state["_page_config_set"] = True
 # ============================================================
 # ✅ __HOTENA_COMPACT_TOP__: remove extra top whitespace (PC/Mobile)
 # ============================================================
@@ -52,7 +53,6 @@ div[data-testid="stDecoration"]{display:none !important;}
     unsafe_allow_html=True,
 )
 
-    st.session_state["_page_config_set"] = True
 # ============================================================
 # ✅ [SOUND] 사운드 유틸 (모바일 자동재생 정책 대응)
 # ============================================================
