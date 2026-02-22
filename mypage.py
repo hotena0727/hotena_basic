@@ -1510,8 +1510,9 @@ def _render_top_summary(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, A
 # Views
 # ---------------------------
 def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None:
+    # ✅ 학습 전용 모드: "시험 → 필터(접기) → 목록" 순서로 정리
     st.markdown('<div class="ha-section">', unsafe_allow_html=True)
-    st.markdown('<div class="ha-title">📚 오답</div><div class="ha-sub">앱 필터(칩) + 검색 + 반복오답 토글 + 접힘 목록.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="ha-title">📚 오답</div><div class="ha-sub">학습에 집중할 수 있게, 시험/필터/목록을 깔끔히 정리했습니다.</div>', unsafe_allow_html=True)
 
     if not wrongs:
         st.info("아직 저장된 오답이 없습니다.")
@@ -1520,32 +1521,36 @@ def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None
         st.markdown("</div>", unsafe_allow_html=True)
         return
 
-    # ✅ 오답으로 시험보기 (요청 사항)
-    colQ1, colQ2 = st.columns([7, 3], vertical_alignment="center")
-    with colQ1:
-        pass
-    with colQ2:
-        quiz_n = st.selectbox("시험 문항 수", options=[5, 10, 15, 20], index=1, key="myp_wrong_quiz_n")
-
-    if st.button("📝 오답으로 시험보기", use_container_width=True, key="myp_wrong_quiz_start"):
-        st.session_state["myp_wrong_quiz"] = _make_wrong_quiz(wrongs, n=int(quiz_n))
-        st.session_state["myp_wrong_quiz_ans"] = {}
-        st.session_state["myp_wrong_quiz_done"] = False
-        st.rerun()
+    # ------------------------------------------------------------------
+    # 0) 오답 시험 (학습의 메인 CTA)
+    # ------------------------------------------------------------------
+    topL, topR = st.columns([6, 4], vertical_alignment="center")
+    with topL:
+        st.markdown("**오답으로 바로 시험 보기**")
+        st.caption("오답 중에서 랜덤으로 뽑아 미니 테스트를 진행합니다.")
+    with topR:
+        quiz_n = st.selectbox("문항 수", options=[5, 10, 15, 20], index=1, key="myp_wrong_quiz_n")
+        if st.button("📝 오답 시험 시작", use_container_width=True, key="myp_wrong_quiz_start"):
+            st.session_state["myp_wrong_quiz"] = _make_wrong_quiz(wrongs, n=int(quiz_n))
+            st.session_state["myp_wrong_quiz_ans"] = {}
+            st.session_state["myp_wrong_quiz_done"] = False
+            st.rerun()
 
     quiz = st.session_state.get("myp_wrong_quiz") or []
-    # 버튼을 눌렀는데 문제가 생성되지 않는 경우(뜻 데이터 없음 등)
     if ("myp_wrong_quiz" in st.session_state) and (not quiz):
         st.info("시험을 만들 수 있는 오답이 부족합니다. (뜻/정답 텍스트 컬럼이 비어있을 수 있어요.)")
+
     if quiz:
         st.markdown('<div class="ha-card" style="padding:12px 12px;">', unsafe_allow_html=True)
         st.markdown('<div class="ha-card-title">오답 시험</div>', unsafe_allow_html=True)
+
         ans = st.session_state.get("myp_wrong_quiz_ans") or {}
         for i, qitem in enumerate(quiz, start=1):
             title = f"**{i}. {qitem['jp_word']}**"
             if qitem.get("reading"):
                 title += f"  _( {qitem.get('reading')} )_"
             st.markdown(title)
+
             opts = qitem["options"]
             ans[i] = st.radio(
                 "선택",
@@ -1554,6 +1559,7 @@ def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None
                 key=f"mq_{i}",
                 label_visibility="collapsed",
             )
+
         st.session_state["myp_wrong_quiz_ans"] = ans
 
         c1, c2 = st.columns([1, 1], gap="small")
@@ -1578,26 +1584,37 @@ def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None
                 for i, qitem in enumerate(quiz, start=1):
                     if ans.get(i) != qitem["correct"]:
                         st.markdown(f"- **{i}. {qitem['jp_word']}** → 정답: **{qitem['correct']}** / 선택: {ans.get(i)}")
+
         st.markdown("</div>", unsafe_allow_html=True)
         st.divider()
 
+    # ------------------------------------------------------------------
+    # 1) 필터/검색 (접어서 '정신없음' 제거)
+    # ------------------------------------------------------------------
     counts: Dict[str, int] = {}
     for w in wrongs:
         k = (w.get("jp_word") or "").strip()
         if k:
             counts[k] = counts.get(k, 0) + 1
 
-    app_selected = _render_filter_chips("앱 필터", "myp_wrongs_app")
-    q = st.text_input("검색 (단어/뜻/발음)", value=st.session_state.get("myp_wrongs_q", ""), key="myp_wrongs_q")
-    only_repeat = st.toggle("🔥 반복 오답만 보기 (3회+)", value=st.session_state.get("myp_wrongs_repeat", False), key="myp_wrongs_repeat")
-    per_page = st.select_slider("표시 개수", options=[10, 20, 30, 50, 100], value=20, key="myp_wrongs_per")
+    with st.expander("🔎 필터/검색 (필요할 때만 열기)", expanded=False):
+        app_selected = _render_filter_chips("앱 필터", "myp_wrongs_app")
+        q = st.text_input("검색", value=st.session_state.get("myp_wrongs_q", ""), key="myp_wrongs_q", placeholder="단어/뜻/발음 검색")
+        only_repeat = st.toggle("🔥 반복 오답만 보기 (3회+)", value=st.session_state.get("myp_wrongs_repeat", False), key="myp_wrongs_repeat")
+        per_page = st.select_slider("표시 개수", options=[10, 20, 30, 50, 100], value=st.session_state.get("myp_wrongs_per", 20), key="myp_wrongs_per")
+
+    # 위 expander가 닫힌 상태에서도 이전 선택값(세션)을 그대로 반영
+    app_selected = st.session_state.get("myp_wrongs_app", [])
+    q = st.session_state.get("myp_wrongs_q", "")
+    only_repeat = st.session_state.get("myp_wrongs_repeat", False)
+    per_page = int(st.session_state.get("myp_wrongs_per", 20) or 20)
 
     def match(w: Dict[str, Any]) -> bool:
         jp = (w.get("jp_word") or "").lower()
         rd = (w.get("reading") or "").lower()
         mn = (w.get("meaning") or "").lower()
-        if q.strip():
-            qq = q.strip().lower()
+        if str(q).strip():
+            qq = str(q).strip().lower()
             if qq not in jp and qq not in rd and qq not in mn:
                 return False
         if only_repeat and counts.get((w.get("jp_word") or "").strip(), 0) < 3:
@@ -1608,24 +1625,37 @@ def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None
 
     filtered = [w for w in wrongs if match(w)]
     repeat_cnt = sum(1 for w in filtered if counts.get((w.get("jp_word") or "").strip(), 0) >= 3)
+
     st.markdown(
         f'<div class="ha-meta"><span class="ha-chip">총 <b>{_num(len(filtered))}</b>개</span>'
         f'<span class="ha-chip">반복 오답 <b>{_num(repeat_cnt)}</b>개</span></div>',
         unsafe_allow_html=True,
     )
 
+    # ------------------------------------------------------------------
+    # 2) 목록 (페이지 + 컴팩트 리스트)
+    # ------------------------------------------------------------------
     max_page = max(1, (len(filtered) + per_page - 1) // per_page)
-    page = st.number_input("페이지", min_value=1, max_value=max_page, value=min(st.session_state.get("myp_wrongs_page", 1), max_page), step=1, key="myp_wrongs_page")
+    page = st.number_input(
+        "페이지",
+        min_value=1,
+        max_value=max_page,
+        value=min(st.session_state.get("myp_wrongs_page", 1), max_page),
+        step=1,
+        key="myp_wrongs_page",
+        label_visibility="collapsed",
+    )
     start = (page - 1) * per_page
     chunk = filtered[start:start + per_page]
 
+    # ✅ 목록 간격은 메시지 탭에서 만든 방식(iframe 고정 높이)과 같이 "컴팩트" 유지
     for w in chunk:
         jp = w.get("jp_word") or "-"
         app = _app_label(w.get("app"))
         level = w.get("level") or "-"
-        dt = _fmt_dt(w.get("created_at"))
         rep = counts.get((w.get("jp_word") or "").strip(), 0)
-        header = f"{jp}  ·  {app}  ·  Lv {level}" + (f"  ·  🔥 {rep}회" if rep >= 3 else "")
+
+        header = f"{jp} · {app} · Lv {level}" + (f" · 🔥 {rep}회" if rep >= 3 else "")
         with st.expander(header, expanded=False):
             c1, c2 = st.columns([2, 2])
             with c1:
@@ -1634,10 +1664,9 @@ def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None
             with c2:
                 st.markdown(f"**발음**: {w.get('reading') or '-'}")
                 st.markdown(f"**뜻**: {w.get('meaning') or '-'}")
-            st.caption(f"저장: {dt}")
+            st.caption(f"저장: {_fmt_dt(w.get('created_at'))}")
 
     st.markdown("</div>", unsafe_allow_html=True)
-
 
 def _render_records(attempts: List[Dict[str, Any]], attempts_status: str) -> None:
     st.markdown('<div class="ha-section">', unsafe_allow_html=True)
