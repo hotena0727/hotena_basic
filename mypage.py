@@ -187,47 +187,45 @@ def _inject_css() -> None:
   flex-wrap: wrap;
 }
 
-/* ✅ messages: FORCE (no scope dependency) */
-div[data-testid="stExpander"]{
+/* ✅ messages: FORCE but keep existing box design */
+.ha-card div[data-testid="stExpander"],
+.ha-card div[data-testid="stExpander"] > details{
+  border:0 !important;
+  outline:0 !important;
+  box-shadow:none !important;
+  background:transparent !important;
+  border-radius:0 !important;
   margin:0 !important;
   padding:0 !important;
-  border:0 !important;
-  background:transparent !important;
-  box-shadow:none !important;
 }
-div[data-testid="stExpander"] > details{
-  margin:0 !important;
-  border:0 !important;
-  background:transparent !important;
-  box-shadow:none !important;
-  border-radius:0 !important;
-}
-div[data-testid="stExpander"] summary{
+.ha-card div[data-testid="stExpander"] summary{
   position:relative;
   margin:0 !important;
-  padding:6px 10px 6px 30px !important;  /* tighter + left gutter */
-  border:1px solid var(--ha-line) !important; /* row outline */
-  border-radius:12px !important;
-  background:#fff !important;
+  padding:6px 2px 6px 30px !important; /* ✅ tighter list */
+  border-bottom:1px solid var(--ha-line) !important; /* ✅ keep original */
+  border-radius:0 !important;
+  background:transparent !important;
   font-weight:900 !important;
   color:var(--ha-text) !important;
   letter-spacing:-0.2px !important;
 }
-div[data-testid="stExpander"] summary:hover{background:#fbfbfd !important;}
-div[data-testid="stExpander"] summary svg{display:none !important;}
-/* timeline gutter */
-div[data-testid="stExpander"] summary:before{
+.ha-card div[data-testid="stExpander"] summary:hover{background:#fbfbfd !important;}
+.ha-card div[data-testid="stExpander"] summary svg{display:none !important;}
+/* timeline line + dot */
+.ha-card div[data-testid="stExpander"] summary:before{
   content:"";
   position:absolute;
-  left:14px; top:0; bottom:0;
+  left:12px;
+  top:0; bottom:0;
   width:2px;
   background:rgba(37,99,235,0.16);
   border-radius:99px;
 }
-div[data-testid="stExpander"] summary:after{
+.ha-card div[data-testid="stExpander"] summary:after{
   content:"";
   position:absolute;
-  left:11px; top:50%;
+  left:9px;
+  top:50%;
   transform:translateY(-50%);
   width:10px; height:10px;
   border-radius:999px;
@@ -235,23 +233,20 @@ div[data-testid="stExpander"] summary:after{
   border:2px solid #fff;
   box-shadow:0 0 0 2px rgba(37,99,235,0.10);
 }
-/* unread (only when wrapper class exists) */
-.ha-msg-unread div[data-testid="stExpander"] summary:after{
+.ha-msg-unread .ha-card div[data-testid="stExpander"] summary:after{
   background:var(--ha-blue);
   box-shadow:0 0 0 2px rgba(37,99,235,0.18);
 }
-/* expanded "white container" */
-div[data-testid="stExpander"] .streamlit-expanderContent{
+/* ✅ bigger white container ONLY (no design change) */
+.ha-card div[data-testid="stExpander"] .streamlit-expanderContent{
   margin-top:8px !important;
-  padding:14px 16px 20px 30px !important;  /* ✅ bigger white container */
-  background:#fff !important;
-  border:1px solid var(--ha-line) !important;
-  border-radius:12px !important;
+  padding:14px 16px 20px 30px !important; /* ✅ white container bigger */
+  border:0 !important;
+  background:transparent !important;
 }
-/* reduce gap between items (stack like list) */
-div[data-testid="stExpander"] + div[data-testid="stExpander"]{margin-top:8px !important;}
-/* body card inside (gray) */
-.ha-msg-bodyA{margin-top:0; padding:0;}
+/* ✅ reduce gap between list items */
+.ha-card div[data-testid="stExpander"] + div[data-testid="stExpander"]{margin-top:4px !important;}
+.ha-msg-bodyA{margin-top:8px; padding:0;}
 .ha-msg-bodyA-inner{
   padding:10px 12px 14px 12px;
   background:#f8fafc;
@@ -323,9 +318,9 @@ div[data-testid="stExpander"] + div[data-testid="stExpander"]{margin-top:8px !im
 }
 /* remove content card padding from streamlit */
 .ha-msg-scope div[data-testid="stExpander"] .streamlit-expanderContent{
-  padding:14px 16px 20px 30px !important; /* ✅ bigger white container */
+  padding:10px 12px 14px 30px !important;
   border:0 !important;
-  background:#fff !important;
+  background:transparent !important;
 }
 /* body: white + only left bar (no card-in-card) */
 .ha-msg-bodyA{
