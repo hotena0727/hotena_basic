@@ -62,7 +62,6 @@ def _js_bridge_localstorage_to_queryparam(ls_key: str, qp_key: str):
 }})();
 </script>""".replace("LS_KEY", ls_key).replace("QP_KEY", qp_key),
             height=0,
-            height=0,
         )
     except Exception:
         pass
