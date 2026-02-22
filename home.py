@@ -1,7 +1,7 @@
 # home.py
 from __future__ import annotations
 
-BUILD_STAMP = 'home-clean-no-spacer-v1 2026-02-22 KST (+09:00)'
+BUILD_STAMP = 'home-clean-no-spacer-v2 2026-02-22 KST (+09:00)'
 from pathlib import Path
 import os
 import runpy
@@ -1878,37 +1878,7 @@ def render_bottom_nav(active: str = "home"):
     st.markdown(html, unsafe_allow_html=True)
 
 
-    attempts = fetch_today_attempts(sb_authed, user.id)
-    sm = summarize_attempts(attempts)
-    done_sets_total = int(sm.get("total_sets", 0))
-    done_sets_kind = int(sm.get("by_kind", {}).get(kind, {}).get("sets", 0))
-
-    pct = 0.0
-    if goal_sets > 0:
-        pct = min(1.0, done_sets_total / float(goal_sets))
-
-    st.markdown(
-        f"""
-<div style="display:flex;align-items:flex-end;justify-content:space-between;gap:0.75rem;margin-top:0.25rem;margin-bottom:0.45rem;">
-  <div>
-    <div style="font-size:1.35rem;font-weight:800;line-height:1.2;">{title}</div>
-    <div style="opacity:0.72;font-size:0.95rem; margin-top:0.15rem;">{subtitle}</div>
-  </div>
-  <div style="text-align:right;">
-    <div style="display:inline-flex;align-items:center;gap:.35rem;padding:.22rem .55rem;border-radius:999px;border:1px solid rgba(0,0,0,.10);background:rgba(0,0,0,.02);font-size:.88rem;">
-      오늘 {done_sets_kind}세트
-    </div>
-  </div>
-</div>
-""",
-        unsafe_allow_html=True,
-    )
-
-    # compact progress
-    st.progress(pct)
-    st.caption(f"오늘 완료: {done_sets_total}/{goal_sets}세트 · 현재 페이지: {kind}")
-    st.markdown("---")
-
+    return
 def run_script(filename: str):
     path = (BASE_DIR / filename).resolve()
     if not path.exists() or not path.is_file():
