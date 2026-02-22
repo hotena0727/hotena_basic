@@ -1737,10 +1737,8 @@ def _render_msgs(msgs: List[Dict[str, Any]]) -> None:
         chip = "읽지 않음" if is_unread else "읽음"
         dot = "● " if is_unread else ""
 
-        label = f"{title} · {dt} · {chip}"
+        label = f"{dot}{title} · {dt} · {chip}"
 
-        wrapper_cls = "ha-msg-unread" if is_unread else ""
-        st.markdown(f'<div class="{wrapper_cls}">', unsafe_allow_html=True)
         with st.expander(label, expanded=False):
             safe_body = _escape_html(body).replace("\n", "<br>")
             st.markdown(
@@ -1757,7 +1755,8 @@ def _render_msgs(msgs: List[Dict[str, Any]]) -> None:
                     except Exception:
                         st.warning("읽음 처리에 실패했습니다. (RLS 확인)")
 
-        st.markdown("</div>", unsafe_allow_html=True)  # wrapper
+        # (spacing fix) wrapper div removed
+        # wrapper
 
     st.markdown("</div>", unsafe_allow_html=True)  # scope
     st.markdown("</div>", unsafe_allow_html=True)  # card
