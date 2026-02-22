@@ -1930,7 +1930,7 @@ def render_home():
     page_title = "👤 마이페이지" if st.session_state.get("page") == "my" else "✨하테나일본어 한자정복"
 
 
-        quotes = [
+    quotes = [
         "배움은 매일 새로 시작해도 늦지 않다.",
         "오늘의 한 문제는 내일의 자신감이다.",
         "조금이라도 손을 움직인 날은 실패가 아니다.",
