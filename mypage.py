@@ -189,6 +189,10 @@ def _inject_css() -> None:
 
 /* ✅ messages: timeline (B) */
 .ha-msg-scope{margin-top:6px; position:relative;}
+/* spacing tighten */
+.ha-msg-scope div[data-testid="stExpander"]{margin:0 !important; padding:0 !important;}
+.ha-msg-scope div[data-testid="stExpander"] > details{margin:0 !important;}
+.ha-msg-scope .ha-msg-unread, .ha-msg-scope .ha-msg-unread *, .ha-msg-scope div{box-sizing:border-box;}
 /* kill expander outer box */
 .ha-msg-scope div[data-testid="stExpander"],
 .ha-msg-scope div[data-testid="stExpander"] > details{
@@ -200,7 +204,7 @@ def _inject_css() -> None:
 }
 .ha-msg-scope div[data-testid="stExpander"] summary{
   position:relative;
-  padding:10px 2px 10px 30px !important; /* left space for line/dot */
+  padding:8px 2px 8px 30px !important; /* left space for line/dot */
   border-bottom:1px solid var(--ha-line) !important;
   border-radius:0 !important;
   background:transparent !important;
@@ -239,7 +243,7 @@ def _inject_css() -> None:
   box-shadow:0 0 0 2px rgba(37,99,235,0.18);
 }
 .ha-msg-scope div[data-testid="stExpander"] .streamlit-expanderContent{
-  padding:12px 12px 26px 30px !important;
+  padding:10px 12px 14px 30px !important;
   border:0 !important;
   background:transparent !important;
 }
@@ -315,7 +319,7 @@ def _inject_css() -> None:
 }
 /* remove content card padding from streamlit */
 .ha-msg-scope div[data-testid="stExpander"] .streamlit-expanderContent{
-  padding:14px 12px 28px 12px !important;
+  padding:10px 12px 14px 30px !important;
   border:0 !important;
   background:transparent !important;
 }
@@ -334,14 +338,6 @@ def _inject_css() -> None:
   border:0;
   border-radius:12px;
   position:relative;
-}
-.ha-msg-bodyA-inner:before{
-  content:"";
-  position:absolute;
-  left:8px; top:10px; bottom:10px;
-  width:3px;
-  background:rgba(37,99,235,0.55);
-  border-radius:99px;
 }
 
 
