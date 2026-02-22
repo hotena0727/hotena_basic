@@ -191,8 +191,7 @@ def _inject_css() -> None:
 .ha-msg-gap{height:12px;}
 
 /* ✅ messages: minimal rows */
-
-/* ✅ messages: clickable row button (scoped) */
+/* ✅ messages: row toggle (scoped) */
 .ha-msg-scope [data-testid="stButton"] > button{
   width:100%;
   border:1px solid var(--ha-line) !important;
@@ -203,33 +202,6 @@ def _inject_css() -> None:
   box-shadow:none !important;
 }
 .ha-msg-scope [data-testid="stButton"] > button:hover{background:#fbfbfd !important;}
-.ha-msg-scope .ha-msg-line{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:10px;
-}
-.ha-msg-scope .ha-msg-left{
-  display:flex;
-  align-items:center;
-  gap:8px;
-  min-width:0;
-}
-.ha-msg-scope .ha-msg-title{
-  font-weight:900;
-  color:var(--ha-text);
-  letter-spacing:-0.2px;
-  font-size:15px;
-  white-space:nowrap;
-  overflow:hidden;
-  text-overflow:ellipsis;
-}
-.ha-msg-scope .ha-msg-right{
-  display:flex;
-  gap:8px;
-  align-items:center;
-  flex-shrink:0;
-}
 
 .ha-msg-row{
   border:1px solid var(--ha-line);
@@ -1183,15 +1155,24 @@ def _render_records(attempts: List[Dict[str, Any]], attempts_status: str) -> Non
         total, wrong = _calc_total_wrong(a)
 
         # ✅ 타이틀에서 앱/품사만 1회 표시 (중복 제거)
+
         title = f"{app}" + (f" · {pos}" if pos else "")
 
-        # ✅ 메타는 날짜/점수/문항/오답만
+
+        # ✅ 메타에는 날짜/점수/문항/오답만
+
         meta_html = (
+
             f"<span class='chip'>{dt}</span> "
+
             + f"<span class='chip'>점수 <b>{(str(score)+'%') if score is not None else '-'}</b></span> "
+
             + f"<span class='chip'>문항 <b>{total}</b></span> "
+
             + f"<span class='chip'>오답 <b>{wrong}</b></span>"
+
         )
+
         components.html(_card_iframe_html(title, meta_html), height=92, scrolling=False)
 
     st.markdown("</div>", unsafe_allow_html=True)
@@ -1235,22 +1216,19 @@ def _render_msgs(msgs: List[Dict[str, Any]]) -> None:
         body = (mm.get("body") or "").strip()
         dt = _fmt_dt(mm.get("created_at") or "")
         is_unread = not mm.get("read_at")
+
         chip = "읽지 않음" if is_unread else "읽음"
         dot = "●" if is_unread else ""
         caret = "▾" if open_id != mid else "▴"
 
-        # ✅ 한 줄: 제목 + 정보(날짜/상태) + 토글 느낌(caret)
-        label = f"
-  <div class='ha-msg-left'><span style='color:var(--ha-blue); font-size:12px;'>{dot}</span><span class='ha-msg-title'>{_escape_html(title)}</span></div>
-  <div class='ha-msg-right'><span class='ha-chip'>{dt}</span><span class='ha-badge'>{chip}</span><span style='color:var(--ha-sub); font-size:14px;'>{caret}</span></div>
-</div>"""
+        label = f"{dot} {title}  ·  {dt}  ·  {chip}  {caret}".strip()
 
-        if st.button(label_html, key=f"msg_row_{mid}", use_container_width=True):
+        if st.button(label, key=f"msg_row_{mid}", use_container_width=True):
             st.session_state["myp_msg_open_id"] = None if open_id == mid else mid
             st.rerun()
 
         if open_id == mid:
-            safe_body = _escape_html(body).replace("\n", "<br>")
+            safe_body = _escape_html(body).replace('\n', '<br>')
             st.markdown(f'<div class="ha-msg-body">{safe_body}</div>', unsafe_allow_html=True)
 
             if is_unread and sb and mid:
