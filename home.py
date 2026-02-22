@@ -103,6 +103,39 @@ import html as html_module  # ✅ for html escaping in admin cards
 st.set_page_config(page_title="Hotena Hub", layout="centered")
 
 
+
+
+# ============================================================
+# ✅ F5(새로고침) 시 '마지막 화면 상태' 복원 방지: reload 감지 토큰 주입
+# - navigation.type === 'reload'일 때만 토큰을 새로 만들어 URL에 _nav= 로 심어둠
+# - Python에서 토큰 변경을 감지해 hub_page를 home으로 리셋
+# ============================================================
+try:
+    import streamlit.components.v1 as components
+    components.html("""
+<script>
+(function(){
+  try{
+    var nav = (performance.getEntriesByType && performance.getEntriesByType('navigation') || [])[0];
+    var navType = nav && nav.type ? nav.type : '';
+    var key = 'hotena_nav_tok';
+    var tok = sessionStorage.getItem(key) || '';
+    if (!tok || navType === 'reload') {
+      tok = String(Date.now()) + '_' + Math.random().toString(16).slice(2);
+      sessionStorage.setItem(key, tok);
+    }
+    var url = new URL(window.location.href);
+    if (url.searchParams.get('_nav') !== tok) {
+      url.searchParams.set('_nav', tok);
+      window.history.replaceState({}, '', url.toString());
+    }
+  }catch(e){}
+})();
+</script>
+""", height=0)
+except Exception:
+    pass
+
 # ============================================================
 # ✅ TOP SPACING FIX (PC + Mobile)
 # - Remove Streamlit's default top padding/space
@@ -136,19 +169,6 @@ div[data-testid="stToolbar"]{
   visibility:hidden !important;
 }
 footer{display:none !important;}
-
-/* ✅ 더 안정적인 타겟(단일 메인 컨테이너): Streamlit DOM이 바뀌어도 고정 */
-div[data-testid="stMainBlockContainer"]{
-  padding-top: 0rem !important;
-  margin-top: 0rem !important;
-}
-/* 첫 요소 상단 여백 제거(메인 컨테이너 한정) */
-div[data-testid="stMainBlockContainer"] > div:first-child{
-  margin-top: 0rem !important;
-  padding-top: 0rem !important;
-}
-
-
 
 /* Container spacing: pull content to the very top */
 div[data-testid="stAppViewContainer"]{
