@@ -2008,7 +2008,10 @@ if "level" not in st.session_state:
 
 # title (home 제외: 페이지별로 제목 다르게)
 # ✅ HUB_MODE일 때는 home.py에서 이미 헤더를 렌더링하므로 중복 방지
-if (not st.session_state.get("HUB_MODE")) and st.session_state.get("page") != "home":
+if st.session_state.get("page") != "home" and not (
+    st.session_state.get("HUB_MODE") and 
+    st.session_state.get("hub_target") == "kanji"
+):
     u = st.session_state.get("user")
     email = (getattr(u, "email", None) if u else None) or st.session_state.get("login_email", "")
 
