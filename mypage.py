@@ -8,7 +8,7 @@ import streamlit as st
 
 
 # ============================================================
-# ✅ MyPage (Refactor v10 - AdminStyle Clean (Hub/Home + No Top Msg))
+# ✅ MyPage (Refactor v8 - Hatena Blue Lounge)
 # - "개발자 느낌" 제거: 표/기본차트/엑셀형 UI 지양
 # - 위계: 숫자(KPI) → 흐름(상태) → 행동(CTA) → 상세(카드)
 # - 색: 하테나 블루(강조/액션) + 중립 톤
@@ -195,14 +195,6 @@ def _css():
 .ha-tag{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;
   background:rgba(0,0,0,.04);border:1px solid rgba(0,0,0,.08);font-size:12px;opacity:.85;}
 .ha-empty{opacity:.65;font-size:13px;padding:10px 4px;text-align:center;}
-
-/* Compact top nav buttons (MyPage) */
-div[data-testid="column"] .stButton button{
-  border-radius:12px;
-}
-button[kind="secondary"], button[kind="primary"]{
-  border-radius:12px;
-}
 </style>
         """,
         unsafe_allow_html=True,
@@ -353,20 +345,12 @@ def _mark_message_read(msg_id: str):
 
 # ---------- components ----------
 def _nav_back_and_logout():
-    """Top navigation for MyPage.
-    - Keep it minimal and consistent with admin-style UI (no big full-width buttons).
-    - '홈' sends the user back to hub (home).
-    - '로그아웃' clears auth/session keys.
-    """
-    # Spacer + compact buttons (aligned to the right)
-    sp, b1, b2 = st.columns([6, 1.4, 1.6], vertical_alignment="center")
-    with sp:
-        st.markdown("""<div style="height:4px"></div>""", unsafe_allow_html=True)
-    with b1:
-        if st.button("🏠 홈", key="mypage_back_hub", use_container_width=True):
+    c1, c2 = st.columns([1, 1], vertical_alignment="center")
+    with c1:
+        if st.button("← 홈허브", key="mypage_back_hub", use_container_width=True):
             st.session_state["hub_page"] = "home"
             st.rerun()
-    with b2:
+    with c2:
         if st.button("로그아웃", key="mypage_logout", use_container_width=True):
             for k in ["user", "sb_authed", "access_token", "refresh_token", "hub_page"]:
                 st.session_state.pop(k, None)
