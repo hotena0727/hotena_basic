@@ -189,6 +189,36 @@ def _inject_css() -> None:
 
 /* ✅ messages: card list + spacing */
 .ha-msg-gap{height:12px;}
+
+/* ✅ messages: minimal rows */
+.ha-msg-row{
+  border:1px solid var(--ha-line);
+  border-radius:14px;
+  background:#fff;
+  padding:10px 12px;
+  margin-top:10px;
+}
+.ha-msg-row:hover{background:#fbfbfd;}
+.ha-msg-row-title{
+  font-weight:900;
+  color:var(--ha-text);
+  letter-spacing:-0.2px;
+  font-size:15px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.ha-msg-body{
+  border:1px solid var(--ha-line);
+  border-radius:14px;
+  background:#f8fafc;
+  padding:12px 12px;
+  margin-top:8px;
+  color:var(--ha-text);
+  font-size:14px;
+  line-height:1.75;
+}
+
 .ha-msg-card{
   border:1px solid var(--ha-line);
   border-radius:14px;
@@ -347,7 +377,7 @@ def _card_iframe_html(title: str, meta_html: str, body_html: str = "") -> str:
   --ha-chip: #f1f5f9;
   --ha-soft: rgba(30,107,255,0.08);
 }}
-body {{ margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; }}
+body {{ margin:0; font-family: Pretendard, 'Noto Sans KR', 'Apple SD Gothic Neo', ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }}
 .card {{
   border: 1px solid var(--ha-line);
   border-radius: 14px;
@@ -1134,7 +1164,6 @@ def _render_msgs(msgs: List[Dict[str, Any]]) -> None:
         st.markdown("</div>", unsafe_allow_html=True)
         return
 
-    # ✅ 상단 집계
     total = len(msgs)
     unread = sum(1 for x in msgs if not x.get("read_at"))
     st.markdown(
@@ -1148,58 +1177,54 @@ def _render_msgs(msgs: List[Dict[str, Any]]) -> None:
     )
     st.markdown('<div class="ha-msg-gap"></div>', unsafe_allow_html=True)
 
-    # ✅ 필터
     show_unread_only = st.toggle("읽지 않은 것만 보기", value=False, key="myp_msg_unread_only")
     per = st.slider("표시 개수", min_value=5, max_value=50, value=20, step=5, key="myp_msg_per")
 
     filtered = [x for x in msgs if (not show_unread_only) or (not x.get("read_at"))]
 
     sb = _sb()
+    open_id = st.session_state.get("myp_msg_open_id")
 
     for mm in filtered[:per]:
+        mid = mm.get("id")
         title = (mm.get("title") or "메시지").strip()
         body = (mm.get("body") or "").strip()
-        created_at = mm.get("created_at") or ""
-        dt = _fmt_dt(created_at)
+        dt = _fmt_dt(mm.get("created_at") or "")
         is_unread = not mm.get("read_at")
-
         chip = "읽지 않음" if is_unread else "읽음"
-        # dot 표시(읽지 않음만)
         dot = '<span class="ha-dot"></span>' if is_unread else ""
 
-        # ✅ 카드 헤더(예쁜 리스트)
-        st.markdown(
-            f"""
-<div class="ha-msg-card">
-  <div class="ha-msg-top">
-    <div class="ha-msg-title">{dot}{_escape_html(title)}</div>
-    <div class="ha-msg-actions">
-      <span class="ha-chip">{dt}</span>
-      <span class="ha-badge">{chip}</span>
-    </div>
-  </div>
-</div>
-""",
-            unsafe_allow_html=True,
-        )
-
-        # ✅ 본문은 expander로만 (기본 expander 바의 심심함을 줄이고, 카드가 헤더 역할)
-        with st.expander("내용 보기", expanded=False):
-            safe_body = _escape_html(body).replace("\n", "<br>")
+        # ✅ 심플: 제목만(카드) + 버튼으로 열기/닫기
+        c1, c2 = st.columns([0.78, 0.22], gap="small")
+        with c1:
             st.markdown(
                 f"""
-<div style="border:1px solid var(--ha-line); border-radius:14px; background:#f8fafc; padding:12px 12px; color:var(--ha-text); font-size:14px; line-height:1.75;">
-  {safe_body}
+<div class="ha-msg-row">
+  <div class="ha-msg-row-title">{dot}{_escape_html(title)}</div>
+  <div class="ha-inline" style="margin-top:6px;">
+    <span class="ha-chip">{dt}</span>
+    <span class="ha-badge">{chip}</span>
+  </div>
 </div>
 """,
                 unsafe_allow_html=True,
             )
+        with c2:
+            label = "열기" if open_id != mid else "닫기"
+            if st.button(label, key=f"msg_toggle_{mid}", use_container_width=True):
+                st.session_state["myp_msg_open_id"] = None if open_id == mid else mid
+                st.rerun()
 
-            if is_unread and sb:
-                if st.button("읽음 처리", key=f"msg_read_{mm.get('id')}"):
+        if open_id == mid:
+            safe_body = _escape_html(body).replace("\n", "<br>")
+            st.markdown(f'<div class="ha-msg-body">{safe_body}</div>', unsafe_allow_html=True)
+
+            if is_unread and sb and mid:
+                if st.button("읽음 처리", key=f"msg_read_{mid}"):
                     try:
-                        sb.table("user_messages").update({"read_at": datetime.utcnow().isoformat()}).eq("id", mm["id"]).execute()
+                        sb.table("user_messages").update({"read_at": datetime.utcnow().isoformat()}).eq("id", mid).execute()
                         st.success("읽음 처리 완료")
+                        st.session_state["myp_msg_open_id"] = None
                         st.rerun()
                     except Exception:
                         st.warning("읽음 처리에 실패했습니다. (RLS 확인)")
