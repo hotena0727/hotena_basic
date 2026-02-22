@@ -718,8 +718,6 @@ def _wrap_start() -> None:
 def _wrap_end() -> None:
     st.markdown("</div>", unsafe_allow_html=True)
 
-
-.ha-msg-bodyA-inner{ outline: 4px solid red !important; }
 # ---------------------------
 # Card renderer (iframe) to prevent HTML tags being shown as text
 # ---------------------------
