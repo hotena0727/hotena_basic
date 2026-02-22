@@ -538,11 +538,6 @@ def scroll_to_top(nonce: int = 0):
     )
 
 def render_floating_scroll_top():
-    # ✅ inject once per session (prevents duplicate component iframes on rerun/F5)
-    if st.session_state.get('_fab_top_injected_words'):
-        return
-    st.session_state['_fab_top_injected_words'] = True
-
     components.html(
         """
 <script>
@@ -1470,7 +1465,7 @@ def render_pronounce_button(text: str, uid: str, label: str = "🔊 발음"):
 }})();
 </script>
         """,
-        height=43,
+        height=0,
     )
 # ============================================================
 # ✅ Login UI

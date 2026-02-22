@@ -313,11 +313,6 @@ def scroll_to_top(nonce: int = 0):
     )
 
 def render_floating_scroll_top():
-    # ✅ inject once per session (prevents duplicate component iframes on rerun/F5)
-    if st.session_state.get('_fab_top_injected_app'):
-        return
-    st.session_state['_fab_top_injected_app'] = True
-
     components.html(
         """
 <script>
