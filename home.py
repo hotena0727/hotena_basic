@@ -22,20 +22,50 @@ import streamlit.components.v1 as components
 def run_module(module_name: str):
     """Import (or reload) a module by name so it renders in the SAME Streamlit flow.
 
-    IMPORTANT:
-    - Do NOT import + reload in the same run (it executes the module twice),
-      which can cause StreamlitDuplicateElementKey for widgets defined at import time.
+    Additionally performs a compile-time syntax/indentation check so Streamlit's
+    redaction doesn't hide the real line number.
     """
     try:
         import sys
+        import importlib.util
+        from pathlib import Path
+
+        # --- Preflight compile to reveal exact SyntaxError/IndentationError line ---
+        spec = importlib.util.find_spec(module_name)
+        origin = getattr(spec, "origin", None) if spec else None
+        if origin and origin.endswith(".py") and Path(origin).exists():
+            src = Path(origin).read_text(encoding="utf-8")
+            try:
+                compile(src, origin, "exec")
+            except (SyntaxError, IndentationError) as se:
+                lineno = getattr(se, "lineno", None) or 0
+                msg = getattr(se, "msg", str(se))
+                text = (getattr(se, "text", "") or "").rstrip("
+")
+                st.error(f"❌ {module_name}.py 문법/들여쓰기 오류: {msg} (line {lineno})")
+                if text:
+                    st.code(f"{text}", language="python")
+                # show context
+                try:
+                    lines = src.splitlines()
+                    start = max(lineno - 5, 1)
+                    end = min(lineno + 4, len(lines))
+                    ctx = "
+".join([f"{i:>4}: {lines[i-1]}" for i in range(start, end+1)])
+                    st.code(ctx, language="python")
+                except Exception:
+                    pass
+                st.stop()
+
+        # --- Import / reload ---
         if module_name in sys.modules:
             mod = importlib.reload(sys.modules[module_name])
         else:
             mod = importlib.import_module(module_name)
 
-        # If module exposes a render() function, call it.
         if hasattr(mod, "render") and callable(getattr(mod, "render")):
             mod.render()
+
     except Exception as e:
         st.exception(e)
         raise
