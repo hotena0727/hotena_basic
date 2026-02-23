@@ -45,26 +45,25 @@ def get_cfg(key: str) -> str:
 
 
 
-
-def _hide_streamlit_component_iframes() -> None:
-    """Back-compat wrapper."""
-    try:
-        hide_component_iframe_placeholders()
-    except Exception:
-        return
-
-
-
 def hide_component_iframe_placeholders() -> None:
-    """CSS-only: hide Streamlit custom-component iframe placeholders that create top 'blank bars' on refresh."""
+    """Hide Streamlit custom-component iframe *wrappers* that appear as big blank/gray blocks on hard refresh (F5).
+
+    Important: **CSS-only**.
+    Using components.html() to run JS would itself create another component iframe and can re-introduce the gap.
+    """
     if st.session_state.get("_core_hide_iframe_wrappers_done"):
         return
     st.session_state["_core_hide_iframe_wrappers_done"] = True
 
     st.markdown(
-        """
-<style>
-/* Remove component iframe wrappers (prevents 8-bars blank space on F5) */
+        """<style>
+/* ============================================================
+   ✅ Kill Streamlit component placeholders (F5 top "8 bars")
+   - Hide wrapper containers, not just the iframe.
+   - CSS-only to avoid creating new component iframes.
+   ============================================================ */
+
+/* Primary wrapper */
 div[data-testid="stIFrame"]:has(iframe[title^="streamlit.components.v1."]),
 div[data-testid="stIFrame"]:has(iframe[title*="streamlit.components"]),
 div[data-testid="stIFrame"]:has(iframe[title*="streamlit"]),
@@ -78,7 +77,7 @@ div[data-testid="stIFrame"]:has(iframe[srcdoc]) {
   overflow:hidden !important;
 }
 
-/* Sometimes the blank space is held by the outer element container */
+/* In some Streamlit builds, stIFrame sits inside an element container that keeps spacing. Remove that too. */
 div[data-testid="stElementContainer"]:has(div[data-testid="stIFrame"]:has(iframe[title^="streamlit.components.v1."])),
 div[data-testid="stElementContainer"]:has(div[data-testid="stIFrame"]:has(iframe[title*="streamlit.components"])),
 div[data-testid="stElementContainer"]:has(div[data-testid="stIFrame"]:has(iframe[title*="streamlit"])),
@@ -91,11 +90,14 @@ div[data-testid="stElementContainer"]:has(div[data-testid="stIFrame"]:has(iframe
   padding:0 !important;
   overflow:hidden !important;
 }
-</style>
-        """,
+</style>""",
         unsafe_allow_html=True,
     )
 
+
+def _hide_streamlit_component_iframes() -> None:
+    """Backward-compatible alias."""
+    hide_component_iframe_placeholders()
 
 def ensure_core(
     *,

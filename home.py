@@ -103,13 +103,13 @@ import html as html_module  # ✅ for html escaping in admin cards
 # ============================================================
 st.set_page_config(page_title="Hotena Hub", layout="centered")
 
-
-
-# ✅ Kill Streamlit component iframe placeholders BEFORE anything else renders (prevents '8 blank bars' on F5)
+# ✅ Kill component iframe placeholders ASAP (before any other output)
 try:
     core.hide_component_iframe_placeholders()
 except Exception:
     pass
+
+
 
 # ============================================================
 # ✅ TOP SPACING FIX (PC + Mobile)
