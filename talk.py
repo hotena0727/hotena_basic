@@ -153,22 +153,47 @@ if CSV_PATH is None:
 
 @st.cache_data(show_spinner=False)
 def load_csv(path: Path) -> pd.DataFrame:
+    # ✅ utf-8-sig: BOM 제거에 유리하지만, 컬럼명에 BOM이 남는 경우가 있어 한 번 더 정규화합니다.
     df = pd.read_csv(path, encoding="utf-8-sig")
-    required = ["qid", "level", "tag", "situation_kr", "partner_jp", "answer_jp"]
+
+    # ---- 컬럼명 정규화 (BOM/공백) ----
+    def _norm_col(c: str) -> str:
+        return str(c).replace("\ufeff", "").strip()
+
+    df.columns = [_norm_col(c) for c in df.columns]
+
+    # ---- 컬럼 alias 처리 (기존 CSV 호환) ----
+    # 예: id / ID / q_id 등이 들어오면 qid로 매핑
+    alias_map = {
+        "q_id": "qid",
+        "id": "qid",
+    }
+    # lower-name lookup
+    cols_by_lower = {str(c).lower(): c for c in df.columns}
+    for src, dst in alias_map.items():
+        if src in cols_by_lower and dst not in df.columns:
+            df.rename(columns={cols_by_lower[src]: dst}, inplace=True)
+
+    # ---- 필수 컬럼 확보 ----
+    required = ["level", "tag", "situation_kr", "partner_jp", "answer_jp"]
+
+    # qid는 없으면 자동 생성(🚫 앱 중단 방지)
+    if "qid" not in df.columns:
+        df.insert(0, "qid", [f"T{idx+1:04d}" for idx in range(len(df))])
+
     for c in required:
         if c not in df.columns:
             raise ValueError(f"CSV 필수 컬럼 누락: {c}")
 
-    # 문자열 정리
+    # ---- 문자열 정리 ----
     for c in df.columns:
         if df[c].dtype == object:
             df[c] = df[c].astype(str).str.strip()
             df[c] = df[c].replace({"nan": "", "NaN": "", "None": ""})
 
-    # level/tag 소문자
+    # ---- level/tag 정규화 ----
     df["level"] = df["level"].astype(str).str.lower().str.strip()
     df["tag"] = df["tag"].astype(str).str.lower().str.strip()
-
 
     # 선택 컬럼(있으면 정규화): mode/section/stage
     if "mode" in df.columns:
@@ -176,11 +201,28 @@ def load_csv(path: Path) -> pd.DataFrame:
     if "section" in df.columns:
         df["section"] = df["section"].astype(str).str.lower().str.strip()
     if "stage" in df.columns:
-        df["stage"] = df["stage"].astype(str).str.lower().str.strip()
+        df["stage"] = df["stage"].astype(str).str.strip()
+
+    # qid 공백 제거 + 중복 방지
+    df["qid"] = df["qid"].astype(str).str.strip()
+    if df["qid"].duplicated().any():
+        seen = {}
+        fixed = []
+        for q in df["qid"].tolist():
+            n = seen.get(q, 0)
+            seen[q] = n + 1
+            fixed.append(f"{q}_{n+1}" if n else q)
+        df["qid"] = fixed
+
     return df.fillna("")
-
-
 DF = load_csv(CSV_PATH)
+
+# --- Normalize core columns to avoid mismatch (spaces/case) ---
+for _col, _mode in [("tag","lower"),("level","lower"),("mode","lower"),("section","lower")]:
+    if _col in DF.columns:
+        s = DF[_col].astype(str).str.strip()
+        DF[_col] = (s.str.lower() if _mode=="lower" else s)
+
 
 # ============================================================
 # ✅ Labels
@@ -314,9 +356,18 @@ with c1:
     )
 
 with c2:
-    levels_in_data = [lv for lv in ["n5", "n4", "n3"] if lv in df_for_tags["level"].unique().tolist()]
+    # ✅ 레벨 옵션은 '선택된 tag(＋business 섹션)' 범위 안에서만 보여준다 (빈 풀 방지)
+    scope = df_for_tags.copy()
+    if "tag" in scope.columns:
+        scope = scope[scope["tag"].astype(str).str.lower().str.strip() == str(tag).lower().strip()]
+    # section 선택은 business일 때만 적용 (아직 UI가 아래에 있어도 session_state로 값이 유지됨)
+    _sec_cur = st.session_state.get(f"{NS}_section", "all")
+    if "section" in scope.columns and str(tag).lower().strip() == "business" and str(_sec_cur).lower().strip() != "all":
+        scope = scope[scope["section"].astype(str).str.lower().str.strip() == str(_sec_cur).lower().strip()]
+    levels_in_data = [lv for lv in ["n5", "n4", "n3"] if lv in scope["level"].unique().tolist()]
     if not levels_in_data:
-        levels_in_data = ["n5", "n4", "n3"]
+        # fallback: 전체 df_for_tags에서라도 표시
+        levels_in_data = [lv for lv in ["n5", "n4", "n3"] if lv in df_for_tags["level"].unique().tolist()] or ["n5", "n4", "n3"]
     level = st.selectbox(
         "레벨",
         options=levels_in_data,
@@ -355,7 +406,18 @@ pool_df = pool_df[(pool_df["tag"] == tag) & (pool_df["level"] == level)].copy().
 if "section" in pool_df.columns and tag in ["business"] and section != "all":
     pool_df = pool_df[pool_df["section"].astype(str).str.lower().str.strip() == str(section).lower().strip()].copy().reset_index(drop=True)
 if pool_df.empty:
-    st.warning("해당 조건의 회화 문제가 없습니다. (CSV의 mode/tag/level/section 확인)")
+    st.warning("해당 조건의 회화 문제가 없습니다. (CSV의 tag/level/section 조합이 현재 선택과 일치하지 않습니다)")
+    with st.expander("🔍 데이터에 실제로 존재하는 조합 보기"):
+        try:
+            show = DF.copy()
+            cols = [c for c in ["mode","tag","section","level"] if c in show.columns]
+            if cols:
+                st.dataframe(show[cols].drop_duplicates().sort_values(cols).reset_index(drop=True), use_container_width=True)
+            else:
+                st.write("mode/tag/section/level 컬럼이 없습니다.")
+        except Exception as _e:
+            st.write(_e)
+
     st.stop()
 
 # ============================================================
