@@ -1370,7 +1370,7 @@ def render_plan_pill():
     var wrap = doc.createElement('div');
     wrap.id = '__HUB_PLAN_PILL__';
     wrap.innerHTML = {(
-        "<div class=\\"hub-plan-pill\\">" + txt + gear + "</div>"
+        "<div class='hub-plan-pill'>" + txt + gear + "</div>"
     )!r};
 
     // styles (once)
