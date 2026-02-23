@@ -647,11 +647,13 @@ def render_floating_scroll_top():
         """,
         height=0,
         scrolling=False,
-    )
+    ,
+        height=0,
+        scrolling=False
+)
 
-if not st.session_state.get('_fab_top_injected_words', False):
-    render_floating_scroll_top()
-    st.session_state['_fab_top_injected_words'] = True
+render_floating_scroll_top()
+
 if st.session_state.get("_scroll_top_once"):
     st.session_state["_scroll_top_once"] = False
     st.session_state["_scroll_top_nonce"] = st.session_state.get("_scroll_top_nonce", 0) + 1
@@ -1405,7 +1407,10 @@ def render_pronounce_button(text: str, uid: str, label: str = "🔊 발음"):
     let cand = ja.find(v => prefer.test(String(v.name || "")));
     if (cand) return cand;
 
-    // 2) avoid는 피하고 남은 것 중 첫번째
+    // 2,
+    height=44,
+    scrolling=False
+) avoid는 피하고 남은 것 중 첫번째
     cand = ja.find(v => !avoid.test(String(v.name || "")));
     if (cand) return cand;
 
