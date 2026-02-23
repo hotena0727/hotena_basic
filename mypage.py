@@ -4,43 +4,6 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
 import streamlit as st
-
-# ============================================================
-# ✅ Logout button (MY page)
-# - Nav에서 제거된 로그아웃을 MY 하단에 배치
-# ============================================================
-def _render_my_logout_button():
-    import streamlit as st
-    from urllib.parse import urlencode
-
-    qp = st.query_params
-    rt = qp.get("rt", "")
-    at = qp.get("at", "")
-    base = {}
-    if rt:
-        base["rt"] = rt
-    if at:
-        base["at"] = at
-    base["action"] = "logout"
-    href = "?" + urlencode(base)
-
-    st.markdown("<div style='height:18px;'></div>", unsafe_allow_html=True)
-    st.markdown(
-        f"""
-        <div style="padding: 14px 0 8px 0; border-top: 1px solid rgba(0,0,0,0.06);">
-          <a href="{href}" target="_self"
-             style="display:inline-block; text-decoration:none;
-                    color: rgba(0,0,0,0.70); font-weight: 750;
-                    padding: 10px 12px; border-radius: 12px;
-                    background: rgba(0,0,0,0.03);">
-             로그아웃
-          </a>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-
-
 import streamlit.components.v1 as components
 
 # ============================================================
