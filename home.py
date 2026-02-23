@@ -2519,10 +2519,10 @@ def render_admin_dashboard(sb_authed):
             # --- layout: list + detail (✅ full width) ---
 
 
-            left = st.container()
+            # left = st.container()
 
 
-            right = st.container()
+            # right = st.container()
 
             with left:
                 st.caption(f"검색 결과: {len(uf):,}명 / 전체: {len(u):,}명")
