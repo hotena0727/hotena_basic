@@ -14,6 +14,18 @@ from datetime import date, datetime, timedelta, timezone
 import streamlit as st
 import streamlit.components.v1 as components
 
+if '_js_once' not in st.session_state:
+    _js_bridge_localstorage_to_queryparam("hotena_rt", "rt")
+    _js_bridge_localstorage_to_queryparam("hotena_at", "at")
+    _js_set_localstorage("hotena_rt", st.query_params.get("rt", ""))
+    _js_set_localstorage("hotena_at", st.query_params.get("at", ""))
+    _js_set_localstorage("hotena_rt", st.query_params.get("rt",""))
+    _js_set_localstorage("hotena_at", st.query_params.get("at",""))
+    _js_remove_localstorage("hotena_rt")
+    _js_remove_localstorage("hotena_at")
+    st.session_state['_js_once'] = True
+
+
 # ============================================================
 # ✅ Module runner (NO runpy/run_path)
 # - Import (or reload) a module by name so it renders in the SAME Streamlit flow
@@ -397,9 +409,7 @@ def refresh_session_from_cookie_if_needed(force: bool = False) -> bool:
         return True
 
     # Bridge localStorage -> query params once
-    _js_bridge_localstorage_to_queryparam("hotena_rt", "rt")
-    _js_bridge_localstorage_to_queryparam("hotena_at", "at")
-
+        
     rt = None
     at = None
     try:
@@ -447,9 +457,7 @@ def refresh_session_from_cookie_if_needed(force: bool = False) -> bool:
             try:
                 st.query_params["rt"] = _enc(refreshed.session.refresh_token)
                 st.query_params["at"] = _enc(refreshed.session.access_token)
-                _js_set_localstorage("hotena_rt", st.query_params.get("rt", ""))
-                _js_set_localstorage("hotena_at", st.query_params.get("at", ""))
-            except Exception:
+                                            except Exception:
                 pass
 
             return True
@@ -1618,9 +1626,7 @@ if not user:
                 try:
                     st.query_params["rt"] = _enc(res.session.refresh_token)
                     st.query_params["at"] = _enc(res.session.access_token)
-                    _js_set_localstorage("hotena_rt", st.query_params.get("rt",""))
-                    _js_set_localstorage("hotena_at", st.query_params.get("at",""))
-                except Exception:
+                                                        except Exception:
                     pass
 
                 st.success("로그인 완료!")
@@ -1713,9 +1719,7 @@ def hub_logout():
 
     # clear localStorage persistence
     try:
-        _js_remove_localstorage("hotena_rt")
-        _js_remove_localstorage("hotena_at")
-    except Exception:
+                    except Exception:
         pass
 
     for k in [
