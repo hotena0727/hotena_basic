@@ -15,7 +15,6 @@ import streamlit as st
 import streamlit.components.v1 as components
 import core
 
-
 # ============================================================
 # ✅ Module runner (NO runpy/run_path)
 # - Import (or reload) a module by name so it renders in the SAME Streamlit flow
@@ -103,7 +102,7 @@ import html as html_module  # ✅ for html escaping in admin cards
 # ✅ Page Config (Hub only)
 # ============================================================
 st.set_page_config(page_title="Hotena Hub", layout="centered")
-
+core.apply_compact_layout()
 core.ensure_pwa_assets()
 
 
