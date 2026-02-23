@@ -102,7 +102,7 @@ import html as html_module  # ✅ for html escaping in admin cards
 # ✅ Page Config (Hub only)
 # ============================================================
 st.set_page_config(page_title="Hotena Hub", layout="centered")
-st.write("DEBUG: home.py loaded", time.time())
+
 st.markdown("""
 <style>
 
