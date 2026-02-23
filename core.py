@@ -18,6 +18,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.sidebar.write("CORE LOADED ✅")
+st.caption("CORE LOADED ✅")
 
 # (lazy imports) heavy deps are imported inside functions to reduce F5 skeleton time
 
