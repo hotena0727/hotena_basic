@@ -1378,13 +1378,13 @@ def render_plan_pill():
       var st = doc.createElement('style');
       st.id = '__HUB_PLAN_PILL_STYLE__';
       st.textContent = `
-        #__HUB_PLAN_PILL__{ position: fixed; top: 14px; left: 14px; z-index: 2147483647; }
-        #__HUB_PLAN_PILL__ .hub-plan-pill{ display:inline-flex; align-items:center; gap:.45rem; padding:.28rem .55rem; border-radius:999px;
+        #__HUB_PLAN_PILL__{{ position: fixed; top: 14px; left: 14px; z-index: 2147483647; }}
+        #__HUB_PLAN_PILL__ .hub-plan-pill{{ display:inline-flex; align-items:center; gap:.45rem; padding:.28rem .55rem; border-radius:999px;
           border:1px solid rgba(0,0,0,.10); font-size:.86rem; opacity:.92; background:rgba(0,0,0,.02); backdrop-filter: blur(6px); }
-        #__HUB_PLAN_PILL__ .hub-admin-gear{ display:inline-flex; align-items:center; justify-content:center; margin-left:8px; width:28px; height:28px;
+        #__HUB_PLAN_PILL__ .hub-admin-gear{{ display:inline-flex; align-items:center; justify-content:center; margin-left:8px; width:28px; height:28px;
           border-radius:999px; text-decoration:none !important; border:1px solid rgba(0,0,0,.10); background:rgba(0,0,0,.02);
           font-size:16px; line-height:1; }
-        #__HUB_PLAN_PILL__ .hub-admin-gear:hover{ background:rgba(0,0,0,.04); }
+        #__HUB_PLAN_PILL__ .hub-admin-gear:hover{{ background:rgba(0,0,0,.04); }}
       `;
       doc.head.appendChild(st);
     }}
