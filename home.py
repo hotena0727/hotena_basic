@@ -40,7 +40,7 @@ def run_module(module_name: str):
             except (SyntaxError, IndentationError) as se:
                 lineno = getattr(se, "lineno", None) or 0
                 msg = getattr(se, "msg", str(se))
-                text = (getattr(se, "text", "") or "").rstrip("
+                text = (getattr(se, "text", "") or "").rstrip
 ")
                 st.error(f"❌ {module_name}.py 문법/들여쓰기 오류: {msg} (line {lineno})")
                 if text:
