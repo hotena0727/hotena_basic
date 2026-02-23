@@ -285,23 +285,93 @@ if pool_df.empty:
 # ============================================================
 
 
-def tts_button(text: str, label: str, key: str):
-    """브라우저 SpeechSynthesis 기반 TTS 버튼.
-    - Streamlit iframe 안에서 직접 버튼을 렌더링(부모 DOM 주입 X) → 가장 안정적
-    - PRO: 클릭 시 재생
-    - FREE: 잠금된 버튼(비활성) 표시
+# ============================================================
+# ✅ TTS 설정 (profiles.progress.tts)
+# - 브라우저/기기 보이스에 따라 품질이 달라집니다.
+# - 여기서는 '속도/피치/보이스 힌트'로 최대한 자연스럽게 맞춥니다.
+# ============================================================
+prog_all = load_progress()
+tts_cfg = (prog_all.get("tts") or {}) if isinstance(prog_all, dict) else {}
+
+# 기본값(조금 느리게 + 약간 높은 피치) → 기계감 완화에 대체로 도움
+_default_rate = 0.95
+_default_pitch = 1.05
+
+# 저장된 값 로드
+TTS_NATURAL = bool(tts_cfg.get("natural", True))
+TTS_RATE = float(tts_cfg.get("rate", _default_rate))
+TTS_PITCH = float(tts_cfg.get("pitch", _default_pitch))
+TTS_VOICE_HINT = str(tts_cfg.get("voice_hint", "") or "").strip()
+
+if IS_PRO:
+    with st.expander("🔊 발음 설정 (PRO)", expanded=False):
+        col_a, col_b = st.columns(2)
+        with col_a:
+            natural = st.toggle("자연스럽게(권장)", value=TTS_NATURAL, key=f"{NS}_tts_natural")
+        with col_b:
+            st.caption("※ 보이스 품질은 기기/브라우저마다 다릅니다.")
+
+        # '자연스럽게'면 권장값으로 자동 세팅(하지만 슬라이더로 미세조정 가능)
+        rate_default = _default_rate if natural else float(TTS_RATE or 1.0)
+        pitch_default = _default_pitch if natural else float(TTS_PITCH or 1.0)
+
+        rate = st.slider("속도", min_value=0.70, max_value=1.20, value=float(rate_default), step=0.05, key=f"{NS}_tts_rate")
+        pitch = st.slider("톤(피치)", min_value=0.80, max_value=1.30, value=float(pitch_default), step=0.05, key=f"{NS}_tts_pitch")
+        voice_hint = st.text_input(
+            "보이스 힌트(선택)",
+            value=TTS_VOICE_HINT,
+            help="보이스 이름에 포함될 키워드를 적으면 해당 보이스를 우선 선택합니다. 예: Google 日本語 / Kyoko / Nanami",
+            key=f"{NS}_tts_voice_hint",
+        )
+
+        if st.button("저장", use_container_width=True, key=f"{NS}_tts_save"):
+            prog_all = load_progress()
+            if not isinstance(prog_all, dict):
+                prog_all = {}
+            prog_all["tts"] = {
+                "natural": bool(natural),
+                "rate": float(rate),
+                "pitch": float(pitch),
+                "voice_hint": str(voice_hint or "").strip(),
+            }
+            save_progress(prog_all)
+            st.success("저장했습니다. (다음 발음부터 적용)")
+            # 즉시 반영
+            TTS_NATURAL = bool(natural)
+            TTS_RATE = float(rate)
+            TTS_PITCH = float(pitch)
+            TTS_VOICE_HINT = str(voice_hint or "").strip()
+
+# FREE도 내부적으로 값은 유지(잠금 UI)
+
+def tts_button(text: str, label: str, key: str, *, rate: float = 0.95, pitch: float = 1.05, voice_hint: str = ""):
+    """브라우저 SpeechSynthesis 기반 TTS 버튼 (PRO 권장)
+    - 기계적인 느낌 완화: rate/pitch 조정 + ja-JP 보이스 우선 선택
+    - voice_hint: 보이스 이름에 포함될 키워드(예: 'Google 日本語', 'Kyoko' 등)
+    - Streamlit iframe 내부에서 자체 렌더링(부모 DOM 주입 X) → 안정적
     """
-    safe = (text or "").replace("\\", "\\\\").replace("`", "").replace("\n", " ")
-    disabled = "true" if (not IS_PRO) else "false"
-    btn_text = (f"🔒 {label}" if (not IS_PRO) else label)
+    # 말투가 자연스럽게 들리도록 '、'와 '。'가 없으면 최소한 추가
+    t = (text or "").strip()
+    if t and (t[-1] not in "。.!?！？"):
+        t = t + "。"
+    safe_text = t.replace("\\", "\\\\").replace("`", "").replace("\n", " ")
+
+    is_pro = bool(IS_PRO)
+    btn_text = (f"🔒 {label}" if (not is_pro) else label)
+
     # key마다 고유한 mount id
     components.html(
         f"""
 <div style='width:100%'>
-  <button id='tts_{key}' {'disabled' if not IS_PRO else ''} 
-    style='width:100%;padding:8px 10px;border-radius:12px;border:1px solid rgba(49,51,63,.18);
-           background:{'#f6f7f9' if not IS_PRO else 'white'};cursor:{'not-allowed' if not IS_PRO else 'pointer'};
-           font-weight:800;opacity:{'0.7' if not IS_PRO else '1.0'};'>
+  <button id='tts_{key}' {'disabled' if not is_pro else ''} 
+    style='width:100%;
+           padding:8px 10px;
+           border-radius:12px;
+           border:1px solid rgba(49,51,63,.18);
+           background:{'#f6f7f9' if not is_pro else 'white'};
+           cursor:{'not-allowed' if not is_pro else 'pointer'};
+           font-weight:800;
+           opacity:{'0.7' if not is_pro else '1.0'};'>
     {btn_text}
   </button>
 </div>
@@ -309,22 +379,77 @@ def tts_button(text: str, label: str, key: str):
 (function() {{
   const btn = document.getElementById('tts_{key}');
   if (!btn) return;
-  if ({disabled}) return;
+  if (!{str(is_pro).lower()}) return;
+
   // 동일 rerun에서 이벤트 중복 등록 방지
   if (btn.dataset.bound === '1') return;
   btn.dataset.bound = '1';
-  btn.addEventListener('click', () => {{
+
+  const RATE = {json.dumps(float(rate))};
+  const PITCH = {json.dumps(float(pitch))};
+  const VOICE_HINT = {json.dumps(voice_hint or "")};
+
+  function pickVoice(voices) {{
+    if (!voices || !voices.length) return null;
+    const ja = voices.filter(v => (v.lang || '').toLowerCase().startsWith('ja'));
+    const pool = ja.length ? ja : voices;
+
+    if (VOICE_HINT) {{
+      const h = VOICE_HINT.toLowerCase();
+      const found = pool.find(v => (v.name || '').toLowerCase().includes(h));
+      if (found) return found;
+    }}
+
+    // 선호: ja-JP + localService 우선
+    const exact = pool.find(v => (v.lang || '').toLowerCase() === 'ja-jp' && v.localService);
+    if (exact) return exact;
+
+    const anyJa = pool.find(v => (v.lang || '').toLowerCase().startsWith('ja'));
+    return anyJa || pool[0] || null;
+  }}
+
+  function speakNow() {{
     try {{
-      const u = new SpeechSynthesisUtterance({safe!r});
+      const u = new SpeechSynthesisUtterance({safe_text!r});
       u.lang = 'ja-JP';
+      u.rate = (RATE && RATE > 0) ? RATE : 0.95;
+      u.pitch = (PITCH && PITCH > 0) ? PITCH : 1.05;
+      u.volume = 1.0;
+
+      const voices = window.speechSynthesis.getVoices();
+      const v = pickVoice(voices);
+      if (v) u.voice = v;
+
       window.speechSynthesis.cancel();
       window.speechSynthesis.speak(u);
     }} catch(e) {{}}
+  }}
+
+  // 일부 브라우저는 getVoices()가 즉시 비어있음 → voiceschanged 기다렸다가 재생
+  btn.addEventListener('click', () => {{
+    try {{
+      const voices = window.speechSynthesis.getVoices();
+      if (voices && voices.length) {{
+        speakNow();
+      }} else {{
+        const once = () => {{
+          window.speechSynthesis.removeEventListener('voiceschanged', once);
+          speakNow();
+        }};
+        window.speechSynthesis.addEventListener('voiceschanged', once);
+        // 그래도 안 오면 500ms 후 fallback
+        setTimeout(() => {{
+          try {{ speakNow(); }} catch(e) {{}}
+        }}, 500);
+      }}
+    }} catch(e) {{
+      try {{ speakNow(); }} catch(e2) {{}}
+    }}
   }});
 }})();
 </script>
 """,
-        height=60,
+        height=66,
     )
 
 # ======================================
@@ -532,7 +657,7 @@ if submitted:
 
         st.markdown("**정답 스크립트**")
         st.write(correct)
-        tts_button(correct, "🔊 정답 듣기", key=f"{qid}_answer")
+        tts_button(correct, "🔊 정답 듣기", key=f"{qid}_answer", rate=TTS_RATE, pitch=TTS_PITCH, voice_hint=TTS_VOICE_HINT)
         # ✅ 말하기 녹음(선택) — 채점/인식 없이 '내 발화'만 남길 수 있게
         try:
             if hasattr(st, "audio_input"):
