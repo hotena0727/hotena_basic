@@ -102,6 +102,7 @@ import html as html_module  # ✅ for html escaping in admin cards
 # ✅ Page Config (Hub only)
 # ============================================================
 st.set_page_config(page_title="Hotena Hub", layout="centered")
+st.write("DEBUG: home.py loaded", time.time())
 st.markdown("""
 <style>
 
@@ -120,7 +121,6 @@ div[data-testid="stAppViewContainer"] > div:first-child {
 div[class*="skeleton"] {
     display: none !important;
 }
-st.write("DEBUG: home.py loaded", time.time())
 </style>
 """, unsafe_allow_html=True)
 # ✅ Kill component iframe placeholders ASAP (before any other output)
