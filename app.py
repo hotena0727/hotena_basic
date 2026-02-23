@@ -424,10 +424,9 @@ def render_floating_scroll_top():
         scrolling=False,
     )
 if not st.session_state.get("HUB_MODE", False):
-    if not st.session_state.get('HUB_MODE', False):
     if not st.session_state.get("_fab_top_injected", False):
-            render_floating_scroll_top()
-            st.session_state["_fab_top_injected"] = True
+        render_floating_scroll_top()
+        st.session_state["_fab_top_injected"] = True
 if st.session_state.get("_scroll_top_once"):
     st.session_state["_scroll_top_once"] = False
     st.session_state["_scroll_top_nonce"] = st.session_state.get("_scroll_top_nonce", 0) + 1
