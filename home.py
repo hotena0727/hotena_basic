@@ -396,10 +396,6 @@ def refresh_session_from_cookie_if_needed(force: bool = False) -> bool:
     if not force and st.session_state.get("user") and st.session_state.get("access_token"):
         return True
 
-    # Bridge localStorage -> query params once
-    _js_bridge_localstorage_to_queryparam("hotena_rt", "rt")
-    _js_bridge_localstorage_to_queryparam("hotena_at", "at")
-
     rt = None
     at = None
     try:
