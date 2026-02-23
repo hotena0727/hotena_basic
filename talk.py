@@ -177,6 +177,14 @@ def load_csv(path: Path) -> pd.DataFrame:
         # level 계열
         "lvl": "level",
         "difficulty": "level",
+        # situation(상황) 계열
+        "situation": "situation_kr",
+        "situation_ko": "situation_kr",
+        "situation_kor": "situation_kr",
+        "context_kr": "situation_kr",
+        "prompt_kr": "situation_kr",
+        "scenario_kr": "situation_kr",
+        "situation_kr": "situation_kr",
     }
     # lower-name lookup
     cols_by_lower = {str(c).lower(): c for c in df.columns}
@@ -185,7 +193,7 @@ def load_csv(path: Path) -> pd.DataFrame:
             df.rename(columns={cols_by_lower[src]: dst}, inplace=True)
 
     # ---- 필수 컬럼 확보 ----
-    required = ["situation_kr", "partner_jp", "answer_jp"]
+    required = ["partner_jp", "answer_jp"]
 
     # qid는 없으면 자동 생성(🚫 앱 중단 방지)
     if "qid" not in df.columns:
@@ -194,6 +202,11 @@ def load_csv(path: Path) -> pd.DataFrame:
     for c in required:
         if c not in df.columns:
             raise ValueError(f"CSV 필수 컬럼 누락: {c}")
+
+    # ---- situation_kr 기본값/파생 ----
+    if "situation_kr" not in df.columns:
+        # 일부 CSV는 한국어 상황문이 없고, 일본어 질문만 있는 경우가 있어 빈 문자열로 두되 앱은 계속 실행합니다.
+        df["situation_kr"] = ""
 
     # ---- tag/level 기본값/파생 (없어도 앱이 죽지 않게) ----
     if "tag" not in df.columns:
