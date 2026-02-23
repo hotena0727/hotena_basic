@@ -69,16 +69,16 @@ if not st.session_state.get('_page_config_set'):
     layout="centered",
 )
 
-st.markdown("""
-<style>
-/* Streamlit 기본 상단 바 제거 */
-header {visibility: hidden;}
-#MainMenu {visibility: hidden;}
-footer {visibility: hidden;}
-.stAppToolbar {display: none !important;}
-</style>
-""", unsafe_allow_html=True)
-
+    st.markdown("""
+    <style>
+    header {visibility: hidden !important;}
+    footer {visibility: hidden !important;}
+    #MainMenu {visibility: hidden !important;}
+    .stAppToolbar {display: none !important;}
+    section[data-testid="stHeader"] {display: none !important;}
+    div[data-testid="stToolbar"] {display: none !important;}
+    </style>
+    """, unsafe_allow_html=True)
 # ============================================================
 # ✅ TOP SPACING FIX (PC + Mobile)
 # - Remove Streamlit's default top padding/space
