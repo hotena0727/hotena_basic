@@ -45,21 +45,23 @@ def get_cfg(key: str) -> str:
 
 
 
-def _hide_streamlit_component_iframes() -> None:
-    """Hide Streamlit custom-component iframes that are used only for JS/cookies and show as gray blocks on F5.
+def hide_component_iframe_placeholders() -> None:
+    """Hide Streamlit custom-component iframes *and their wrappers* that can appear as big blank space on refresh (F5).
 
-    Uses CSS :has() (supported by modern Chromium/Safari) + JS fallback.
+    IMPORTANT:
+    - CSS-only on purpose. Using components.html here would itself create a component iframe and can re-introduce blanks.
+    - Relies on :has(), supported by modern Chromium/Safari.
     """
-    if st.session_state.get("_hide_streamlit_component_iframes_done"):
+    if st.session_state.get("_core_hide_iframes_css_done"):
         return
-    st.session_state["_hide_streamlit_component_iframes_done"] = True
+    st.session_state["_core_hide_iframes_css_done"] = True
 
-    # 1) CSS (preferred): hide any stIFrame wrapper that contains a streamlit.components iframe
     st.markdown(
-        """<style>
-/* ✅ Hide Streamlit custom-component placeholders (gray blocks) */
-/* We target iframes used by streamlit.components.v1 / cookies manager / srcdoc-based components */
+        """
+<style>
+/* 1) Remove the iframe wrapper itself */
 div[data-testid="stIFrame"]:has(iframe[title^="streamlit.components.v1."]),
+div[data-testid="stIFrame"]:has(iframe[title*="streamlit.components"]),
 div[data-testid="stIFrame"]:has(iframe[title*="streamlit"]),
 div[data-testid="stIFrame"]:has(iframe[title*="components"]),
 div[data-testid="stIFrame"]:has(iframe[src*="component"]),
@@ -69,69 +71,26 @@ div[data-testid="stIFrame"]:has(iframe[srcdoc]){
   min-height:0 !important;
   margin:0 !important;
   padding:0 !important;
-  overflow:hidden !important;
 }
-div[data-testid="stIFrame"]:has(iframe[title^="streamlit.components.v1."]) iframe,
-div[data-testid="stIFrame"]:has(iframe[title*="streamlit"]) iframe,
-div[data-testid="stIFrame"]:has(iframe[title*="components"]) iframe,
-div[data-testid="stIFrame"]:has(iframe[src*="component"]) iframe,
-div[data-testid="stIFrame"]:has(iframe[srcdoc]) iframe{
+
+/* 2) Sometimes Streamlit adds an outer container that still keeps height; remove it too */
+div[data-testid="stElementContainer"]:has(div[data-testid="stIFrame"]:has(iframe[title^="streamlit.components.v1."])),
+div[data-testid="stElementContainer"]:has(div[data-testid="stIFrame"]:has(iframe[title*="streamlit.components"])),
+div[data-testid="stElementContainer"]:has(div[data-testid="stIFrame"]:has(iframe[title*="streamlit"])) {
   display:none !important;
   height:0 !important;
   min-height:0 !important;
+  margin:0 !important;
+  padding:0 !important;
 }
-</style>""",
+</style>
+        """,
         unsafe_allow_html=True,
     )
 
-    # 2) JS fallback: repeatedly collapse matching wrappers (in case :has isn't applied early enough)
-    try:
-        components.html(
-            """
-<script>
-(function(){
-  function kill(){
-    try{
-      var doc = (window.parent && window.parent.document) ? window.parent.document : document;
-      var wrappers = doc.querySelectorAll('[data-testid="stIFrame"]');
-      wrappers.forEach(function(w){
-        try{
-          var fr = w.querySelector('iframe');
-          if(!fr) return;
-
-          var t = (fr.getAttribute('title') || '').toLowerCase();
-          var s = (fr.getAttribute('src') || '').toLowerCase();
-          var isComp = t.indexOf('streamlit')>=0 || t.indexOf('components')>=0 || s.indexOf('component')>=0 || fr.hasAttribute('srcdoc');
-
-          if(isComp){
-            w.style.display='none';
-            w.style.height='0px';
-            w.style.minHeight='0px';
-            w.style.margin='0';
-            w.style.padding='0';
-            w.style.overflow='hidden';
-            fr.style.display='none';
-            fr.style.height='0px';
-            fr.style.minHeight='0px';
-          }
-        }catch(e){}
-      });
-    }catch(e){}
-  }
-  kill();
-  setTimeout(kill, 30);
-  setTimeout(kill, 120);
-  setTimeout(kill, 260);
-  setTimeout(kill, 520);
-  var n=0, iv=setInterval(function(){ kill(); if(++n>=40) clearInterval(iv); }, 250);
-})();
-</script>
-""",
-            height=0,
-        )
-    except Exception:
-        pass
-
+# Backward compatible alias (old internal name)
+def _hide_streamlit_component_iframes() -> None:
+    hide_component_iframe_placeholders()
 
 
 def ensure_core(
@@ -687,11 +646,3 @@ def fetch_all_attempts_admin(sb_authed: Any, limit: int = 500):
         .limit(limit)
         .execute()
     )
-
-
-# ----------------------------
-# UI cleanup (hide component placeholders)
-# ----------------------------
-def hide_component_iframe_placeholders() -> None:
-    """Public wrapper: hide gray placeholder blocks created by components.html/cookies iframe."""
-    _hide_streamlit_component_iframes()

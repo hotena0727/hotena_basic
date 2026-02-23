@@ -13,6 +13,7 @@ from cryptography.fernet import Fernet
 from datetime import date, datetime, timedelta, timezone
 import streamlit as st
 import streamlit.components.v1 as components
+import core  # ✅ shared core utilities
 
 # ============================================================
 # ✅ Module runner (NO runpy/run_path)
@@ -102,11 +103,9 @@ import html as html_module  # ✅ for html escaping in admin cards
 # ============================================================
 st.set_page_config(page_title="Hotena Hub", layout="centered")
 
-# ✅ Hide components.html / cookies placeholder blocks (F5 상단 공백 방지)
+# ✅ Must run BEFORE any cookie/component render to prevent F5 top blank blocks
 try:
-    import core
-    if hasattr(core, "hide_component_iframe_placeholders"):
-        core.hide_component_iframe_placeholders()
+    core.hide_component_iframe_placeholders()
 except Exception:
     pass
 
