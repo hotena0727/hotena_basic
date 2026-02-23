@@ -27,6 +27,46 @@ import textwrap
 if not st.session_state.get("_page_config_set"):
     st.set_page_config(page_title="Hotena", layout="centered")
     
+
+# ============================================================
+# ✅ TOP SPACING FIX (PC + Mobile)
+# - Remove Streamlit's default top padding/space
+# - Applied once per session
+# ============================================================
+if not st.session_state.get("_top_compact_css_applied"):
+    st.markdown("""<style>
+/* === Hotena: ultra-compact top spacing (mobile + desktop) === */
+/* 핵심: block-container의 기본 top padding 제거 + 첫 요소 여백 제거 */
+section.main > div.block-container,
+div[data-testid="stAppViewContainer"] > div.block-container {
+  padding-top: 0rem !important;
+  margin-top: 0rem !important;
+}
+
+/* 첫 요소(메뉴/버튼 래퍼) 상단 여백 제거 */
+div.block-container > div:first-child {
+  margin-top: 0rem !important;
+  padding-top: 0rem !important;
+}
+
+/* Streamlit 헤더가 만드는 공간 최소화 */
+header[data-testid="stHeader"]{
+  height: 0px !important;
+  min-height: 0px !important;
+}
+
+/* 모바일에서 더 강하게 */
+@media (max-width: 768px){
+  section.main > div.block-container,
+  div[data-testid="stAppViewContainer"] > div.block-container {
+    padding-top: 0rem !important;
+    margin-top: 0rem !important;
+  }
+}
+</style>""", unsafe_allow_html=True)
+    st.session_state["_top_compact_css_applied"] = True
+
+st.session_state["_page_config_set"] = True
 # ============================================================
 # ✅ [SOUND] 사운드 유틸 (모바일 자동재생 정책 대응)
 # ============================================================
