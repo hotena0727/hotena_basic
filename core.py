@@ -70,6 +70,7 @@ div[data-testid="stIFrame"]:has(iframe[title^="streamlit.components.v1."]) ifram
   height:0 !important;
   min-height:0 !important;
 }
+  .block-container{padding-top:72px !important;}
 </style>""",
         unsafe_allow_html=True,
     )
@@ -702,7 +703,7 @@ def render_top_nav(active: str = "home") -> None:
       [data-testid="stSidebarNav"] { display: none !important; }
 
       .hn-topnav-wrap{
-        position: sticky;
+        position: fixed; left: 0; right: 0;
         top: 0;
         z-index: 2147483000;
         background: rgba(255,255,255,0.94);
@@ -757,7 +758,8 @@ def render_top_nav(active: str = "home") -> None:
         .hn-nav a{ font-size: 13.5px; padding: 10px 0; }
         .hn-nav a.active::after{ left: 30%; width: 40%; }
       }
-    </style>
+      .block-container{padding-top:72px !important;}
+</style>
     """)
 
     html = f"""        <div class="hn-topnav-wrap">
