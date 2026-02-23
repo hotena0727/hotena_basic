@@ -616,6 +616,7 @@ def _dots_3(done_sets: int, goal_sets: int) -> str:
             filled = max(0, min(3, filled))
     return " ".join(["●"] * filled + ["○"] * (3 - filled))
 
+    core._hide_streamlit_component_iframes()
 
 def render_home_dashboard(sb_authed, user):
     """Home Hub dashboard (A++): donut + weekly heatmap + level mini bars + rows + smart CTA + compact goal gear."""
