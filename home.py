@@ -120,7 +120,7 @@ div[data-testid="stAppViewContainer"] > div:first-child {
 div[class*="skeleton"] {
     display: none !important;
 }
-
+st.write("DEBUG: home.py loaded", time.time())
 </style>
 """, unsafe_allow_html=True)
 # ✅ Kill component iframe placeholders ASAP (before any other output)
@@ -128,8 +128,6 @@ try:
     core.hide_component_iframe_placeholders()
 except Exception:
     pass
-
-st.write("DEBUG: home.py loaded", time.time())
 
 # ============================================================
 # ✅ TOP SPACING FIX (PC + Mobile)
