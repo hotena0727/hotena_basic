@@ -1212,7 +1212,6 @@ def render_floating_menu():
     href_kanji = "?" + base + "p=kanji"
     href_talk = "?" + base + "p=talk"
     href_my   = "?" + base + "p=my"
-    href_rem  = "?" + base + "p=reminder"
     href_out  = "?" + base + "action=logout"
 
     html = """<style>
@@ -1295,7 +1294,6 @@ def render_floating_menu():
     <a href="__HREF_KANJI__" target="_self">🈶 한자</a>
     <a href="__HREF_TALK__" target="_self">💬 회화</a>
     <a href="__HREF_MY__" target="_self">👤 마이페이지</a>
-    <a href="__HREF_REM__" target="_self">🔔 알림 설정</a>
     <a href="__HREF_OUT__" target="_self">🚪 로그아웃</a>
     <div style="height:0.6rem"></div>
     <div style="font-size:0.85rem; opacity:0.7;">Tip: 바깥을 누르면 닫힙니다.</div>
@@ -1310,7 +1308,6 @@ def render_floating_menu():
                 .replace("__HREF_KANJI__", href_kanji)
                 .replace("__HREF_TALK__", href_talk)
                 .replace("__HREF_MY__", href_my)
-                .replace("__HREF_REM__", href_rem)
                 .replace("__HREF_OUT__", href_out))
 
     st.markdown(html, unsafe_allow_html=True)
@@ -1438,61 +1435,6 @@ def render_reminder_settings(sb_authed, user):
         save_progress(sb_authed, user.id, progress_all)
         st.success("저장했습니다.")
 
-
-def fire_in_app_reminder_if_enabled(user):
-    """If reminder is enabled, schedule an in-app notification when the app is open."""
-    progress_all = st.session_state.get("progress_all", {}) or {}
-    rem = progress_all.get("reminder") or {}
-    enabled = bool(rem.get("enabled", True))
-    time_str = rem.get("time", "09:00")
-
-    if not enabled:
-        return
-
-    try:
-        hh, mm = [int(x) for x in time_str.split(":")]
-        now = datetime.now()
-        target = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
-        if target <= now:
-            # next day
-            target = target.replace(day=now.day)  # keep structure; safe fallback
-            target = target + (datetime(now.year, now.month, now.day) - datetime(now.year, now.month, now.day))
-        delay_ms = max(1000, int((target - now).total_seconds() * 1000))
-    except Exception:
-        delay_ms = 0
-
-    msg = json.dumps(daily_message(str(user.id)))
-    components.html(
-        f"""
-<script>
-  (function(){{
-    try {{
-      const delay = {delay_ms};
-      const message = {msg};
-      if (delay <= 0) return;
-      setTimeout(() => {{
-        try {{
-          if (typeof Notification !== 'undefined') {{
-            if (Notification.permission === 'granted') {{
-              new Notification('하테나일본어', {{ body: message }});
-            }}
-          }}
-          // Fallback: simple alert-like toast
-          const t = document.createElement('div');
-          t.textContent = message;
-          t.style.cssText = 'position:fixed;left:50%;bottom:16px;transform:translateX(-50%);padding:10px 14px;background:rgba(20,20,20,0.92);color:#fff;border-radius:12px;font-size:14px;z-index:2147483647;';
-          document.body.appendChild(t);
-          setTimeout(()=>t.remove(), 4500);
-        }} catch(e) {{}}
-      }}, delay);
-    }} catch(e) {{}}
-  }})();
-</script>
-""",
-        height=0,
-    )
-
-
 # ============================================================
 # 🔔 Reminder messages (혼합 50)
 # ============================================================
@@ -1606,11 +1548,6 @@ sb_authed = get_authed_sb()
 user = st.session_state.get("user")
 ensure_profile(sb_authed, user)
 load_profile(sb_authed, user.id)
-
-# ============================================================
-# 🔔 In-app reminder (no inline UI; settings live in menu -> Reminder page)
-# ============================================================
-fire_in_app_reminder_if_enabled(user)
 
 # ============================================================
 # ✅ Navigation (hub_page)
@@ -3011,7 +2948,7 @@ if action == "logout":
     hub_logout()
 
 if isinstance(p, str) and p:
-    allowed = {"home", "word", "kanji", "talk", "my", "reminder"}
+    allowed = {"home", "word", "kanji", "talk", "my"}
     if st.session_state.get("is_admin"):
         allowed.add("admin")
     if p in allowed:
@@ -3040,10 +2977,6 @@ elif page == "my":
     # - 메시지 탭은 mypage 내부에 이미 있으므로 중복 노출 방지
     st.session_state['HUB_MODE'] = True
     run_module('mypage')
-    st.stop()
-
-elif page == "reminder":
-    render_reminder_settings(sb_authed, user)
     st.stop()
 
 elif page == "word":
