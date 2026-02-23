@@ -165,8 +165,18 @@ def load_csv(path: Path) -> pd.DataFrame:
     # ---- 컬럼 alias 처리 (기존 CSV 호환) ----
     # 예: id / ID / q_id 등이 들어오면 qid로 매핑
     alias_map = {
+        # id 계열
         "q_id": "qid",
         "id": "qid",
+        "qid": "qid",
+        # tag 계열(기존 CSV/확장 CSV 호환)
+        "tags": "tag",
+        "category": "tag",
+        "topic": "tag",
+        "type": "tag",
+        # level 계열
+        "lvl": "level",
+        "difficulty": "level",
     }
     # lower-name lookup
     cols_by_lower = {str(c).lower(): c for c in df.columns}
@@ -175,7 +185,7 @@ def load_csv(path: Path) -> pd.DataFrame:
             df.rename(columns={cols_by_lower[src]: dst}, inplace=True)
 
     # ---- 필수 컬럼 확보 ----
-    required = ["level", "tag", "situation_kr", "partner_jp", "answer_jp"]
+    required = ["situation_kr", "partner_jp", "answer_jp"]
 
     # qid는 없으면 자동 생성(🚫 앱 중단 방지)
     if "qid" not in df.columns:
@@ -184,6 +194,33 @@ def load_csv(path: Path) -> pd.DataFrame:
     for c in required:
         if c not in df.columns:
             raise ValueError(f"CSV 필수 컬럼 누락: {c}")
+
+    # ---- tag/level 기본값/파생 (없어도 앱이 죽지 않게) ----
+    if "tag" not in df.columns:
+        # mode/section이 있으면 활용, 없으면 general
+        if "mode" in df.columns:
+            df["tag"] = df["mode"].astype(str)
+        elif "section" in df.columns:
+            df["tag"] = df["section"].astype(str)
+        else:
+            df["tag"] = "general"
+
+    if "level" not in df.columns:
+        # stage가 있으면 stage 기반으로 임시 레벨 매핑
+        if "stage" in df.columns:
+            stg = df["stage"].astype(str).str.strip()
+            df["level"] = stg.map({"1": "n3", "2": "n3", "3": "n4"}).fillna("n3")
+        else:
+            df["level"] = "n3"
+
+    # ---- 디버그: 실제 로드한 CSV 경로/컬럼 ----
+    try:
+        import streamlit as st
+        st.session_state["_talk_csv_path"] = str(path)
+        st.session_state["_talk_csv_cols"] = list(df.columns)
+    except Exception:
+        pass
+
 
     # ---- 문자열 정리 ----
     for c in df.columns:
