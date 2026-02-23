@@ -1467,6 +1467,7 @@ def render_reminder_settings(sb_authed, user):
 
 
 def fire_in_app_reminder_if_enabled(user):
+    return
     """If reminder is enabled, schedule an in-app notification when the app is open."""
     progress_all = st.session_state.get("progress_all", {}) or {}
     rem = progress_all.get("reminder") or {}
@@ -1489,7 +1490,7 @@ def fire_in_app_reminder_if_enabled(user):
         delay_ms = 0
 
     msg = json.dumps(daily_message(str(user.id)))
-    components.html(
+    # components.html(
         f"""
 <script>
   (function(){{
