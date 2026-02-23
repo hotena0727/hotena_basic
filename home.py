@@ -1,7 +1,7 @@
 # home.py
 from __future__ import annotations
 
-BUILD_STAMP = 'home-topnav-core-v1 2026-02-23 KST (+09:00)'
+BUILD_STAMP = 'home-clean-no-spacer-v3 (fix run_module reload) 2026-02-22 KST (+09:00)'
 from pathlib import Path
 import os
 import runpy
@@ -13,7 +13,6 @@ from cryptography.fernet import Fernet
 from datetime import date, datetime, timedelta, timezone
 import streamlit as st
 import streamlit.components.v1 as components
-import core
 
 # ============================================================
 # ✅ Module runner (NO runpy/run_path)
@@ -146,7 +145,7 @@ div[data-testid="stAppViewContainer"]{
 div[data-testid="stAppViewContainer"] .block-container{
   padding-top: 0 !important;
   margin-top: 0 !important;
-  padding-bottom: 1.25rem !important; /* top-nav layout */
+  padding-bottom: 5.25rem !important; /* keep breathing room for bottom nav */
 }
 
 /* Headlines: tighter */
@@ -209,7 +208,7 @@ div[data-testid="stMetric"]{
     padding-left: 1.0rem !important;
     padding-right: 1.0rem !important;
     padding-top: 0.15rem !important;
-    padding-bottom: 1.75rem !important;
+    padding-bottom: 6.0rem !important;
   }
 
   /* Slightly larger tap targets on phones */
@@ -3018,9 +3017,12 @@ if isinstance(p, str) and p:
     if p in allowed:
         st.session_state["hub_page"] = p
 
-# ✅ Top nav (replaces bottom nav + left floating menu)
+# ✅ Always render floating menu + plan pill in hub mode (after auth)
+render_floating_menu()
+render_plan_pill()
+
 page = st.session_state.get("hub_page", "home")
-core.render_top_nav(active=page)
+render_bottom_nav(active=page)
 
 
 if page == "admin":
