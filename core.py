@@ -16,18 +16,10 @@ from typing import Any, Callable, Optional, Tuple
 
 import streamlit as st
 import streamlit.components.v1 as components
-from cryptography.fernet import Fernet
 
-try:
-    # Streamlit Cookies Manager
-    from streamlit_cookies_manager import EncryptedCookieManager
-except Exception:  # pragma: no cover
-    EncryptedCookieManager = None  # type: ignore
+# (lazy imports) heavy deps are imported inside functions to reduce F5 skeleton time
 
-try:
-    from supabase import create_client
-except Exception:  # pragma: no cover
-    create_client = None  # type: ignore
+
 
 
 # ----------------------------
@@ -54,20 +46,19 @@ def _hide_streamlit_component_iframes() -> None:
         return
     st.session_state["_hide_streamlit_component_iframes_done"] = True
 
-    # 1) CSS + JS: collapse ONLY tall custom-component placeholders (gray blocks) without touching small visible components.
+    # 1) CSS (preferred): hide any stIFrame wrapper that contains a streamlit.components iframe
     st.markdown(
         """<style>
-/* Collapsed iframe wrapper (applied by JS below) */
-div.__hotena_iframe_collapsed__{
+/* Hide Streamlit custom component placeholders (gray blocks) */
+div[data-testid="stIFrame"]:has(iframe[title^="streamlit.components.v1."]){
+  display:none !important;
   height:0 !important;
   min-height:0 !important;
   margin:0 !important;
   padding:0 !important;
-  overflow:hidden !important;
-  opacity:0 !important;
-  pointer-events:none !important;
 }
-div.__hotena_iframe_collapsed__ iframe{
+div[data-testid="stIFrame"]:has(iframe[title^="streamlit.components.v1."]) iframe{
+  display:none !important;
   height:0 !important;
   min-height:0 !important;
 }
@@ -75,46 +66,38 @@ div.__hotena_iframe_collapsed__ iframe{
         unsafe_allow_html=True,
     )
 
+    # 2) JS fallback: repeatedly collapse matching wrappers (in case :has isn't applied early enough)
     try:
         components.html(
             """
 <script>
 (function(){
-  function collapseTallIframes(){
+  function kill(){
     try{
       var doc = (window.parent && window.parent.document) ? window.parent.document : document;
-      var wraps = doc.querySelectorAll('div[data-testid="stIFrame"]');
-      wraps.forEach(function(w){
+      var frames = doc.querySelectorAll('iframe[title^="streamlit.components.v1."]');
+      frames.forEach(function(fr){
         try{
-          // already collapsed
-          if (w.classList.contains('__hotena_iframe_collapsed__')) return;
-
-          var fr = w.querySelector('iframe');
-          if (!fr) return;
-
-          // Only target Streamlit custom components (avoid any accidental iframes)
-          var title = (fr.getAttribute('title') || '').toLowerCase();
-          var looksStreamlit = title.indexOf('streamlit') !== -1 || title.indexOf('components') !== -1;
-          if (!looksStreamlit) return;
-
-          var h = 0;
-          try { h = w.getBoundingClientRect().height || fr.getBoundingClientRect().height || 0; } catch(e) {}
-
-          // ✅ Key: collapse only "big placeholders" (your screenshot blocks).
-          // Keep small intentional components (e.g., 50~80px).
-          if (h >= 120) {
-            w.classList.add('__hotena_iframe_collapsed__');
+          fr.style.display='none';
+          fr.style.height='0px';
+          fr.style.minHeight='0px';
+          var wrap = fr.closest('[data-testid="stIFrame"]') || fr.parentElement;
+          if(wrap){
+            wrap.style.display='none';
+            wrap.style.height='0px';
+            wrap.style.minHeight='0px';
+            wrap.style.margin='0';
+            wrap.style.padding='0';
           }
-        } catch(e){}
+        }catch(e){}
       });
     }catch(e){}
   }
-
-  collapseTallIframes();
-  setTimeout(collapseTallIframes, 60);
-  setTimeout(collapseTallIframes, 220);
-  setTimeout(collapseTallIframes, 650);
-  var n=0, iv=setInterval(function(){ collapseTallIframes(); if(++n>=40) clearInterval(iv); }, 300);
+  kill();
+  setTimeout(kill, 60);
+  setTimeout(kill, 220);
+  setTimeout(kill, 650);
+  var n=0, iv=setInterval(function(){ kill(); if(++n>=40) clearInterval(iv); }, 300);
 })();
 </script>
 """,
@@ -157,11 +140,15 @@ def ensure_core(
 
     # 2) Cookie manager (render only once)
     if "cookies" not in st.session_state:
-        if EncryptedCookieManager is None:
+        try:
+            from streamlit_cookies_manager import EncryptedCookieManager as _ECM
+        except Exception:
+            _ECM = None
+        if _ECM is None:
             st.error("streamlit-cookies-manager가 설치되지 않았습니다.")
             st.stop()
 
-        cookies = EncryptedCookieManager(prefix=cookie_prefix, password=str(cfg["COOKIE_PASSWORD"]))
+        cookies = _ECM(prefix=cookie_prefix, password=str(cfg["COOKIE_PASSWORD"]))
         if not cookies.ready():
             st.info("잠깐만요! 곧 시작할게요🙂")
             st.stop()
@@ -173,10 +160,14 @@ def ensure_core(
 
     # 4) Supabase anon client
     if "sb" not in st.session_state:
-        if create_client is None:
+        try:
+            from supabase import create_client as _cc
+        except Exception:
+            _cc = None
+        if _cc is None:
             st.error("supabase-py가 설치되지 않았습니다.")
             st.stop()
-        st.session_state["sb"] = create_client(cfg["SUPABASE_URL"], cfg["SUPABASE_ANON_KEY"])
+        st.session_state["sb"] = _cc(cfg["SUPABASE_URL"], cfg["SUPABASE_ANON_KEY"])
 
     # store localstorage keys for auth bridge
     st.session_state["_core_ls_rt"] = localstorage_keys[0]
@@ -198,7 +189,8 @@ def _cookies_save_once_per_run() -> None:
 # ----------------------------
 # Encrypt / Decrypt
 # ----------------------------
-def _fernet() -> Fernet:
+def _fernet():
+    from cryptography.fernet import Fernet
     cfg = ensure_core()
     pw = str(cfg.get("COOKIE_PASSWORD", ""))
     key = base64.urlsafe_b64encode(hashlib.sha256(pw.encode("utf-8")).digest())
@@ -381,7 +373,14 @@ def get_authed_sb(*, force_refresh: bool = True):
     if cached is not None and cached_token == token:
         return cached
 
-    sb2 = create_client(st.session_state["cfg"]["SUPABASE_URL"], st.session_state["cfg"]["SUPABASE_ANON_KEY"])
+    try:
+        from supabase import create_client as _cc
+    except Exception:
+        _cc = None
+    if _cc is None:
+        st.error('supabase-py가 설치되지 않았습니다.')
+        st.stop()
+    sb2 = _cc(st.session_state["cfg"]["SUPABASE_URL"], st.session_state["cfg"]["SUPABASE_ANON_KEY"])
     sb2.postgrest.auth(token)
     st.session_state["sb_authed"] = sb2
     st.session_state["sb_authed_token"] = token

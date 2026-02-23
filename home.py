@@ -9,9 +9,12 @@ import importlib
 import json
 import hashlib
 import base64
+
 from datetime import date, datetime, timedelta, timezone
 import streamlit as st
 import streamlit.components.v1 as components
+
+# (lazy imports) heavy deps are imported inside functions to reduce F5 skeleton time
 
 # ============================================================
 # ✅ Module runner (NO runpy/run_path)
@@ -61,7 +64,6 @@ def _js_bridge_localstorage_to_queryparam(ls_key: str, qp_key: str):
 }})();
 </script>""".replace("LS_KEY", ls_key).replace("QP_KEY", qp_key),
             height=0,
-            scrolling=False,
         )
     except Exception:
         pass
@@ -75,7 +77,6 @@ try {{
 }} catch(e) {{}}
 </script>""".replace("K", key).replace("V", value),
             height=0,
-            scrolling=False,
         )
     except Exception:
         pass
@@ -89,20 +90,19 @@ try {{
 }} catch(e) {{}}
 </script>""".replace("K", key),
             height=0,
-            scrolling=False,
         )
     except Exception:
         pass
+
+
+
+
 import html as html_module  # ✅ for html escaping in admin cards
 
 # ============================================================
 # ✅ Page Config (Hub only)
 # ============================================================
 st.set_page_config(page_title="Hotena Hub", layout="centered")
-
-# ✅ FIRST PAINT: send a tiny delta ASAP (reduces F5 skeleton flash)
-st.markdown("<div style=\"height:1px\"></div>", unsafe_allow_html=True)
-
 
 
 # ============================================================
@@ -313,7 +313,6 @@ if missing:
 def _fernet():
     pw = CFG.get("COOKIE_PASSWORD", "")
     key = base64.urlsafe_b64encode(hashlib.sha256(pw.encode("utf-8")).digest())
-    from cryptography.fernet import Fernet
     return Fernet(key)
 
 def _enc(s: str) -> str:
@@ -330,8 +329,21 @@ def _dec(token: str) -> str | None:
 # ============================================================
 cookies = st.session_state.get("cookies")
 if cookies is None:
-    from streamlit_cookies_manager import EncryptedCookieManager
-    cookies = EncryptedCookieManager(prefix="hotena_beginner_", password=CFG["COOKIE_PASSWORD"])
+    try:
+
+        from streamlit_cookies_manager import EncryptedCookieManager as _ECM
+
+    except Exception:
+
+        _ECM = None
+
+    if _ECM is None:
+
+        st.error('streamlit-cookies-manager가 설치되지 않았습니다.')
+
+        st.stop()
+
+    cookies = _ECM(prefix="hotena_beginner_", password=CFG["COOKIE_PASSWORD"])
     if not cookies.ready():
         st.info("잠깐만요! 곧 시작할게요🙂")
         st.stop()
@@ -358,8 +370,21 @@ def _cookies_save_once_per_run():
 # ============================================================
 sb = st.session_state.get("sb")
 if sb is None:
-    from supabase import create_client
-    sb = create_client(CFG["SUPABASE_URL"], CFG["SUPABASE_ANON_KEY"])
+    try:
+
+        from supabase import create_client as _cc
+
+    except Exception:
+
+        _cc = None
+
+    if _cc is None:
+
+        st.error('supabase-py가 설치되지 않았습니다.')
+
+        st.stop()
+
+    sb = _cc(CFG["SUPABASE_URL"], CFG["SUPABASE_ANON_KEY"])
     st.session_state["sb"] = sb
 
 # ============================================================
@@ -454,8 +479,21 @@ def get_authed_sb():
     cached_token = st.session_state.get("sb_authed_token")
     if cached is not None and cached_token == token:
         return cached
-    from supabase import create_client
-    sb2 = create_client(CFG["SUPABASE_URL"], CFG["SUPABASE_ANON_KEY"])
+    try:
+
+        from supabase import create_client as _cc
+
+    except Exception:
+
+        _cc = None
+
+    if _cc is None:
+
+        st.error('supabase-py가 설치되지 않았습니다.')
+
+        st.stop()
+
+    sb2 = _cc(CFG["SUPABASE_URL"], CFG["SUPABASE_ANON_KEY"])
     sb2.postgrest.auth(token)
     st.session_state["sb_authed"] = sb2
     st.session_state["sb_authed_token"] = token
@@ -1496,7 +1534,6 @@ def fire_in_app_reminder_if_enabled(user):
 </script>
 """,
         height=0,
-        scrolling=False,
     )
 
 
