@@ -703,3 +703,78 @@ def fetch_all_attempts_admin(sb_authed: Any, limit: int = 500):
         .limit(limit)
         .execute()
     )
+
+def apply_compact_layout() -> None:
+    """Remove Streamlit's top/bottom chrome and pull content to the very top."""
+    if st.session_state.get("_compact_layout_applied"):
+        return
+    st.session_state["_compact_layout_applied"] = True
+
+    st.markdown(
+        """
+<style>
+/* Hide Streamlit header/toolbar/footer */
+header[data-testid="stHeader"]{display:none !important; height:0 !important;}
+div[data-testid="stToolbar"]{display:none !important; height:0 !important; visibility:hidden !important;}
+footer{display:none !important;}
+
+/* Remove top padding/margins so first element becomes the very top */
+html, body { margin:0 !important; padding:0 !important; }
+div.block-container { padding-top: 0rem !important; margin-top: 0rem !important; }
+section.main > div { padding-top: 0rem !important; }
+
+/* Sometimes Streamlit adds extra spacer blocks */
+div[data-testid="stVerticalBlock"] > div:empty { display:none !important; }
+</style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def ensure_pwa_assets() -> None:
+    """
+    Inject PWA assets (manifest + icons + service worker register) once per session.
+    Note: This registers SW if sw.js exists at the app root.
+    """
+    if st.session_state.get("_pwa_assets_injected"):
+        return
+    st.session_state["_pwa_assets_injected"] = True
+
+    # ✅ 상대경로 기준 (보통 repo 루트에 manifest.json / sw.js / icons/..)
+    components.html(
+        """
+<script>
+(function(){
+  // ---- helper
+  const ensureLink = (rel, href, sizes) => {
+    let q = document.querySelector(`link[rel="${rel}"][href="${href}"]`);
+    if (!q) {
+      q = document.createElement("link");
+      q.rel = rel;
+      q.href = href;
+      if (sizes) q.sizes = sizes;
+      document.head.appendChild(q);
+    }
+  };
+
+  // ---- manifest
+  ensureLink("manifest", "manifest.json");
+
+  // ---- icons (필요한 것만 존재하면 브라우저가 알아서 사용)
+  ensureLink("apple-touch-icon", "icons/apple-touch-icon.png", "180x180");
+  ensureLink("icon", "icons/icon-192.png", "192x192");
+  ensureLink("icon", "icons/icon-512.png", "512x512");
+
+  // ---- service worker (있을 때만)
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.getRegistration().then((reg) => {
+      if (!reg) {
+        navigator.serviceWorker.register("sw.js").catch(()=>{});
+      }
+    });
+  }
+})();
+</script>
+        """,
+        height=0,
+    )
