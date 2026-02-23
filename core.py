@@ -45,50 +45,6 @@ def get_cfg(key: str) -> str:
 
 
 
-
-
-def ensure_pwa_assets(
-    *,
-    manifest_path: str = "manifest.json",
-    apple_touch_icon: str = "assets/icon-180.png",
-    icon_192: str = "assets/icon-192.png",
-) -> None:
-    """Inject manifest + icons into <head>. Safe to call multiple times."""
-    if st.session_state.get("_pwa_assets_done"):
-        return
-    st.session_state["_pwa_assets_done"] = True
-
-    # NOTE: Paths should be reachable by Streamlit static hosting (same origin).
-    # If you host icons under /static, adjust paths accordingly.
-    components.html(
-        f"""
-<script>
-(function(){{
-  try {{
-    var doc = (window.parent && window.parent.document) ? window.parent.document : document;
-    function ensureLink(rel, href, extra){{
-      var q = 'link[rel="'+rel+'"]';
-      var el = doc.querySelector(q);
-      if(!el){{
-        el = doc.createElement('link');
-        el.setAttribute('rel', rel);
-        doc.head.appendChild(el);
-      }}
-      el.setAttribute('href', href);
-      if(extra){{
-        Object.keys(extra).forEach(function(k){{ el.setAttribute(k, extra[k]); }});
-      }}
-    }}
-    ensureLink('manifest', '{manifest_path}', null);
-    ensureLink('apple-touch-icon', '{apple_touch_icon}', null);
-    ensureLink('icon', '{icon_192}', {{sizes:'192x192', type:'image/png'}});
-  }} catch(e) {{}}
-}})();
-</script>
-""",
-        height=0,
-    )
-
 def _hide_streamlit_component_iframes() -> None:
     """Hide Streamlit custom-component iframes that are used only for JS/cookies and show as gray blocks on F5.
 
@@ -197,9 +153,10 @@ def ensure_core(
             st.stop()
 
         cookies = EncryptedCookieManager(prefix=cookie_prefix, password=str(cfg["COOKIE_PASSWORD"]))
+        if not cookies.ready():
+            st.info("잠깐만요! 곧 시작할게요🙂")
+            st.stop()
         st.session_state["cookies"] = cookies
-        # ✅ Do NOT stop here. Let the page "fast paint" first; caller can decide to stop if needed.
-        st.session_state["_cookies_ready"] = bool(cookies.ready())
 
     # 3) Save lock (avoid DuplicateElementKey in same run)
     if "_cookie_save_lock" not in st.session_state:

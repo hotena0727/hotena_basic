@@ -102,35 +102,6 @@ import html as html_module  # ✅ for html escaping in admin cards
 # ============================================================
 st.set_page_config(page_title="Hotena Hub", layout="centered")
 
-# ============================================================
-# ✅ FAST PAINT: render plan pill mount FIRST (prevents F5 skeleton from pushing content down)
-# - This mounts a top placeholder immediately, then render_plan_pill() will "fill" it later.
-# ============================================================
-try:
-    _plan = (st.session_state.get("user_plan") or "free").lower()
-except Exception:
-    _plan = "free"
-_fast_txt = "✨ PRO 이용 중입니다" if _plan == "pro" else "🆓 FREE 이용 중"
-
-st.markdown(
-    """
-<style>
-/* Make sure the first element sticks to the very top */
-#hub_plan_mount { margin: 0 !important; padding: 0 !important; }
-.hub-plan-wrap{display:flex;justify-content:flex-start;margin:0 !important;padding:0 !important;}
-.hub-plan-pill{display:inline-flex;align-items:center;gap:.45rem;padding:.28rem .55rem;border-radius:999px;
-  border:1px solid rgba(0,0,0,.10);font-size:.86rem;opacity:.92;background:rgba(0,0,0,.02);}
-</style>
-""",
-    unsafe_allow_html=True,
-)
-
-st.markdown(
-    f'<div id="hub_plan_mount"><div class="hub-plan-wrap"><div class="hub-plan-pill">{_fast_txt}</div></div></div>',
-    unsafe_allow_html=True,
-)
-
-
 
 # ============================================================
 # ✅ TOP SPACING FIX (PC + Mobile)
@@ -1385,41 +1356,47 @@ def render_plan_pill():
 
     gear = f'<a class="hub-admin-gear" href="{href_admin}" target="_self" title="관리자">⚙️</a>' if is_admin else ""
 
-    # ✅ Update the already-mounted top placeholder instead of inserting a new block (prevents duplicate + helps F5)
-    html = f"""
-<style>
-.hub-plan-wrap{{display:flex;justify-content:flex-start;margin:0 !important;padding:0 !important;}}
-.hub-plan-pill{{display:inline-flex;align-items:center;gap:.45rem;padding:.28rem .55rem;border-radius:999px;
-  border:1px solid rgba(0,0,0,.10);font-size:.86rem;opacity:.92;background:rgba(0,0,0,.02);}}
-.hub-admin-gear{{display:inline-flex;align-items:center;justify-content:center;margin-left:8px;width:28px;height:28px;border-radius:999px;
-  text-decoration:none !important;border:1px solid rgba(0,0,0,.10);background:rgba(0,0,0,.02);font-size:16px;line-height:1;}}
-.hub-admin-gear:hover{{background:rgba(0,0,0,.04);}}
-</style>
-<div class="hub-plan-wrap"><div class="hub-plan-pill">{txt}{gear}</div></div>
-"""
-
-    # If mount exists, fill it; otherwise fallback to normal markdown render
-    try:
-        components.html(
-            f"""
+    # ✅ Idempotent: ensure only one pill exists even across re-runs.
+    # We inject into the parent DOM and replace the existing node by id.
+    components.html(
+        f"""
 <script>
 (function(){{
-  try {{
+  try{{
     var doc = (window.parent && window.parent.document) ? window.parent.document : document;
-    var m = doc.getElementById("hub_plan_mount");
-    if(m) {{
-      m.innerHTML = {html!r};
+    var old = doc.getElementById('__HUB_PLAN_PILL__');
+    if (old) old.remove();
+
+    var wrap = doc.createElement('div');
+    wrap.id = '__HUB_PLAN_PILL__';
+    wrap.innerHTML = {(
+        "<div class=\\"hub-plan-pill\\">" + txt + gear + "</div>"
+    )!r};
+
+    // styles (once)
+    if (!doc.getElementById('__HUB_PLAN_PILL_STYLE__')){{
+      var st = doc.createElement('style');
+      st.id = '__HUB_PLAN_PILL_STYLE__';
+      st.textContent = `
+        #__HUB_PLAN_PILL__{ position: fixed; top: 14px; left: 14px; z-index: 2147483647; }
+        #__HUB_PLAN_PILL__ .hub-plan-pill{ display:inline-flex; align-items:center; gap:.45rem; padding:.28rem .55rem; border-radius:999px;
+          border:1px solid rgba(0,0,0,.10); font-size:.86rem; opacity:.92; background:rgba(0,0,0,.02); backdrop-filter: blur(6px); }
+        #__HUB_PLAN_PILL__ .hub-admin-gear{ display:inline-flex; align-items:center; justify-content:center; margin-left:8px; width:28px; height:28px;
+          border-radius:999px; text-decoration:none !important; border:1px solid rgba(0,0,0,.10); background:rgba(0,0,0,.02);
+          font-size:16px; line-height:1; }
+        #__HUB_PLAN_PILL__ .hub-admin-gear:hover{ background:rgba(0,0,0,.04); }
+      `;
+      doc.head.appendChild(st);
     }}
-  }} catch(e) {{}}
+
+    // mount
+    (doc.body || doc.documentElement).appendChild(wrap);
+  }}catch(e){{}}
 }})();
 </script>
 """,
-            height=0,
-        )
-        # Also render once in Streamlit flow (for cases where parent DOM isn't reachable yet)
-        st.markdown(f'<div id="hub_plan_mount">{html}</div>', unsafe_allow_html=True)
-    except Exception:
-        st.markdown(f'<div id="hub_plan_mount">{html}</div>', unsafe_allow_html=True)
+        height=0,
+    )
 
 def render_daily_goal_home(sb_authed, user_id: str):
     """Home dashboard: daily goal (sets-based). 1 set == 10 questions (quiz_len)."""
