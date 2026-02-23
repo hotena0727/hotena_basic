@@ -101,7 +101,13 @@ import html as html_module  # ✅ for html escaping in admin cards
 # ✅ Page Config (Hub only)
 # ============================================================
 st.set_page_config(page_title="Hotena Hub", layout="centered")
-
+st.markdown("""
+<style>
+/* Remove loading skeleton */
+[data-testid="stSkeleton"] { display:none !important; }
+.css-1v0mbdj { display:none !important; }
+</style>
+""", unsafe_allow_html=True)
 
 # ============================================================
 # ✅ TOP SPACING FIX (PC + Mobile)
