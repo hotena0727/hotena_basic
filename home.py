@@ -313,7 +313,6 @@ div[data-testid="stMetric"]{
 
 </style>
 """,
-    unsafe_allow_html=True,
 )
 st.session_state["_page_config_set"] = True  # children should not call set_page_config
 
@@ -943,7 +942,6 @@ def render_home_dashboard(sb_authed, user):
 }
 </style>
         """,
-        unsafe_allow_html=True,
     )
 
     # ---- header ----
@@ -960,7 +958,6 @@ def render_home_dashboard(sb_authed, user):
   </div>
 </div>
 """,
-        unsafe_allow_html=True,
     )
 
     # ---- donut ----
@@ -974,7 +971,6 @@ def render_home_dashboard(sb_authed, user):
   </div>
 </div>
 """,
-        unsafe_allow_html=True,
     )
 
     # ---- weekly heatmap ----
@@ -1010,7 +1006,6 @@ def render_home_dashboard(sb_authed, user):
   <div class="hm-lab">최근 7일 (오늘 포함)</div>
 </div>
 """,
-        unsafe_allow_html=True,
     )
 
     # ---- level mini progress (recent 30 days, sets) ----
@@ -1061,7 +1056,6 @@ def render_home_dashboard(sb_authed, user):
   {level_rows}
 </div>
 """,
-        unsafe_allow_html=True,
     )
 
     # ---- goal gear (on level progress card, top-right) ----
@@ -1092,7 +1086,6 @@ def render_home_dashboard(sb_authed, user):
   <div class="goal-bar" style="--w:{_pct*100:.0f}%"><div></div></div>
 </div>
 """,
-            unsafe_allow_html=True,
         )
 
         # slider (reasonable max, but keep compatibility with existing data)
@@ -1109,7 +1102,6 @@ def render_home_dashboard(sb_authed, user):
         )
         st.markdown(
             f"<div class='goal-help'>하루 목표: <b>{int(new_goal)}</b> 세트 (1세트=10문항)</div>",
-            unsafe_allow_html=True,
         )
 
         csave, cclose = st.columns([1, 1], gap="small")
@@ -1381,7 +1373,6 @@ def render_float_top_anchor_button():
 </style>
 <a class="hotena-float-top" href="#hotena-top" aria-label="맨 위로">⬆︎</a>
         """,
-        unsafe_allow_html=True,
     )
 
 
@@ -1410,7 +1401,6 @@ def render_plan_pill():
   <div class="hub-plan-pill">{txt}{gear}</div>
 </div>
 """,
-        unsafe_allow_html=True,
     )
 
 def render_daily_goal_home(sb_authed, user_id: str):
