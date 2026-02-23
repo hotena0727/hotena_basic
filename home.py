@@ -19,11 +19,10 @@ import streamlit.components.v1 as components
 # - Import (or reload) a module by name so it renders in the SAME Streamlit flow
 # ============================================================
 def run_module(module_name: str):
-    """Import (or reload) a module by name so it renders in the SAME Streamlit flow.
+    """Safely import (or reload) a module and call its render() if present.
 
-    IMPORTANT:
-    - Do NOT import + reload in the same run (it executes the module twice),
-      which can cause StreamlitDuplicateElementKey for widgets defined at import time.
+    - Import errors (including SyntaxError) should NOT crash the whole hub.
+    - If a module fails to load, we show an error and return to Home.
     """
     try:
         import sys
@@ -32,12 +31,22 @@ def run_module(module_name: str):
         else:
             mod = importlib.import_module(module_name)
 
-        # If module exposes a render() function, call it.
         if hasattr(mod, "render") and callable(getattr(mod, "render")):
             mod.render()
+        return True
+    except SyntaxError as e:
+        st.error(f"❌ '{module_name}.py' 파일에 문법 오류(SyntaxError)가 있습니다.\n\n{e}")
+    except ModuleNotFoundError as e:
+        st.error(f"❌ '{module_name}.py' 파일을 찾을 수 없습니다. 파일명이 맞는지 확인해주세요.\n\n{e}")
     except Exception as e:
+        st.error(f"❌ '{module_name}' 모듈을 불러오는 중 오류가 발생했습니다.")
         st.exception(e)
-        raise
+
+    # ✅ 실패하면 홈으로 복귀 (앱이 죽지 않게)
+    st.session_state['hub_page'] = 'home'
+    return False
+
+
 
 # ============================================================
 # ✅ LocalStorage / QueryParam persistence helpers
@@ -109,6 +118,7 @@ st.markdown("""
 /* Remove default Streamlit top spacing */
 section.main > div.block-container {
     padding-top: 0rem !important;
+    padding-bottom: 0rem !important;
     margin-top: 0rem !important;
 }
 
@@ -124,8 +134,12 @@ div[data-testid="stVerticalBlock"]:first-child {
 }
 
 /* Hide default header/footer */
-header {visibility: hidden;}
-footer {visibility: hidden;}
+header {display:none !important; height:0 !important;}
+div[data-testid="stHeader"] {display:none !important; height:0 !important;}
+div[data-testid="stToolbar"] {display:none !important; height:0 !important;}
+div[data-testid="stDecoration"] {display:none !important; height:0 !important;}
+div[data-testid="stStatusWidget"] {display:none !important; height:0 !important;}
+footer {display:none !important; height:0 !important;}
 
 </style>
 """, unsafe_allow_html=True)
@@ -139,24 +153,171 @@ footer {visibility: hidden;}
 # - Remove Streamlit's default top padding/space
 # - Applied once per session
 # ============================================================
-# ✅ TOP SPACING / HEADER COMPACT (single inject, no layout gap)
-if not st.session_state.get("_top_css_injected"):
-    components.html(
-        """
-        <style>
-          /* Remove Streamlit default top padding/margins */
-          div.block-container { padding-top: 1.0rem !important; }
-          header[data-testid="stHeader"] { height: 0 !important; }
-          div[data-testid="stToolbar"] { visibility: hidden !important; height: 0 !important; }
-          /* Tighten first element spacing */
-          .stApp > header { margin-bottom: 0 !important; }
-          div[data-testid="stVerticalBlock"] { gap: 0.6rem !important; }
-        </style>
-        """,
-        height=0,
-    )
-    st.session_state["_top_css_injected"] = True
+if not st.session_state.get("_top_compact_css_applied"):
+    st.markdown("""<style>
+/* === Hotena: ultra-compact top spacing (mobile + desktop) === */
+/* 핵심: block-container의 기본 top padding 제거 + 첫 요소 여백 제거 */
+section.main > div.block-container,
+div[data-testid="stAppViewContainer"] > div.block-container {
+  padding-top: 0rem !important;
+    padding-bottom: 0rem !important;
+  margin-top: 0rem !important;
+}
 
+/* 첫 요소(메뉴/버튼 래퍼) 상단 여백 제거 */
+div.block-container > div:first-child {
+  margin-top: 0rem !important;
+  padding-top: 0rem !important;
+    padding-bottom: 0rem !important;
+}
+
+/* Streamlit 헤더가 만드는 공간 최소화 */
+header[data-testid="stHeader"]{
+  display:none !important;
+  height:0 !important;
+  min-height:0 !important;
+}
+div[data-testid="stToolbar"]{
+  display:none !important;
+  height:0 !important;
+  visibility:hidden !important;
+}
+footer{display:none !important;}
+
+/* Container spacing: pull content to the very top */
+div[data-testid="stAppViewContainer"]{
+  padding-top: 0 !important;
+  margin-top: 0 !important;
+}
+div[data-testid="stAppViewContainer"] .block-container{
+  padding-top: 0 !important;
+  margin-top: 0 !important;
+  padding-bottom: 5.25rem !important; /* keep breathing room for bottom nav */
+}
+
+/* Headlines: tighter */
+div[data-testid="stAppViewContainer"] h1,
+div[data-testid="stAppViewContainer"] h2{
+  margin-top: 0.15rem !important;
+  margin-bottom: 0.55rem !important;
+}
+
+/* Defensive: if a child adds negative margins / weird offsets */
+div[data-testid="stAppViewContainer"] .main,
+div[data-testid="stAppViewContainer"]{
+  margin-top: 0 !important;
+}
+
+/* Tighten very top whitespace */
+.block-container > div:first-child { margin-top: 0 !important; }
+
+/* Buttons: minimum tap size + readable text */
+div[data-testid="stAppViewContainer"] .stButton > button,
+div[data-testid="stAppViewContainer"] button[kind]{
+  min-height: 44px !important;
+  padding-top: 0.55rem !important;
+  padding-bottom: 0.55rem !important;
+  font-size: 16px !important;
+  border-radius: 12px !important;
+}
+
+/* Inputs: readable */
+div[data-testid="stAppViewContainer"] input,
+div[data-testid="stAppViewContainer"] textarea{
+  font-size: 16px !important; /* prevent iOS zoom */
+}
+
+/* Selectbox / multiselect */
+div[data-testid="stAppViewContainer"] div[role="combobox"]{
+  min-height: 44px !important;
+}
+
+/* Radio/checkbox label spacing: thumb friendly */
+div[data-testid="stAppViewContainer"] div[role="radiogroup"] label,
+div[data-testid="stAppViewContainer"] label[data-baseweb="checkbox"]{
+  padding: 0.35rem 0.25rem !important;
+}
+
+/* Expander: make summary easier to tap */
+div[data-testid="stExpander"] summary{
+  padding-top: 0.35rem !important;
+  padding-bottom: 0.35rem !important;
+}
+
+/* Card-like blocks (metrics/containers) slightly tighter */
+div[data-testid="stMetric"]{
+  padding: 0.15rem 0 !important;
+}
+
+/* Mobile-only tuning */
+@media (max-width: 640px){
+  div[data-testid="stAppViewContainer"] .block-container{
+    padding-left: 1.0rem !important;
+    padding-right: 1.0rem !important;
+    padding-top: 0.15rem !important;
+    padding-bottom: 6.0rem !important;
+  }
+
+  /* Slightly larger tap targets on phones */
+  div[data-testid="stAppViewContainer"] .stButton > button,
+  div[data-testid="stAppViewContainer"] button[kind]{
+    min-height: 48px !important;
+    font-size: 16px !important;
+    border-radius: 14px !important;
+  }
+}
+
+/* ✅ Goal settings (inline, modern) */
+.goal-settings-wrap{
+  margin-top: 10px;
+  margin-bottom: 10px;
+  padding: 12px 14px;
+  border: 1px solid rgba(0,0,0,0.06);
+  border-radius: 14px;
+  background: rgba(245,247,251,0.85);
+}
+.goal-settings-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  margin-bottom: 10px;
+}
+.goal-settings-head .ttl{
+  font-weight:700;
+  font-size: 14px;
+}
+.goal-settings-head .meta{
+  font-size: 12px;
+  color: rgba(0,0,0,0.55);
+  white-space: nowrap;
+}
+.goal-bar{
+  width:100%;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(0,0,0,0.08);
+  overflow:hidden;
+  margin: 8px 0 12px;
+}
+.goal-bar > div{
+  height:100%;
+  width: var(--w, 0%);
+  border-radius: 999px;
+  background: rgba(0,0,0,0.55);
+  transition: width 420ms ease;
+}
+.goal-help{
+  margin-top: 6px;
+  font-size: 12px;
+  color: rgba(0,0,0,0.55);
+}
+
+</style>
+""",
+    unsafe_allow_html=True,
+)
+st.session_state["_page_config_set"] = True  # children should not call set_page_config
 
 BASE_DIR = Path(__file__).resolve().parent
 
