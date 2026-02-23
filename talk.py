@@ -1,21 +1,10 @@
-# talk.py (v9) - Hotena 회화 훈련 CSV 스키마 확정판
-# - talk_situations.csv(선우님 업로드 스키마) 우선 지원
-# - CSV 경로 자동 탐색 + 로드한 경로/컬럼 디버그 표시
-# - 보기(4지선다) 순서가 클릭/리런마다 바뀌지 않게 qid별로 고정
-
+# talk.py (v10) - Hotena 회화 훈련 안정판
 from __future__ import annotations
-
-import json
-import random
+import json, random
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
-
 import pandas as pd
 import streamlit as st
 
-# =========================
-# CSV 탐색
-# =========================
 BASE_DIR = Path(__file__).resolve().parent
 
 CSV_CANDIDATES = [
@@ -25,234 +14,91 @@ CSV_CANDIDATES = [
     BASE_DIR / "data" / "talk.csv",
 ]
 
-def find_csv() -> Path:
+def find_csv():
     for p in CSV_CANDIDATES:
-        if p.exists() and p.is_file():
+        if p.exists():
             return p
-    # 마지막 수단: 현재 폴더의 csv 중 talk 포함 파일
-    for p in BASE_DIR.glob("*.csv"):
-        if "talk" in p.name.lower():
-            return p
-    raise FileNotFoundError(
-        "회화 CSV를 찾을 수 없습니다. "
-        "talk_situations.csv 또는 talk.csv를 hotena_basic 폴더(또는 data/)에 넣어주세요."
-    )
+    raise FileNotFoundError("talk_situations.csv 또는 talk.csv를 찾을 수 없습니다.")
 
-# =========================
-# CSV 로드/정규화
-# =========================
-REQUIRED = [
-    "qid",
-    "level",
-    "tag",
-    "partner_jp",
-    "answer_jp",
-    "d1_jp",
-    "d2_jp",
-    "d3_jp",
-]
-OPTIONAL = ["situation_kr", "partner_kr", "answer_kr", "hint_kr", "mode", "section", "stage"]
-
-def _norm_col(c: str) -> str:
-    return str(c).replace("\ufeff", "").strip()
+def _norm(c):
+    return str(c).replace("\ufeff","").strip()
 
 @st.cache_data(show_spinner=False)
-def load_csv(path: Path) -> pd.DataFrame:
+def load_csv(path):
     df = pd.read_csv(path, encoding="utf-8-sig")
-    df.columns = [_norm_col(c) for c in df.columns]
+    df.columns = [_norm(c) for c in df.columns]
 
-    # alias 흡수 (혹시 다른 이름으로 들어온 경우)
-    alias = {
-        "id": "qid",
-        "q_id": "qid",
-        "difficulty": "level",
-        "category": "tag",
-        "topic": "tag",
-        "type": "tag",
-        "question_jp": "partner_jp",
-        "prompt_jp": "partner_jp",
-        "answer": "answer_jp",
-        "correct_jp": "answer_jp",
-    }
-    cols_by_lower = {c.lower(): c for c in df.columns}
-    for src, dst in alias.items():
-        if src in cols_by_lower and dst not in df.columns:
-            df.rename(columns={cols_by_lower[src]: dst}, inplace=True)
-
-    # 필수 컬럼 체크
-    for c in REQUIRED:
+    required = ["qid","level","tag","partner_jp","answer_jp","d1_jp","d2_jp","d3_jp"]
+    for c in required:
         if c not in df.columns:
             raise ValueError(f"CSV 필수 컬럼 누락: {c}")
 
-    # 문자열 정리
     for c in df.columns:
         if df[c].dtype == object:
-            df[c] = df[c].astype(str).fillna("").str.strip().replace({"nan": "", "NaN": "", "None": ""})
+            df[c] = df[c].astype(str).fillna("").str.strip()
 
-    # 정규화(필터용)
-    df["level"] = df["level"].astype(str).str.strip()
-    df["tag"] = df["tag"].astype(str).str.strip()
-    if "mode" in df.columns:
-        df["mode"] = df["mode"].astype(str).str.strip()
-    if "section" in df.columns:
-        df["section"] = df["section"].astype(str).str.strip()
-
-    # qid 중복 방지
-    if df["qid"].duplicated().any():
-        seen: Dict[str, int] = {}
-        fixed = []
-        for q in df["qid"].tolist():
-            n = seen.get(q, 0)
-            seen[q] = n + 1
-            fixed.append(f"{q}_{n+1}" if n else q)
-        df["qid"] = fixed
+    df["level"] = df["level"].str.lower().str.replace(" ","")
+    df["tag"] = df["tag"].str.strip()
 
     return df
 
-# =========================
-# 보기 순서 고정(핵심)
-# =========================
-def get_fixed_options(qid: str, answer: str, d1: str, d2: str, d3: str) -> List[str]:
-    """
-    qid별로 보기 순서를 session_state에 고정 저장.
-    - 같은 문제(qid)는 rerun/클릭해도 보기 순서가 절대 바뀌지 않음.
-    - 다른 문제는 다른 셔플.
-    """
-    key = f"_talk_opts_{qid}"
+def get_fixed_options(qid, answer, d1, d2, d3):
+    key = f"_opts_{qid}"
     if key in st.session_state:
         return st.session_state[key]
 
-    opts = [answer, d1, d2, d3]
-    # 보기 중복 제거(혹시 데이터가 겹치면) → 그래도 4개 맞추기 위해 fallback
-    uniq = []
-    for x in opts:
-        x = (x or "").strip()
-        if x and x not in uniq:
-            uniq.append(x)
-    while len(uniq) < 4:
-        uniq.append("（該当なし）")
-
-    # 셔플 시드: 세션 시드 + qid
-    if "_talk_seed" not in st.session_state:
-        st.session_state["_talk_seed"] = random.randint(1, 10_000_000)
-    seed = f"{st.session_state['_talk_seed']}::{qid}"
+    opts = [answer,d1,d2,d3]
+    seed = f"{qid}_seed"
     rng = random.Random(seed)
-    rng.shuffle(uniq)
+    rng.shuffle(opts)
 
-    st.session_state[key] = uniq
-    return uniq
-
-# =========================
-# UI
-# =========================
-def _inject_jp_font():
-    st.markdown(
-        """
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
-<style>
-:root { --jp-font: "Noto Sans JP","Yu Gothic","Hiragino Kaku Gothic ProN","Meiryo",sans-serif; }
-html, body, [class*="css"], .stApp { font-family: var(--jp-font) !important; }
-</style>
-""",
-        unsafe_allow_html=True,
-    )
+    st.session_state[key] = opts
+    return opts
 
 def render():
-    _inject_jp_font()
-
-    csv_path = find_csv()
-    df = load_csv(csv_path)
-
-    # 디버그(필요 시)
-    with st.expander("🔎 회화 CSV 로드 정보(문제 발생 시 확인)", expanded=False):
-        st.write("읽은 파일:", str(csv_path))
-        st.write("컬럼:", list(df.columns))
-        st.write("행 수:", len(df))
+    path = find_csv()
+    df = load_csv(path)
 
     st.title("💬 회화 훈련")
 
-    # mode/section 있으면 활용
-    has_mode = "mode" in df.columns
-    has_section = "section" in df.columns
+    mode_map = {"business":"비즈니스","real":"실전"}
+    tag_map = {"daily":"일상","travel":"여행","food":"식당","business":"비즈니스"}
 
-    if has_mode:
-        mode = st.selectbox("모드", sorted(df["mode"].dropna().unique().tolist()))
-        df_m = df[df["mode"] == mode].copy()
-    else:
-        mode = None
-        df_m = df
+    if "mode" in df.columns:
+        modes = sorted(df["mode"].unique())
+        mode_label = st.selectbox("모드",[mode_map.get(m,m) for m in modes])
+        mode = [k for k,v in mode_map.items() if v==mode_label]
+        if mode:
+            df = df[df["mode"]==mode[0]]
 
-    # tag
-    tags = sorted(df_m["tag"].dropna().unique().tolist())
-    tag = st.selectbox("상황(tag)", tags) if tags else "general"
-    df_t = df_m[df_m["tag"] == tag].copy()
+    tags = sorted(df["tag"].unique())
+    tag_label = st.selectbox("상황",[tag_map.get(t,t) for t in tags])
+    tag = [k for k,v in tag_map.items() if v==tag_label]
+    if tag:
+        df = df[df["tag"]==tag[0]]
 
-    # business일 때 section 필터(있으면)
-    section = None
-    if has_section and (mode == "business" or tag.lower() == "business"):
-        secs = sorted([s for s in df_t["section"].dropna().unique().tolist() if s])
-        if secs:
-            section = st.selectbox("비즈니스 섹션", ["전체"] + secs)
-            if section != "전체":
-                df_t = df_t[df_t["section"] == section].copy()
+    levels = sorted(df["level"].unique())
+    level_label = st.selectbox("레벨",[l.upper() for l in levels])
+    df = df[df["level"]==level_label.lower()]
 
-    # level 옵션은 현재 필터 결과 기준으로만
-    levels = sorted(df_t["level"].dropna().unique().tolist())
-    if not levels:
-        st.error("해당 조건의 회화 문제가 없습니다. (CSV의 mode/tag/section/level 확인)")
-        return
-    level = st.selectbox("레벨", levels)
-    df_l = df_t[df_t["level"] == level].copy()
-
-    if df_l.empty:
-        st.error("해당 조건의 회화 문제가 없습니다. (CSV의 tag/level 확인)")
+    if df.empty:
+        st.error("해당 조건의 회화 문제가 없습니다.")
         return
 
-    # 문제 선택
-    qids = df_l["qid"].tolist()
-    if "talk_idx" not in st.session_state:
-        st.session_state["talk_idx"] = 0
+    idx = st.session_state.get("talk_idx",0)
+    row = df.iloc[idx]
 
-    col_prev, col_next = st.columns([1, 1])
-    with col_prev:
-        if st.button("⬅️ 이전"):
-            st.session_state["talk_idx"] = (st.session_state["talk_idx"] - 1) % len(qids)
-    with col_next:
-        if st.button("➡️ 다음"):
-            st.session_state["talk_idx"] = (st.session_state["talk_idx"] + 1) % len(qids)
+    st.subheader(row["partner_jp"])
 
-    cur_qid = qids[st.session_state["talk_idx"]]
-    row = df_l[df_l["qid"] == cur_qid].iloc[0]
-
-    # 표시
-    if "situation_kr" in row and str(row.get("situation_kr", "")).strip():
-        st.caption(f"상황: {row.get('situation_kr','')}")
-    st.subheader(str(row.get("partner_jp", "")))
-
-    if "hint_kr" in row and str(row.get("hint_kr", "")).strip():
-        st.info(f"힌트: {row.get('hint_kr','')}")
-
-    answer = str(row.get("answer_jp", "")).strip()
-    d1 = str(row.get("d1_jp", "")).strip()
-    d2 = str(row.get("d2_jp", "")).strip()
-    d3 = str(row.get("d3_jp", "")).strip()
-
-    options = get_fixed_options(cur_qid, answer, d1, d2, d3)
-
-    # 선택(보기 순서 고정)
-    pick_key = f"_talk_pick_{cur_qid}"
-    picked = st.radio("정답을 고르세요", options, key=pick_key)
+    options = get_fixed_options(row["qid"],row["answer_jp"],row["d1_jp"],row["d2_jp"],row["d3_jp"])
+    choice = st.radio("정답을 고르세요",options)
 
     if st.button("정답 확인"):
-        if picked == answer:
+        if choice==row["answer_jp"]:
             st.success("✅ 정답입니다.")
         else:
             st.error("❌ 오답입니다.")
-            st.write("정답:", answer)
+            st.write("정답:",row["answer_jp"])
 
-        if "answer_kr" in row and str(row.get("answer_kr","")).strip():
-            st.caption(f"해석: {row.get('answer_kr','')}")
-
-# 모듈로 import될 때를 대비
 if __name__ == "__main__":
     render()
