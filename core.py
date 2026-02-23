@@ -1,4 +1,4 @@
-# core.py
+    # core.py
 # ============================================================
 # ✅ Hotena shared core utilities (Auth/Cookies/Supabase/UI)
 # - Keeps UI/feature logic inside each page file
@@ -49,28 +49,28 @@ def _hide_streamlit_component_iframes() -> None:
     # 1) CSS (preferred): hide any stIFrame wrapper that contains a streamlit.components iframe
    st.markdown(
         """<style>
-    /* ✅ 더 넓게 잡는다: title에 streamlit/components 포함 OR src에 component 포함 */
-    div[data-testid="stIFrame"]:has(iframe[title*="streamlit"]),
-    div[data-testid="stIFrame"]:has(iframe[title*="components"]),
-    div[data-testid="stIFrame"]:has(iframe[src*="component"]),
-    div[data-testid="stIFrame"]:has(iframe[srcdoc]){
-      display:none !important;
-      height:0 !important;
-      min-height:0 !important;
-      margin:0 !important;
-      padding:0 !important;
-    }
+        /* ✅ 더 넓게 잡는다: title에 streamlit/components 포함 OR src에 component 포함 */
+        div[data-testid="stIFrame"]:has(iframe[title*="streamlit"]),
+        div[data-testid="stIFrame"]:has(iframe[title*="components"]),
+        div[data-testid="stIFrame"]:has(iframe[src*="component"]),
+        div[data-testid="stIFrame"]:has(iframe[srcdoc]){
+          height:0 !important;
+          min-height:0 !important;
+          margin:0 !important;
+          padding:0 !important;
+          overflow:hidden !important;
+        }        
 
-    div[data-testid="stIFrame"] iframe[title*="streamlit"],
-    div[data-testid="stIFrame"] iframe[title*="components"],
-    div[data-testid="stIFrame"] iframe[src*="component"],
-    div[data-testid="stIFrame"] iframe[srcdoc]{
-      display:none !important;
-      height:0 !important;
-      min-height:0 !important;
-    }
-    </style>""",
-        unsafe_allow_html=True,
+        div[data-testid="stIFrame"] iframe[title*="streamlit"],
+        div[data-testid="stIFrame"] iframe[title*="components"],
+        div[data-testid="stIFrame"] iframe[src*="component"],
+        div[data-testid="stIFrame"] iframe[srcdoc]{
+          display:none !important;
+          height:0 !important;
+          min-height:0 !important;
+        }
+        </style>""",
+            unsafe_allow_html=True,
     )
 
     # 2) JS fallback: repeatedly collapse matching wrappers (in case :has isn't applied early enough)
