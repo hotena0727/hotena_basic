@@ -702,7 +702,12 @@ def _hub_base_qs() -> str:
 
 
 def render_top_nav(active: str = "home") -> None:
-    """Render sticky top nav (Hub). Call ONCE per run (typically in home.py)."""
+    """Render sticky top nav (Hub).
+
+    ✅ Best practice in this project:
+    - Define this UI component in core.py (shared)
+    - Render it ONLY ONCE per Streamlit run (typically in home.py)
+    """
     if st.session_state.get("_top_nav_rendered"):
         return
     st.session_state["_top_nav_rendered"] = True
@@ -716,19 +721,27 @@ def render_top_nav(active: str = "home") -> None:
     is_admin = bool(st.session_state.get("is_admin", False))
     plan_txt = "✨ PRO" if plan == "pro" else "🆓 FREE"
 
-    admin_link = f'<a class="hn-gear" href="{href("admin")}" target="_self" title="관리자">⚙️</a>' if is_admin else ""
+    admin_link = (
+        f'<a class="hn-gear" href="{href("admin")}" target="_self" title="관리자">⚙️</a>'
+        if is_admin
+        else ""
+    )
 
-    html = f"""<style>
+    # NOTE:
+    # Some Streamlit builds behave inconsistently when <style> and HTML markup are injected
+    # together in one st.markdown call. To avoid "HTML shown as text", we inject CSS first,
+    # then inject markup separately.
+    css = """<style>
 /* ===== Hotena Top Nav ===== */
-.hn-topnav {{
+.hn-topnav {
   position: fixed;
   top: 0; left: 0; right: 0;
   z-index: 2147483000;
   background: rgba(255,255,255,0.92);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid rgba(0,0,0,0.08);
-}}
-.hn-topnav .inner {{
+}
+.hn-topnav .inner {
   max-width: 980px;
   margin: 0 auto;
   padding: 10px 12px;
@@ -736,14 +749,14 @@ def render_top_nav(active: str = "home") -> None:
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-}}
-.hn-left {{
+}
+.hn-left {
   display:flex;
   align-items:center;
   gap: 8px;
   min-width: 110px;
-}}
-.hn-pill {{
+}
+.hn-pill {
   display:inline-flex;
   align-items:center;
   gap:.4rem;
@@ -754,23 +767,24 @@ def render_top_nav(active: str = "home") -> None:
   font-size: 0.86rem;
   opacity: .95;
   white-space: nowrap;
-}}
-.hn-gear {{
+}
+.hn-gear {
   display:inline-flex;align-items:center;justify-content:center;
   width: 30px;height: 30px;border-radius:999px;
   text-decoration:none !important;
   border:1px solid rgba(0,0,0,.10);
   background:rgba(0,0,0,.02);
   font-size: 16px;
-}}
-.hn-tabs {{
+  margin-left: 6px;
+}
+.hn-tabs {
   display:flex;
   align-items:center;
   gap: 8px;
   flex: 1 1 auto;
   justify-content: center;
-}}
-.hn-tabs a {{
+}
+.hn-tabs a {
   text-decoration:none !important;
   color: rgba(20,20,20,0.90);
   border: 1px solid rgba(0,0,0,0.08);
@@ -782,20 +796,20 @@ def render_top_nav(active: str = "home") -> None:
   align-items:center;
   gap: 6px;
   white-space: nowrap;
-}}
-.hn-tabs a.active {{
+}
+.hn-tabs a.active {
   background: rgba(0,0,0,0.88);
   color: #fff !important;
   border-color: rgba(0,0,0,0.88);
-}}
-.hn-right {{
+}
+.hn-right {
   display:flex;
   align-items:center;
   gap: 8px;
   min-width: 70px;
   justify-content: flex-end;
-}}
-.hn-out {{
+}
+.hn-out {
   text-decoration:none !important;
   color: rgba(20,20,20,0.92);
   border: 1px solid rgba(0,0,0,0.10);
@@ -803,32 +817,32 @@ def render_top_nav(active: str = "home") -> None:
   border-radius: 14px;
   padding: 8px 10px;
   font-size: 13px;
-}}
-.hn-spacer {{
+}
+.hn-spacer {
   height: 58px; /* nav height */
-}}
-@media (max-width: 640px) {{
-  .hn-topnav .inner {{ padding: 10px 10px; }}
-  .hn-tabs {{ gap: 6px; }}
-  .hn-tabs a {{ padding: 8px 8px; font-size: 12px; border-radius: 12px; }}
-  .hn-left {{ min-width: 96px; }}
-  .hn-right {{ min-width: 54px; }}
-  .hn-out {{ padding: 8px 8px; }}
-}}
-</style>
+}
+@media (max-width: 640px) {
+  .hn-topnav .inner { padding: 10px 10px; }
+  .hn-tabs { gap: 6px; }
+  .hn-tabs a { padding: 8px 8px; font-size: 12px; border-radius: 12px; }
+  .hn-left { min-width: 96px; }
+  .hn-right { min-width: 54px; }
+  .hn-out { padding: 8px 8px; }
+}
+</style>"""
 
-<div class="hn-topnav">
+    markup = f"""<div class="hn-topnav">
   <div class="inner">
     <div class="hn-left">
       <div class="hn-pill">{plan_txt}{admin_link}</div>
     </div>
 
     <div class="hn-tabs">
-      <a href="{href('home')}" target="_self" class="{ 'active' if active=='home' else '' }">🏠 홈</a>
-      <a href="{href('word')}" target="_self" class="{ 'active' if active=='word' else '' }">📘 단어</a>
-      <a href="{href('kanji')}" target="_self" class="{ 'active' if active=='kanji' else '' }">🈶 한자</a>
-      <a href="{href('talk')}" target="_self" class="{ 'active' if active=='talk' else '' }">💬 회화</a>
-      <a href="{href('my')}" target="_self" class="{ 'active' if active=='my' else '' }">👤 MY</a>
+      <a href="{href('home')}" target="_self" class="{'active' if active=='home' else ''}">🏠 홈</a>
+      <a href="{href('word')}" target="_self" class="{'active' if active=='word' else ''}">📘 단어</a>
+      <a href="{href('kanji')}" target="_self" class="{'active' if active=='kanji' else ''}">🈶 한자</a>
+      <a href="{href('talk')}" target="_self" class="{'active' if active=='talk' else ''}">💬 회화</a>
+      <a href="{href('my')}" target="_self" class="{'active' if active=='my' else ''}">👤 MY</a>
     </div>
 
     <div class="hn-right">
@@ -836,6 +850,7 @@ def render_top_nav(active: str = "home") -> None:
     </div>
   </div>
 </div>
-<div class="hn-spacer" id="hotena-top"></div>
-"""
-    st.markdown(html, unsafe_allow_html=True)
+<div class="hn-spacer" id="hotena-top"></div>"""
+
+    st.markdown(css, unsafe_allow_html=True)
+    st.markdown(markup, unsafe_allow_html=True)
