@@ -786,35 +786,41 @@ def render_top_nav(active: str = "home") -> None:
         justify-content:space-between;
       }
       .hn-mobile-btn{
-        flex:1;
-        display:inline-flex;
-        align-items:center;
-        justify-content:center;
-        gap: 6px;
-        padding: 10px 8px;
-        border-radius: 16px;
-        text-decoration:none !important;
-        color: inherit;
-        border: 1px solid rgba(0,0,0,0.06);
-        background: rgba(255,255,255,0.9);
-        font-weight: 650;
-        line-height: 1;
-        min-height: 42px;
-        white-space: nowrap;
-      }
-      .hn-mobile-btn.active{
-        font-weight: 850;
-        border-color: rgba(0,0,0,0.18);
-      }
-      .hn-mobile-btn span{
-        display:inline-block;
-        transform: translateY(0.5px);
-      }
-      .hn-mobile-out{
-        width: 44px;
-        min-width: 44px;
-        flex: 0 0 44px;
-      }
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap: 4px;
+  padding: 10px 6px;
+  border-radius: 16px;
+  text-decoration:none !important;
+  color: inherit;
+  border: 1px solid rgba(0,0,0,0.06);
+  background: rgba(255,255,255,0.9);
+  font-weight: 750;
+  line-height: 1;
+  min-height: 54px;
+  white-space: nowrap;
+}
+.hn-mobile-btn .hn-ico{
+  font-size: 18px;
+  line-height: 1;
+}
+.hn-mobile-btn .hn-txt{
+  font-size: 12px;
+  line-height: 1;
+  opacity: 0.92;
+}
+.hn-mobile-btn.active{
+  font-weight: 900;
+  border-color: rgba(0,0,0,0.18);
+}
+.hn-mobile-out{
+  width: 52px;
+  min-width: 52px;
+  flex: 0 0 52px;
+}
 
       /* ===== Responsive switch ===== */
       @media (max-width: 820px){
@@ -833,25 +839,25 @@ def render_top_nav(active: str = "home") -> None:
     <div class="hn-topnav-wrap">
       <div class="hn-topnav-desktop">
         <div class="hn-tabs">
-          <a href="{_href('home')}" target="_self" class="{'active' if active=='home' else ''}">🏠 <span>홈</span></a>
-          <a href="{_href('word')}" target="_self" class="{'active' if active=='word' else ''}">📘 <span>단어</span></a>
-          <a href="{_href('kanji')}" target="_self" class="{'active' if active=='kanji' else ''}">🈶 <span>한자</span></a>
-          <a href="{_href('talk')}" target="_self" class="{'active' if active=='talk' else ''}">💬 <span>회화</span></a>
-          <a href="{_href('my')}" target="_self" class="{'active' if active=='my' else ''}">👤 <span>MY</span></a>
+          <a href="{_href('home')}" target="_self" class="{'active' if active=='home' else ''}"><span class="hn-ico">🏠</span><span class="hn-txt">홈</span></a>
+          <a href="{_href('word')}" target="_self" class="{'active' if active=='word' else ''}"><span class="hn-ico">📘</span><span class="hn-txt">단어</span></a>
+          <a href="{_href('kanji')}" target="_self" class="{'active' if active=='kanji' else ''}"><span class="hn-ico">🈶</span><span class="hn-txt">한자</span></a>
+          <a href="{_href('talk')}" target="_self" class="{'active' if active=='talk' else ''}"><span class="hn-ico">💬</span><span class="hn-txt">회화</span></a>
+          <a href="{_href('my')}" target="_self" class="{'active' if active=='my' else ''}"><span class="hn-ico">👤</span><span class="hn-txt">MY</span></a>
         </div>
         <div class="hn-right">
-          <a class="hn-out" href="{_logout_href()}" target="_self" title="로그아웃">🚪</a>
+          <a class="hn-out" href="{_logout_href()}" target="_self" title="로그아웃"><span class="hn-ico">🚪</span><span class="hn-txt">OUT</span></a>
         </div>
       </div>
 
       <div class="hn-topnav-mobile">
         <div class="hn-mobile-bar">
-          <a class="hn-mobile-btn {'active' if active=='home' else ''}" href="{_href('home')}" target="_self">🏠 <span>홈</span></a>
-          <a class="hn-mobile-btn {'active' if active=='word' else ''}" href="{_href('word')}" target="_self">📘 <span>단어</span></a>
-          <a class="hn-mobile-btn {'active' if active=='kanji' else ''}" href="{_href('kanji')}" target="_self">🈶 <span>한자</span></a>
-          <a class="hn-mobile-btn {'active' if active=='talk' else ''}" href="{_href('talk')}" target="_self">💬 <span>회화</span></a>
-          <a class="hn-mobile-btn {'active' if active=='my' else ''}" href="{_href('my')}" target="_self">👤 <span>MY</span></a>
-          <a class="hn-mobile-btn hn-mobile-out" href="{_logout_href()}" target="_self" title="로그아웃">🚪</a>
+          <a class="hn-mobile-btn {'active' if active=='home' else ''}" href="{_href('home')}" target="_self"><span class="hn-ico">🏠</span><span class="hn-txt">홈</span></a>
+          <a class="hn-mobile-btn {'active' if active=='word' else ''}" href="{_href('word')}" target="_self"><span class="hn-ico">📘</span><span class="hn-txt">단어</span></a>
+          <a class="hn-mobile-btn {'active' if active=='kanji' else ''}" href="{_href('kanji')}" target="_self"><span class="hn-ico">🈶</span><span class="hn-txt">한자</span></a>
+          <a class="hn-mobile-btn {'active' if active=='talk' else ''}" href="{_href('talk')}" target="_self"><span class="hn-ico">💬</span><span class="hn-txt">회화</span></a>
+          <a class="hn-mobile-btn {'active' if active=='my' else ''}" href="{_href('my')}" target="_self"><span class="hn-ico">👤</span><span class="hn-txt">MY</span></a>
+          <a class="hn-mobile-btn hn-mobile-out" href="{_logout_href()}" target="_self" title="로그아웃"><span class="hn-ico">🚪</span><span class="hn-txt">OUT</span></a>
         </div>
       </div>
     </div>
