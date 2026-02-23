@@ -1468,58 +1468,6 @@ def render_reminder_settings(sb_authed, user):
 
 def fire_in_app_reminder_if_enabled(user):
     return
-    """If reminder is enabled, schedule an in-app notification when the app is open."""
-    progress_all = st.session_state.get("progress_all", {}) or {}
-    rem = progress_all.get("reminder") or {}
-    enabled = bool(rem.get("enabled", True))
-    time_str = rem.get("time", "09:00")
-
-    if not enabled:
-        return
-
-    try:
-        hh, mm = [int(x) for x in time_str.split(":")]
-        now = datetime.now()
-        target = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
-        if target <= now:
-            # next day
-            target = target.replace(day=now.day)  # keep structure; safe fallback
-            target = target + (datetime(now.year, now.month, now.day) - datetime(now.year, now.month, now.day))
-        delay_ms = max(1000, int((target - now).total_seconds() * 1000))
-    except Exception:
-        delay_ms = 0
-
-    msg = json.dumps(daily_message(str(user.id)))
-    # components.html(
-        f"""
-<script>
-  (function(){{
-    try {{
-      const delay = {delay_ms};
-      const message = {msg};
-      if (delay <= 0) return;
-      setTimeout(() => {{
-        try {{
-          if (typeof Notification !== 'undefined') {{
-            if (Notification.permission === 'granted') {{
-              new Notification('하테나일본어', {{ body: message }});
-            }}
-          }}
-          // Fallback: simple alert-like toast
-          const t = document.createElement('div');
-          t.textContent = message;
-          t.style.cssText = 'position:fixed;left:50%;bottom:16px;transform:translateX(-50%);padding:10px 14px;background:rgba(20,20,20,0.92);color:#fff;border-radius:12px;font-size:14px;z-index:2147483647;';
-          document.body.appendChild(t);
-          setTimeout(()=>t.remove(), 4500);
-        }} catch(e) {{}}
-      }}, delay);
-    }} catch(e) {{}}
-  }})();
-</script>
-""",
-        height=0,
-    )
-
 
 # ============================================================
 # 🔔 Reminder messages (혼합 50)
