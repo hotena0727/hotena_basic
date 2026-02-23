@@ -1,4 +1,3 @@
-st.sidebar.write("CORE LOADED ✅")
 # core.py
 # ============================================================
 # ✅ Hotena shared core utilities (Auth/Cookies/Supabase/UI)
@@ -17,6 +16,8 @@ from typing import Any, Callable, Optional, Tuple
 
 import streamlit as st
 import streamlit.components.v1 as components
+
+st.sidebar.write("CORE LOADED ✅")
 
 # (lazy imports) heavy deps are imported inside functions to reduce F5 skeleton time
 
@@ -40,45 +41,38 @@ def get_cfg(key: str) -> str:
 
 
 def _hide_streamlit_component_iframes() -> None:
-    """Hide Streamlit custom-component iframes that are used only for JS/cookies and show as gray blocks on F5.
-
-    Uses CSS :has() (supported by modern Chromium/Safari) + JS fallback.
-    """
     if st.session_state.get("_hide_streamlit_component_iframes_done"):
         return
     st.session_state["_hide_streamlit_component_iframes_done"] = True
 
-    # 1) CSS (preferred): hide any stIFrame wrapper that contains a streamlit.components iframe
-   st.markdown(
+    st.markdown(
         """<style>
-        /* ✅ 더 넓게 잡는다: title에 streamlit/components 포함 OR src에 component 포함 */
-        div[data-testid="stIFrame"]:has(iframe[title*="streamlit"]),
-        div[data-testid="stIFrame"]:has(iframe[title*="components"]),
-        div[data-testid="stIFrame"]:has(iframe[src*="component"]),
-        div[data-testid="stIFrame"]:has(iframe[srcdoc]){
-          height:0 !important;
-          min-height:0 !important;
-          margin:0 !important;
-          padding:0 !important;
-          overflow:hidden !important;
-        }        
+div[data-testid="stIFrame"]:has(iframe[title*="streamlit"]),
+div[data-testid="stIFrame"]:has(iframe[title*="components"]),
+div[data-testid="stIFrame"]:has(iframe[src*="component"]),
+div[data-testid="stIFrame"]:has(iframe[srcdoc]){
+  height:0 !important;
+  min-height:0 !important;
+  margin:0 !important;
+  padding:0 !important;
+  overflow:hidden !important;
+}
 
-        div[data-testid="stIFrame"] iframe[title*="streamlit"],
-        div[data-testid="stIFrame"] iframe[title*="components"],
-        div[data-testid="stIFrame"] iframe[src*="component"],
-        div[data-testid="stIFrame"] iframe[srcdoc]{
-          display:none !important;
-          height:0 !important;
-          min-height:0 !important;
-        }
-        </style>""",
-            unsafe_allow_html=True,
+div[data-testid="stIFrame"] iframe[title*="streamlit"],
+div[data-testid="stIFrame"] iframe[title*="components"],
+div[data-testid="stIFrame"] iframe[src*="component"],
+div[data-testid="stIFrame"] iframe[srcdoc]{
+  display:none !important;
+  height:0 !important;
+  min-height:0 !important;
+}
+</style>""",
+        unsafe_allow_html=True,
     )
 
-    # 2) JS fallback: repeatedly collapse matching wrappers (in case :has isn't applied early enough)
     try:
         components.html(
-"""
+            """
 <script>
 (function(){
   function kill(){
@@ -89,12 +83,9 @@ def _hide_streamlit_component_iframes() -> None:
         try{
           var fr = w.querySelector('iframe');
           if(!fr) return;
-
           var t = (fr.getAttribute('title') || '').toLowerCase();
           var s = (fr.getAttribute('src') || '').toLowerCase();
           var isStreamlitComp = t.includes('streamlit') || t.includes('components') || s.includes('component') || fr.hasAttribute('srcdoc');
-
-          // ✅ "큰 회색 블록"만 접는다 (실제 표시용 컴포넌트까지 죽이지 않게)
           var h = w.getBoundingClientRect().height || 0;
           if(isStreamlitComp && h >= 80){
             w.style.display='none';
@@ -118,12 +109,11 @@ def _hide_streamlit_component_iframes() -> None:
 })();
 </script>
 """,
-height=0,
-scrolling=False,
-)
+            height=0,
+            scrolling=False,
+        )
     except Exception:
         pass
-
 
 
 def ensure_core(
