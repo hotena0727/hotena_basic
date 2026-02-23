@@ -276,6 +276,12 @@ all_tags = [t for t in all_tags if t not in {"business"}]
 # 보기 순서(추천) - 데이터가 없으면 그냥 전체
 preferred_order = ["daily", "travel", "food", "shopping", "call", "emergency", "interview"]
 tag_options = [t for t in preferred_order if t in all_tags]
+TAG_LABEL = {
+    \"aisatsu\": \"인사말\",
+}
+
+def _tag_label(t: str) -> str:
+    return TAG_LABEL.get(str(t), str(t))
 if not tag_options:
     tag_options = sorted(all_tags)
 
@@ -292,7 +298,7 @@ with c1:
     tag = st.selectbox(
         "상황 선택",
         options=tag_options,
-        format_func=lambda x: TAG_LABELS.get(x, x),
+        format_func=lambda x: TAG_LABELS.get(x, x, format_func=_tag_label),
         key=f"{NS}_tag",
     )
 
