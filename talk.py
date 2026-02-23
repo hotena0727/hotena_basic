@@ -1,301 +1,105 @@
-# talk.py (v27) - 1문제 집중형 + 말하기 완료 체크(B)
-from __future__ import annotations
-# BUILD_STAMP_TALK: talk-newset-in-progress-v1 2026-02-22 KST (+09:00)
+# talk.py (v9) - Hotena 회화 훈련 CSV 스키마 확정판
+# - talk_situations.csv(선우님 업로드 스키마) 우선 지원
+# - CSV 경로 자동 탐색 + 로드한 경로/컬럼 디버그 표시
+# - 보기(4지선다) 순서가 클릭/리런마다 바뀌지 않게 qid별로 고정
 
-from pathlib import Path
-from datetime import datetime, timedelta, date
-import random
-import hashlib
+from __future__ import annotations
+
 import json
+import random
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
 import streamlit as st
 
+# =========================
+# CSV 탐색
+# =========================
+BASE_DIR = Path(__file__).resolve().parent
 
+CSV_CANDIDATES = [
+    BASE_DIR / "talk_situations.csv",
+    BASE_DIR / "talk.csv",
+    BASE_DIR / "data" / "talk_situations.csv",
+    BASE_DIR / "data" / "talk.csv",
+]
 
-# ============================================================
-# ✅ Font: 일본식 한자(글리프) 우선 적용
-# ============================================================
-def _inject_jp_font_once():
-    if st.session_state.get("_jp_font_injected", False):
-        return
-    st.session_state["_jp_font_injected"] = True
-    st.markdown(
-        """
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
-<style>
-html, body, [class*="css"]  {
-  font-family: 'Noto Sans JP','Noto Sans KR','Yu Gothic','Hiragino Kaku Gothic ProN','Meiryo','Apple SD Gothic Neo',sans-serif !important;
-}
-</style>
-""",
-        unsafe_allow_html=True,
+def find_csv() -> Path:
+    for p in CSV_CANDIDATES:
+        if p.exists() and p.is_file():
+            return p
+    # 마지막 수단: 현재 폴더의 csv 중 talk 포함 파일
+    for p in BASE_DIR.glob("*.csv"):
+        if "talk" in p.name.lower():
+            return p
+    raise FileNotFoundError(
+        "회화 CSV를 찾을 수 없습니다. "
+        "talk_situations.csv 또는 talk.csv를 hotena_basic 폴더(또는 data/)에 넣어주세요."
     )
 
-_inject_jp_font_once()
-
-
-# ============================================================
-# ✅ wrong_notes debug helper
-# ============================================================
-_WN_DEBUG = bool(st.session_state.get("is_admin", False)) or bool(st.session_state.get("is_admin_cached", False))
-def _wn_warn(msg: str):
-    if _WN_DEBUG:
-        try:
-            st.warning(msg)
-        except Exception:
-            pass
-# ============================================================
-# ✅ HUB 진입 시: 선택/제출 상태 초기화 (회화)
-# ============================================================
-if st.session_state.get("_entered_talk"):
-    for k in list(st.session_state.keys()):
-        if k.startswith("talk_") or k in ("submitted", "is_graded", "answers"):
-            st.session_state.pop(k, None)
-    st.session_state["_entered_talk"] = False
-
-
-import streamlit.components.v1 as components
-from supabase import create_client
-
-# ============================================================
-# ✅ Settings
-# ============================================================
-NS = "talk"
-SET_LEN = 10
-
-# ============================================================
-# ✅ Hub login required
-# ============================================================
-u = st.session_state.get("user")
-if not u:
-    st.warning("홈에서 로그인 후 이용해 주세요.")
-    st.stop()
-
-USER_ID = getattr(u, "id", None)
-USER_EMAIL = getattr(u, "email", "") or ""
-
-USER_PLAN = (st.session_state.get("user_plan") or "free").lower()
-IS_PRO = USER_PLAN == "pro"
-
-st.title("회화 훈련 · 상황판단")
-st.caption("1문제씩: 상황 → 상대 발화(🔊/PRO) → 보기 선택 → 제출 → 정답/설명 → (선택)말하기 완료 체크")
-
-# ============================================================
-# ✅ Supabase client (hub reuse)
-# ============================================================
-
-def get_cfg(key: str) -> str:
-    cfg = st.session_state.get("cfg") or {}
-    v = cfg.get(key)
-    if v:
-        return v
-    try:
-        return st.secrets[key]
-    except Exception:
-        return ""
-
-
-def get_sb():
-    sb = st.session_state.get("sb")
-    if sb is not None:
-        return sb
-
-
-def get_authed_sb():
-    # 홈허브 로그인 세션의 access_token을 사용해 PostgREST 권한 요청을 보냅니다.
-    token = st.session_state.get("access_token")
-    if not token:
-        return None
-
-    cached = st.session_state.get("_sb_authed_talk")
-    cached_token = st.session_state.get("_sb_authed_talk_token")
-    if cached is not None and cached_token == token:
-        return cached
-
-    sb2 = get_sb()
-    try:
-        # supabase-py: postgrest.auth(token)
-        sb2.postgrest.auth(token)
-    except Exception:
-        # 일부 버전은 내부 client 설정이 다를 수 있음
-        pass
-
-    st.session_state["_sb_authed_talk"] = sb2
-    st.session_state["_sb_authed_talk_token"] = token
-    return sb2
-    url = get_cfg("SUPABASE_URL")
-    key = get_cfg("SUPABASE_ANON_KEY")
-    if not url or not key:
-        st.error("Supabase 설정이 없습니다. (SUPABASE_URL / SUPABASE_ANON_KEY)")
-        st.stop()
-    sb = create_client(url, key)
-    st.session_state["sb"] = sb
-    return sb
-
-
-sb = get_sb()
-
-# ============================================================
-# ✅ CSV load
-# ============================================================
-BASE_DIR = Path(__file__).resolve().parent
-CSV_CANDIDATES = [
-    BASE_DIR / "talk.csv",
-    BASE_DIR / "data" / "talk.csv",
-    BASE_DIR / "data" / "talk_situations.csv",
+# =========================
+# CSV 로드/정규화
+# =========================
+REQUIRED = [
+    "qid",
+    "level",
+    "tag",
+    "partner_jp",
+    "answer_jp",
+    "d1_jp",
+    "d2_jp",
+    "d3_jp",
 ]
-CSV_PATH = next((p for p in CSV_CANDIDATES if p.exists()), None)
-if CSV_PATH is None:
-    st.error("CSV 파일이 없습니다. 다음 위치 중 하나에 CSV를 두세요:\n- " + "\n- ".join([str(p) for p in CSV_CANDIDATES]))
-    st.stop()
+OPTIONAL = ["situation_kr", "partner_kr", "answer_kr", "hint_kr", "mode", "section", "stage"]
 
+def _norm_col(c: str) -> str:
+    return str(c).replace("\ufeff", "").strip()
 
 @st.cache_data(show_spinner=False)
 def load_csv(path: Path) -> pd.DataFrame:
-    # ✅ utf-8-sig: BOM 제거에 유리하지만, 컬럼명에 BOM이 남는 경우가 있어 한 번 더 정규화합니다.
     df = pd.read_csv(path, encoding="utf-8-sig")
-
-    # ---- 컬럼명 정규화 (BOM/공백) ----
-    def _norm_col(c: str) -> str:
-        return str(c).replace("\ufeff", "").strip()
-
     df.columns = [_norm_col(c) for c in df.columns]
 
-    # ---- 컬럼 alias 처리 (기존 CSV 호환) ----
-    # 예: id / ID / q_id 등이 들어오면 qid로 매핑
-    alias_map = {
-        # id 계열
-        "q_id": "qid",
+    # alias 흡수 (혹시 다른 이름으로 들어온 경우)
+    alias = {
         "id": "qid",
-        "qid": "qid",
-
-        # tag 계열
-        "tags": "tag",
+        "q_id": "qid",
+        "difficulty": "level",
         "category": "tag",
         "topic": "tag",
         "type": "tag",
-
-        # level 계열
-        "lvl": "level",
-        "difficulty": "level",
-
-        # situation(상황) 계열
-        "situation": "situation_kr",
-        "situation_ko": "situation_kr",
-        "situation_kor": "situation_kr",
-        "context_kr": "situation_kr",
-        "prompt_kr": "situation_kr",
-        "scenario_kr": "situation_kr",
-        "situation_kr": "situation_kr",
-
-        # partner(상대 발화/질문) 계열
-        "partner": "partner_jp",
-        "partner_text": "partner_jp",
         "question_jp": "partner_jp",
         "prompt_jp": "partner_jp",
-        "q_jp": "partner_jp",
-        "jp_question": "partner_jp",
-        "utterance_jp": "partner_jp",
-        "partner_jp": "partner_jp",
-
-        # answer(정답) 계열
         "answer": "answer_jp",
         "correct_jp": "answer_jp",
-        "a_jp": "answer_jp",
-        "response_jp": "answer_jp",
-        "answer_jp": "answer_jp",
     }
-    # lower-name lookup
-    cols_by_lower = {str(c).lower(): c for c in df.columns}
-    for src, dst in alias_map.items():
+    cols_by_lower = {c.lower(): c for c in df.columns}
+    for src, dst in alias.items():
         if src in cols_by_lower and dst not in df.columns:
             df.rename(columns={cols_by_lower[src]: dst}, inplace=True)
 
-    # ---- 필수 컬럼 확보 ----
-    required = ["answer_jp"]
-
-    # qid는 없으면 자동 생성(🚫 앱 중단 방지)
-    if "qid" not in df.columns:
-        df.insert(0, "qid", [f"T{idx+1:04d}" for idx in range(len(df))])
-
-    for c in required:
+    # 필수 컬럼 체크
+    for c in REQUIRED:
         if c not in df.columns:
             raise ValueError(f"CSV 필수 컬럼 누락: {c}")
 
-    # ---- situation_kr 기본값/파생 ----
-    if "situation_kr" not in df.columns:
-        # 일부 CSV는 한국어 상황문이 없고, 일본어 질문만 있는 경우가 있어 빈 문자열로 두되 앱은 계속 실행합니다.
-        df["situation_kr"] = ""
-
-    # ---- partner_jp / answer_jp 기본값/파생 ----
-    if "partner_jp" not in df.columns:
-        # 질문/상대발화 컬럼명이 다른 경우를 최대한 흡수
-        for cand in ["question_jp", "prompt_jp", "q_jp", "jp_question", "utterance_jp", "partner"]:
-            if cand in df.columns:
-                df["partner_jp"] = df[cand].astype(str)
-                break
-        else:
-            df["partner_jp"] = ""
-
-    if "answer_jp" not in df.columns:
-        for cand in ["answer", "correct_jp", "a_jp", "response_jp"]:
-            if cand in df.columns:
-                df["answer_jp"] = df[cand].astype(str)
-                break
-        else:
-            # 이 경우는 앱이 정상 동작할 수 없어서 명확한 에러 메시지를 띄웁니다.
-            raise ValueError("CSV 필수 컬럼 누락: answer_jp (또는 alias: answer/correct_jp/a_jp/response_jp)")
-
-    # ---- tag/level 기본값/파생 (없어도 앱이 죽지 않게) ----
-    if "tag" not in df.columns:
-        # mode/section이 있으면 활용, 없으면 general
-        if "mode" in df.columns:
-            df["tag"] = df["mode"].astype(str)
-        elif "section" in df.columns:
-            df["tag"] = df["section"].astype(str)
-        else:
-            df["tag"] = "general"
-
-    if "level" not in df.columns:
-        # stage가 있으면 stage 기반으로 임시 레벨 매핑
-        if "stage" in df.columns:
-            stg = df["stage"].astype(str).str.strip()
-            df["level"] = stg.map({"1": "n3", "2": "n3", "3": "n4"}).fillna("n3")
-        else:
-            df["level"] = "n3"
-
-    # ---- 디버그: 실제 로드한 CSV 경로/컬럼 ----
-    try:
-        import streamlit as st
-        st.session_state["_talk_csv_path"] = str(path)
-        st.session_state["_talk_csv_cols"] = list(df.columns)
-    except Exception:
-        pass
-
-
-    # ---- 문자열 정리 ----
+    # 문자열 정리
     for c in df.columns:
         if df[c].dtype == object:
-            df[c] = df[c].astype(str).str.strip()
-            df[c] = df[c].replace({"nan": "", "NaN": "", "None": ""})
+            df[c] = df[c].astype(str).fillna("").str.strip().replace({"nan": "", "NaN": "", "None": ""})
 
-    # ---- level/tag 정규화 ----
-    df["level"] = df["level"].astype(str).str.lower().str.strip()
-    df["tag"] = df["tag"].astype(str).str.lower().str.strip()
-
-    # 선택 컬럼(있으면 정규화): mode/section/stage
+    # 정규화(필터용)
+    df["level"] = df["level"].astype(str).str.strip()
+    df["tag"] = df["tag"].astype(str).str.strip()
     if "mode" in df.columns:
-        df["mode"] = df["mode"].astype(str).str.lower().str.strip()
+        df["mode"] = df["mode"].astype(str).str.strip()
     if "section" in df.columns:
-        df["section"] = df["section"].astype(str).str.lower().str.strip()
-    if "stage" in df.columns:
-        df["stage"] = df["stage"].astype(str).str.strip()
+        df["section"] = df["section"].astype(str).str.strip()
 
-    # qid 공백 제거 + 중복 방지
-    df["qid"] = df["qid"].astype(str).str.strip()
+    # qid 중복 방지
     if df["qid"].duplicated().any():
-        seen = {}
+        seen: Dict[str, int] = {}
         fixed = []
         for q in df["qid"].tolist():
             n = seen.get(q, 0)
@@ -303,564 +107,152 @@ def load_csv(path: Path) -> pd.DataFrame:
             fixed.append(f"{q}_{n+1}" if n else q)
         df["qid"] = fixed
 
-    return df.fillna("")
-DF = load_csv(CSV_PATH)
+    return df
 
-# --- Normalize core columns to avoid mismatch (spaces/case) ---
-for _col, _mode in [("tag","lower"),("level","lower"),("mode","lower"),("section","lower")]:
-    if _col in DF.columns:
-        s = DF[_col].astype(str).str.strip()
-        DF[_col] = (s.str.lower() if _mode=="lower" else s)
-
-
-# ============================================================
-# ✅ Labels
-# ============================================================
-TAG_LABELS = {
-    "business": "비즈니스",
-    "daily": "일상",
-    "call": "전화/온라인",
-    "interview": "면접",
-    "travel": "여행",
-    "shopping": "쇼핑",
-    "food": "음식/카페",
-    "emergency": "긴급/트러블",
-}
-LEVEL_LABELS = {"n5": "N5", "n4": "N4", "n3": "N3"}
-
-# ============================================================
-# ✅ Progress I/O (profiles.progress)
-# ============================================================
-
-def load_progress() -> dict:
-    if isinstance(st.session_state.get("progress_all"), dict):
-        return st.session_state["progress_all"]
-    try:
-        resp = sb.table("profiles").select("progress").eq("id", USER_ID).single().execute()
-        prog = (getattr(resp, "data", None) or {}).get("progress") or {}
-        if not isinstance(prog, dict):
-            prog = {}
-        st.session_state["progress_all"] = prog
-        return prog
-    except Exception:
-        prog = {}
-        st.session_state["progress_all"] = prog
-        return prog
-
-
-def save_progress(progress_all: dict):
-    st.session_state["progress_all"] = progress_all
-    try:
-        sb.table("profiles").update({"progress": progress_all}).eq("id", USER_ID).execute()
-    except Exception:
-        pass
-
-
-def log_attempt(level: str, score: int, quiz_len: int, wrong_count: int, wrong_list: list[dict], tag: str):
-    try:
-        sb.table("quiz_attempts").insert(
-            {
-                "user_id": USER_ID,
-                "user_email": USER_EMAIL,
-                "level": "talk",  # 홈 마이페이지에서 훈련 구분
-                "pos_mode": f"talk:{tag}:{level}",
-                "quiz_len": int(quiz_len),
-                "score": int(score),
-                "wrong_count": int(wrong_count),
-                "wrong_list": wrong_list,
-            }
-        ).execute()
-    except Exception:
-        pass
-
-
-def award_xp(amount: int, reason: str):
-    fn = st.session_state.get("hub_award_xp")
-    if callable(fn):
-        fn(int(amount), reason)
-
-
-# ============================================================
-# ✅ New set / reset on hub navigation
-# ============================================================
-
-def reset_set():
-    for k in list(st.session_state.keys()):
-        if k.startswith(f"{NS}_"):
-            # 홈에서 공유하는 건 제외
-            if k.startswith("talk_"):
-                st.session_state.pop(k, None)
-    # 안전하게 핵심만 제거
-    for k in [
-        f"{NS}_set_qids",
-        f"{NS}_idx",
-        f"{NS}_answers",
-        f"{NS}_submitted",
-        f"{NS}_selected",
-        f"{NS}_opts",
-        f"{NS}_spoken",
-    ]:
-        st.session_state.pop(k, None)
-
-
-try:
-    nav = st.session_state.get("_hub_nav_token")
-    last = st.session_state.get(f"_{NS}_last_nav_token")
-    if nav and nav != last:
-        st.session_state[f"_{NS}_last_nav_token"] = nav
-        reset_set()
-except Exception:
-    pass
-
-# ============================================================
-# ✅ Filters (tag/level)
-# ============================================================
-all_tags = [t for t in DF["tag"].astype(str).unique().tolist() if t]
-BASE_TAG_ORDER = ["daily", "business", "call", "interview", "travel", "shopping", "food", "emergency"]
-
-# (선택) mode 컬럼이 있으면: business / real 분리
-MODE_LABELS = {"business": "비즈니스", "real": "실전"}
-mode = None
-if "mode" in DF.columns:
-    modes = [m for m in DF["mode"].astype(str).unique().tolist() if m and m != "nan"]
-    # 우선순위 정렬
-    ordered = [m for m in ["business", "real"] if m in modes] + [m for m in modes if m not in ["business", "real"]]
-    mode = st.selectbox("모드", options=ordered, format_func=lambda x: MODE_LABELS.get(x, x), key=f"{NS}_mode")
-
-# tag options (mode가 있으면 mode 범위 안에서만)
-df_for_tags = DF
-if mode and "mode" in DF.columns:
-    df_for_tags = DF[DF["mode"] == mode]
-
-all_tags2 = [t for t in df_for_tags["tag"].astype(str).unique().tolist() if t]
-tag_options = [t for t in BASE_TAG_ORDER if t in all_tags2] or all_tags2
-
-c1, c2 = st.columns([1.4, 1], vertical_alignment="bottom")
-with c1:
-    tag = st.selectbox(
-        "상황 선택",
-        options=tag_options,
-        format_func=lambda x: TAG_LABELS.get(x, x),
-        key=f"{NS}_tag",
-    )
-
-with c2:
-    # ✅ 레벨 옵션은 '선택된 tag(＋business 섹션)' 범위 안에서만 보여준다 (빈 풀 방지)
-    scope = df_for_tags.copy()
-    if "tag" in scope.columns:
-        scope = scope[scope["tag"].astype(str).str.lower().str.strip() == str(tag).lower().strip()]
-    # section 선택은 business일 때만 적용 (아직 UI가 아래에 있어도 session_state로 값이 유지됨)
-    _sec_cur = st.session_state.get(f"{NS}_section", "all")
-    if "section" in scope.columns and str(tag).lower().strip() == "business" and str(_sec_cur).lower().strip() != "all":
-        scope = scope[scope["section"].astype(str).str.lower().str.strip() == str(_sec_cur).lower().strip()]
-    levels_in_data = [lv for lv in ["n5", "n4", "n3"] if lv in scope["level"].unique().tolist()]
-    if not levels_in_data:
-        # fallback: 전체 df_for_tags에서라도 표시
-        levels_in_data = [lv for lv in ["n5", "n4", "n3"] if lv in df_for_tags["level"].unique().tolist()] or ["n5", "n4", "n3"]
-    level = st.selectbox(
-        "레벨",
-        options=levels_in_data,
-        format_func=lambda x: LEVEL_LABELS.get(x, x.upper()),
-        key=f"{NS}_level",
-    )
-
-# ------------------------------------------------------------
-# ✅ 세부 섹션 (business 전용) - CSV에 section 컬럼이 있을 때만 표시
-# ------------------------------------------------------------
-section = "all"
-SECTION_LABELS = {
-    "jobprep": "취업 준비",
-    "newcomer": "직장 기본",
-    "interview": "면접",
-}
-if "section" in DF.columns and tag in ["business"]:
-    sec_candidates = df_for_tags.loc[df_for_tags["tag"] == "business", "section"].astype(str).str.lower().str.strip()
-    sec_candidates = [s for s in sec_candidates.unique().tolist() if s and s != "nan"]
-    sec_candidates = [s for s in ["jobprep", "newcomer", "interview"] if s in sec_candidates] + [s for s in sec_candidates if s not in ["jobprep", "newcomer", "interview"]]
-    options = ["all"] + sec_candidates
-    section = st.selectbox(
-        "비즈니스 섹션",
-        options=options,
-        format_func=lambda x: "전체" if x == "all" else SECTION_LABELS.get(x, x),
-        key=f"{NS}_section",
-    )
-
-# ------------------------------------------------------------
-# ✅ pool
-# ------------------------------------------------------------
-pool_df = DF.copy()
-if mode and "mode" in DF.columns:
-    pool_df = pool_df[pool_df["mode"] == mode]
-pool_df = pool_df[(pool_df["tag"] == tag) & (pool_df["level"] == level)].copy().reset_index(drop=True)
-if "section" in pool_df.columns and tag in ["business"] and section != "all":
-    pool_df = pool_df[pool_df["section"].astype(str).str.lower().str.strip() == str(section).lower().strip()].copy().reset_index(drop=True)
-if pool_df.empty:
-    st.warning("해당 조건의 회화 문제가 없습니다. (CSV의 tag/level/section 조합이 현재 선택과 일치하지 않습니다)")
-    with st.expander("🔍 데이터에 실제로 존재하는 조합 보기"):
-        try:
-            show = DF.copy()
-            cols = [c for c in ["mode","tag","section","level"] if c in show.columns]
-            if cols:
-                st.dataframe(show[cols].drop_duplicates().sort_values(cols).reset_index(drop=True), use_container_width=True)
-            else:
-                st.write("mode/tag/section/level 컬럼이 없습니다.")
-        except Exception as _e:
-            st.write(_e)
-
-    st.stop()
-
-# ============================================================
-# ✅ TTS (PRO only) - 브라우저 SpeechSynthesis
-# ============================================================
-
-
-def tts_button(text: str, label: str, key: str):
-    """브라우저 SpeechSynthesis 기반 TTS 버튼.
-    - Streamlit iframe 안에서 직접 버튼을 렌더링(부모 DOM 주입 X) → 가장 안정적
-    - PRO: 클릭 시 재생
-    - FREE: 잠금된 버튼(비활성) 표시
+# =========================
+# 보기 순서 고정(핵심)
+# =========================
+def get_fixed_options(qid: str, answer: str, d1: str, d2: str, d3: str) -> List[str]:
     """
-    safe = (text or "").replace("\\", "\\\\").replace("`", "").replace("\n", " ")
-    disabled = "true" if (not IS_PRO) else "false"
-    btn_text = (f"🔒 {label}" if (not IS_PRO) else label)
-    # key마다 고유한 mount id
-    components.html(
-        f"""
-<div style='width:100%'>
-  <button id='tts_{key}' {'disabled' if not IS_PRO else ''} 
-    style='width:100%;padding:8px 10px;border-radius:12px;border:1px solid rgba(49,51,63,.18);
-           background:{'#f6f7f9' if not IS_PRO else 'white'};cursor:{'not-allowed' if not IS_PRO else 'pointer'};
-           font-weight:800;opacity:{'0.7' if not IS_PRO else '1.0'};'>
-    {btn_text}
-  </button>
-</div>
-<script>
-(function() {{
-  const btn = document.getElementById('tts_{key}');
-  if (!btn) return;
-  if ({disabled}) return;
-  // 동일 rerun에서 이벤트 중복 등록 방지
-  if (btn.dataset.bound === '1') return;
-  btn.dataset.bound = '1';
-  btn.addEventListener('click', () => {{
-    try {{
-      const u = new SpeechSynthesisUtterance({safe!r});
-      u.lang = 'ja-JP';
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.speak(u);
-    }} catch(e) {{}}
-  }});
-}})();
-</script>
+    qid별로 보기 순서를 session_state에 고정 저장.
+    - 같은 문제(qid)는 rerun/클릭해도 보기 순서가 절대 바뀌지 않음.
+    - 다른 문제는 다른 셔플.
+    """
+    key = f"_talk_opts_{qid}"
+    if key in st.session_state:
+        return st.session_state[key]
+
+    opts = [answer, d1, d2, d3]
+    # 보기 중복 제거(혹시 데이터가 겹치면) → 그래도 4개 맞추기 위해 fallback
+    uniq = []
+    for x in opts:
+        x = (x or "").strip()
+        if x and x not in uniq:
+            uniq.append(x)
+    while len(uniq) < 4:
+        uniq.append("（該当なし）")
+
+    # 셔플 시드: 세션 시드 + qid
+    if "_talk_seed" not in st.session_state:
+        st.session_state["_talk_seed"] = random.randint(1, 10_000_000)
+    seed = f"{st.session_state['_talk_seed']}::{qid}"
+    rng = random.Random(seed)
+    rng.shuffle(uniq)
+
+    st.session_state[key] = uniq
+    return uniq
+
+# =========================
+# UI
+# =========================
+def _inject_jp_font():
+    st.markdown(
+        """
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root { --jp-font: "Noto Sans JP","Yu Gothic","Hiragino Kaku Gothic ProN","Meiryo",sans-serif; }
+html, body, [class*="css"], .stApp { font-family: var(--jp-font) !important; }
+</style>
 """,
-        height=60,
+        unsafe_allow_html=True,
     )
 
-# ======================================
-# ======================================
-# ✅ Build choices (문제 로딩 시 1회 셔플 후 고정)
-# ============================================================
+def render():
+    _inject_jp_font()
 
-def build_choices(row: dict, pool_answers: list[str]) -> list[str]:
-    correct = str(row.get("answer_jp", "")).strip()
-    picks: list[str] = []
+    csv_path = find_csv()
+    df = load_csv(csv_path)
 
-    for c in ["d1_jp", "d2_jp", "d3_jp"]:
-        if c in row:
-            v = str(row.get(c, "")).strip()
-            if v and v != correct and v not in picks:
-                picks.append(v)
+    # 디버그(필요 시)
+    with st.expander("🔎 회화 CSV 로드 정보(문제 발생 시 확인)", expanded=False):
+        st.write("읽은 파일:", str(csv_path))
+        st.write("컬럼:", list(df.columns))
+        st.write("행 수:", len(df))
 
-    if len(picks) < 3:
-        cand = [a for a in pool_answers if a and a != correct and a not in picks]
-        random.shuffle(cand)
-        picks += cand[: (3 - len(picks))]
+    st.title("💬 회화 훈련")
 
-    picks = picks[:3]
-    choices = picks + [correct]
-    random.shuffle(choices)
-    return choices
+    # mode/section 있으면 활용
+    has_mode = "mode" in df.columns
+    has_section = "section" in df.columns
 
-
-pool_answers = pool_df["answer_jp"].astype(str).tolist()
-
-# ============================================================
-# ✅ Initialize set (10 qids) + pointer
-# ============================================================
-if f"{NS}_set_qids" not in st.session_state:
-    n = min(SET_LEN, len(pool_df))
-    sample = pool_df.sample(n=n, replace=False).reset_index(drop=True)
-    qids = sample["qid"].astype(str).tolist()
-    st.session_state[f"{NS}_set_qids"] = qids
-    st.session_state[f"{NS}_idx"] = 0
-    st.session_state[f"{NS}_answers"] = {qid: {"selected": None, "ok": None, "spoken": False} for qid in qids}
-    st.session_state[f"{NS}_submitted"] = False
-
-qids: list[str] = st.session_state[f"{NS}_set_qids"]
-idx: int = int(st.session_state.get(f"{NS}_idx") or 0)
-idx = max(0, min(idx, len(qids) - 1))
-answers = st.session_state.get(f"{NS}_answers") or {}
-
-# ============================================================
-# ✅ Progress header (1/10)
-#   - '새 세트' 버튼을 진행 영역 오른쪽으로 이동(필터와 분리)
-# ============================================================
-progress = (idx + 1) / max(1, len(qids))
-
-p1, p2 = st.columns([1.6, 0.6], vertical_alignment="center")
-with p1:
-    st.progress(progress)
-    st.caption(f"진행: {idx+1}/{len(qids)}")
-
-with p2:
-    if st.button("🔄 새 세트", use_container_width=True, type="secondary", key=f"{NS}_new_set"):
-        reset_set()
-        st.rerun()
-
-# ============================================================
-# ✅ Current question
-# ============================================================
-qid = qids[idx]
-row = pool_df[pool_df["qid"].astype(str) == str(qid)].iloc[0].to_dict()
-
-# options fixed per qid
-opt_key = f"{NS}_opts_{qid}"
-if opt_key not in st.session_state:
-    st.session_state[opt_key] = build_choices(row, pool_answers)
-choices: list[str] = st.session_state[opt_key]
-
-# selected
-sel_key = f"{NS}_selected_{qid}"
-if sel_key not in st.session_state:
-    st.session_state[sel_key] = None
-selected = st.session_state.get(sel_key)
-
-submitted_key = f"{NS}_submitted_{qid}"
-if submitted_key not in st.session_state:
-    st.session_state[submitted_key] = False
-submitted = bool(st.session_state.get(submitted_key))
-
-# ============================================================
-# ✅ Render card
-# ============================================================
-with st.container(border=True):
-    st.markdown(f"**상황**: {row.get('situation_kr','')}")
-    st.markdown(f"**상대**: {row.get('partner_jp','')}")
-
-    # 상대 발음(제출 전/후 모두)
-    tts_button(row.get("partner_jp", ""), "🔊 상대 듣기", key=f"{qid}_partner")
-
-    st.markdown("---")
-    st.markdown("**내가 할 말(보기)**")
-
-    # 보기 버튼(선택 없음 상태 유지)
-    # 버튼은 클릭 시 selected 저장, 보기 순서는 고정(choices 리스트)
-    btn_cols = st.columns(1)
-    for j, opt in enumerate(choices):
-        # 보기 버튼 key는 qid+index로 고정
-        bkey = f"{NS}_optbtn_{qid}_{j}"
-        label = opt
-        pressed = st.button(label, use_container_width=True, key=bkey, disabled=submitted)
-        if pressed:
-            st.session_state[sel_key] = opt
-            selected = opt
-
-    # 선택 표시(제출 전)
-    if not submitted:
-        if selected:
-            st.info(f"선택: **{selected}**")
-        else:
-            st.warning("보기를 하나 선택해 주세요.")
-
-# ============================================================
-# ✅ Submit / Next controls
-# ============================================================
-cc1, cc2, cc3 = st.columns([1, 1, 1])
-
-with cc1:
-    if st.button("이전", use_container_width=True, disabled=(idx == 0), key=f"{NS}_prev"):
-        st.session_state[f"{NS}_idx"] = idx - 1
-        st.rerun()
-
-with cc2:
-    can_submit = (not submitted) and bool(selected)
-    if st.button("정답 제출", use_container_width=True, disabled=not can_submit, key=f"{NS}_submit"):
-        st.session_state[submitted_key] = True
-        submitted = True
-
-with cc3:
-    if st.button("다음", use_container_width=True, disabled=(idx >= len(qids) - 1), key=f"{NS}_next"):
-        st.session_state[f"{NS}_idx"] = idx + 1
-        st.rerun()
-
-# ============================================================
-# ✅ After submit
-# ============================================================
-if submitted:
-    correct = str(row.get("answer_jp", "")).strip()
-    ok = (selected == correct)
-        # ============================================================
-    # ✅ 오답 상세 저장 (wrong_notes) — 회화도 '단어/정답/내답' 기록
-    # ============================================================
-    if not ok:
-        try:
-            sb2 = st.session_state.get("sb_authed") or sb  # hub에서 공유되면 sb_authed 우선
-            if sb2 and USER_ID:
-                q_text = (str(row.get("q_jp", "")) or str(row.get("situation_kr",""))).strip()
-                sb2 = get_authed_sb() or sb2
-
-                if not sb2:
-
-                    _wn_warn("오답 저장 실패: authed client 없음(access_token).")
-
-                else:
-
-                    try:
-
-                        sb2.table("wrong_notes").insert({
-
-                            "user_id": USER_ID,
-
-                            "quiz_type": "talk",
-
-                            "question": q_text if q_text else str(row.get("id", "")),
-
-                            "correct_answer": str(correct),
-
-                            "user_answer": str(selected),
-
-                            "level": "talk",
-
-                        }).execute()
-
-                    except Exception as e:
-
-                        _wn_warn(f"오답 저장 실패: {e}")
-        except Exception:
-            pass
-
-# 저장(answers)
-    answers.setdefault(qid, {})
-    answers[qid]["selected"] = selected
-    answers[qid]["ok"] = ok
-    st.session_state[f"{NS}_answers"] = answers
-
-    st.markdown("---")
-    st.subheader("결과")
-
-    if ok:
-        st.success("정답 ✅")
+    if has_mode:
+        mode = st.selectbox("모드", sorted(df["mode"].dropna().unique().tolist()))
+        df_m = df[df["mode"] == mode].copy()
     else:
-        st.error("오답 ❌")
+        mode = None
+        df_m = df
 
-    # 상대/정답 스크립트 + 발음
-    with st.container(border=True):
-        st.markdown("**상대 스크립트**")
-        st.write(row.get("partner_jp", ""))
-        tts_button(row.get("partner_jp", ""), "🔊 상대 듣기", key=f"{qid}_partner_after")
+    # tag
+    tags = sorted(df_m["tag"].dropna().unique().tolist())
+    tag = st.selectbox("상황(tag)", tags) if tags else "general"
+    df_t = df_m[df_m["tag"] == tag].copy()
 
-        st.markdown("**정답 스크립트**")
-        st.write(correct)
-        tts_button(correct, "🔊 정답 듣기", key=f"{qid}_answer")
-        # ✅ 말하기 녹음(선택) — 채점/인식 없이 '내 발화'만 남길 수 있게
-        try:
-            if hasattr(st, "audio_input"):
-                audio = st.audio_input("내 말 녹음(선택)", key=f"{NS}_rec_{qid}")
-                if audio is not None:
-                    st.audio(audio)
-            else:
-                st.caption("현재 Streamlit 버전에서는 즉시 녹음이 지원되지 않아, 파일 업로드로 대체됩니다.")
-                up = st.file_uploader("내 음성 파일 업로드(선택)", type=["wav","mp3","m4a"], key=f"{NS}_rec_up_{qid}")
-                if up is not None:
-                    st.audio(up)
-        except Exception:
-            pass
+    # business일 때 section 필터(있으면)
+    section = None
+    if has_section and (mode == "business" or tag.lower() == "business"):
+        secs = sorted([s for s in df_t["section"].dropna().unique().tolist() if s])
+        if secs:
+            section = st.selectbox("비즈니스 섹션", ["전체"] + secs)
+            if section != "전체":
+                df_t = df_t[df_t["section"] == section].copy()
 
+    # level 옵션은 현재 필터 결과 기준으로만
+    levels = sorted(df_t["level"].dropna().unique().tolist())
+    if not levels:
+        st.error("해당 조건의 회화 문제가 없습니다. (CSV의 mode/tag/section/level 확인)")
+        return
+    level = st.selectbox("레벨", levels)
+    df_l = df_t[df_t["level"] == level].copy()
 
-        # 납득 가능한 안내
-        hint = str(row.get("hint_kr", "")).strip()
-        if hint:
-            st.info(hint)
+    if df_l.empty:
+        st.error("해당 조건의 회화 문제가 없습니다. (CSV의 tag/level 확인)")
+        return
+
+    # 문제 선택
+    qids = df_l["qid"].tolist()
+    if "talk_idx" not in st.session_state:
+        st.session_state["talk_idx"] = 0
+
+    col_prev, col_next = st.columns([1, 1])
+    with col_prev:
+        if st.button("⬅️ 이전"):
+            st.session_state["talk_idx"] = (st.session_state["talk_idx"] - 1) % len(qids)
+    with col_next:
+        if st.button("➡️ 다음"):
+            st.session_state["talk_idx"] = (st.session_state["talk_idx"] + 1) % len(qids)
+
+    cur_qid = qids[st.session_state["talk_idx"]]
+    row = df_l[df_l["qid"] == cur_qid].iloc[0]
+
+    # 표시
+    if "situation_kr" in row and str(row.get("situation_kr", "")).strip():
+        st.caption(f"상황: {row.get('situation_kr','')}")
+    st.subheader(str(row.get("partner_jp", "")))
+
+    if "hint_kr" in row and str(row.get("hint_kr", "")).strip():
+        st.info(f"힌트: {row.get('hint_kr','')}")
+
+    answer = str(row.get("answer_jp", "")).strip()
+    d1 = str(row.get("d1_jp", "")).strip()
+    d2 = str(row.get("d2_jp", "")).strip()
+    d3 = str(row.get("d3_jp", "")).strip()
+
+    options = get_fixed_options(cur_qid, answer, d1, d2, d3)
+
+    # 선택(보기 순서 고정)
+    pick_key = f"_talk_pick_{cur_qid}"
+    picked = st.radio("정답을 고르세요", options, key=pick_key)
+
+    if st.button("정답 확인"):
+        if picked == answer:
+            st.success("✅ 정답입니다.")
         else:
-            st.info("포인트: 상황에서 ‘요청/사과/확인/거절’ 중 무엇인지 먼저 잡고, 그에 맞는 톤(정중/캐주얼)을 고르면 실수가 줄어듭니다.")
+            st.error("❌ 오답입니다.")
+            st.write("정답:", answer)
 
-    # 말하기 완료 체크 (B안)
-    st.markdown("#### 🎤 말하기(체크형)")
-    st.caption("정답을 보고 2~3번 따라 말한 뒤, 아래 체크를 눌러 주세요. (녹음/인식 없이 가볍게!)")
+        if "answer_kr" in row and str(row.get("answer_kr","")).strip():
+            st.caption(f"해석: {row.get('answer_kr','')}")
 
-    spoken_key = f"{NS}_spoken_{qid}"
-    if spoken_key not in st.session_state:
-        st.session_state[spoken_key] = False
-
-    already = bool(st.session_state.get(spoken_key))
-    speak_done = st.checkbox("말하기 완료", value=already, key=f"{NS}_spoken_cb_{qid}")
-
-    if speak_done and not already:
-        st.session_state[spoken_key] = True
-        # XP 지급(1문제 말하기 완료)
-        award_xp(1, "회화 말하기 완료")
-        st.success("+1 XP (말하기 완료)")
-
-# ============================================================
-# ✅ Set completion (10문제 모두 제출되면 자동 집계)
-# ============================================================
-
-def is_done_one(qid_: str) -> bool:
-    return bool(st.session_state.get(f"{NS}_submitted_{qid_}"))
-
-
-def finalize_set_if_ready():
-    if not all(is_done_one(q) for q in qids):
-        return
-
-    # 중복 집계 방지
-    done_key = f"{NS}_set_done"
-    if st.session_state.get(done_key):
-        return
-
-    score = 0
-    wrong_list: list[dict] = []
-    for q in qids:
-        r = pool_df[pool_df["qid"].astype(str) == str(q)].iloc[0].to_dict()
-        correct = str(r.get("answer_jp", "")).strip()
-        sel = st.session_state.get(f"{NS}_selected_{q}")
-        ok = (sel == correct)
-        score += 1 if ok else 0
-        if not ok:
-            wrong_list.append({"qid": q, "selected": sel, "correct": correct})
-
-    wrong_count = len(wrong_list)
-
-    # progress 저장(누적)
-    prog = load_progress()
-    talk_prog = prog.get("talk") or {}
-    talk_prog["attempts"] = int(talk_prog.get("attempts") or 0) + len(qids)
-    talk_prog["correct"] = int(talk_prog.get("correct") or 0) + score
-    talk_prog["wrongs"] = int(talk_prog.get("wrongs") or 0) + wrong_count
-    talk_prog["last_set"] = {
-        "ts": datetime.utcnow().isoformat() + "Z",
-        "tag": tag,
-        "level": level,
-        "score": score,
-        "quiz_len": len(qids),
-        "wrong_count": wrong_count,
-        "qids": qids,
-    }
-    prog["talk"] = talk_prog
-    save_progress(prog)
-
-    # DB 로그(선택)
-    log_attempt(level=level, score=score, quiz_len=len(qids), wrong_count=wrong_count, wrong_list=wrong_list, tag=tag)
-
-    # 홈 공통 streak/오늘세트 + XP(10)
-    rec = st.session_state.get("hub_record_completion")
-    if callable(rec):
-        rec("talk", score, len(qids))
-
-    st.session_state[done_key] = True
-
-    st.balloons()
-    st.success(f"🎉 10문제 완주! 점수: {score}/{len(qids)}  ·  오답: {wrong_count}")
-
-
-finalize_set_if_ready()
+# 모듈로 import될 때를 대비
+if __name__ == "__main__":
+    render()
