@@ -534,7 +534,8 @@ def scroll_to_top(nonce: int = 0):
         </script>
         <!-- nonce:{nonce} -->
         """,
-        height=1,
+        height=0,
+        scrolling=False,
     )
 
 def render_floating_scroll_top():
@@ -644,12 +645,17 @@ def render_floating_scroll_top():
 })();
 </script>
         """,
-        height=1,
+        height=0,
+        scrolling=False,
     )
+
+# ✅ FAB(스크롤탑) JS 주입은 "요소"를 만들지 않도록 height=0 처리.
+# ✅ 또한 세션에서 1회만 주입(페이지마다 중복 생성 방지)
 if not st.session_state.get("HUB_MODE", False):
     if not st.session_state.get("_fab_top_injected", False):
         render_floating_scroll_top()
         st.session_state["_fab_top_injected"] = True
+
 if st.session_state.get("_scroll_top_once"):
     st.session_state["_scroll_top_once"] = False
     st.session_state["_scroll_top_nonce"] = st.session_state.get("_scroll_top_nonce", 0) + 1
