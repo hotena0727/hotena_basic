@@ -772,36 +772,52 @@ def render_top_nav(active: str = "home") -> None:
         border-color: rgba(0,0,0,0.14);
       }
 
-      /* ===== Mobile nav (icon + text, one-line) ===== */
-      .hn-topnav-mobile{
-        display:none;
-        padding: 10px 10px;
-        max-width: 900px;
-        margin: 0 auto;
-      }
-      .hn-mobile-bar{
-        display:flex;
-        gap: 8px;
-        align-items:center;
-        justify-content:space-between;
-      }
-      .hn-mobile-btn{
+      
+/* ===== Mobile nav (icon + text, 2-line, premium feel) ===== */
+.hn-topnav-mobile{
+  display:none;
+  padding: 10px 12px 12px 12px;
+  max-width: 900px;
+  margin: 0 auto;
+}
+.hn-mobile-bar{
+  display:flex;
+  gap: 6px;
+  align-items:stretch;
+  justify-content:space-between;
+
+  background: rgba(255,255,255,0.92);
+  border-radius: 22px;
+  padding: 6px 6px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+}
+.hn-mobile-btn{
   flex:1;
   display:flex;
   flex-direction:column;
   align-items:center;
   justify-content:center;
-  gap: 4px;
+  gap: 3px;
+
   padding: 10px 6px;
   border-radius: 16px;
   text-decoration:none !important;
-  color: inherit;
-  border: 1px solid rgba(0,0,0,0.06);
-  background: rgba(255,255,255,0.9);
-  font-weight: 750;
+  color: #111;
+
+  border: none;
+  background: transparent;
+
+  font-weight: 800;
   line-height: 1;
-  min-height: 54px;
+  min-height: 52px;
   white-space: nowrap;
+  transition: background 120ms ease, transform 120ms ease;
+}
+.hn-mobile-btn:hover{
+  background: rgba(47,128,237,0.08);
+}
+.hn-mobile-btn:active{
+  transform: translateY(0.5px);
 }
 .hn-mobile-btn .hn-ico{
   font-size: 18px;
@@ -813,8 +829,8 @@ def render_top_nav(active: str = "home") -> None:
   opacity: 0.92;
 }
 .hn-mobile-btn.active{
-  font-weight: 900;
-  border-color: rgba(0,0,0,0.18);
+  background: rgba(47,128,237,0.14);
+  box-shadow: inset 0 0 0 1px rgba(47,128,237,0.18);
 }
 .hn-mobile-out{
   width: 52px;
@@ -822,7 +838,7 @@ def render_top_nav(active: str = "home") -> None:
   flex: 0 0 52px;
 }
 
-      /* ===== Responsive switch ===== */
+/* ===== Responsive switch ===== */
       @media (max-width: 820px){
         .hn-topnav-desktop{ display:none !important; }
         .hn-topnav-mobile{ display:block !important; }
