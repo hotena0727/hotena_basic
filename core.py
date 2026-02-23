@@ -669,3 +669,109 @@ def fetch_all_attempts_admin(sb_authed: Any, limit: int = 500):
         .limit(limit)
         .execute()
     )
+
+# ============================================================
+# ✅ Top Navigation (single source of truth)
+# - Render ONCE from home.py (hub)
+# - Sticky top, minimal gray tone
+# - Preserves current query params (rt/at etc.) and sets p=
+# - Hides Streamlit default menu/sidebar
+# ============================================================
+def render_top_nav(active: str = "home") -> None:
+    import streamlit as st
+    import textwrap
+    from urllib.parse import urlencode
+
+    # preserve all existing query params; only set p
+    try:
+        qp = dict(st.query_params)
+    except Exception:
+        qp = {}
+
+    def _href(p: str) -> str:
+        q = {k: v for k, v in qp.items() if k != "p"}
+        q["p"] = p
+        return "?" + urlencode(q, doseq=True)
+
+    css = textwrap.dedent("""        <style>
+      /* Hide Streamlit default UI */
+      #MainMenu { visibility: hidden; }
+      header { visibility: hidden; }
+      footer { visibility: hidden; }
+      [data-testid="stSidebar"] { display: none !important; }
+      [data-testid="stSidebarNav"] { display: none !important; }
+
+      .hn-topnav-wrap{
+        position: sticky;
+        top: 0;
+        z-index: 2147483000;
+        background: rgba(255,255,255,0.94);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border-bottom: 1px solid rgba(0,0,0,0.06);
+      }
+      .hn-topnav{
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 10px 12px;
+      }
+      .hn-nav{
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap: 6px;
+      }
+      .hn-nav a{
+        flex: 1 1 0;
+        text-align:center;
+        text-decoration:none !important;
+        color: rgba(0,0,0,0.55);
+        font-size: 14px;
+        font-weight: 650;
+        letter-spacing: -0.2px;
+        padding: 10px 0;
+        border-radius: 10px;
+        position: relative;
+      }
+      .hn-nav a:hover{
+        color: rgba(0,0,0,0.82);
+        background: rgba(0,0,0,0.03);
+      }
+      .hn-nav a.active{
+        color: rgba(0,0,0,0.90);
+      }
+      .hn-nav a.active::after{
+        content:"";
+        position:absolute;
+        left: 32%;
+        bottom: 6px;
+        width: 36%;
+        height: 2px;
+        background: #2f80ed;
+        border-radius: 2px;
+      }
+
+      @media (max-width: 820px){
+        .hn-topnav{ padding: 10px 10px; }
+        .hn-nav{ gap: 4px; }
+        .hn-nav a{ font-size: 13.5px; padding: 10px 0; }
+        .hn-nav a.active::after{ left: 30%; width: 40%; }
+      }
+    </style>
+    """)
+
+    html = f"""        <div class="hn-topnav-wrap">
+      <div class="hn-topnav">
+        <div class="hn-nav" role="navigation" aria-label="Primary">
+          <a href="{_href('home')}" target="_self" class="{'active' if active=='home' else ''}">홈</a>
+          <a href="{_href('word')}" target="_self" class="{'active' if active=='word' else ''}">단어</a>
+          <a href="{_href('kanji')}" target="_self" class="{'active' if active=='kanji' else ''}">한자</a>
+          <a href="{_href('talk')}" target="_self" class="{'active' if active=='talk' else ''}">회화</a>
+          <a href="{_href('my')}" target="_self" class="{'active' if active=='my' else ''}">MY</a>
+        </div>
+      </div>
+    </div>
+    """
+
+    st.markdown(css, unsafe_allow_html=True)
+    st.markdown(html, unsafe_allow_html=True)
