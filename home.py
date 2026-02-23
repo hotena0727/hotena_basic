@@ -102,6 +102,33 @@ import html as html_module  # ✅ for html escaping in admin cards
 # ============================================================
 st.set_page_config(page_title="Hotena Hub", layout="centered")
 
+import streamlit as st
+
+st.markdown("""
+<style>
+/* ✅ 1) Streamlit 기본 헤더(맨 위 회색 라인 느낌) 제거 */
+[data-testid="stHeader"] { 
+  display: none;
+}
+
+/* ✅ 2) 우측 상단 툴바(점3개/Deploy 등) 영역 줄이기 */
+[data-testid="stToolbar"] {
+  display: none;
+}
+
+/* ✅ 3) 앱 전체 상단 여백(가장 큰 원인) 제거/축소 */
+section.main > div.block-container {
+  padding-top: 0.6rem;   /* 여기 숫자를 0.0rem ~ 1.0rem 사이로 조절 */
+  padding-bottom: 2rem;
+}
+
+/* ✅ 4) 최상단 컨테이너 자체가 밀려있는 경우(환경에 따라 필요) */
+[data-testid="stAppViewContainer"] {
+  padding-top: 0rem;
+}
+</style>
+""", unsafe_allow_html=True)
+
 # ====================== TOP BLOCK FORCE REMOVE ======================
 st.markdown("""
 <style>
