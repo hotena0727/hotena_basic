@@ -3090,6 +3090,8 @@ elif page == "kanji":
     run_module('app')
 elif page == "talk":
     st.session_state["hub_target"] = "talk"
+    st.session_state["HUB_MODE"] = True
+    st.session_state["_entered_talk"] = True
     run_module('talk')
 else:
     # ✅ Fallback: unknown page -> go home
