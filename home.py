@@ -101,6 +101,9 @@ import html as html_module  # ✅ for html escaping in admin cards
 # ✅ Page Config (Hub only)
 # ============================================================
 st.set_page_config(page_title="Hotena Hub", layout="centered")
+# ✅ Plan pill mount (non-floating)
+st.markdown('<div id="__HUB_PLAN_PILL_MOUNT__"></div>', unsafe_allow_html=True)
+
 
 
 # ============================================================
@@ -1388,7 +1391,7 @@ def render_plan_pill():
       var st = doc.createElement('style');
       st.id = '__HUB_PLAN_PILL_STYLE__';
       st.textContent = `
-        #__HUB_PLAN_PILL__{ position: fixed; top: 14px; left: 74px; z-index: 2147483647; }
+        #__HUB_PLAN_PILL__{ position: static; display:block; margin: 10px 0 18px 0; z-index: 1; }
         #__HUB_PLAN_PILL__ .hub-plan-pill{ display:inline-flex; align-items:center; gap:.45rem; padding:.28rem .55rem; border-radius:999px;
           border:1px solid rgba(0,0,0,.10); font-size:.86rem; opacity:.92; background:rgba(0,0,0,.02); backdrop-filter: blur(6px); }
         #__HUB_PLAN_PILL__ .hub-admin-gear{ display:inline-flex; align-items:center; justify-content:center; margin-left:8px; width:28px; height:28px;
@@ -1400,7 +1403,13 @@ def render_plan_pill():
     }
 
     // mount
-    (doc.body || doc.documentElement).appendChild(wrap);
+    var mount = doc.getElementById('__HUB_PLAN_PILL_MOUNT__');
+    if (mount){
+      mount.innerHTML = "";
+      mount.appendChild(wrap);
+    } else {
+      (doc.body || doc.documentElement).appendChild(wrap);
+    }
   }catch(e){}
 })();
 </script>
