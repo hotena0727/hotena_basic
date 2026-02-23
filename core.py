@@ -853,4 +853,7 @@ def render_top_nav(active: str = "home") -> None:
 <div class="hn-spacer" id="hotena-top"></div>"""
 
     st.markdown(css, unsafe_allow_html=True)
-    st.markdown(markup, unsafe_allow_html=True)
+    # 🔎 marker (helps confirm correct version is running)
+    st.markdown('<div style="display:none" data-hotena-topnav="v3"></div>', unsafe_allow_html=True)
+    st.markdown(markup.strip(), unsafe_allow_html=True)
+
