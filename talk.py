@@ -204,7 +204,7 @@ html, body, [class*="css"], .stApp { font-family: var(--jp-font) !important; }
 </style>
 """,
         unsafe_allow_html=True,
-    
+    )
 # =========================
 # 표시 라벨(한글) 매핑
 # =========================
