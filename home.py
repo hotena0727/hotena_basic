@@ -102,7 +102,27 @@ import html as html_module  # ✅ for html escaping in admin cards
 # ✅ Page Config (Hub only)
 # ============================================================
 st.set_page_config(page_title="Hotena Hub", layout="centered")
+st.markdown("""
+<style>
 
+/* 🔥 Streamlit 기본 로딩 스켈레톤 완전 제거 */
+div[data-testid="stSkeleton"] {
+    display: none !important;
+}
+
+/* 상단 전체 로딩 영역 제거 */
+div[data-testid="stAppViewContainer"] > div:first-child {
+    padding-top: 0 !important;
+    margin-top: 0 !important;
+}
+
+/* 혹시 남는 회색 블록 강제 제거 */
+div[class*="skeleton"] {
+    display: none !important;
+}
+
+</style>
+""", unsafe_allow_html=True)
 # ✅ Kill component iframe placeholders ASAP (before any other output)
 try:
     core.hide_component_iframe_placeholders()
