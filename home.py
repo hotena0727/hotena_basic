@@ -12,7 +12,6 @@ import base64
 from cryptography.fernet import Fernet
 from datetime import date, datetime, timedelta, timezone
 import streamlit as st
-import core
 import streamlit.components.v1 as components
 
 # ============================================================
@@ -102,13 +101,6 @@ import html as html_module  # ✅ for html escaping in admin cards
 # ✅ Page Config (Hub only)
 # ============================================================
 st.set_page_config(page_title="Hotena Hub", layout="centered")
-
-# ✅ Kill component iframe placeholders ASAP (before any other output)
-try:
-    core.hide_component_iframe_placeholders()
-except Exception:
-    pass
-
 
 
 # ============================================================
