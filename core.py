@@ -9,9 +9,10 @@
 from __future__ import annotations
 
 import os
-import textwrap
 import base64
 import hashlib
+import urllib.parse
+import textwrap
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Optional, Tuple
 
@@ -670,3 +671,103 @@ def fetch_all_attempts_admin(sb_authed: Any, limit: int = 500):
         .limit(limit)
         .execute()
     )
+
+# ----------------------------
+# Top Navigation (Hub)
+# ----------------------------
+
+def render_top_nav(active: str = "home") -> None:
+    """Render sticky top navigation for hub (Home/Word/Kanji/Talk/My).
+    - Preserves rt/at query params if present (to keep auth across clicks).
+    - Designed to be called ONCE per run (guarded).
+    """
+    if st.session_state.get("_hn_topnav_rendered"):
+        return
+    st.session_state["_hn_topnav_rendered"] = True
+
+    # Preserve tokens from URL if present (already URL-encoded).
+    rt = st.query_params.get("rt")
+    at = st.query_params.get("at")
+
+    def _href(p: str) -> str:
+        q = {}
+        if isinstance(rt, str) and rt:
+            q["rt"] = rt
+        if isinstance(at, str) and at:
+            q["at"] = at
+        q["p"] = p
+        return "?" + urllib.parse.urlencode(q)
+
+    def _href_action(action: str) -> str:
+        q = {}
+        if isinstance(rt, str) and rt:
+            q["rt"] = rt
+        if isinstance(at, str) and at:
+            q["at"] = at
+        q["action"] = action
+        return "?" + urllib.parse.urlencode(q)
+
+    css = textwrap.dedent("""        <style>
+      .hn-topnav-wrap{ position: sticky; top: 0; z-index: 999; }
+      .hn-topnav{
+        display:flex; align-items:center; justify-content:space-between;
+        gap:12px;
+        padding:10px 12px;
+        border-radius: 14px;
+        background: rgba(255,255,255,0.85);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border: 1px solid rgba(15,23,42,0.08);
+        box-shadow: 0 8px 24px rgba(15,23,42,0.06);
+      }
+      .hn-tabs{ display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+      .hn-tabs a{
+        text-decoration:none !important;
+        font-weight: 700;
+        font-size: 14px;
+        padding:8px 10px;
+        border-radius: 12px;
+        color: rgba(15,23,42,0.85);
+        border: 1px solid rgba(15,23,42,0.10);
+        background: rgba(255,255,255,0.75);
+      }
+      .hn-tabs a.active{
+        background: rgba(37,99,235,0.10);
+        border-color: rgba(37,99,235,0.35);
+        color: rgba(30,64,175,1);
+      }
+      .hn-right{ display:flex; gap:8px; align-items:center; }
+      .hn-out{
+        display:inline-flex; align-items:center; justify-content:center;
+        width: 38px; height: 38px;
+        border-radius: 12px;
+        border: 1px solid rgba(15,23,42,0.10);
+        background: rgba(255,255,255,0.80);
+        text-decoration:none !important;
+      }
+      .hn-spacer{ height: 10px; }
+      @media (max-width: 640px){
+        .hn-topnav{ padding:10px 10px; border-radius: 16px; }
+        .hn-tabs a{ font-size: 13px; padding:8px 9px; }
+      }
+    </style>
+    """)
+    st.markdown(css, unsafe_allow_html=True)
+
+    markup = textwrap.dedent(f"""        <div class="hn-topnav-wrap">
+      <div class="hn-topnav">
+        <div class="hn-tabs">
+          <a href="{_href('home')}" target="_self" class="{'active' if active=='home' else ''}">🏠 홈</a>
+          <a href="{_href('word')}" target="_self" class="{'active' if active=='word' else ''}">📘 단어</a>
+          <a href="{_href('kanji')}" target="_self" class="{'active' if active=='kanji' else ''}">🈶 한자</a>
+          <a href="{_href('talk')}" target="_self" class="{'active' if active=='talk' else ''}">💬 회화</a>
+          <a href="{_href('my')}" target="_self" class="{'active' if active=='my' else ''}">👤 MY</a>
+        </div>
+        <div class="hn-right">
+          <a class="hn-out" href="{_href_action('logout')}" target="_self" title="로그아웃">🚪</a>
+        </div>
+      </div>
+      <div class="hn-spacer"></div>
+    </div>
+    """)
+    st.markdown(markup, unsafe_allow_html=True)

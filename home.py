@@ -12,6 +12,7 @@ import base64
 from cryptography.fernet import Fernet
 from datetime import date, datetime, timedelta, timezone
 import streamlit as st
+import core
 import streamlit.components.v1 as components
 
 # ============================================================
@@ -145,7 +146,7 @@ div[data-testid="stAppViewContainer"]{
 div[data-testid="stAppViewContainer"] .block-container{
   padding-top: 0 !important;
   margin-top: 0 !important;
-  padding-bottom: 5.25rem !important; /* keep breathing room for bottom nav */
+  padding-bottom: 1.25rem !important; /* top nav only */
 }
 
 /* Headlines: tighter */
@@ -208,7 +209,7 @@ div[data-testid="stMetric"]{
     padding-left: 1.0rem !important;
     padding-right: 1.0rem !important;
     padding-top: 0.15rem !important;
-    padding-bottom: 6.0rem !important;
+    padding-bottom: 1.5rem !important;
   }
 
   /* Slightly larger tap targets on phones */
@@ -3017,12 +3018,9 @@ if isinstance(p, str) and p:
     if p in allowed:
         st.session_state["hub_page"] = p
 
-# ✅ Always render floating menu + plan pill in hub mode (after auth)
-render_floating_menu()
-render_plan_pill()
-
+# ✅ Top nav (common)
 page = st.session_state.get("hub_page", "home")
-render_bottom_nav(active=page)
+core.render_top_nav(active=page)
 
 
 if page == "admin":
