@@ -12,7 +12,6 @@ import base64
 from cryptography.fernet import Fernet
 from datetime import date, datetime, timedelta, timezone
 import streamlit as st
-import core
 import streamlit.components.v1 as components
 
 # ============================================================
@@ -104,7 +103,6 @@ import html as html_module  # ✅ for html escaping in admin cards
 st.set_page_config(page_title="Hotena Hub", layout="centered")
 
 
-core._hide_streamlit_component_iframes()
 # ============================================================
 # ✅ TOP SPACING FIX (PC + Mobile)
 # - Remove Streamlit's default top padding/space

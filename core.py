@@ -70,16 +70,6 @@ div[data-testid="stIFrame"]:has(iframe[title*="streamlit"]) iframe{
   height:0 !important;
   min-height:0 !important;
 }
-
-/* Also hide wrappers for any iframe whose title contains 'streamlit' (version-dependent) */
-div[data-testid="stIFrame"]:has(iframe[title*="streamlit"]){
-  display:none !important;
-  height:0 !important;
-  min-height:0 !important;
-  margin:0 !important;
-  padding:0 !important;
-}
-
 </style>""",
         unsafe_allow_html=True,
     )
@@ -481,7 +471,7 @@ def scroll_to_top(nonce: int = 0) -> None:
         </script>
         <!-- nonce:{nonce} -->
         """,
-        height=0,
+        height=1,
     )
 
 
