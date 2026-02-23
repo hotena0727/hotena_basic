@@ -169,14 +169,17 @@ def load_csv(path: Path) -> pd.DataFrame:
         "q_id": "qid",
         "id": "qid",
         "qid": "qid",
-        # tag 계열(기존 CSV/확장 CSV 호환)
+
+        # tag 계열
         "tags": "tag",
         "category": "tag",
         "topic": "tag",
         "type": "tag",
+
         # level 계열
         "lvl": "level",
         "difficulty": "level",
+
         # situation(상황) 계열
         "situation": "situation_kr",
         "situation_ko": "situation_kr",
@@ -185,6 +188,23 @@ def load_csv(path: Path) -> pd.DataFrame:
         "prompt_kr": "situation_kr",
         "scenario_kr": "situation_kr",
         "situation_kr": "situation_kr",
+
+        # partner(상대 발화/질문) 계열
+        "partner": "partner_jp",
+        "partner_text": "partner_jp",
+        "question_jp": "partner_jp",
+        "prompt_jp": "partner_jp",
+        "q_jp": "partner_jp",
+        "jp_question": "partner_jp",
+        "utterance_jp": "partner_jp",
+        "partner_jp": "partner_jp",
+
+        # answer(정답) 계열
+        "answer": "answer_jp",
+        "correct_jp": "answer_jp",
+        "a_jp": "answer_jp",
+        "response_jp": "answer_jp",
+        "answer_jp": "answer_jp",
     }
     # lower-name lookup
     cols_by_lower = {str(c).lower(): c for c in df.columns}
@@ -193,7 +213,7 @@ def load_csv(path: Path) -> pd.DataFrame:
             df.rename(columns={cols_by_lower[src]: dst}, inplace=True)
 
     # ---- 필수 컬럼 확보 ----
-    required = ["partner_jp", "answer_jp"]
+    required = ["answer_jp"]
 
     # qid는 없으면 자동 생성(🚫 앱 중단 방지)
     if "qid" not in df.columns:
@@ -207,6 +227,25 @@ def load_csv(path: Path) -> pd.DataFrame:
     if "situation_kr" not in df.columns:
         # 일부 CSV는 한국어 상황문이 없고, 일본어 질문만 있는 경우가 있어 빈 문자열로 두되 앱은 계속 실행합니다.
         df["situation_kr"] = ""
+
+    # ---- partner_jp / answer_jp 기본값/파생 ----
+    if "partner_jp" not in df.columns:
+        # 질문/상대발화 컬럼명이 다른 경우를 최대한 흡수
+        for cand in ["question_jp", "prompt_jp", "q_jp", "jp_question", "utterance_jp", "partner"]:
+            if cand in df.columns:
+                df["partner_jp"] = df[cand].astype(str)
+                break
+        else:
+            df["partner_jp"] = ""
+
+    if "answer_jp" not in df.columns:
+        for cand in ["answer", "correct_jp", "a_jp", "response_jp"]:
+            if cand in df.columns:
+                df["answer_jp"] = df[cand].astype(str)
+                break
+        else:
+            # 이 경우는 앱이 정상 동작할 수 없어서 명확한 에러 메시지를 띄웁니다.
+            raise ValueError("CSV 필수 컬럼 누락: answer_jp (또는 alias: answer/correct_jp/a_jp/response_jp)")
 
     # ---- tag/level 기본값/파생 (없어도 앱이 죽지 않게) ----
     if "tag" not in df.columns:
