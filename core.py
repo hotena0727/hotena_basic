@@ -11,8 +11,6 @@ from __future__ import annotations
 import os
 import base64
 import hashlib
-import urllib.parse
-import textwrap
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Optional, Tuple
 
@@ -672,15 +670,13 @@ def fetch_all_attempts_admin(sb_authed: Any, limit: int = 500):
         .execute()
     )
 
-# ----------------------------
-# Top Navigation (Hub)
-# ----------------------------
-
 def render_top_nav(active: str = "home") -> None:
     """
-    ✅ Responsive top navigation
-    - Desktop: tab-style top nav
-    - Mobile: icon + text (one-line) nav (old bottom-nav feeling moved to top)
+    ✅ Hatena UI 2.0 Top Navigation (PC/Mobile unified)
+    - Text-only (no emoji/icons)
+    - Gray tone, minimal
+    - Active state = subtle blue underline only
+    - No logout button in nav (logout is handled inside MY page)
     - Preserves rt/at query params for session continuity
     """
     import streamlit as st
@@ -701,139 +697,88 @@ def render_top_nav(active: str = "home") -> None:
         q["p"] = p
         return "?" + urlencode(q)
 
-    def _logout_href() -> str:
-        q = dict(base)
-        q["action"] = "logout"
-        return "?" + urlencode(q)
-
     css = textwrap.dedent("""
     <style>
+      :root{
+        --hn-gray-1: rgba(0,0,0,0.78);
+        --hn-gray-2: rgba(0,0,0,0.56);
+        --hn-gray-3: rgba(0,0,0,0.10);
+        --hn-blue: #2f80ed;
+      }
+
       .hn-topnav-wrap{
         position: sticky;
         top: 0;
         z-index: 9999;
-        background: rgba(255,255,255,0.94);
+        background: rgba(255,255,255,0.92);
         backdrop-filter: blur(10px);
         -webkit-backdrop-filter: blur(10px);
         border-bottom: 1px solid rgba(0,0,0,0.06);
       }
 
-      /* ===== Desktop nav ===== */
-      .hn-topnav-desktop{
+      .hn-topnav{
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 10px 12px;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+      }
+
+      .hn-nav{
         display:flex;
         align-items:center;
         justify-content:space-between;
-        gap: 12px;
-        padding: 10px 12px;
-        max-width: 1200px;
-        margin: 0 auto;
+        gap: 18px;
+        width: 100%;
+        max-width: 720px;
       }
-      .hn-tabs{
-        display:flex;
-        gap: 8px;
-        flex-wrap: wrap;
-      }
-      .hn-tabs a{
-        display:inline-flex;
-        align-items:center;
-        gap: 8px;
-        padding: 8px 10px;
-        border-radius: 14px;
+
+      .hn-nav a{
+        position: relative;
+        flex: 1;
+        text-align:center;
         text-decoration:none !important;
-        color: inherit;
-        border: 1px solid rgba(0,0,0,0.06);
-        background: rgba(255,255,255,0.9);
-      }
-      .hn-tabs a:hover{
-        border-color: rgba(0,0,0,0.14);
-      }
-      .hn-tabs a.active{
-        font-weight: 800;
-        border-color: rgba(0,0,0,0.18);
-      }
-      .hn-right{
-        display:flex;
-        align-items:center;
-        gap: 10px;
-        white-space: nowrap;
-      }
-      .hn-out{
-        display:inline-flex;
-        align-items:center;
-        justify-content:center;
-        width: 40px;
-        height: 40px;
-        border-radius: 14px;
-        text-decoration:none !important;
-        border: 1px solid rgba(0,0,0,0.06);
-        background: rgba(255,255,255,0.9);
-      }
-      .hn-out:hover{
-        border-color: rgba(0,0,0,0.14);
+        padding: 10px 0 10px 0;
+
+        font-size: 14px;
+        font-weight: 650;
+        color: var(--hn-gray-2);
+        letter-spacing: -0.2px;
+        border-radius: 12px;
       }
 
-      
+      .hn-nav a:hover{
+        color: var(--hn-gray-1);
+        background: rgba(0,0,0,0.03);
+      }
 
-/* ===== Mobile nav (text-only, minimal) ===== */
-.hn-topnav-mobile{
-  display:none;
-  padding: 10px 14px 12px 14px;
-  max-width: 900px;
-  margin: 0 auto;
-}
-.hn-mobile-bar{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap: 8px;
+      .hn-nav a.active{
+        color: var(--hn-gray-1);
+        font-weight: 850;
+        background: transparent;
+      }
 
-  padding-bottom: 6px;
-  border-bottom: 1px solid rgba(0,0,0,0.06);
-}
-.hn-mobile-btn{
-  flex:1;
-  text-align:center;
-  text-decoration:none !important;
+      .hn-nav a.active::after{
+        content: "";
+        position: absolute;
+        left: 28%;
+        bottom: 6px;
+        width: 44%;
+        height: 2px;
+        background: var(--hn-blue);
+        border-radius: 2px;
+      }
 
-  font-size: 14px;
-  font-weight: 650;
-  color: #555;
-
-  padding: 8px 0;
-  border-radius: 12px;
-
-  background: transparent;
-  border: none;
-  white-space: nowrap;
-}
-.hn-mobile-btn:hover{
-  background: rgba(47,128,237,0.06);
-  color: #2f80ed;
-}
-.hn-mobile-btn.active{
-  color: #2f80ed;
-  font-weight: 850;
-  background: rgba(47,128,237,0.08);
-}
-.hn-mobile-out{
-  flex: 0 0 auto;
-  padding: 8px 10px;
-  font-size: 13px;
-  font-weight: 750;
-  color: #666;
-}
-.hn-mobile-out:hover{
-  background: rgba(0,0,0,0.04);
-  color: #111;
-}
-
-/* ===== Responsive switch ===== */
+      /* Mobile tweaks */
       @media (max-width: 820px){
-        .hn-topnav-desktop{ display:none !important; }
-        .hn-topnav-mobile{ display:block !important; }
+        .hn-topnav{ padding: 10px 10px; }
+        .hn-nav{ gap: 10px; max-width: 680px; }
+        .hn-nav a{ font-size: 13.5px; padding: 10px 0; }
+        .hn-nav a.active::after{ left: 30%; width: 40%; }
       }
 
-      /* Reduce top padding a bit since nav is sticky */
+      /* Reduce Streamlit container top padding a bit */
       .block-container{
         padding-top: 0.8rem !important;
       }
@@ -842,31 +787,15 @@ def render_top_nav(active: str = "home") -> None:
 
     markup = f"""
     <div class="hn-topnav-wrap">
-      <div class="hn-topnav-desktop">
-        <div class="hn-tabs">
-          <a href="{_href('home')}" target="_self" class="{'active' if active=='home' else ''}"><span class="hn-ico">🏠</span><span class="hn-txt">홈</span></a>
-          <a href="{_href('word')}" target="_self" class="{'active' if active=='word' else ''}"><span class="hn-ico">📘</span><span class="hn-txt">단어</span></a>
-          <a href="{_href('kanji')}" target="_self" class="{'active' if active=='kanji' else ''}"><span class="hn-ico">🈶</span><span class="hn-txt">한자</span></a>
-          <a href="{_href('talk')}" target="_self" class="{'active' if active=='talk' else ''}"><span class="hn-ico">💬</span><span class="hn-txt">회화</span></a>
-          <a href="{_href('my')}" target="_self" class="{'active' if active=='my' else ''}"><span class="hn-ico">👤</span><span class="hn-txt">MY</span></a>
-        </div>
-        <div class="hn-right">
-          <a class="hn-out" href="{_logout_href()}" target="_self" title="로그아웃"><span class="hn-ico">🚪</span><span class="hn-txt">OUT</span></a>
-        </div>
+      <div class="hn-topnav">
+        <nav class="hn-nav" aria-label="Primary">
+          <a href="{_href('home')}" target="_self" class="{'active' if active=='home' else ''}">홈</a>
+          <a href="{_href('word')}" target="_self" class="{'active' if active=='word' else ''}">단어</a>
+          <a href="{_href('kanji')}" target="_self" class="{'active' if active=='kanji' else ''}">한자</a>
+          <a href="{_href('talk')}" target="_self" class="{'active' if active=='talk' else ''}">회화</a>
+          <a href="{_href('my')}" target="_self" class="{'active' if active=='my' else ''}">MY</a>
+        </nav>
       </div>
-
-      
-      <div class="hn-topnav-mobile">
-        <div class="hn-mobile-bar">
-          <a class="hn-mobile-btn {'active' if active=='home' else ''}" href="{_href('home')}" target="_self">홈</a>
-          <a class="hn-mobile-btn {'active' if active=='word' else ''}" href="{_href('word')}" target="_self">단어</a>
-          <a class="hn-mobile-btn {'active' if active=='kanji' else ''}" href="{_href('kanji')}" target="_self">한자</a>
-          <a class="hn-mobile-btn {'active' if active=='talk' else ''}" href="{_href('talk')}" target="_self">회화</a>
-          <a class="hn-mobile-btn {'active' if active=='my' else ''}" href="{_href('my')}" target="_self">MY</a>
-          <a class="hn-mobile-btn hn-mobile-out" href="{_logout_href()}" target="_self" title="로그아웃">OUT</a>
-        </div>
-      </div>
-
     </div>
     """
 
