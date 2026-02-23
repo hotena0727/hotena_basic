@@ -669,3 +669,173 @@ def fetch_all_attempts_admin(sb_authed: Any, limit: int = 500):
         .limit(limit)
         .execute()
     )
+
+
+
+# ============================================================
+# ✅ Top Navigation (Hub / Common)
+# - Replaces bottom nav + left floating menu
+# - CSP-safe (no inline JS), uses plain links with query params
+# ============================================================
+
+def _hub_base_qs() -> str:
+    """Preserve rt/at query params (login persistence) when navigating."""
+    try:
+        rt_enc = st.query_params.get("rt", "")
+        at_enc = st.query_params.get("at", "")
+    except Exception:
+        rt_enc, at_enc = "", ""
+
+    def _q(s: str) -> str:
+        try:
+            import urllib.parse
+            return urllib.parse.quote(s, safe="") if s else ""
+        except Exception:
+            return s or ""
+
+    parts = []
+    if isinstance(rt_enc, str) and rt_enc:
+        parts.append("rt=" + _q(rt_enc))
+    if isinstance(at_enc, str) and at_enc:
+        parts.append("at=" + _q(at_enc))
+    return ("&".join(parts) + "&") if parts else ""
+
+
+def render_top_nav(active: str = "home") -> None:
+    """Render sticky top nav (Hub). Call ONCE per run (typically in home.py)."""
+    if st.session_state.get("_top_nav_rendered"):
+        return
+    st.session_state["_top_nav_rendered"] = True
+
+    base = _hub_base_qs()
+
+    def href(p: str) -> str:
+        return "?" + base + "p=" + p
+
+    plan = (st.session_state.get("user_plan") or "free").lower()
+    is_admin = bool(st.session_state.get("is_admin", False))
+    plan_txt = "✨ PRO" if plan == "pro" else "🆓 FREE"
+
+    admin_link = f'<a class="hn-gear" href="{href("admin")}" target="_self" title="관리자">⚙️</a>' if is_admin else ""
+
+    html = f"""<style>
+/* ===== Hotena Top Nav ===== */
+.hn-topnav {{
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 2147483000;
+  background: rgba(255,255,255,0.92);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(0,0,0,0.08);
+}}
+.hn-topnav .inner {{
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}}
+.hn-left {{
+  display:flex;
+  align-items:center;
+  gap: 8px;
+  min-width: 110px;
+}}
+.hn-pill {{
+  display:inline-flex;
+  align-items:center;
+  gap:.4rem;
+  padding:.28rem .55rem;
+  border-radius:999px;
+  border:1px solid rgba(0,0,0,.10);
+  background:rgba(0,0,0,.02);
+  font-size: 0.86rem;
+  opacity: .95;
+  white-space: nowrap;
+}}
+.hn-gear {{
+  display:inline-flex;align-items:center;justify-content:center;
+  width: 30px;height: 30px;border-radius:999px;
+  text-decoration:none !important;
+  border:1px solid rgba(0,0,0,.10);
+  background:rgba(0,0,0,.02);
+  font-size: 16px;
+}}
+.hn-tabs {{
+  display:flex;
+  align-items:center;
+  gap: 8px;
+  flex: 1 1 auto;
+  justify-content: center;
+}}
+.hn-tabs a {{
+  text-decoration:none !important;
+  color: rgba(20,20,20,0.90);
+  border: 1px solid rgba(0,0,0,0.08);
+  background: rgba(0,0,0,0.02);
+  border-radius: 14px;
+  padding: 8px 10px;
+  font-size: 13px;
+  display:inline-flex;
+  align-items:center;
+  gap: 6px;
+  white-space: nowrap;
+}}
+.hn-tabs a.active {{
+  background: rgba(0,0,0,0.88);
+  color: #fff !important;
+  border-color: rgba(0,0,0,0.88);
+}}
+.hn-right {{
+  display:flex;
+  align-items:center;
+  gap: 8px;
+  min-width: 70px;
+  justify-content: flex-end;
+}}
+.hn-out {{
+  text-decoration:none !important;
+  color: rgba(20,20,20,0.92);
+  border: 1px solid rgba(0,0,0,0.10);
+  background: rgba(0,0,0,0.02);
+  border-radius: 14px;
+  padding: 8px 10px;
+  font-size: 13px;
+}}
+.hn-spacer {{
+  height: 58px; /* nav height */
+}}
+@media (max-width: 640px) {{
+  .hn-topnav .inner {{ padding: 10px 10px; }}
+  .hn-tabs {{ gap: 6px; }}
+  .hn-tabs a {{ padding: 8px 8px; font-size: 12px; border-radius: 12px; }}
+  .hn-left {{ min-width: 96px; }}
+  .hn-right {{ min-width: 54px; }}
+  .hn-out {{ padding: 8px 8px; }}
+}}
+</style>
+
+<div class="hn-topnav">
+  <div class="inner">
+    <div class="hn-left">
+      <div class="hn-pill">{plan_txt}{admin_link}</div>
+    </div>
+
+    <div class="hn-tabs">
+      <a href="{href('home')}" target="_self" class="{ 'active' if active=='home' else '' }">🏠 홈</a>
+      <a href="{href('word')}" target="_self" class="{ 'active' if active=='word' else '' }">📘 단어</a>
+      <a href="{href('kanji')}" target="_self" class="{ 'active' if active=='kanji' else '' }">🈶 한자</a>
+      <a href="{href('talk')}" target="_self" class="{ 'active' if active=='talk' else '' }">💬 회화</a>
+      <a href="{href('my')}" target="_self" class="{ 'active' if active=='my' else '' }">👤 MY</a>
+    </div>
+
+    <div class="hn-right">
+      <a class="hn-out" href="{('?' + base + 'action=logout')}" target="_self" title="로그아웃">🚪</a>
+    </div>
+  </div>
+</div>
+<div class="hn-spacer" id="hotena-top"></div>
+"""
+    st.markdown(html, unsafe_allow_html=True)
