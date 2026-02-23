@@ -47,47 +47,62 @@ def _hide_streamlit_component_iframes() -> None:
     st.session_state["_hide_streamlit_component_iframes_done"] = True
 
     # 1) CSS (preferred): hide any stIFrame wrapper that contains a streamlit.components iframe
-    st.markdown(
+   st.markdown(
         """<style>
-/* Hide Streamlit custom component placeholders (gray blocks) */
-div[data-testid="stIFrame"]:has(iframe[title^="streamlit.components.v1."]){
-  display:none !important;
-  height:0 !important;
-  min-height:0 !important;
-  margin:0 !important;
-  padding:0 !important;
-}
-div[data-testid="stIFrame"]:has(iframe[title^="streamlit.components.v1."]) iframe{
-  display:none !important;
-  height:0 !important;
-  min-height:0 !important;
-}
-</style>""",
+    /* ✅ 더 넓게 잡는다: title에 streamlit/components 포함 OR src에 component 포함 */
+    div[data-testid="stIFrame"]:has(iframe[title*="streamlit"]),
+    div[data-testid="stIFrame"]:has(iframe[title*="components"]),
+    div[data-testid="stIFrame"]:has(iframe[src*="component"]),
+    div[data-testid="stIFrame"]:has(iframe[srcdoc]){
+      display:none !important;
+      height:0 !important;
+      min-height:0 !important;
+      margin:0 !important;
+      padding:0 !important;
+    }
+
+    div[data-testid="stIFrame"] iframe[title*="streamlit"],
+    div[data-testid="stIFrame"] iframe[title*="components"],
+    div[data-testid="stIFrame"] iframe[src*="component"],
+    div[data-testid="stIFrame"] iframe[srcdoc]{
+      display:none !important;
+      height:0 !important;
+      min-height:0 !important;
+    }
+    </style>""",
         unsafe_allow_html=True,
     )
 
     # 2) JS fallback: repeatedly collapse matching wrappers (in case :has isn't applied early enough)
     try:
         components.html(
-            """
+"""
 <script>
 (function(){
   function kill(){
     try{
       var doc = (window.parent && window.parent.document) ? window.parent.document : document;
-      var frames = doc.querySelectorAll('iframe[title^="streamlit.components.v1."]');
-      frames.forEach(function(fr){
+      var wrappers = doc.querySelectorAll('[data-testid="stIFrame"]');
+      wrappers.forEach(function(w){
         try{
-          fr.style.display='none';
-          fr.style.height='0px';
-          fr.style.minHeight='0px';
-          var wrap = fr.closest('[data-testid="stIFrame"]') || fr.parentElement;
-          if(wrap){
-            wrap.style.display='none';
-            wrap.style.height='0px';
-            wrap.style.minHeight='0px';
-            wrap.style.margin='0';
-            wrap.style.padding='0';
+          var fr = w.querySelector('iframe');
+          if(!fr) return;
+
+          var t = (fr.getAttribute('title') || '').toLowerCase();
+          var s = (fr.getAttribute('src') || '').toLowerCase();
+          var isStreamlitComp = t.includes('streamlit') || t.includes('components') || s.includes('component') || fr.hasAttribute('srcdoc');
+
+          // ✅ "큰 회색 블록"만 접는다 (실제 표시용 컴포넌트까지 죽이지 않게)
+          var h = w.getBoundingClientRect().height || 0;
+          if(isStreamlitComp && h >= 80){
+            w.style.display='none';
+            w.style.height='0px';
+            w.style.minHeight='0px';
+            w.style.margin='0';
+            w.style.padding='0';
+            fr.style.display='none';
+            fr.style.height='0px';
+            fr.style.minHeight='0px';
           }
         }catch(e){}
       });
@@ -101,8 +116,9 @@ div[data-testid="stIFrame"]:has(iframe[title^="streamlit.components.v1."]) ifram
 })();
 </script>
 """,
-            height=0,
-        )
+height=0,
+scrolling=False,
+)
     except Exception:
         pass
 
@@ -479,8 +495,8 @@ def scroll_to_top(nonce: int = 0) -> None:
         </script>
         <!-- nonce:{nonce} -->
         """,
-        height=1,
-    )
+        height=0, 
+        scrolling=False)
 
 
 def render_floating_scroll_top() -> None:
@@ -591,9 +607,7 @@ def render_floating_scroll_top() -> None:
 })();
 </script>
         """,
-        height=1,
-    )
-
+        height=0, scrolling=False)
 
 # ----------------------------
 # DB helpers (profiles / attempts)
