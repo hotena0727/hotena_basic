@@ -14,18 +14,6 @@ from datetime import date, datetime, timedelta, timezone
 import streamlit as st
 import streamlit.components.v1 as components
 
-if '_js_once' not in st.session_state:
-    _js_bridge_localstorage_to_queryparam("hotena_rt", "rt")
-    _js_bridge_localstorage_to_queryparam("hotena_at", "at")
-    _js_set_localstorage("hotena_rt", st.query_params.get("rt", ""))
-    _js_set_localstorage("hotena_at", st.query_params.get("at", ""))
-    _js_set_localstorage("hotena_rt", st.query_params.get("rt",""))
-    _js_set_localstorage("hotena_at", st.query_params.get("at",""))
-    _js_remove_localstorage("hotena_rt")
-    _js_remove_localstorage("hotena_at")
-    st.session_state['_js_once'] = True
-
-
 # ============================================================
 # ✅ Module runner (NO runpy/run_path)
 # - Import (or reload) a module by name so it renders in the SAME Streamlit flow
