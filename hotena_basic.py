@@ -155,21 +155,6 @@ window.addEventListener("load", async () => {
   // ✅ 부모 문서(=진짜 페이지)로 주입
   const doc = (window.parent && window.parent.document) ? window.parent.document : document;
 
-  // ✅ 작은 로그 박스(디버그용) - 가능하면 부모 body에
-  const pre = doc.createElement("pre");
-  pre.id = "pwa_debug";
-  pre.style.cssText = "white-space:pre-wrap;font-size:12px;opacity:0.75;margin:6px 0 0;";
-  pre.textContent = "";
-  (doc.body || doc.documentElement).prepend(pre);
-
-  const log = (msg) => { pre.textContent += msg + "\\n"; };
-
-  // ✅ manifest
-  let m = doc.querySelector("link[rel='manifest']");
-  if (!m) { m = doc.createElement("link"); m.rel = "manifest"; doc.head.appendChild(m); }
-  m.href = "/manifest.json";
-  log("manifest: /manifest.json");
-
   // ✅ icons
   let a = doc.querySelector("link[rel='apple-touch-icon']");
   if (!a) { a = doc.createElement("link"); a.rel = "apple-touch-icon"; doc.head.appendChild(a); }
@@ -206,16 +191,6 @@ window.addEventListener("load", async () => {
     log("fetch /sw.js FAILED: " + e);
   }
 
-  if ("serviceWorker" in nav) {
-    try {
-      const reg = await nav.serviceWorker.register("/sw.js");
-      log("SW registered scope: " + reg.scope);
-    } catch (e) {
-      log("SW register FAILED: " + e);
-    }
-  } else {
-    log("serviceWorker not supported");
-  }
 
   log("UA: " + nav.userAgent);
 });
