@@ -773,69 +773,58 @@ def render_top_nav(active: str = "home") -> None:
       }
 
       
-/* ===== Mobile nav (icon + text, 2-line, premium feel) ===== */
+
+/* ===== Mobile nav (text-only, minimal) ===== */
 .hn-topnav-mobile{
   display:none;
-  padding: 10px 12px 12px 12px;
+  padding: 10px 14px 12px 14px;
   max-width: 900px;
   margin: 0 auto;
 }
 .hn-mobile-bar{
   display:flex;
-  gap: 6px;
-  align-items:stretch;
+  align-items:center;
   justify-content:space-between;
+  gap: 8px;
 
-  background: rgba(255,255,255,0.92);
-  border-radius: 22px;
-  padding: 6px 6px;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.08);
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(0,0,0,0.06);
 }
 .hn-mobile-btn{
   flex:1;
-  display:flex;
-  flex-direction:column;
-  align-items:center;
-  justify-content:center;
-  gap: 3px;
-
-  padding: 10px 6px;
-  border-radius: 16px;
+  text-align:center;
   text-decoration:none !important;
-  color: #111;
 
-  border: none;
+  font-size: 14px;
+  font-weight: 650;
+  color: #555;
+
+  padding: 8px 0;
+  border-radius: 12px;
+
   background: transparent;
-
-  font-weight: 800;
-  line-height: 1;
-  min-height: 52px;
+  border: none;
   white-space: nowrap;
-  transition: background 120ms ease, transform 120ms ease;
 }
 .hn-mobile-btn:hover{
-  background: rgba(47,128,237,0.08);
-}
-.hn-mobile-btn:active{
-  transform: translateY(0.5px);
-}
-.hn-mobile-btn .hn-ico{
-  font-size: 18px;
-  line-height: 1;
-}
-.hn-mobile-btn .hn-txt{
-  font-size: 12px;
-  line-height: 1;
-  opacity: 0.92;
+  background: rgba(47,128,237,0.06);
+  color: #2f80ed;
 }
 .hn-mobile-btn.active{
-  background: rgba(47,128,237,0.14);
-  box-shadow: inset 0 0 0 1px rgba(47,128,237,0.18);
+  color: #2f80ed;
+  font-weight: 850;
+  background: rgba(47,128,237,0.08);
 }
 .hn-mobile-out{
-  width: 52px;
-  min-width: 52px;
-  flex: 0 0 52px;
+  flex: 0 0 auto;
+  padding: 8px 10px;
+  font-size: 13px;
+  font-weight: 750;
+  color: #666;
+}
+.hn-mobile-out:hover{
+  background: rgba(0,0,0,0.04);
+  color: #111;
 }
 
 /* ===== Responsive switch ===== */
@@ -866,16 +855,18 @@ def render_top_nav(active: str = "home") -> None:
         </div>
       </div>
 
+      
       <div class="hn-topnav-mobile">
         <div class="hn-mobile-bar">
-          <a class="hn-mobile-btn {'active' if active=='home' else ''}" href="{_href('home')}" target="_self"><span class="hn-ico">🏠</span><span class="hn-txt">홈</span></a>
-          <a class="hn-mobile-btn {'active' if active=='word' else ''}" href="{_href('word')}" target="_self"><span class="hn-ico">📘</span><span class="hn-txt">단어</span></a>
-          <a class="hn-mobile-btn {'active' if active=='kanji' else ''}" href="{_href('kanji')}" target="_self"><span class="hn-ico">🈶</span><span class="hn-txt">한자</span></a>
-          <a class="hn-mobile-btn {'active' if active=='talk' else ''}" href="{_href('talk')}" target="_self"><span class="hn-ico">💬</span><span class="hn-txt">회화</span></a>
-          <a class="hn-mobile-btn {'active' if active=='my' else ''}" href="{_href('my')}" target="_self"><span class="hn-ico">👤</span><span class="hn-txt">MY</span></a>
-          <a class="hn-mobile-btn hn-mobile-out" href="{_logout_href()}" target="_self" title="로그아웃"><span class="hn-ico">🚪</span><span class="hn-txt">OUT</span></a>
+          <a class="hn-mobile-btn {'active' if active=='home' else ''}" href="{_href('home')}" target="_self">홈</a>
+          <a class="hn-mobile-btn {'active' if active=='word' else ''}" href="{_href('word')}" target="_self">단어</a>
+          <a class="hn-mobile-btn {'active' if active=='kanji' else ''}" href="{_href('kanji')}" target="_self">한자</a>
+          <a class="hn-mobile-btn {'active' if active=='talk' else ''}" href="{_href('talk')}" target="_self">회화</a>
+          <a class="hn-mobile-btn {'active' if active=='my' else ''}" href="{_href('my')}" target="_self">MY</a>
+          <a class="hn-mobile-btn hn-mobile-out" href="{_logout_href()}" target="_self" title="로그아웃">OUT</a>
         </div>
       </div>
+
     </div>
     """
 
