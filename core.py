@@ -731,7 +731,7 @@ def render_top_nav(active: str = "home") -> None:
     # Some Streamlit builds behave inconsistently when <style> and HTML markup are injected
     # together in one st.markdown call. To avoid "HTML shown as text", we inject CSS first,
     # then inject markup separately.
-    css = """<style>
+    css = textwrap.dedent("""<style>
 /* ===== Hotena Top Nav ===== */
 .hn-topnav {
   position: fixed;
@@ -829,9 +829,9 @@ def render_top_nav(active: str = "home") -> None:
   .hn-right { min-width: 54px; }
   .hn-out { padding: 8px 8px; }
 }
-</style>"""
+</style>""")
 
-    markup = f"""<div class="hn-topnav">
+    markup = textwrap.dedent(f"""<div class="hn-topnav">
   <div class="inner">
     <div class="hn-left">
       <div class="hn-pill">{plan_txt}{admin_link}</div>
@@ -850,7 +850,7 @@ def render_top_nav(active: str = "home") -> None:
     </div>
   </div>
 </div>
-<div class="hn-spacer" id="hotena-top"></div>"""
+<div class="hn-spacer" id="hotena-top"></div>""")
 
     st.markdown(css, unsafe_allow_html=True)
     # 🔎 marker (helps confirm correct version is running)
