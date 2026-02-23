@@ -3091,7 +3091,10 @@ elif page == "kanji":
 elif page == "talk":
     st.session_state["hub_target"] = "talk"
     st.session_state["HUB_MODE"] = True
-    st.session_state["_entered_talk"] = True
+    # ✅ only mark "entered" when switching into talk (otherwise every rerun would reset talk state)
+    if st.session_state.get("_hub_last_target") != "talk":
+        st.session_state["_entered_talk"] = True
+    st.session_state["_hub_last_target"] = "talk"
     run_module('talk')
 else:
     # ✅ Fallback: unknown page -> go home
