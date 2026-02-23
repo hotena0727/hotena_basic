@@ -68,7 +68,16 @@ if not st.session_state.get('_page_config_set'):
     page_icon="static/icon-192.png",   # 또는 "🟦"
     layout="centered",
 )
-    
+
+st.markdown("""
+<style>
+/* Streamlit 기본 상단 바 제거 */
+header {visibility: hidden;}
+#MainMenu {visibility: hidden;}
+footer {visibility: hidden;}
+.stAppToolbar {display: none !important;}
+</style>
+""", unsafe_allow_html=True)
 
 # ============================================================
 # ✅ TOP SPACING FIX (PC + Mobile)
