@@ -1467,6 +1467,7 @@ def render_reminder_settings(sb_authed, user):
 
 
 def fire_in_app_reminder_if_enabled(user):
+    """In-app reminder is currently disabled for stability."""
     return
 
 # ============================================================
@@ -1524,6 +1525,66 @@ REMINDER_MESSAGES = [
   "시작하면 끝은 따라옵니다.",
 ]
 st.session_state["REMINDER_MESSAGES"] = REMINDER_MESSAGES
+
+
+# ============================================================
+# ✅ Logout helper (fix NameError)
+# ============================================================
+def hub_logout():
+    """Safely sign out and clear local session/cookies."""
+    try:
+        sb_local = get_authed_sb()
+        try:
+            sb_local.auth.sign_out()
+        except Exception:
+            pass
+    except Exception:
+        sb_local = None
+
+    # Clear Streamlit session_state keys used by the hub/auth
+    for k in [
+        "user",
+        "sb_authed",
+        "access_token",
+        "refresh_token",
+        "profile",
+        "progress_all",
+        "user_plan",
+        "plan",
+        "is_admin",
+        "email",
+    ]:
+        try:
+            if k in st.session_state:
+                del st.session_state[k]
+        except Exception:
+            pass
+
+    # Clear cookies (if CookieManager is used)
+    try:
+        if "access_token" in cookies:
+            del cookies["access_token"]
+        if "refresh_token" in cookies:
+            del cookies["refresh_token"]
+        _cookies_save_once_per_run()
+    except Exception:
+        pass
+
+    # Clear query params and localStorage tokens (best-effort)
+    try:
+        st.query_params.clear()
+    except Exception:
+        pass
+    try:
+        _js_set_localstorage("hotena_rt", "")
+        _js_set_localstorage("hotena_at", "")
+    except Exception:
+        pass
+
+    try:
+        st.rerun()
+    except Exception:
+        pass
 
 # ============================================================
 # ✅ UI: Login (single)
