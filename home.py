@@ -102,33 +102,6 @@ import html as html_module  # ✅ for html escaping in admin cards
 # ============================================================
 st.set_page_config(page_title="Hotena Hub", layout="centered")
 
-import streamlit as st
-
-st.markdown("""
-<style>
-/* ✅ 1) Streamlit 기본 헤더(맨 위 회색 라인 느낌) 제거 */
-[data-testid="stHeader"] { 
-  display: none;
-}
-
-/* ✅ 2) 우측 상단 툴바(점3개/Deploy 등) 영역 줄이기 */
-[data-testid="stToolbar"] {
-  display: none;
-}
-
-/* ✅ 3) 앱 전체 상단 여백(가장 큰 원인) 제거/축소 */
-section.main > div.block-container {
-  padding-top: 0.6rem;   /* 여기 숫자를 0.0rem ~ 1.0rem 사이로 조절 */
-  padding-bottom: 2rem;
-}
-
-/* ✅ 4) 최상단 컨테이너 자체가 밀려있는 경우(환경에 따라 필요) */
-[data-testid="stAppViewContainer"] {
-  padding-top: 0rem;
-}
-</style>
-""", unsafe_allow_html=True)
-
 # ====================== TOP BLOCK FORCE REMOVE ======================
 st.markdown("""
 <style>
@@ -166,169 +139,24 @@ footer {visibility: hidden;}
 # - Remove Streamlit's default top padding/space
 # - Applied once per session
 # ============================================================
-if not st.session_state.get("_top_compact_css_applied"):
-    st.markdown("""<style>
-/* === Hotena: ultra-compact top spacing (mobile + desktop) === */
-/* 핵심: block-container의 기본 top padding 제거 + 첫 요소 여백 제거 */
-section.main > div.block-container,
-div[data-testid="stAppViewContainer"] > div.block-container {
-  padding-top: 0rem !important;
-  margin-top: 0rem !important;
-}
+# ✅ TOP SPACING / HEADER COMPACT (single inject, no layout gap)
+if not st.session_state.get("_top_css_injected"):
+    components.html(
+        """
+        <style>
+          /* Remove Streamlit default top padding/margins */
+          div.block-container { padding-top: 1.0rem !important; }
+          header[data-testid="stHeader"] { height: 0 !important; }
+          div[data-testid="stToolbar"] { visibility: hidden !important; height: 0 !important; }
+          /* Tighten first element spacing */
+          .stApp > header { margin-bottom: 0 !important; }
+          div[data-testid="stVerticalBlock"] { gap: 0.6rem !important; }
+        </style>
+        """,
+        height=0,
+    )
+    st.session_state["_top_css_injected"] = True
 
-/* 첫 요소(메뉴/버튼 래퍼) 상단 여백 제거 */
-div.block-container > div:first-child {
-  margin-top: 0rem !important;
-  padding-top: 0rem !important;
-}
-
-/* Streamlit 헤더가 만드는 공간 최소화 */
-header[data-testid="stHeader"]{
-  display:none !important;
-  height:0 !important;
-  min-height:0 !important;
-}
-div[data-testid="stToolbar"]{
-  display:none !important;
-  height:0 !important;
-  visibility:hidden !important;
-}
-footer{display:none !important;}
-
-/* Container spacing: pull content to the very top */
-div[data-testid="stAppViewContainer"]{
-  padding-top: 0 !important;
-  margin-top: 0 !important;
-}
-div[data-testid="stAppViewContainer"] .block-container{
-  padding-top: 0 !important;
-  margin-top: 0 !important;
-  padding-bottom: 5.25rem !important; /* keep breathing room for bottom nav */
-}
-
-/* Headlines: tighter */
-div[data-testid="stAppViewContainer"] h1,
-div[data-testid="stAppViewContainer"] h2{
-  margin-top: 0.15rem !important;
-  margin-bottom: 0.55rem !important;
-}
-
-/* Defensive: if a child adds negative margins / weird offsets */
-div[data-testid="stAppViewContainer"] .main,
-div[data-testid="stAppViewContainer"]{
-  margin-top: 0 !important;
-}
-
-/* Tighten very top whitespace */
-.block-container > div:first-child { margin-top: 0 !important; }
-
-/* Buttons: minimum tap size + readable text */
-div[data-testid="stAppViewContainer"] .stButton > button,
-div[data-testid="stAppViewContainer"] button[kind]{
-  min-height: 44px !important;
-  padding-top: 0.55rem !important;
-  padding-bottom: 0.55rem !important;
-  font-size: 16px !important;
-  border-radius: 12px !important;
-}
-
-/* Inputs: readable */
-div[data-testid="stAppViewContainer"] input,
-div[data-testid="stAppViewContainer"] textarea{
-  font-size: 16px !important; /* prevent iOS zoom */
-}
-
-/* Selectbox / multiselect */
-div[data-testid="stAppViewContainer"] div[role="combobox"]{
-  min-height: 44px !important;
-}
-
-/* Radio/checkbox label spacing: thumb friendly */
-div[data-testid="stAppViewContainer"] div[role="radiogroup"] label,
-div[data-testid="stAppViewContainer"] label[data-baseweb="checkbox"]{
-  padding: 0.35rem 0.25rem !important;
-}
-
-/* Expander: make summary easier to tap */
-div[data-testid="stExpander"] summary{
-  padding-top: 0.35rem !important;
-  padding-bottom: 0.35rem !important;
-}
-
-/* Card-like blocks (metrics/containers) slightly tighter */
-div[data-testid="stMetric"]{
-  padding: 0.15rem 0 !important;
-}
-
-/* Mobile-only tuning */
-@media (max-width: 640px){
-  div[data-testid="stAppViewContainer"] .block-container{
-    padding-left: 1.0rem !important;
-    padding-right: 1.0rem !important;
-    padding-top: 0.15rem !important;
-    padding-bottom: 6.0rem !important;
-  }
-
-  /* Slightly larger tap targets on phones */
-  div[data-testid="stAppViewContainer"] .stButton > button,
-  div[data-testid="stAppViewContainer"] button[kind]{
-    min-height: 48px !important;
-    font-size: 16px !important;
-    border-radius: 14px !important;
-  }
-}
-
-/* ✅ Goal settings (inline, modern) */
-.goal-settings-wrap{
-  margin-top: 10px;
-  margin-bottom: 10px;
-  padding: 12px 14px;
-  border: 1px solid rgba(0,0,0,0.06);
-  border-radius: 14px;
-  background: rgba(245,247,251,0.85);
-}
-.goal-settings-head{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:10px;
-  margin-bottom: 10px;
-}
-.goal-settings-head .ttl{
-  font-weight:700;
-  font-size: 14px;
-}
-.goal-settings-head .meta{
-  font-size: 12px;
-  color: rgba(0,0,0,0.55);
-  white-space: nowrap;
-}
-.goal-bar{
-  width:100%;
-  height: 10px;
-  border-radius: 999px;
-  background: rgba(0,0,0,0.08);
-  overflow:hidden;
-  margin: 8px 0 12px;
-}
-.goal-bar > div{
-  height:100%;
-  width: var(--w, 0%);
-  border-radius: 999px;
-  background: rgba(0,0,0,0.55);
-  transition: width 420ms ease;
-}
-.goal-help{
-  margin-top: 6px;
-  font-size: 12px;
-  color: rgba(0,0,0,0.55);
-}
-
-</style>
-""",
-    unsafe_allow_html=True,
-)
-st.session_state["_page_config_set"] = True  # children should not call set_page_config
 
 BASE_DIR = Path(__file__).resolve().parent
 
