@@ -19,10 +19,11 @@ import streamlit.components.v1 as components
 # - Import (or reload) a module by name so it renders in the SAME Streamlit flow
 # ============================================================
 def run_module(module_name: str):
-    """Safely import (or reload) a module and call its render() if present.
+    """Import (or reload) a module by name so it renders in the SAME Streamlit flow.
 
-    - Import errors (including SyntaxError) should NOT crash the whole hub.
-    - If a module fails to load, we show an error and return to Home.
+    IMPORTANT:
+    - Do NOT import + reload in the same run (it executes the module twice),
+      which can cause StreamlitDuplicateElementKey for widgets defined at import time.
     """
     try:
         import sys
@@ -31,22 +32,12 @@ def run_module(module_name: str):
         else:
             mod = importlib.import_module(module_name)
 
+        # If module exposes a render() function, call it.
         if hasattr(mod, "render") and callable(getattr(mod, "render")):
             mod.render()
-        return True
-    except SyntaxError as e:
-        st.error(f"❌ '{module_name}.py' 파일에 문법 오류(SyntaxError)가 있습니다.\n\n{e}")
-    except ModuleNotFoundError as e:
-        st.error(f"❌ '{module_name}.py' 파일을 찾을 수 없습니다. 파일명이 맞는지 확인해주세요.\n\n{e}")
     except Exception as e:
-        st.error(f"❌ '{module_name}' 모듈을 불러오는 중 오류가 발생했습니다.")
         st.exception(e)
-
-    # ✅ 실패하면 홈으로 복귀 (앱이 죽지 않게)
-    st.session_state['hub_page'] = 'home'
-    return False
-
-
+        raise
 
 # ============================================================
 # ✅ LocalStorage / QueryParam persistence helpers
@@ -118,7 +109,6 @@ st.markdown("""
 /* Remove default Streamlit top spacing */
 section.main > div.block-container {
     padding-top: 0rem !important;
-    padding-bottom: 0rem !important;
     margin-top: 0rem !important;
 }
 
@@ -134,12 +124,8 @@ div[data-testid="stVerticalBlock"]:first-child {
 }
 
 /* Hide default header/footer */
-header {display:none !important; height:0 !important;}
-div[data-testid="stHeader"] {display:none !important; height:0 !important;}
-div[data-testid="stToolbar"] {display:none !important; height:0 !important;}
-div[data-testid="stDecoration"] {display:none !important; height:0 !important;}
-div[data-testid="stStatusWidget"] {display:none !important; height:0 !important;}
-footer {display:none !important; height:0 !important;}
+header {visibility: hidden;}
+footer {visibility: hidden;}
 
 </style>
 """, unsafe_allow_html=True)
@@ -160,7 +146,6 @@ if not st.session_state.get("_top_compact_css_applied"):
 section.main > div.block-container,
 div[data-testid="stAppViewContainer"] > div.block-container {
   padding-top: 0rem !important;
-    padding-bottom: 0rem !important;
   margin-top: 0rem !important;
 }
 
@@ -168,7 +153,6 @@ div[data-testid="stAppViewContainer"] > div.block-container {
 div.block-container > div:first-child {
   margin-top: 0rem !important;
   padding-top: 0rem !important;
-    padding-bottom: 0rem !important;
 }
 
 /* Streamlit 헤더가 만드는 공간 최소화 */
@@ -1483,7 +1467,6 @@ def render_reminder_settings(sb_authed, user):
 
 
 def fire_in_app_reminder_if_enabled(user):
-    """In-app reminder is currently disabled for stability."""
     return
 
 # ============================================================
@@ -1541,66 +1524,6 @@ REMINDER_MESSAGES = [
   "시작하면 끝은 따라옵니다.",
 ]
 st.session_state["REMINDER_MESSAGES"] = REMINDER_MESSAGES
-
-
-# ============================================================
-# ✅ Logout helper (fix NameError)
-# ============================================================
-def hub_logout():
-    """Safely sign out and clear local session/cookies."""
-    try:
-        sb_local = get_authed_sb()
-        try:
-            sb_local.auth.sign_out()
-        except Exception:
-            pass
-    except Exception:
-        sb_local = None
-
-    # Clear Streamlit session_state keys used by the hub/auth
-    for k in [
-        "user",
-        "sb_authed",
-        "access_token",
-        "refresh_token",
-        "profile",
-        "progress_all",
-        "user_plan",
-        "plan",
-        "is_admin",
-        "email",
-    ]:
-        try:
-            if k in st.session_state:
-                del st.session_state[k]
-        except Exception:
-            pass
-
-    # Clear cookies (if CookieManager is used)
-    try:
-        if "access_token" in cookies:
-            del cookies["access_token"]
-        if "refresh_token" in cookies:
-            del cookies["refresh_token"]
-        _cookies_save_once_per_run()
-    except Exception:
-        pass
-
-    # Clear query params and localStorage tokens (best-effort)
-    try:
-        st.query_params.clear()
-    except Exception:
-        pass
-    try:
-        _js_set_localstorage("hotena_rt", "")
-        _js_set_localstorage("hotena_at", "")
-    except Exception:
-        pass
-
-    try:
-        st.rerun()
-    except Exception:
-        pass
 
 # ============================================================
 # ✅ UI: Login (single)
