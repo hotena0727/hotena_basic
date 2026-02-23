@@ -13,6 +13,7 @@ from cryptography.fernet import Fernet
 from datetime import date, datetime, timedelta, timezone
 import streamlit as st
 import streamlit.components.v1 as components
+import core
 
 # ============================================================
 # ✅ Module runner (NO runpy/run_path)
@@ -101,13 +102,8 @@ import html as html_module  # ✅ for html escaping in admin cards
 # ✅ Page Config (Hub only)
 # ============================================================
 st.set_page_config(page_title="Hotena Hub", layout="centered")
-st.markdown("""
-<style>
-/* Remove loading skeleton */
-[data-testid="stSkeleton"] { display:none !important; }
-.css-1v0mbdj { display:none !important; }
-</style>
-""", unsafe_allow_html=True)
+core._hide_streamlit_component_iframes()  # ✅ remove gray placeholder blocks on hard refresh
+
 
 # ============================================================
 # ✅ TOP SPACING FIX (PC + Mobile)

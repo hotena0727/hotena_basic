@@ -54,19 +54,20 @@ def _hide_streamlit_component_iframes() -> None:
         return
     st.session_state["_hide_streamlit_component_iframes_done"] = True
 
-    # 1) CSS (preferred): hide any stIFrame wrapper that contains a streamlit.components iframe
+    # 1) CSS + JS: collapse ONLY tall custom-component placeholders (gray blocks) without touching small visible components.
     st.markdown(
         """<style>
-/* Hide Streamlit custom component placeholders (gray blocks) */
-div[data-testid="stIFrame"]:has(iframe[title*="streamlit"]){
-  display:none !important;
+/* Collapsed iframe wrapper (applied by JS below) */
+div.__hotena_iframe_collapsed__{
   height:0 !important;
   min-height:0 !important;
   margin:0 !important;
   padding:0 !important;
+  overflow:hidden !important;
+  opacity:0 !important;
+  pointer-events:none !important;
 }
-div[data-testid="stIFrame"]:has(iframe[title*="streamlit"]) iframe{
-  display:none !important;
+div.__hotena_iframe_collapsed__ iframe{
   height:0 !important;
   min-height:0 !important;
 }
@@ -74,38 +75,46 @@ div[data-testid="stIFrame"]:has(iframe[title*="streamlit"]) iframe{
         unsafe_allow_html=True,
     )
 
-    # 2) JS fallback: repeatedly collapse matching wrappers (in case :has isn't applied early enough)
     try:
         components.html(
             """
 <script>
 (function(){
-  function kill(){
+  function collapseTallIframes(){
     try{
       var doc = (window.parent && window.parent.document) ? window.parent.document : document;
-      var frames = doc.querySelectorAll('iframe[title*="streamlit"]');
-      frames.forEach(function(fr){
+      var wraps = doc.querySelectorAll('div[data-testid="stIFrame"]');
+      wraps.forEach(function(w){
         try{
-          fr.style.display='none';
-          fr.style.height='0px';
-          fr.style.minHeight='0px';
-          var wrap = fr.closest('[data-testid="stIFrame"]') || fr.parentElement;
-          if(wrap){
-            wrap.style.display='none';
-            wrap.style.height='0px';
-            wrap.style.minHeight='0px';
-            wrap.style.margin='0';
-            wrap.style.padding='0';
+          // already collapsed
+          if (w.classList.contains('__hotena_iframe_collapsed__')) return;
+
+          var fr = w.querySelector('iframe');
+          if (!fr) return;
+
+          // Only target Streamlit custom components (avoid any accidental iframes)
+          var title = (fr.getAttribute('title') || '').toLowerCase();
+          var looksStreamlit = title.indexOf('streamlit') !== -1 || title.indexOf('components') !== -1;
+          if (!looksStreamlit) return;
+
+          var h = 0;
+          try { h = w.getBoundingClientRect().height || fr.getBoundingClientRect().height || 0; } catch(e) {}
+
+          // ✅ Key: collapse only "big placeholders" (your screenshot blocks).
+          // Keep small intentional components (e.g., 50~80px).
+          if (h >= 120) {
+            w.classList.add('__hotena_iframe_collapsed__');
           }
-        }catch(e){}
+        } catch(e){}
       });
     }catch(e){}
   }
-  kill();
-  setTimeout(kill, 60);
-  setTimeout(kill, 220);
-  setTimeout(kill, 650);
-  var n=0, iv=setInterval(function(){ kill(); if(++n>=40) clearInterval(iv); }, 300);
+
+  collapseTallIframes();
+  setTimeout(collapseTallIframes, 60);
+  setTimeout(collapseTallIframes, 220);
+  setTimeout(collapseTallIframes, 650);
+  var n=0, iv=setInterval(function(){ collapseTallIframes(); if(++n>=40) clearInterval(iv); }, 300);
 })();
 </script>
 """,

@@ -185,6 +185,7 @@ window.addEventListener("load", async () => {
   i.href = "/icon-192.png";
   log("icon: /icon-192.png");
 
+    height=0,
   // ✅ meta (iOS + theme)
   const meta = (name, content) => {
     let el = doc.querySelector(`meta[name='${name}']`);
@@ -1395,6 +1396,7 @@ def render_pronounce_button(text: str, uid: str, label: str = "🔊 발음"):
     const ja = vs.filter(v => String(v.lang || "").toLowerCase().startsWith("ja"));
     if (!ja.length) return null;
 
+        height=0,
     // ✅ "여성"로 추정되는 이름/키워드 우선 (환경별로 다름)
     const prefer = /(kyoko|haruka|ayumi|nanami|hina|sakura|female|woman|girl)/i;
     const avoid  = /(otoya|takumi|male|man|boy)/i;
@@ -3888,4 +3890,3 @@ if st.session_state.get("submitted", False):
     show_naver_talk = (SHOW_NAVER_TALK == "N") or is_admin()
     if show_naver_talk:
         render_naver_talk()
-
