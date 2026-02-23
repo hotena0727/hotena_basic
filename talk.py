@@ -275,7 +275,8 @@ except Exception:
 all_tags = [t for t in DF["tag"].astype(str).unique().tolist() if t]
 tag_options = [t for t in ["daily", "business", "call", "interview", "travel", "shopping", "food", "emergency"] if t in all_tags]
 if not tag_options:
-    
+    # CSV에 있는 tag를 그대로 사용(우선순위 리스트와 불일치해도 앱이 죽지 않게)
+    tag_options = sorted([t for t in all_tags if str(t).strip()]) or ["general"]
 # ============================================================
 # ✅ Mode/Tag filtering (keep original layout)
 # ============================================================
