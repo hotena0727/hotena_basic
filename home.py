@@ -1347,56 +1347,67 @@ def render_float_top_anchor_button():
 
 
 def render_plan_pill():
+    """Render the plan pill (PRO/FREE) exactly once.
+
+    - Never duplicates across reruns.
+    - Avoids f-string brace issues by not using f-strings in HTML/CSS.
+    """
     plan = (st.session_state.get("user_plan") or "free").lower()
     txt = "✨ PRO 이용 중입니다" if plan == "pro" else "🆓 FREE 이용 중"
 
     is_admin = bool(st.session_state.get("is_admin", False))
     base = _hub_build_base_qs()
     href_admin = "?" + base + "p=admin"
-
     gear = f'<a class="hub-admin-gear" href="{href_admin}" target="_self" title="관리자">⚙️</a>' if is_admin else ""
 
-    # ✅ Idempotent: ensure only one pill exists even across re-runs.
-    # We inject into the parent DOM and replace the existing node by id.
-    components.html(
-        f"""
+    # Build HTML/JS safely (no f-string; inject values via placeholder replace)
+    import json as _json
+    txt_js = _json.dumps(txt)  # JS string literal
+    gear_js = _json.dumps(gear)  # JS string literal (may contain HTML)
+
+    html = r"""
 <script>
-(function(){{
-  try{{
+(function(){
+  try{
     var doc = (window.parent && window.parent.document) ? window.parent.document : document;
+
+    // remove old
     var old = doc.getElementById('__HUB_PLAN_PILL__');
     if (old) old.remove();
 
+    // create wrapper
     var wrap = doc.createElement('div');
     wrap.id = '__HUB_PLAN_PILL__';
-    wrap.innerHTML = {(
-        "<div class='hub-plan-pill'>" + txt + gear + "</div>"
-    )!r};
+
+    var txt = __TXT_JS__;
+    var gear = __GEAR_JS__;
+    wrap.innerHTML = "<div class='hub-plan-pill'>" + txt + gear + "</div>";
 
     // styles (once)
-    if (!doc.getElementById('__HUB_PLAN_PILL_STYLE__')){{
+    if (!doc.getElementById('__HUB_PLAN_PILL_STYLE__')){
       var st = doc.createElement('style');
       st.id = '__HUB_PLAN_PILL_STYLE__';
       st.textContent = `
-        #__HUB_PLAN_PILL__{{ position: fixed; top: 14px; left: 14px; z-index: 2147483647; }}
-        #__HUB_PLAN_PILL__ .hub-plan-pill{{ display:inline-flex; align-items:center; gap:.45rem; padding:.28rem .55rem; border-radius:999px;
+        #__HUB_PLAN_PILL__{ position: fixed; top: 14px; left: 14px; z-index: 2147483647; }
+        #__HUB_PLAN_PILL__ .hub-plan-pill{ display:inline-flex; align-items:center; gap:.45rem; padding:.28rem .55rem; border-radius:999px;
           border:1px solid rgba(0,0,0,.10); font-size:.86rem; opacity:.92; background:rgba(0,0,0,.02); backdrop-filter: blur(6px); }
-        #__HUB_PLAN_PILL__ .hub-admin-gear{{ display:inline-flex; align-items:center; justify-content:center; margin-left:8px; width:28px; height:28px;
+        #__HUB_PLAN_PILL__ .hub-admin-gear{ display:inline-flex; align-items:center; justify-content:center; margin-left:8px; width:28px; height:28px;
           border-radius:999px; text-decoration:none !important; border:1px solid rgba(0,0,0,.10); background:rgba(0,0,0,.02);
           font-size:16px; line-height:1; }
-        #__HUB_PLAN_PILL__ .hub-admin-gear:hover{{ background:rgba(0,0,0,.04); }}
+        #__HUB_PLAN_PILL__ .hub-admin-gear:hover{ background:rgba(0,0,0,.04); }
       `;
       doc.head.appendChild(st);
-    }}
+    }
 
     // mount
     (doc.body || doc.documentElement).appendChild(wrap);
-  }}catch(e){{}}
-}})();
+  }catch(e){}
+})();
 </script>
-""",
-        height=0,
-    )
+"""
+
+    html = html.replace('__TXT_JS__', txt_js).replace('__GEAR_JS__', gear_js)
+    components.html(html, height=0)
 
 def render_daily_goal_home(sb_authed, user_id: str):
     """Home dashboard: daily goal (sets-based). 1 set == 10 questions (quiz_len)."""
