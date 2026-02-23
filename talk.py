@@ -140,10 +140,14 @@ sb = get_sb()
 # ✅ CSV load
 # ============================================================
 BASE_DIR = Path(__file__).resolve().parent
-CSV_PATH = BASE_DIR / "data" / "talk_situations.csv"
-
-if not CSV_PATH.exists():
-    st.error(f"CSV 파일이 없습니다: {CSV_PATH}")
+CSV_CANDIDATES = [
+    BASE_DIR / "talk.csv",
+    BASE_DIR / "data" / "talk.csv",
+    BASE_DIR / "data" / "talk_situations.csv",
+]
+CSV_PATH = next((p for p in CSV_CANDIDATES if p.exists()), None)
+if CSV_PATH is None:
+    st.error("CSV 파일이 없습니다. 다음 위치 중 하나에 CSV를 두세요:\n- " + "\n- ".join([str(p) for p in CSV_CANDIDATES]))
     st.stop()
 
 
@@ -165,10 +169,25 @@ def load_csv(path: Path) -> pd.DataFrame:
     df["level"] = df["level"].astype(str).str.lower().str.strip()
     df["tag"] = df["tag"].astype(str).str.lower().str.strip()
 
+
+    # 선택 컬럼(있으면 정규화): mode/section/stage
+    if "mode" in df.columns:
+        df["mode"] = df["mode"].astype(str).str.lower().str.strip()
+    if "section" in df.columns:
+        df["section"] = df["section"].astype(str).str.lower().str.strip()
+    if "stage" in df.columns:
+        df["stage"] = df["stage"].astype(str).str.lower().str.strip()
     return df.fillna("")
 
 
 DF = load_csv(CSV_PATH)
+
+# --- Normalize core columns to avoid mismatch (spaces/case) ---
+for _col, _mode in [("tag","lower"),("level","lower"),("mode","lower"),("section","lower")]:
+    if _col in DF.columns:
+        s = DF[_col].astype(str).str.strip()
+        DF[_col] = (s.str.lower() if _mode=="lower" else s)
+
 
 # ============================================================
 # ✅ Labels
@@ -273,9 +292,24 @@ except Exception:
 # ✅ Filters (tag/level)
 # ============================================================
 all_tags = [t for t in DF["tag"].astype(str).unique().tolist() if t]
-tag_options = [t for t in ["daily", "business", "call", "interview", "travel", "shopping", "food", "emergency"] if t in all_tags]
-if not tag_options:
-    tag_options = all_tags
+BASE_TAG_ORDER = ["daily", "business", "call", "interview", "travel", "shopping", "food", "emergency"]
+
+# (선택) mode 컬럼이 있으면: business / real 분리
+MODE_LABELS = {"business": "비즈니스", "real": "실전"}
+mode = None
+if "mode" in DF.columns:
+    modes = [m for m in DF["mode"].astype(str).unique().tolist() if m and m != "nan"]
+    # 우선순위 정렬
+    ordered = [m for m in ["business", "real"] if m in modes] + [m for m in modes if m not in ["business", "real"]]
+    mode = st.selectbox("모드", options=ordered, format_func=lambda x: MODE_LABELS.get(x, x), key=f"{NS}_mode")
+
+# tag options (mode가 있으면 mode 범위 안에서만)
+df_for_tags = DF
+if mode and "mode" in DF.columns:
+    df_for_tags = DF[DF["mode"] == mode]
+
+all_tags2 = [t for t in df_for_tags["tag"].astype(str).unique().tolist() if t]
+tag_options = [t for t in BASE_TAG_ORDER if t in all_tags2] or all_tags2
 
 c1, c2 = st.columns([1.4, 1], vertical_alignment="bottom")
 with c1:
@@ -287,9 +321,18 @@ with c1:
     )
 
 with c2:
-    levels_in_data = [lv for lv in ["n5", "n4", "n3"] if lv in DF["level"].unique().tolist()]
+    # ✅ 레벨 옵션은 '선택된 tag(＋business 섹션)' 범위 안에서만 보여준다 (빈 풀 방지)
+    scope = df_for_tags.copy()
+    if "tag" in scope.columns:
+        scope = scope[scope["tag"].astype(str).str.lower().str.strip() == str(tag).lower().strip()]
+    # section 선택은 business일 때만 적용 (아직 UI가 아래에 있어도 session_state로 값이 유지됨)
+    _sec_cur = st.session_state.get(f"{NS}_section", "all")
+    if "section" in scope.columns and str(tag).lower().strip() == "business" and str(_sec_cur).lower().strip() != "all":
+        scope = scope[scope["section"].astype(str).str.lower().str.strip() == str(_sec_cur).lower().strip()]
+    levels_in_data = [lv for lv in ["n5", "n4", "n3"] if lv in scope["level"].unique().tolist()]
     if not levels_in_data:
-        levels_in_data = ["n5", "n4", "n3"]
+        # fallback: 전체 df_for_tags에서라도 표시
+        levels_in_data = [lv for lv in ["n5", "n4", "n3"] if lv in df_for_tags["level"].unique().tolist()] or ["n5", "n4", "n3"]
     level = st.selectbox(
         "레벨",
         options=levels_in_data,
@@ -307,9 +350,9 @@ SECTION_LABELS = {
     "interview": "면접",
 }
 if "section" in DF.columns and tag in ["business"]:
-    sec_candidates = DF.loc[DF["tag"] == "business", "section"].astype(str).str.lower().str.strip()
+    sec_candidates = df_for_tags.loc[df_for_tags["tag"] == "business", "section"].astype(str).str.lower().str.strip()
     sec_candidates = [s for s in sec_candidates.unique().tolist() if s and s != "nan"]
-    sec_candidates = [s for s in ["jobprep", "newcomer"] if s in sec_candidates] + [s for s in sec_candidates if s not in ["jobprep", "newcomer"]]
+    sec_candidates = [s for s in ["jobprep", "newcomer", "interview"] if s in sec_candidates] + [s for s in sec_candidates if s not in ["jobprep", "newcomer", "interview"]]
     options = ["all"] + sec_candidates
     section = st.selectbox(
         "비즈니스 섹션",
@@ -318,12 +361,28 @@ if "section" in DF.columns and tag in ["business"]:
         key=f"{NS}_section",
     )
 
-
-pool_df = DF[(DF["tag"] == tag) & (DF["level"] == level)].copy().reset_index(drop=True)
+# ------------------------------------------------------------
+# ✅ pool
+# ------------------------------------------------------------
+pool_df = DF.copy()
+if mode and "mode" in DF.columns:
+    pool_df = pool_df[pool_df["mode"] == mode]
+pool_df = pool_df[(pool_df["tag"] == tag) & (pool_df["level"] == level)].copy().reset_index(drop=True)
 if "section" in pool_df.columns and tag in ["business"] and section != "all":
     pool_df = pool_df[pool_df["section"].astype(str).str.lower().str.strip() == str(section).lower().strip()].copy().reset_index(drop=True)
 if pool_df.empty:
-    st.warning("해당 조건의 회화 문제가 없습니다. (CSV의 tag/level 확인)")
+    st.warning("해당 조건의 회화 문제가 없습니다. (CSV의 tag/level/section 조합이 현재 선택과 일치하지 않습니다)")
+    with st.expander("🔍 데이터에 실제로 존재하는 조합 보기"):
+        try:
+            show = DF.copy()
+            cols = [c for c in ["mode","tag","section","level"] if c in show.columns]
+            if cols:
+                st.dataframe(show[cols].drop_duplicates().sort_values(cols).reset_index(drop=True), use_container_width=True)
+            else:
+                st.write("mode/tag/section/level 컬럼이 없습니다.")
+        except Exception as _e:
+            st.write(_e)
+
     st.stop()
 
 # ============================================================
