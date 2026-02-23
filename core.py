@@ -25,6 +25,8 @@ import streamlit.components.v1 as components
 # ----------------------------
 # Config (env -> secrets)
 # ----------------------------
+
+st.sidebar.write("CORE LOADED ✅")
 def get_cfg(key: str) -> str:
     """Read from env first, then st.secrets. Returns '' if missing."""
     v = os.getenv(key)
