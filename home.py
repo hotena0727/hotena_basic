@@ -9,12 +9,10 @@ import importlib
 import json
 import hashlib
 import base64
-
+from cryptography.fernet import Fernet
 from datetime import date, datetime, timedelta, timezone
 import streamlit as st
 import streamlit.components.v1 as components
-
-# (lazy imports) heavy deps are imported inside functions to reduce F5 skeleton time
 
 # ============================================================
 # ✅ Module runner (NO runpy/run_path)
@@ -95,18 +93,45 @@ try {{
         pass
 
 
-
-
+from supabase import create_client
+from streamlit_cookies_manager import EncryptedCookieManager
 import html as html_module  # ✅ for html escaping in admin cards
 
 # ============================================================
 # ✅ Page Config (Hub only)
 # ============================================================
 st.set_page_config(page_title="Hotena Hub", layout="centered")
-# ✅ FAST PAINT (가장 먼저 화면에 찍기)
-_top = st.container()
-with _top:
-    st.markdown("**Pro 이용 중입니다**")  # ← 여기서 선우님 배지 UI로 바꾸셔도 OK
+
+# ============================================================
+# ✅ FAST PAINT: render plan pill mount FIRST (prevents F5 skeleton from pushing content down)
+# - This mounts a top placeholder immediately, then render_plan_pill() will "fill" it later.
+# ============================================================
+try:
+    _plan = (st.session_state.get("user_plan") or "free").lower()
+except Exception:
+    _plan = "free"
+_fast_txt = "✨ PRO 이용 중입니다" if _plan == "pro" else "🆓 FREE 이용 중"
+
+st.markdown(
+    """
+<style>
+/* Make sure the first element sticks to the very top */
+#hub_plan_mount { margin: 0 !important; padding: 0 !important; }
+.hub-plan-wrap{display:flex;justify-content:flex-start;margin:0 !important;padding:0 !important;}
+.hub-plan-pill{display:inline-flex;align-items:center;gap:.45rem;padding:.28rem .55rem;border-radius:999px;
+  border:1px solid rgba(0,0,0,.10);font-size:.86rem;opacity:.92;background:rgba(0,0,0,.02);}
+</style>
+""",
+    unsafe_allow_html=True,
+)
+
+st.markdown(
+    f'<div id="hub_plan_mount"><div class="hub-plan-wrap"><div class="hub-plan-pill">{_fast_txt}</div></div></div>',
+    unsafe_allow_html=True,
+)
+
+
+
 # ============================================================
 # ✅ TOP SPACING FIX (PC + Mobile)
 # - Remove Streamlit's default top padding/space
@@ -331,21 +356,7 @@ def _dec(token: str) -> str | None:
 # ============================================================
 cookies = st.session_state.get("cookies")
 if cookies is None:
-    try:
-
-        from streamlit_cookies_manager import EncryptedCookieManager as _ECM
-
-    except Exception:
-
-        _ECM = None
-
-    if _ECM is None:
-
-        st.error('streamlit-cookies-manager가 설치되지 않았습니다.')
-
-        st.stop()
-
-    cookies = _ECM(prefix="hotena_beginner_", password=CFG["COOKIE_PASSWORD"])
+    cookies = EncryptedCookieManager(prefix="hotena_beginner_", password=CFG["COOKIE_PASSWORD"])
     if not cookies.ready():
         st.info("잠깐만요! 곧 시작할게요🙂")
         st.stop()
@@ -372,21 +383,7 @@ def _cookies_save_once_per_run():
 # ============================================================
 sb = st.session_state.get("sb")
 if sb is None:
-    try:
-
-        from supabase import create_client as _cc
-
-    except Exception:
-
-        _cc = None
-
-    if _cc is None:
-
-        st.error('supabase-py가 설치되지 않았습니다.')
-
-        st.stop()
-
-    sb = _cc(CFG["SUPABASE_URL"], CFG["SUPABASE_ANON_KEY"])
+    sb = create_client(CFG["SUPABASE_URL"], CFG["SUPABASE_ANON_KEY"])
     st.session_state["sb"] = sb
 
 # ============================================================
@@ -481,21 +478,7 @@ def get_authed_sb():
     cached_token = st.session_state.get("sb_authed_token")
     if cached is not None and cached_token == token:
         return cached
-    try:
-
-        from supabase import create_client as _cc
-
-    except Exception:
-
-        _cc = None
-
-    if _cc is None:
-
-        st.error('supabase-py가 설치되지 않았습니다.')
-
-        st.stop()
-
-    sb2 = _cc(CFG["SUPABASE_URL"], CFG["SUPABASE_ANON_KEY"])
+    sb2 = create_client(CFG["SUPABASE_URL"], CFG["SUPABASE_ANON_KEY"])
     sb2.postgrest.auth(token)
     st.session_state["sb_authed"] = sb2
     st.session_state["sb_authed_token"] = token
@@ -1402,23 +1385,41 @@ def render_plan_pill():
 
     gear = f'<a class="hub-admin-gear" href="{href_admin}" target="_self" title="관리자">⚙️</a>' if is_admin else ""
 
-    st.markdown(
-        f"""
+    # ✅ Update the already-mounted top placeholder instead of inserting a new block (prevents duplicate + helps F5)
+    html = f"""
 <style>
-.hub-plan-wrap{{display:flex;justify-content:flex-start;margin-top:0.05rem;margin-bottom:-0.55rem;}}
+.hub-plan-wrap{{display:flex;justify-content:flex-start;margin:0 !important;padding:0 !important;}}
 .hub-plan-pill{{display:inline-flex;align-items:center;gap:.45rem;padding:.28rem .55rem;border-radius:999px;
   border:1px solid rgba(0,0,0,.10);font-size:.86rem;opacity:.92;background:rgba(0,0,0,.02);}}
 .hub-admin-gear{{display:inline-flex;align-items:center;justify-content:center;margin-left:8px;width:28px;height:28px;border-radius:999px;
   text-decoration:none !important;border:1px solid rgba(0,0,0,.10);background:rgba(0,0,0,.02);font-size:16px;line-height:1;}}
 .hub-admin-gear:hover{{background:rgba(0,0,0,.04);}}
-.hub-plan-pill a{{text-decoration:none !important;}}
 </style>
-<div class="hub-plan-wrap">
-  <div class="hub-plan-pill">{txt}{gear}</div>
-</div>
+<div class="hub-plan-wrap"><div class="hub-plan-pill">{txt}{gear}</div></div>
+"""
+
+    # If mount exists, fill it; otherwise fallback to normal markdown render
+    try:
+        components.html(
+            f"""
+<script>
+(function(){{
+  try {{
+    var doc = (window.parent && window.parent.document) ? window.parent.document : document;
+    var m = doc.getElementById("hub_plan_mount");
+    if(m) {{
+      m.innerHTML = {html!r};
+    }}
+  }} catch(e) {{}}
+}})();
+</script>
 """,
-        unsafe_allow_html=True,
-    )
+            height=0,
+        )
+        # Also render once in Streamlit flow (for cases where parent DOM isn't reachable yet)
+        st.markdown(f'<div id="hub_plan_mount">{html}</div>', unsafe_allow_html=True)
+    except Exception:
+        st.markdown(f'<div id="hub_plan_mount">{html}</div>', unsafe_allow_html=True)
 
 def render_daily_goal_home(sb_authed, user_id: str):
     """Home dashboard: daily goal (sets-based). 1 set == 10 questions (quiz_len)."""
