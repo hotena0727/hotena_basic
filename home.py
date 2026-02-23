@@ -16,6 +16,28 @@ import core
 import streamlit.components.v1 as components
 
 # ============================================================
+# ✅ Font: 일본식 한자(글리프) 우선 적용
+# ============================================================
+def _inject_jp_font_once():
+    if st.session_state.get("_jp_font_injected", False):
+        return
+    st.session_state["_jp_font_injected"] = True
+    st.markdown(
+        """
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+html, body, [class*="css"]  {
+  font-family: 'Noto Sans JP','Noto Sans KR','Yu Gothic','Hiragino Kaku Gothic ProN','Meiryo','Apple SD Gothic Neo',sans-serif !important;
+}
+</style>
+""",
+        unsafe_allow_html=True,
+    )
+
+_inject_jp_font_once()
+
+
+# ============================================================
 # ✅ Module runner (NO runpy/run_path)
 # - Import (or reload) a module by name so it renders in the SAME Streamlit flow
 # ============================================================
@@ -3090,11 +3112,6 @@ elif page == "kanji":
     run_module('app')
 elif page == "talk":
     st.session_state["hub_target"] = "talk"
-    st.session_state["HUB_MODE"] = True
-    # ✅ only mark "entered" when switching into talk (otherwise every rerun would reset talk state)
-    if st.session_state.get("_hub_last_target") != "talk":
-        st.session_state["_entered_talk"] = True
-    st.session_state["_hub_last_target"] = "talk"
     run_module('talk')
 else:
     # ✅ Fallback: unknown page -> go home
