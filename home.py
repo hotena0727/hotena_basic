@@ -102,6 +102,7 @@ import html as html_module  # ✅ for html escaping in admin cards
 # ✅ Page Config (Hub only)
 # ============================================================
 st.set_page_config(page_title="Hotena Hub", layout="centered")
+core._hide_streamlit_component_iframes()
 core.apply_compact_layout()
 core.ensure_pwa_assets()
 
