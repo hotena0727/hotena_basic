@@ -9,11 +9,9 @@ import importlib
 import json
 import hashlib
 import base64
-from cryptography.fernet import Fernet
 from datetime import date, datetime, timedelta, timezone
 import streamlit as st
 import streamlit.components.v1 as components
-import core
 
 # ============================================================
 # ✅ Module runner (NO runpy/run_path)
@@ -92,17 +90,16 @@ try {{
         )
     except Exception:
         pass
-
-
-from supabase import create_client
-from streamlit_cookies_manager import EncryptedCookieManager
 import html as html_module  # ✅ for html escaping in admin cards
 
 # ============================================================
 # ✅ Page Config (Hub only)
 # ============================================================
 st.set_page_config(page_title="Hotena Hub", layout="centered")
-core._hide_streamlit_component_iframes()  # ✅ remove gray placeholder blocks on hard refresh
+
+# ✅ FIRST PAINT: send a tiny delta ASAP (reduces F5 skeleton flash)
+st.markdown("<div style=\"height:1px\"></div>", unsafe_allow_html=True)
+
 
 
 # ============================================================
@@ -313,6 +310,7 @@ if missing:
 def _fernet():
     pw = CFG.get("COOKIE_PASSWORD", "")
     key = base64.urlsafe_b64encode(hashlib.sha256(pw.encode("utf-8")).digest())
+    from cryptography.fernet import Fernet
     return Fernet(key)
 
 def _enc(s: str) -> str:
@@ -329,6 +327,7 @@ def _dec(token: str) -> str | None:
 # ============================================================
 cookies = st.session_state.get("cookies")
 if cookies is None:
+    from streamlit_cookies_manager import EncryptedCookieManager
     cookies = EncryptedCookieManager(prefix="hotena_beginner_", password=CFG["COOKIE_PASSWORD"])
     if not cookies.ready():
         st.info("잠깐만요! 곧 시작할게요🙂")
@@ -356,6 +355,7 @@ def _cookies_save_once_per_run():
 # ============================================================
 sb = st.session_state.get("sb")
 if sb is None:
+    from supabase import create_client
     sb = create_client(CFG["SUPABASE_URL"], CFG["SUPABASE_ANON_KEY"])
     st.session_state["sb"] = sb
 
@@ -451,6 +451,7 @@ def get_authed_sb():
     cached_token = st.session_state.get("sb_authed_token")
     if cached is not None and cached_token == token:
         return cached
+    from supabase import create_client
     sb2 = create_client(CFG["SUPABASE_URL"], CFG["SUPABASE_ANON_KEY"])
     sb2.postgrest.auth(token)
     st.session_state["sb_authed"] = sb2
