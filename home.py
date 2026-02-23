@@ -12,7 +12,6 @@ import base64
 from cryptography.fernet import Fernet
 from datetime import date, datetime, timedelta, timezone
 import streamlit as st
-import core
 import streamlit.components.v1 as components
 
 # ============================================================
@@ -103,31 +102,6 @@ import html as html_module  # ✅ for html escaping in admin cards
 # ============================================================
 st.set_page_config(page_title="Hotena Hub", layout="centered")
 
-st.markdown("""
-<style>
-
-/* 🔥 Streamlit 기본 로딩 스켈레톤 완전 제거 */
-div[data-testid="stSkeleton"] {
-    display: none !important;
-}
-
-/* 상단 전체 로딩 영역 제거 */
-div[data-testid="stAppViewContainer"] > div:first-child {
-    padding-top: 0 !important;
-    margin-top: 0 !important;
-}
-
-/* 혹시 남는 회색 블록 강제 제거 */
-div[class*="skeleton"] {
-    display: none !important;
-}
-</style>
-""", unsafe_allow_html=True)
-# ✅ Kill component iframe placeholders ASAP (before any other output)
-try:
-    core.hide_component_iframe_placeholders()
-except Exception:
-    pass
 
 # ============================================================
 # ✅ TOP SPACING FIX (PC + Mobile)
@@ -171,7 +145,7 @@ div[data-testid="stAppViewContainer"]{
 div[data-testid="stAppViewContainer"] .block-container{
   padding-top: 0 !important;
   margin-top: 0 !important;
-  padding-bottom: 5.25rem !important; /* keep breathing room for bottom nav */
+  padding-bottom: 0rem !important; /* bottom nav removed (A안: top nav only) */
 }
 
 /* Headlines: tighter */
@@ -1749,6 +1723,119 @@ def _hub_build_base_qs() -> str:
         parts.append("at=" + _q(at_enc))
     return ("&".join(parts) + "&") if parts else ""
 
+
+def render_top_nav(active: str = "home"):
+    """A안: Single top navigation (PC/모바일 공통). Floating menu + bottom nav 제거용."""
+    base = _hub_build_base_qs()
+
+    def href(p: str) -> str:
+        return "?" + base + "p=" + p
+
+    # plan / admin
+    plan = (st.session_state.get("user_plan") or "free").lower()
+    plan_txt = "✨ PRO 이용 중입니다" if plan == "pro" else "🆓 FREE 이용 중"
+    is_admin = bool(st.session_state.get("is_admin", False))
+    href_admin = "?" + base + "p=admin"
+
+    html = f"""<style>
+/* ===== Top Nav (Hub) ===== */
+.hub-topbar {{
+  position: sticky;
+  top: 0;
+  z-index: 2147483000;
+  background: rgba(255,255,255,0.92);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(0,0,0,0.08);
+}}
+.hub-topbar .inner {{
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 10px 12px 8px;
+}}
+.hub-topbar .row1 {{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 10px;
+}}
+.hub-plan-pill {{
+  display:inline-flex;
+  align-items:center;
+  gap:.45rem;
+  padding:.28rem .55rem;
+  border-radius:999px;
+  border:1px solid rgba(0,0,0,.10);
+  font-size:.86rem;
+  opacity:.92;
+  background:rgba(0,0,0,.02);
+  white-space: nowrap;
+}}
+.hub-admin-gear {{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:28px;
+  height:28px;
+  border-radius:999px;
+  text-decoration:none !important;
+  border:1px solid rgba(0,0,0,.10);
+  background:rgba(0,0,0,.02);
+  font-size:16px;
+  line-height:1;
+}}
+.hub-admin-gear:hover {{ background: rgba(0,0,0,.04); }}
+
+/* nav buttons */
+.hub-topnav {{
+  margin-top: 8px;
+  display:flex;
+  gap: 10px;
+}}
+.hub-topnav a {{
+  flex: 1 1 0;
+  text-decoration:none !important;
+  color: rgba(20,20,20,0.92);
+  border: 1px solid rgba(0,0,0,0.08);
+  border-radius: 14px;
+  padding: 9px 8px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap: 6px;
+  font-size: 13px;
+  background: rgba(0,0,0,0.02);
+}}
+.hub-topnav a .ic {{ font-size: 16px; line-height:1; }}
+.hub-topnav a.active {{
+  background: rgba(0,0,0,0.88);
+  color: #fff !important;
+  border-color: rgba(0,0,0,0.88);
+}}
+/* PC에서는 버튼이 너무 커 보이면 살짝만 */
+@media (min-width: 901px) {{
+  .hub-topnav a {{ font-size: 13px; padding: 8px 8px; }}
+}}
+</style>
+
+<div class="hub-topbar">
+  <div class="inner">
+    <div class="row1">
+      <div class="hub-plan-pill">{plan_txt}</div>
+      {f'<a class="hub-admin-gear" href="{href_admin}" target="_self" title="관리자">⚙️</a>' if is_admin else ''}
+    </div>
+
+    <div class="hub-topnav">
+      <a href="{href('home')}" target="_self" class="{ 'active' if active=='home' else '' }"><span class="ic">🏠</span><span>홈</span></a>
+      <a href="{href('word')}" target="_self" class="{ 'active' if active=='word' else '' }"><span class="ic">📘</span><span>단어</span></a>
+      <a href="{href('kanji')}" target="_self" class="{ 'active' if active=='kanji' else '' }"><span class="ic">🈶</span><span>한자</span></a>
+      <a href="{href('talk')}" target="_self" class="{ 'active' if active=='talk' else '' }"><span class="ic">💬</span><span>회화</span></a>
+      <a href="{href('my')}" target="_self" class="{ 'active' if active=='my' else '' }"><span class="ic">👤</span><span>마이</span></a>
+    </div>
+  </div>
+</div>
+"""
+    st.markdown(html, unsafe_allow_html=True)
+
 def render_bottom_nav(active: str = "home"):
     """Mobile-only bottom nav. Hidden on wide screens."""
     base = _hub_build_base_qs()
@@ -3043,12 +3130,10 @@ if isinstance(p, str) and p:
     if p in allowed:
         st.session_state["hub_page"] = p
 
-# ✅ Always render floating menu + plan pill in hub mode (after auth)
-render_floating_menu()
-render_plan_pill()
+# ✅ A안: 상단 네비(공통)만 사용
 
 page = st.session_state.get("hub_page", "home")
-render_bottom_nav(active=page)
+render_top_nav(active=page)
 
 
 if page == "admin":

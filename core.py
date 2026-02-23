@@ -45,59 +45,76 @@ def get_cfg(key: str) -> str:
 
 
 
-def hide_component_iframe_placeholders() -> None:
-    """Hide Streamlit custom-component iframe *wrappers* that appear as big blank/gray blocks on hard refresh (F5).
+def _hide_streamlit_component_iframes() -> None:
+    """Hide Streamlit custom-component iframes that are used only for JS/cookies and show as gray blocks on F5.
 
-    Important: **CSS-only**.
-    Using components.html() to run JS would itself create another component iframe and can re-introduce the gap.
+    Uses CSS :has() (supported by modern Chromium/Safari) + JS fallback.
     """
-    if st.session_state.get("_core_hide_iframe_wrappers_done"):
+    if st.session_state.get("_hide_streamlit_component_iframes_done"):
         return
-    st.session_state["_core_hide_iframe_wrappers_done"] = True
+    st.session_state["_hide_streamlit_component_iframes_done"] = True
 
+    # 1) CSS (preferred): hide any stIFrame wrapper that contains a streamlit.components iframe
     st.markdown(
         """<style>
-/* ============================================================
-   ✅ Kill Streamlit component placeholders (F5 top "8 bars")
-   - Hide wrapper containers, not just the iframe.
-   - CSS-only to avoid creating new component iframes.
-   ============================================================ */
-
-/* Primary wrapper */
-div[data-testid="stIFrame"]:has(iframe[title^="streamlit.components.v1."]),
-div[data-testid="stIFrame"]:has(iframe[title*="streamlit.components"]),
-div[data-testid="stIFrame"]:has(iframe[title*="streamlit"]),
-div[data-testid="stIFrame"]:has(iframe[src*="component"]),
-div[data-testid="stIFrame"]:has(iframe[srcdoc]) {
+/* Hide Streamlit custom component placeholders (gray blocks) */
+div[data-testid="stIFrame"]:has(iframe[title^="streamlit.components.v1."]){
   display:none !important;
   height:0 !important;
   min-height:0 !important;
   margin:0 !important;
   padding:0 !important;
-  overflow:hidden !important;
 }
-
-/* In some Streamlit builds, stIFrame sits inside an element container that keeps spacing. Remove that too. */
-div[data-testid="stElementContainer"]:has(div[data-testid="stIFrame"]:has(iframe[title^="streamlit.components.v1."])),
-div[data-testid="stElementContainer"]:has(div[data-testid="stIFrame"]:has(iframe[title*="streamlit.components"])),
-div[data-testid="stElementContainer"]:has(div[data-testid="stIFrame"]:has(iframe[title*="streamlit"])),
-div[data-testid="stElementContainer"]:has(div[data-testid="stIFrame"]:has(iframe[src*="component"])),
-div[data-testid="stElementContainer"]:has(div[data-testid="stIFrame"]:has(iframe[srcdoc])) {
+div[data-testid="stIFrame"]:has(iframe[title^="streamlit.components.v1."]) iframe{
   display:none !important;
   height:0 !important;
   min-height:0 !important;
-  margin:0 !important;
-  padding:0 !important;
-  overflow:hidden !important;
 }
 </style>""",
         unsafe_allow_html=True,
     )
 
+    # 2) JS fallback: repeatedly collapse matching wrappers (in case :has isn't applied early enough)
+    try:
+        components.html(
+            """
+<script>
+(function(){
+  function kill(){
+    try{
+      var doc = (window.parent && window.parent.document) ? window.parent.document : document;
+      var frames = doc.querySelectorAll('iframe[title^="streamlit.components.v1."]');
+      frames.forEach(function(fr){
+        try{
+          fr.style.display='none';
+          fr.style.height='0px';
+          fr.style.minHeight='0px';
+          var wrap = fr.closest('[data-testid="stIFrame"]') || fr.parentElement;
+          if(wrap){
+            wrap.style.display='none';
+            wrap.style.height='0px';
+            wrap.style.minHeight='0px';
+            wrap.style.margin='0';
+            wrap.style.padding='0';
+          }
+        }catch(e){}
+      });
+    }catch(e){}
+  }
+  kill();
+  setTimeout(kill, 60);
+  setTimeout(kill, 220);
+  setTimeout(kill, 650);
+  var n=0, iv=setInterval(function(){ kill(); if(++n>=40) clearInterval(iv); }, 300);
+})();
+</script>
+""",
+            height=0,
+        )
+    except Exception:
+        pass
 
-def _hide_streamlit_component_iframes() -> None:
-    """Backward-compatible alias."""
-    hide_component_iframe_placeholders()
+
 
 def ensure_core(
     *,
