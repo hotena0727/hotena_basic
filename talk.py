@@ -236,7 +236,6 @@ def _level_label(lv: str) -> str:
     if lv.startswith("n") and len(lv) >= 2:
         return lv.upper()
     return lv.upper()
-)
 
 def render():
     _inject_jp_font()
