@@ -112,8 +112,7 @@ import html as html_module  # ✅ for html escaping in admin cards
 st.set_page_config(page_title="Hotena Hub", layout="centered")
 
 # ====================== TOP BLOCK FORCE REMOVE ======================
-st.markdown("""
-<style>
+components.html("""<style>
 
 /* Remove default Streamlit top spacing */
 section.main > div.block-container {
@@ -141,8 +140,7 @@ div[data-testid="stDecoration"] {display:none !important; height:0 !important;}
 div[data-testid="stStatusWidget"] {display:none !important; height:0 !important;}
 footer {display:none !important; height:0 !important;}
 
-</style>
-""", unsafe_allow_html=True)
+</style>""", height=0)
 # ====================================================================
 
 
@@ -154,7 +152,7 @@ footer {display:none !important; height:0 !important;}
 # - Applied once per session
 # ============================================================
 if not st.session_state.get("_top_compact_css_applied"):
-    st.markdown("""<style>
+    components.html("""<style>
 /* === Hotena: ultra-compact top spacing (mobile + desktop) === */
 /* 핵심: block-container의 기본 top padding 제거 + 첫 요소 여백 제거 */
 section.main > div.block-container,
@@ -762,9 +760,7 @@ def render_home_dashboard(sb_authed, user):
         return " ".join(["●"] * filled + ["○"] * (3 - filled))
 
     # ---- CSS ----
-    st.markdown(
-        """
-<style>
+    components.html("""<style>
   .h-wrap{margin-top:.10rem;}
   .h-top{display:flex;align-items:flex-end;justify-content:space-between;gap:.75rem;margin:.15rem 0 .45rem;}
   .h-title{font-size:1.28rem;font-weight:850;line-height:1.15;margin:0;}
@@ -2041,8 +2037,7 @@ def render_admin_dashboard(sb_authed):
 .ha-ring > div{width:36px;height:36px;border-radius:999px;background:white;display:grid;place-items:center;
   font-size:12px;font-weight:800;}
 
-</style>
-""", unsafe_allow_html=True)
+</style>""", height=0)
 
     # ---------- KPI cards ----------
     total_users = int(len(dfp)) if not dfp.empty else 0
@@ -2270,18 +2265,15 @@ def render_admin_dashboard(sb_authed):
         .ha-card{background:rgba(255,255,255,0.72);border:1px solid rgba(0,0,0,0.06);border-radius:16px;padding:16px 16px 10px;margin:0 0 14px 0;box-shadow:0 6px 18px rgba(0,0,0,0.04);}
         .ha-card h4{margin:0 0 10px 0;}
         .ha-card .stCaption{margin-top:0;}
-        </style>
-        """, unsafe_allow_html=True)
-        st.markdown("""
-        <style>
+        </style>""", height=0)
+        components.html("""<style>
         /* Admin tab layout tuning */
         div[data-testid="stHorizontalBlock"] { align-items: flex-start; }
         /* Make right panel inputs not overshoot */
         .ha-card .stSelectbox, .ha-card .stTextInput, .ha-card .stDateInput { width: 100%; }
         /* Ensure dataframe uses full width of its column */
         section.main div[data-testid="stDataFrame"] { max-width: 100%; }
-        </style>
-        """, unsafe_allow_html=True)
+        </style>""", height=0)
 
         def _rpc(name: str, params: dict | None = None):
             try:
@@ -2410,8 +2402,7 @@ def render_admin_dashboard(sb_authed):
 
                 
                 # ✅ Pretty user list (cards) instead of dataframe
-                st.markdown("""
-                <style>
+                components.html("""<style>
                 .ha-userlist{display:flex;flex-direction:column;gap:10px;margin-top:6px;}
                 .ha-urow{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;
                   padding:12px 14px;border-radius:16px;border:1px solid rgba(0,0,0,0.06);
@@ -2425,8 +2416,7 @@ def render_admin_dashboard(sb_authed):
                 .ha-b.pro{background:rgba(0,128,0,0.07);border-color:rgba(0,128,0,0.18);}
                 .ha-b.free{background:rgba(0,0,0,0.03);}
                 .ha-b.admin{background:rgba(0,0,0,0.06);border-color:rgba(0,0,0,0.12);}
-                </style>
-                """, unsafe_allow_html=True)
+                </style>""", height=0)
 
                 # --- filter: users with unread messages ---
                 unread_only = st.checkbox("📩 읽지 않은 메시지 있는 학생만", value=False, key="admin_filter_unread_only")
