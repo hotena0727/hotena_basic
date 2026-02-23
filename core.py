@@ -16,40 +16,6 @@ from typing import Any, Callable, Optional, Tuple
 
 import streamlit as st
 import streamlit.components.v1 as components
-
-
-# ----------------------------
-# Global UI: remove top blank space / Streamlit chrome
-# ----------------------------
-def apply_compact_layout() -> None:
-    """Make the app start at the very top (remove Streamlit header/toolbar padding).
-
-    Call this once early in the main entry (e.g., home.py right after set_page_config).
-    """
-    if st.session_state.get("_core_compact_layout_applied"):
-        return
-    st.session_state["_core_compact_layout_applied"] = True
-
-    st.markdown(
-        """
-<style>
-/* Hide Streamlit default header/toolbar space */
-header[data-testid="stHeader"] { height: 0 !important; }
-header[data-testid="stHeader"] * { display: none !important; }
-
-div[data-testid="stToolbar"] { height: 0 !important; visibility: hidden !important; }
-div[data-testid="stDecoration"] { height: 0 !important; display: none !important; }
-div[data-testid="stStatusWidget"] { visibility: hidden !important; }
-
-/* Remove the default top padding so content starts from the top */
-.main .block-container { padding-top: 0.35rem !important; }
-
-/* Also kill extra top padding/margin in the app container */
-section.main { padding-top: 0 !important; }
-</style>
-""",
-        unsafe_allow_html=True,
-    )
 from cryptography.fernet import Fernet
 
 try:
@@ -92,18 +58,28 @@ def _hide_streamlit_component_iframes() -> None:
     st.markdown(
         """<style>
 /* Hide Streamlit custom component placeholders (gray blocks) */
-div[data-testid="stIFrame"]:has(iframe[title^="streamlit.components.v1."]){
+div[data-testid="stIFrame"]:has(iframe[title*="streamlit"]){
   display:none !important;
   height:0 !important;
   min-height:0 !important;
   margin:0 !important;
   padding:0 !important;
 }
-div[data-testid="stIFrame"]:has(iframe[title^="streamlit.components.v1."]) iframe{
+div[data-testid="stIFrame"]:has(iframe[title*="streamlit"]) iframe{
   display:none !important;
   height:0 !important;
   min-height:0 !important;
 }
+
+/* Also hide wrappers for any iframe whose title contains 'streamlit' (version-dependent) */
+div[data-testid="stIFrame"]:has(iframe[title*="streamlit"]){
+  display:none !important;
+  height:0 !important;
+  min-height:0 !important;
+  margin:0 !important;
+  padding:0 !important;
+}
+
 </style>""",
         unsafe_allow_html=True,
     )
@@ -117,7 +93,7 @@ div[data-testid="stIFrame"]:has(iframe[title^="streamlit.components.v1."]) ifram
   function kill(){
     try{
       var doc = (window.parent && window.parent.document) ? window.parent.document : document;
-      var frames = doc.querySelectorAll('iframe[title^="streamlit.components.v1."]');
+      var frames = doc.querySelectorAll('iframe[title*="streamlit"]');
       frames.forEach(function(fr){
         try{
           fr.style.display='none';
@@ -505,7 +481,7 @@ def scroll_to_top(nonce: int = 0) -> None:
         </script>
         <!-- nonce:{nonce} -->
         """,
-        height=1,
+        height=0,
     )
 
 
@@ -702,79 +678,4 @@ def fetch_all_attempts_admin(sb_authed: Any, limit: int = 500):
         .order("created_at", desc=True)
         .limit(limit)
         .execute()
-    )
-
-def apply_compact_layout() -> None:
-    """Remove Streamlit's top/bottom chrome and pull content to the very top."""
-    if st.session_state.get("_compact_layout_applied"):
-        return
-    st.session_state["_compact_layout_applied"] = True
-
-    st.markdown(
-        """
-<style>
-/* Hide Streamlit header/toolbar/footer */
-header[data-testid="stHeader"]{display:none !important; height:0 !important;}
-div[data-testid="stToolbar"]{display:none !important; height:0 !important; visibility:hidden !important;}
-footer{display:none !important;}
-
-/* Remove top padding/margins so first element becomes the very top */
-html, body { margin:0 !important; padding:0 !important; }
-div.block-container { padding-top: 0rem !important; margin-top: 0rem !important; }
-section.main > div { padding-top: 0rem !important; }
-
-/* Sometimes Streamlit adds extra spacer blocks */
-div[data-testid="stVerticalBlock"] > div:empty { display:none !important; }
-</style>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-def ensure_pwa_assets() -> None:
-    """
-    Inject PWA assets (manifest + icons + service worker register) once per session.
-    Note: This registers SW if sw.js exists at the app root.
-    """
-    if st.session_state.get("_pwa_assets_injected"):
-        return
-    st.session_state["_pwa_assets_injected"] = True
-
-    # ✅ 상대경로 기준 (보통 repo 루트에 manifest.json / sw.js / icons/..)
-    components.html(
-        """
-<script>
-(function(){
-  // ---- helper
-  const ensureLink = (rel, href, sizes) => {
-    let q = document.querySelector(`link[rel="${rel}"][href="${href}"]`);
-    if (!q) {
-      q = document.createElement("link");
-      q.rel = rel;
-      q.href = href;
-      if (sizes) q.sizes = sizes;
-      document.head.appendChild(q);
-    }
-  };
-
-  // ---- manifest
-  ensureLink("manifest", "manifest.json");
-
-  // ---- icons (필요한 것만 존재하면 브라우저가 알아서 사용)
-  ensureLink("apple-touch-icon", "icons/apple-touch-icon.png", "180x180");
-  ensureLink("icon", "icons/icon-192.png", "192x192");
-  ensureLink("icon", "icons/icon-512.png", "512x512");
-
-  // ---- service worker (있을 때만)
-  if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.getRegistration().then((reg) => {
-      if (!reg) {
-        navigator.serviceWorker.register("sw.js").catch(()=>{});
-      }
-    });
-  }
-})();
-</script>
-        """,
-        height=0,
     )

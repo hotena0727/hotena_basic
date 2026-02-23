@@ -12,8 +12,8 @@ import base64
 from cryptography.fernet import Fernet
 from datetime import date, datetime, timedelta, timezone
 import streamlit as st
-import streamlit.components.v1 as components
 import core
+import streamlit.components.v1 as components
 
 # ============================================================
 # ✅ Module runner (NO runpy/run_path)
@@ -102,11 +102,9 @@ import html as html_module  # ✅ for html escaping in admin cards
 # ✅ Page Config (Hub only)
 # ============================================================
 st.set_page_config(page_title="Hotena Hub", layout="centered")
+
+
 core._hide_streamlit_component_iframes()
-core.apply_compact_layout()
-core.ensure_pwa_assets()
-
-
 # ============================================================
 # ✅ TOP SPACING FIX (PC + Mobile)
 # - Remove Streamlit's default top padding/space
@@ -134,9 +132,6 @@ header[data-testid="stHeader"]{
   height:0 !important;
   min-height:0 !important;
 }
-div[data-testid="stDecoration"] { display:none !important; height:0 !important; }
-div[data-testid="stAppToolbar"] { display:none !important; height:0 !important; }
-
 div[data-testid="stToolbar"]{
   display:none !important;
   height:0 !important;
@@ -620,7 +615,6 @@ def _dots_3(done_sets: int, goal_sets: int) -> str:
             filled = max(0, min(3, filled))
     return " ".join(["●"] * filled + ["○"] * (3 - filled))
 
-    core._hide_streamlit_component_iframes()
 
 def render_home_dashboard(sb_authed, user):
     """Home Hub dashboard (A++): donut + weekly heatmap + level mini bars + rows + smart CTA + compact goal gear."""
