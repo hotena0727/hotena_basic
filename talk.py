@@ -11,9 +11,6 @@ import pandas as pd
 import streamlit as st
 
 
-# ✅ deterministic seed for stable shuffles
-if "_talk_seed" not in st.session_state:
-    st.session_state["_talk_seed"] = random.randint(1, 10_000_000)
 
 # ============================================================
 # ✅ wrong_notes debug helper
@@ -120,21 +117,10 @@ sb = get_sb()
 # ✅ CSV load
 # ============================================================
 BASE_DIR = Path(__file__).resolve().parent
-CSV_CANDIDATES = [
-    BASE_DIR / "talk_situations.csv",
-    BASE_DIR / "talk.csv",
-    BASE_DIR / "data" / "talk_situations.csv",
-    BASE_DIR / "data" / "talk.csv",
-]
+CSV_PATH = BASE_DIR / "data" / "talk_situations.csv"
 
-CSV_PATH = None
-for _p in CSV_CANDIDATES:
-    if _p.exists():
-        CSV_PATH = _p
-        break
-
-if CSV_PATH is None:
-    st.error(f"CSV 파일이 없습니다: {CSV_CANDIDATES}")
+if not CSV_PATH.exists():
+    st.error(f"CSV 파일이 없습니다: {CSV_PATH}")
     st.stop()
 
 
@@ -154,15 +140,7 @@ def load_csv(path: Path) -> pd.DataFrame:
 
     # level/tag 소문자
     df["level"] = df["level"].astype(str).str.lower().str.strip()
-    df["tag"] = df["tag"].astype(str).str.lower().str.strip().str.replace(" ", "_").str.replace("-", "_")
-
-    # optional columns
-    if "mode" in df.columns:
-        df["mode"] = df["mode"].astype(str).str.lower().str.strip()
-    if "section" in df.columns:
-        df["section"] = df["section"].astype(str).str.lower().str.strip().str.replace(" ", "_").str.replace("-", "_")
-    if "stage" in df.columns:
-        df["stage"] = df["stage"].astype(str).str.strip()
+    df["tag"] = df["tag"].astype(str).str.lower().str.strip()
 
     return df.fillna("")
 
@@ -183,7 +161,6 @@ TAG_LABELS = {
     "emergency": "긴급/트러블",
 }
 LEVEL_LABELS = {"n5": "N5", "n4": "N4", "n3": "N3"}
-MODE_LABELS = {"business": "비즈니스", "real": "실전"}
 
 # ============================================================
 # ✅ Progress I/O (profiles.progress)
@@ -270,43 +247,45 @@ except Exception:
     pass
 
 # ============================================================
-# ✅ Filters (tag/level)
+# ✅ Filters (상황(tag) → 레벨(level))  ※ 실전회화만 노출
 # ============================================================
-all_tags = [t for t in DF["tag"].astype(str).unique().tolist() if t]
-tag_options = [t for t in ["daily", "business", "call", "interview", "travel", "shopping", "food", "emergency"] if t in all_tags]
+
+# --- normalize (비교 실패/공백 문제 방지) ---
+for _c in ["mode", "tag", "level"]:
+    if _c in DF.columns:
+        DF[_c] = DF[_c].astype(str).fillna("").str.strip()
+
+if "mode" in DF.columns:
+    DF["mode"] = DF["mode"].str.lower()
+if "tag" in DF.columns:
+    DF["tag"] = DF["tag"].str.lower().str.replace(r"[\s\-]+", "_", regex=True)
+if "level" in DF.columns:
+    # n3/N3/3 혼재 방지: n3 형태로 통일
+    DF["level"] = DF["level"].str.lower().str.replace(" ", "")
+
+# --- 실전회화만 사용 (business 데이터는 CSV에 남겨두되 UI에서 제외) ---
+DF_BASE = DF.copy()
+if "mode" in DF_BASE.columns:
+    DF_BASE = DF_BASE[DF_BASE["mode"] == "real"].copy()
+
+# --- 상황(tag) 옵션: DF_BASE 기준 ---
+all_tags = [t for t in DF_BASE["tag"].astype(str).unique().tolist() if t]
+# business 같은 중복/혼란 태그는 숨김
+all_tags = [t for t in all_tags if t not in {"business"}]
+
+# 보기 순서(추천) - 데이터가 없으면 그냥 전체
+preferred_order = ["daily", "travel", "food", "shopping", "call", "emergency", "interview"]
+tag_options = [t for t in preferred_order if t in all_tags]
 if not tag_options:
-    # CSV에 있는 tag를 그대로 사용(우선순위 리스트와 불일치해도 앱이 죽지 않게)
-    tag_options = sorted([t for t in all_tags if str(t).strip()]) or ["general"]
-# ============================================================
-# ✅ Mode/Tag filtering (keep original layout)
-# ============================================================
-has_mode_col = "mode" in DF.columns
-has_section_col = "section" in DF.columns
+    tag_options = sorted(all_tags)
 
-# mode select (표시는 한글, 내부는 영어)
-if has_mode_col:
-    mode_options = sorted([m for m in DF["mode"].dropna().unique().tolist() if str(m).strip()]) or ["real"]
-    mode = st.selectbox(
-        "모드 선택",
-        options=mode_options,
-        format_func=lambda x: MODE_LABELS.get(x, x),
-        key=f"{NS}_mode",
-    )
-else:
-    mode = st.session_state.get(f"{NS}_mode", "real")
-
-# business mode에서는 business 데이터만, real mode에서는 나머지(또는 전체)로 제한
-if has_mode_col:
-    DF_MODE = DF[DF["mode"] == mode].copy()
-else:
-    # mode 컬럼이 없으면 tag로 추정 (business 관련 태그만 business로)
-    business_like = {"business", "interview", "call", "jobprep", "office"}
-    if mode == "business":
-        DF_MODE = DF[DF["tag"].isin(business_like)].copy()
-    else:
-        DF_MODE = DF.copy()
-
-tag_options = all_tags
+# tag 변경 시 level이 유효하지 않으면 초기화
+_prev_tag = st.session_state.get(f"_{NS}_prev_tag")
+if _prev_tag != st.session_state.get(f"{NS}_tag"):
+    st.session_state[f"_{NS}_prev_tag"] = st.session_state.get(f"{NS}_tag")
+    # 레벨이 이전 선택값으로 남아 충돌하는 걸 방지
+    if f"{NS}_level" in st.session_state:
+        del st.session_state[f"{NS}_level"]
 
 c1, c2 = st.columns([1.4, 1], vertical_alignment="bottom")
 with c1:
@@ -317,31 +296,21 @@ with c1:
         key=f"{NS}_tag",
     )
 
-# business section(취업준비/면접/직장기본 등) - section 컬럼이 있을 때만
-section = None
-if has_section_col and (mode == "business"):
-    secs = sorted([s for s in DF_MODE["section"].dropna().unique().tolist() if str(s).strip()])
-    if secs:
-        section = st.selectbox(
-            "비즈니스 섹션",
-            options=["전체"] + secs,
-            format_func=lambda x: x if x == "전체" else x,  # 필요하면 여기서 한글 매핑 추가
-            key=f"{NS}_section",
-        )
+# --- 레벨 옵션: 선택된 tag에 실제로 존재하는 level만 ---
+_df_tag = DF_BASE[DF_BASE["tag"] == tag].copy() if "tag" in DF_BASE.columns else DF_BASE.copy()
+levels_in_data = sorted([lv for lv in _df_tag["level"].unique().tolist() if str(lv).strip()])
+preferred_lv = [lv for lv in ["n5", "n4", "n3", "n2", "n1"] if lv in levels_in_data]
+levels_in_data = preferred_lv or levels_in_data or ["n4", "n3"]
 
 with c2:
-    levels_in_data = [lv for lv in ["n5", "n4", "n3"] if lv in DF_MODE["level"].unique().tolist()]
-    if not levels_in_data:
-        levels_in_data = ["n5", "n4", "n3"]
     level = st.selectbox(
         "레벨",
         options=levels_in_data,
-        format_func=lambda x: LEVEL_LABELS.get(x, x.upper()),
+        format_func=lambda x: LEVEL_LABELS.get(x, str(x).upper()),
         key=f"{NS}_level",
     )
 
-
-pool_df = DF_MODE[(DF["tag"] == tag) & (DF["level"] == level)].copy().reset_index(drop=True)
+pool_df = DF_BASE[(DF_BASE["tag"] == tag) & (DF_BASE["level"] == level)].copy().reset_index(drop=True)
 if pool_df.empty:
     st.warning("해당 조건의 회화 문제가 없습니다. (CSV의 tag/level 확인)")
     st.stop()
@@ -399,10 +368,6 @@ def tts_button(text: str, label: str, key: str):
 # ============================================================
 
 def build_choices(row: dict, pool_answers: list[str]) -> list[str]:
-    qid = str(row.get("qid","")).strip()
-    seed = f"{st.session_state.get('_talk_seed', 0)}::{qid}"
-    rng = random.Random(seed)
-
     correct = str(row.get("answer_jp", "")).strip()
     picks: list[str] = []
 
@@ -414,12 +379,12 @@ def build_choices(row: dict, pool_answers: list[str]) -> list[str]:
 
     if len(picks) < 3:
         cand = [a for a in pool_answers if a and a != correct and a not in picks]
-        rng.shuffle(cand)
+        random.shuffle(cand)
         picks += cand[: (3 - len(picks))]
 
     picks = picks[:3]
     choices = picks + [correct]
-    rng.shuffle(choices)
+    random.shuffle(choices)
     return choices
 
 
