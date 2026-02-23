@@ -19,11 +19,10 @@ import streamlit.components.v1 as components
 # - Import (or reload) a module by name so it renders in the SAME Streamlit flow
 # ============================================================
 def run_module(module_name: str):
-    """Import (or reload) a module by name so it renders in the SAME Streamlit flow.
+    """Safely import (or reload) a module and call its render() if present.
 
-    IMPORTANT:
-    - Do NOT import + reload in the same run (it executes the module twice),
-      which can cause StreamlitDuplicateElementKey for widgets defined at import time.
+    - Import errors (including SyntaxError) should NOT crash the whole hub.
+    - If a module fails to load, we show an error and return to Home.
     """
     try:
         import sys
@@ -32,12 +31,22 @@ def run_module(module_name: str):
         else:
             mod = importlib.import_module(module_name)
 
-        # If module exposes a render() function, call it.
         if hasattr(mod, "render") and callable(getattr(mod, "render")):
             mod.render()
+        return True
+    except SyntaxError as e:
+        st.error(f"❌ '{module_name}.py' 파일에 문법 오류(SyntaxError)가 있습니다.\n\n{e}")
+    except ModuleNotFoundError as e:
+        st.error(f"❌ '{module_name}.py' 파일을 찾을 수 없습니다. 파일명이 맞는지 확인해주세요.\n\n{e}")
     except Exception as e:
+        st.error(f"❌ '{module_name}' 모듈을 불러오는 중 오류가 발생했습니다.")
         st.exception(e)
-        raise
+
+    # ✅ 실패하면 홈으로 복귀 (앱이 죽지 않게)
+    st.session_state['hub_page'] = 'home'
+    return False
+
+
 
 # ============================================================
 # ✅ LocalStorage / QueryParam persistence helpers
@@ -102,6 +111,42 @@ import html as html_module  # ✅ for html escaping in admin cards
 # ============================================================
 st.set_page_config(page_title="Hotena Hub", layout="centered")
 
+# ====================== TOP BLOCK FORCE REMOVE ======================
+st.markdown("""
+<style>
+
+/* Remove default Streamlit top spacing */
+section.main > div.block-container {
+    padding-top: 0rem !important;
+    padding-bottom: 0rem !important;
+    margin-top: 0rem !important;
+}
+
+/* Remove empty vertical blocks completely */
+div[data-testid="stVerticalBlock"]:empty {
+    display: none !important;
+}
+
+/* Remove first block spacing */
+div[data-testid="stVerticalBlock"]:first-child {
+    margin-top: 0 !important;
+    padding-top: 0 !important;
+}
+
+/* Hide default header/footer */
+header {display:none !important; height:0 !important;}
+div[data-testid="stHeader"] {display:none !important; height:0 !important;}
+div[data-testid="stToolbar"] {display:none !important; height:0 !important;}
+div[data-testid="stDecoration"] {display:none !important; height:0 !important;}
+div[data-testid="stStatusWidget"] {display:none !important; height:0 !important;}
+footer {display:none !important; height:0 !important;}
+
+</style>
+""", unsafe_allow_html=True)
+# ====================================================================
+
+
+
 
 # ============================================================
 # ✅ TOP SPACING FIX (PC + Mobile)
@@ -115,6 +160,7 @@ if not st.session_state.get("_top_compact_css_applied"):
 section.main > div.block-container,
 div[data-testid="stAppViewContainer"] > div.block-container {
   padding-top: 0rem !important;
+    padding-bottom: 0rem !important;
   margin-top: 0rem !important;
 }
 
@@ -122,6 +168,7 @@ div[data-testid="stAppViewContainer"] > div.block-container {
 div.block-container > div:first-child {
   margin-top: 0rem !important;
   padding-top: 0rem !important;
+    padding-bottom: 0rem !important;
 }
 
 /* Streamlit 헤더가 만드는 공간 최소화 */
@@ -364,10 +411,6 @@ if sb is None:
 def refresh_session_from_cookie_if_needed(force: bool = False) -> bool:
     if not force and st.session_state.get("user") and st.session_state.get("access_token"):
         return True
-
-    # Bridge localStorage -> query params once
-    _js_bridge_localstorage_to_queryparam("hotena_rt", "rt")
-    _js_bridge_localstorage_to_queryparam("hotena_at", "at")
 
     rt = None
     at = None
@@ -1440,58 +1483,8 @@ def render_reminder_settings(sb_authed, user):
 
 
 def fire_in_app_reminder_if_enabled(user):
-    """If reminder is enabled, schedule an in-app notification when the app is open."""
-    progress_all = st.session_state.get("progress_all", {}) or {}
-    rem = progress_all.get("reminder") or {}
-    enabled = bool(rem.get("enabled", True))
-    time_str = rem.get("time", "09:00")
-
-    if not enabled:
-        return
-
-    try:
-        hh, mm = [int(x) for x in time_str.split(":")]
-        now = datetime.now()
-        target = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
-        if target <= now:
-            # next day
-            target = target.replace(day=now.day)  # keep structure; safe fallback
-            target = target + (datetime(now.year, now.month, now.day) - datetime(now.year, now.month, now.day))
-        delay_ms = max(1000, int((target - now).total_seconds() * 1000))
-    except Exception:
-        delay_ms = 0
-
-    msg = json.dumps(daily_message(str(user.id)))
-    components.html(
-        f"""
-<script>
-  (function(){{
-    try {{
-      const delay = {delay_ms};
-      const message = {msg};
-      if (delay <= 0) return;
-      setTimeout(() => {{
-        try {{
-          if (typeof Notification !== 'undefined') {{
-            if (Notification.permission === 'granted') {{
-              new Notification('하테나일본어', {{ body: message }});
-            }}
-          }}
-          // Fallback: simple alert-like toast
-          const t = document.createElement('div');
-          t.textContent = message;
-          t.style.cssText = 'position:fixed;left:50%;bottom:16px;transform:translateX(-50%);padding:10px 14px;background:rgba(20,20,20,0.92);color:#fff;border-radius:12px;font-size:14px;z-index:2147483647;';
-          document.body.appendChild(t);
-          setTimeout(()=>t.remove(), 4500);
-        }} catch(e) {{}}
-      }}, delay);
-    }} catch(e) {{}}
-  }})();
-</script>
-""",
-        height=0,
-    )
-
+    """In-app reminder is currently disabled for stability."""
+    return
 
 # ============================================================
 # 🔔 Reminder messages (혼합 50)
@@ -1548,6 +1541,66 @@ REMINDER_MESSAGES = [
   "시작하면 끝은 따라옵니다.",
 ]
 st.session_state["REMINDER_MESSAGES"] = REMINDER_MESSAGES
+
+
+# ============================================================
+# ✅ Logout helper (fix NameError)
+# ============================================================
+def hub_logout():
+    """Safely sign out and clear local session/cookies."""
+    try:
+        sb_local = get_authed_sb()
+        try:
+            sb_local.auth.sign_out()
+        except Exception:
+            pass
+    except Exception:
+        sb_local = None
+
+    # Clear Streamlit session_state keys used by the hub/auth
+    for k in [
+        "user",
+        "sb_authed",
+        "access_token",
+        "refresh_token",
+        "profile",
+        "progress_all",
+        "user_plan",
+        "plan",
+        "is_admin",
+        "email",
+    ]:
+        try:
+            if k in st.session_state:
+                del st.session_state[k]
+        except Exception:
+            pass
+
+    # Clear cookies (if CookieManager is used)
+    try:
+        if "access_token" in cookies:
+            del cookies["access_token"]
+        if "refresh_token" in cookies:
+            del cookies["refresh_token"]
+        _cookies_save_once_per_run()
+    except Exception:
+        pass
+
+    # Clear query params and localStorage tokens (best-effort)
+    try:
+        st.query_params.clear()
+    except Exception:
+        pass
+    try:
+        _js_set_localstorage("hotena_rt", "")
+        _js_set_localstorage("hotena_at", "")
+    except Exception:
+        pass
+
+    try:
+        st.rerun()
+    except Exception:
+        pass
 
 # ============================================================
 # ✅ UI: Login (single)
@@ -1663,169 +1716,6 @@ def nav_to(page: str):
     _clear_training_ui_state()
     st.session_state["hub_page"] = page
     st.rerun()
-
-
-def hub_logout():
-    # ✅ clear cookie/local persistence + session state
-    try:
-        cookies["access_token"] = ""
-        cookies["refresh_token"] = ""
-        _cookies_save_once_per_run()
-    except Exception:
-        pass
-
-    # clear query params (e.g., rt/at/p)
-    try:
-        st.query_params.clear()
-    except Exception:
-        pass
-
-    # clear localStorage persistence
-    try:
-        _js_remove_localstorage("hotena_rt")
-        _js_remove_localstorage("hotena_at")
-    except Exception:
-        pass
-
-    for k in [
-        "user","access_token","refresh_token","sb_authed","sb_authed_token",
-        "progress_all","hub_page","HUB_MODE"
-    ]:
-        st.session_state.pop(k, None)
-
-    st.rerun()
-def render_floating_menu():
-    """✅ Floating hamburger menu (Hub)
-    - Uses pure HTML/CSS toggle.
-    - Navigation keeps encrypted rt/at query params (so login persists when cookies are blocked).
-    - No f-string inside CSS (avoids { } parsing issues) and no inline JS (CSP-safe).
-    """
-    try:
-        rt_enc = st.query_params.get("rt", "")
-        at_enc = st.query_params.get("at", "")
-    except Exception:
-        rt_enc, at_enc = "", ""
-
-    def _q(s: str) -> str:
-        try:
-            import urllib.parse
-            return urllib.parse.quote(s, safe="") if s else ""
-        except Exception:
-            return s or ""
-
-    base = ""
-    if rt_enc:
-        base += "rt=" + _q(rt_enc) + "&"
-    if at_enc:
-        base += "at=" + _q(at_enc) + "&"
-
-    href_home = "?" + base + "p=home"
-    href_word = "?" + base + "p=word"
-    href_kanji = "?" + base + "p=kanji"
-    href_talk = "?" + base + "p=talk"
-    href_my   = "?" + base + "p=my"
-    href_rem  = "?" + base + "p=reminder"
-    href_out  = "?" + base + "action=logout"
-
-    html = """<style>
-/* ===== Floating Menu (Hub) ===== */
-.hub-float-wrap{
-  position: fixed;
-  top: 3.1rem;
-  left: 0.65rem;
-  z-index: 2147483647;
-  font-family: inherit;
-}
-#hub_menu_toggle{ display:none; }
-.hub-menu-btn{
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  width: 48px; height: 48px;
-  border-radius: 12px;
-  background: rgba(20,20,20,0.92);
-  color: #fff;
-  font-size: 22px;
-  cursor: pointer;
-  box-shadow: 0 6px 20px rgba(0,0,0,0.18);
-  user-select:none;
-}
-.hub-menu-panel{
-  position: fixed;
-  top: 0; left: 0;
-  height: 100vh;
-  width: min(78vw, 320px);
-  background: rgba(255,255,255,0.98);
-  backdrop-filter: blur(10px);
-  border-right: 1px solid rgba(0,0,0,0.08);
-  transform: translateX(-110%);
-  transition: transform 180ms ease;
-  z-index: 99999;
-  padding: 0.9rem 0.9rem 1.2rem;
-}
-.hub-menu-panel .hub-menu-title{
-  font-weight: 700;
-  font-size: 1.05rem;
-  margin: 0.2rem 0 0.8rem;
-}
-.hub-menu-panel a{
-  display:block;
-  padding: 0.85rem 0.85rem;
-  margin: 0.25rem 0;
-  border-radius: 12px;
-  text-decoration: none;
-  color: rgba(10,10,10,0.92);
-  border: 1px solid rgba(0,0,0,0.06);
-}
-.hub-menu-panel a:active{
-  transform: scale(0.99);
-}
-.hub-menu-overlay{
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.35);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 180ms ease;
-  z-index: 99998;
-}
-#hub_menu_toggle:checked ~ .hub-menu-panel{ transform: translateX(0); }
-#hub_menu_toggle:checked ~ .hub-menu-overlay{
-  opacity: 1;
-  pointer-events: auto;
-}
-</style>
-
-<div class="hub-float-wrap">
-  <input type="checkbox" id="hub_menu_toggle" />
-  <label class="hub-menu-btn" for="hub_menu_toggle" aria-label="menu">☰</label>
-
-  <div class="hub-menu-panel">
-    <div class="hub-menu-title">메뉴</div>
-    <a href="__HREF_HOME__" target="_self">🏠 홈</a>
-    <a href="__HREF_WORD__" target="_self">📘 단어</a>
-    <a href="__HREF_KANJI__" target="_self">🈶 한자</a>
-    <a href="__HREF_TALK__" target="_self">💬 회화</a>
-    <a href="__HREF_MY__" target="_self">👤 마이페이지</a>
-    <a href="__HREF_REM__" target="_self">🔔 알림 설정</a>
-    <a href="__HREF_OUT__" target="_self">🚪 로그아웃</a>
-    <div style="height:0.6rem"></div>
-    <div style="font-size:0.85rem; opacity:0.7;">Tip: 바깥을 누르면 닫힙니다.</div>
-  </div>
-
-  <label class="hub-menu-overlay" for="hub_menu_toggle"></label>
-</div>
-"""
-
-    html = (html.replace("__HREF_HOME__", href_home)
-                .replace("__HREF_WORD__", href_word)
-                .replace("__HREF_KANJI__", href_kanji)
-                .replace("__HREF_TALK__", href_talk)
-                .replace("__HREF_MY__", href_my)
-                .replace("__HREF_REM__", href_rem)
-                .replace("__HREF_OUT__", href_out))
-
-    st.markdown(html, unsafe_allow_html=True)
 
 # ============================================================
 # ✅ Bottom Nav (Mobile) + Training Header (A/B)
@@ -2492,10 +2382,10 @@ def render_admin_dashboard(sb_authed):
             # --- layout: list + detail (✅ full width) ---
 
 
-            left = st.container()
+            # left = st.container()
 
 
-            right = st.container()
+            # right = st.container()
 
             with left:
                 st.caption(f"검색 결과: {len(uf):,}명 / 전체: {len(u):,}명")
