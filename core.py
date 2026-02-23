@@ -57,15 +57,25 @@ def _hide_streamlit_component_iframes() -> None:
     # 1) CSS (preferred): hide any stIFrame wrapper that contains a streamlit.components iframe
     st.markdown(
         """<style>
-/* Hide Streamlit custom component placeholders (gray blocks) */
-div[data-testid="stIFrame"]:has(iframe[title^="streamlit.components.v1."]){
+/* ✅ Hide Streamlit custom-component placeholders (gray blocks) */
+/* We target iframes used by streamlit.components.v1 / cookies manager / srcdoc-based components */
+div[data-testid="stIFrame"]:has(iframe[title^="streamlit.components.v1."]),
+div[data-testid="stIFrame"]:has(iframe[title*="streamlit"]),
+div[data-testid="stIFrame"]:has(iframe[title*="components"]),
+div[data-testid="stIFrame"]:has(iframe[src*="component"]),
+div[data-testid="stIFrame"]:has(iframe[srcdoc]){
   display:none !important;
   height:0 !important;
   min-height:0 !important;
   margin:0 !important;
   padding:0 !important;
+  overflow:hidden !important;
 }
-div[data-testid="stIFrame"]:has(iframe[title^="streamlit.components.v1."]) iframe{
+div[data-testid="stIFrame"]:has(iframe[title^="streamlit.components.v1."]) iframe,
+div[data-testid="stIFrame"]:has(iframe[title*="streamlit"]) iframe,
+div[data-testid="stIFrame"]:has(iframe[title*="components"]) iframe,
+div[data-testid="stIFrame"]:has(iframe[src*="component"]) iframe,
+div[data-testid="stIFrame"]:has(iframe[srcdoc]) iframe{
   display:none !important;
   height:0 !important;
   min-height:0 !important;
@@ -83,29 +93,37 @@ div[data-testid="stIFrame"]:has(iframe[title^="streamlit.components.v1."]) ifram
   function kill(){
     try{
       var doc = (window.parent && window.parent.document) ? window.parent.document : document;
-      var frames = doc.querySelectorAll('iframe[title^="streamlit.components.v1."]');
-      frames.forEach(function(fr){
+      var wrappers = doc.querySelectorAll('[data-testid="stIFrame"]');
+      wrappers.forEach(function(w){
         try{
-          fr.style.display='none';
-          fr.style.height='0px';
-          fr.style.minHeight='0px';
-          var wrap = fr.closest('[data-testid="stIFrame"]') || fr.parentElement;
-          if(wrap){
-            wrap.style.display='none';
-            wrap.style.height='0px';
-            wrap.style.minHeight='0px';
-            wrap.style.margin='0';
-            wrap.style.padding='0';
+          var fr = w.querySelector('iframe');
+          if(!fr) return;
+
+          var t = (fr.getAttribute('title') || '').toLowerCase();
+          var s = (fr.getAttribute('src') || '').toLowerCase();
+          var isComp = t.indexOf('streamlit')>=0 || t.indexOf('components')>=0 || s.indexOf('component')>=0 || fr.hasAttribute('srcdoc');
+
+          if(isComp){
+            w.style.display='none';
+            w.style.height='0px';
+            w.style.minHeight='0px';
+            w.style.margin='0';
+            w.style.padding='0';
+            w.style.overflow='hidden';
+            fr.style.display='none';
+            fr.style.height='0px';
+            fr.style.minHeight='0px';
           }
         }catch(e){}
       });
     }catch(e){}
   }
   kill();
-  setTimeout(kill, 60);
-  setTimeout(kill, 220);
-  setTimeout(kill, 650);
-  var n=0, iv=setInterval(function(){ kill(); if(++n>=40) clearInterval(iv); }, 300);
+  setTimeout(kill, 30);
+  setTimeout(kill, 120);
+  setTimeout(kill, 260);
+  setTimeout(kill, 520);
+  var n=0, iv=setInterval(function(){ kill(); if(++n>=40) clearInterval(iv); }, 250);
 })();
 </script>
 """,
@@ -669,3 +687,11 @@ def fetch_all_attempts_admin(sb_authed: Any, limit: int = 500):
         .limit(limit)
         .execute()
     )
+
+
+# ----------------------------
+# UI cleanup (hide component placeholders)
+# ----------------------------
+def hide_component_iframe_placeholders() -> None:
+    """Public wrapper: hide gray placeholder blocks created by components.html/cookies iframe."""
+    _hide_streamlit_component_iframes()
