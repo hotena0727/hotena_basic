@@ -103,7 +103,7 @@ import html as html_module  # ✅ for html escaping in admin cards
 # ✅ Page Config (Hub only)
 # ============================================================
 st.set_page_config(page_title="Hotena Hub", layout="centered")
-
+raise RuntimeError("✅ HOME.PY가 지금 실행 중입니다 (마커)")
 
 # ============================================================
 # ✅ TOP SPACING FIX (PC + Mobile)
