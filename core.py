@@ -677,97 +677,186 @@ def fetch_all_attempts_admin(sb_authed: Any, limit: int = 500):
 # ----------------------------
 
 def render_top_nav(active: str = "home") -> None:
-    """Render sticky top navigation for hub (Home/Word/Kanji/Talk/My).
-    - Preserves rt/at query params if present (to keep auth across clicks).
-    - Designed to be called ONCE per run (guarded).
     """
-    if st.session_state.get("_hn_topnav_rendered"):
-        return
-    st.session_state["_hn_topnav_rendered"] = True
+    ✅ Responsive top navigation
+    - Desktop: tab-style top nav
+    - Mobile: icon + text (one-line) nav (old bottom-nav feeling moved to top)
+    - Preserves rt/at query params for session continuity
+    """
+    import streamlit as st
+    import textwrap
+    from urllib.parse import urlencode
 
-    # Preserve tokens from URL if present (already URL-encoded).
-    rt = st.query_params.get("rt")
-    at = st.query_params.get("at")
+    qp = st.query_params
+    rt = qp.get("rt", "")
+    at = qp.get("at", "")
+    base = {}
+    if rt:
+        base["rt"] = rt
+    if at:
+        base["at"] = at
 
     def _href(p: str) -> str:
-        q = {}
-        if isinstance(rt, str) and rt:
-            q["rt"] = rt
-        if isinstance(at, str) and at:
-            q["at"] = at
+        q = dict(base)
         q["p"] = p
-        return "?" + urllib.parse.urlencode(q)
+        return "?" + urlencode(q)
 
-    def _href_action(action: str) -> str:
-        q = {}
-        if isinstance(rt, str) and rt:
-            q["rt"] = rt
-        if isinstance(at, str) and at:
-            q["at"] = at
-        q["action"] = action
-        return "?" + urllib.parse.urlencode(q)
+    def _logout_href() -> str:
+        q = dict(base)
+        q["action"] = "logout"
+        return "?" + urlencode(q)
 
-    css = textwrap.dedent("""        <style>
-      .hn-topnav-wrap{ position: sticky; top: 0; z-index: 999; }
-      .hn-topnav{
-        display:flex; align-items:center; justify-content:space-between;
-        gap:12px;
-        padding:10px 12px;
-        border-radius: 14px;
-        background: rgba(255,255,255,0.85);
+    css = textwrap.dedent("""
+    <style>
+      .hn-topnav-wrap{
+        position: sticky;
+        top: 0;
+        z-index: 9999;
+        background: rgba(255,255,255,0.94);
         backdrop-filter: blur(10px);
         -webkit-backdrop-filter: blur(10px);
-        border: 1px solid rgba(15,23,42,0.08);
-        box-shadow: 0 8px 24px rgba(15,23,42,0.06);
+        border-bottom: 1px solid rgba(0,0,0,0.06);
       }
-      .hn-tabs{ display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+
+      /* ===== Desktop nav ===== */
+      .hn-topnav-desktop{
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap: 12px;
+        padding: 10px 12px;
+        max-width: 1200px;
+        margin: 0 auto;
+      }
+      .hn-tabs{
+        display:flex;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
       .hn-tabs a{
+        display:inline-flex;
+        align-items:center;
+        gap: 8px;
+        padding: 8px 10px;
+        border-radius: 14px;
         text-decoration:none !important;
-        font-weight: 700;
-        font-size: 14px;
-        padding:8px 10px;
-        border-radius: 12px;
-        color: rgba(15,23,42,0.85);
-        border: 1px solid rgba(15,23,42,0.10);
-        background: rgba(255,255,255,0.75);
+        color: inherit;
+        border: 1px solid rgba(0,0,0,0.06);
+        background: rgba(255,255,255,0.9);
+      }
+      .hn-tabs a:hover{
+        border-color: rgba(0,0,0,0.14);
       }
       .hn-tabs a.active{
-        background: rgba(37,99,235,0.10);
-        border-color: rgba(37,99,235,0.35);
-        color: rgba(30,64,175,1);
+        font-weight: 800;
+        border-color: rgba(0,0,0,0.18);
       }
-      .hn-right{ display:flex; gap:8px; align-items:center; }
+      .hn-right{
+        display:flex;
+        align-items:center;
+        gap: 10px;
+        white-space: nowrap;
+      }
       .hn-out{
-        display:inline-flex; align-items:center; justify-content:center;
-        width: 38px; height: 38px;
-        border-radius: 12px;
-        border: 1px solid rgba(15,23,42,0.10);
-        background: rgba(255,255,255,0.80);
+        display:inline-flex;
+        align-items:center;
+        justify-content:center;
+        width: 40px;
+        height: 40px;
+        border-radius: 14px;
         text-decoration:none !important;
+        border: 1px solid rgba(0,0,0,0.06);
+        background: rgba(255,255,255,0.9);
       }
-      .hn-spacer{ height: 10px; }
-      @media (max-width: 640px){
-        .hn-topnav{ padding:10px 10px; border-radius: 16px; }
-        .hn-tabs a{ font-size: 13px; padding:8px 9px; }
+      .hn-out:hover{
+        border-color: rgba(0,0,0,0.14);
+      }
+
+      /* ===== Mobile nav (icon + text, one-line) ===== */
+      .hn-topnav-mobile{
+        display:none;
+        padding: 10px 10px;
+        max-width: 900px;
+        margin: 0 auto;
+      }
+      .hn-mobile-bar{
+        display:flex;
+        gap: 8px;
+        align-items:center;
+        justify-content:space-between;
+      }
+      .hn-mobile-btn{
+        flex:1;
+        display:inline-flex;
+        align-items:center;
+        justify-content:center;
+        gap: 6px;
+        padding: 10px 8px;
+        border-radius: 16px;
+        text-decoration:none !important;
+        color: inherit;
+        border: 1px solid rgba(0,0,0,0.06);
+        background: rgba(255,255,255,0.9);
+        font-weight: 650;
+        line-height: 1;
+        min-height: 42px;
+        white-space: nowrap;
+      }
+      .hn-mobile-btn.active{
+        font-weight: 850;
+        border-color: rgba(0,0,0,0.18);
+      }
+      .hn-mobile-btn span{
+        display:inline-block;
+        transform: translateY(0.5px);
+      }
+      .hn-mobile-out{
+        width: 44px;
+        min-width: 44px;
+        flex: 0 0 44px;
+      }
+
+      /* ===== Responsive switch ===== */
+      @media (max-width: 820px){
+        .hn-topnav-desktop{ display:none !important; }
+        .hn-topnav-mobile{ display:block !important; }
+      }
+
+      /* Reduce top padding a bit since nav is sticky */
+      .block-container{
+        padding-top: 0.8rem !important;
       }
     </style>
     """)
-    st.markdown(css, unsafe_allow_html=True)
 
-    markup = textwrap.dedent(f"""        <div class="hn-topnav-wrap">
-      <div class="hn-topnav">
+    markup = f"""
+    <div class="hn-topnav-wrap">
+      <div class="hn-topnav-desktop">
         <div class="hn-tabs">
-          <a href="{_href('home')}" target="_self" class="{'active' if active=='home' else ''}">🏠 홈</a>
-          <a href="{_href('word')}" target="_self" class="{'active' if active=='word' else ''}">📘 단어</a>
-          <a href="{_href('kanji')}" target="_self" class="{'active' if active=='kanji' else ''}">🈶 한자</a>
-          <a href="{_href('talk')}" target="_self" class="{'active' if active=='talk' else ''}">💬 회화</a>
-          <a href="{_href('my')}" target="_self" class="{'active' if active=='my' else ''}">👤 MY</a>
+          <a href="{_href('home')}" target="_self" class="{'active' if active=='home' else ''}">🏠 <span>홈</span></a>
+          <a href="{_href('word')}" target="_self" class="{'active' if active=='word' else ''}">📘 <span>단어</span></a>
+          <a href="{_href('kanji')}" target="_self" class="{'active' if active=='kanji' else ''}">🈶 <span>한자</span></a>
+          <a href="{_href('talk')}" target="_self" class="{'active' if active=='talk' else ''}">💬 <span>회화</span></a>
+          <a href="{_href('my')}" target="_self" class="{'active' if active=='my' else ''}">👤 <span>MY</span></a>
         </div>
         <div class="hn-right">
-          <a class="hn-out" href="{_href_action('logout')}" target="_self" title="로그아웃">🚪</a>
+          <a class="hn-out" href="{_logout_href()}" target="_self" title="로그아웃">🚪</a>
         </div>
       </div>
-      <div class="hn-spacer"></div>
+
+      <div class="hn-topnav-mobile">
+        <div class="hn-mobile-bar">
+          <a class="hn-mobile-btn {'active' if active=='home' else ''}" href="{_href('home')}" target="_self">🏠 <span>홈</span></a>
+          <a class="hn-mobile-btn {'active' if active=='word' else ''}" href="{_href('word')}" target="_self">📘 <span>단어</span></a>
+          <a class="hn-mobile-btn {'active' if active=='kanji' else ''}" href="{_href('kanji')}" target="_self">🈶 <span>한자</span></a>
+          <a class="hn-mobile-btn {'active' if active=='talk' else ''}" href="{_href('talk')}" target="_self">💬 <span>회화</span></a>
+          <a class="hn-mobile-btn {'active' if active=='my' else ''}" href="{_href('my')}" target="_self">👤 <span>MY</span></a>
+          <a class="hn-mobile-btn hn-mobile-out" href="{_logout_href()}" target="_self" title="로그아웃">🚪</a>
+        </div>
+      </div>
     </div>
-    """)
-    st.markdown(markup, unsafe_allow_html=True)
+    """
+
+    st.markdown(css, unsafe_allow_html=True)
+    st.markdown(textwrap.dedent(markup), unsafe_allow_html=True)
+
