@@ -704,6 +704,18 @@ def render_top_nav(active: str = "home") -> None:
 
     css = textwrap.dedent("""
     <style>
+
+/* Hide Streamlit default menus/nav (keep only custom top nav) */
+#MainMenu {visibility: hidden;}
+header {visibility: hidden;}
+footer {visibility: hidden;}
+[data-testid="stSidebar"] {display: none !important;}
+[data-testid="stSidebarNav"] {display: none !important;}
+[data-testid="stToolbar"] {display: none !important;}
+[data-testid="stDecoration"] {display: none !important;}
+[data-testid="stStatusWidget"] {display: none !important;}
+
+
       :root{
         --hn-gray-1: rgba(0,0,0,0.78);
         --hn-gray-2: rgba(0,0,0,0.56);
