@@ -103,8 +103,42 @@ import html as html_module  # ✅ for html escaping in admin cards
 # ✅ Page Config (Hub only)
 # ============================================================
 st.set_page_config(page_title="Hotena Hub", layout="centered")
-raise RuntimeError("✅ HOME.PY가 지금 실행 중입니다 (마커)")
+import streamlit.components.v1 as components
+import time
 
+st.write("DEBUG: home.py loaded", time.time())
+
+components.html(
+    """
+<script>
+(function(){
+  try{
+    const doc = (window.parent && window.parent.document) ? window.parent.document : document;
+    const wraps = Array.from(doc.querySelectorAll('[data-testid="stIFrame"]'));
+    const info = wraps.map((w,i)=>{
+      const fr = w.querySelector('iframe');
+      const h = Math.round(w.getBoundingClientRect().height||0);
+      const title = fr ? (fr.getAttribute('title')||'') : '';
+      const src = fr ? (fr.getAttribute('src')||'') : '';
+      return {i,h,title:title.slice(0,80),src:src.slice(0,80)};
+    }).filter(x=>x.h>=40).slice(0,20);
+
+    // 화면 맨 위에 디버그 박스 출력
+    let pre = doc.getElementById("__IFR_DEBUG__");
+    if(!pre){
+      pre = doc.createElement("pre");
+      pre.id="__IFR_DEBUG__";
+      pre.style.cssText="position:fixed;top:0;left:0;right:0;z-index:2147483647;background:rgba(0,0,0,0.85);color:#fff;font-size:12px;padding:8px;margin:0;max-height:40vh;overflow:auto;";
+      doc.body.appendChild(pre);
+    }
+    pre.textContent = "IFRAMES>=40px\\n" + JSON.stringify(info,null,2);
+  }catch(e){}
+})();
+</script>
+""",
+    height=0,
+    scrolling=False,
+)
 # ============================================================
 # ✅ TOP SPACING FIX (PC + Mobile)
 # - Remove Streamlit's default top padding/space
