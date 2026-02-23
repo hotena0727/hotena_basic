@@ -101,7 +101,6 @@ import html as html_module  # ✅ for html escaping in admin cards
 # ============================================================
 # ✅ Page Config (Hub only)
 # ============================================================
-st.write("DEBUG: home.py loaded", time.time())
 st.set_page_config(page_title="Hotena Hub", layout="centered")
 st.markdown("""
 <style>
@@ -130,7 +129,7 @@ try:
 except Exception:
     pass
 
-
+st.write("DEBUG: home.py loaded", time.time())
 
 # ============================================================
 # ✅ TOP SPACING FIX (PC + Mobile)
