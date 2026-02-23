@@ -13,6 +13,8 @@ from cryptography.fernet import Fernet
 from datetime import date, datetime, timedelta, timezone
 import streamlit as st
 import streamlit.components.v1 as components
+import core
+
 
 # ============================================================
 # ✅ Module runner (NO runpy/run_path)
@@ -101,6 +103,8 @@ import html as html_module  # ✅ for html escaping in admin cards
 # ✅ Page Config (Hub only)
 # ============================================================
 st.set_page_config(page_title="Hotena Hub", layout="centered")
+
+core.ensure_pwa_assets()
 
 
 # ============================================================
