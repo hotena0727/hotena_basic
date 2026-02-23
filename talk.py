@@ -182,13 +182,6 @@ def load_csv(path: Path) -> pd.DataFrame:
 
 DF = load_csv(CSV_PATH)
 
-# --- Normalize core columns to avoid mismatch (spaces/case) ---
-for _col, _mode in [("tag","lower"),("level","lower"),("mode","lower"),("section","lower")]:
-    if _col in DF.columns:
-        s = DF[_col].astype(str).str.strip()
-        DF[_col] = (s.str.lower() if _mode=="lower" else s)
-
-
 # ============================================================
 # ✅ Labels
 # ============================================================
@@ -321,18 +314,9 @@ with c1:
     )
 
 with c2:
-    # ✅ 레벨 옵션은 '선택된 tag(＋business 섹션)' 범위 안에서만 보여준다 (빈 풀 방지)
-    scope = df_for_tags.copy()
-    if "tag" in scope.columns:
-        scope = scope[scope["tag"].astype(str).str.lower().str.strip() == str(tag).lower().strip()]
-    # section 선택은 business일 때만 적용 (아직 UI가 아래에 있어도 session_state로 값이 유지됨)
-    _sec_cur = st.session_state.get(f"{NS}_section", "all")
-    if "section" in scope.columns and str(tag).lower().strip() == "business" and str(_sec_cur).lower().strip() != "all":
-        scope = scope[scope["section"].astype(str).str.lower().str.strip() == str(_sec_cur).lower().strip()]
-    levels_in_data = [lv for lv in ["n5", "n4", "n3"] if lv in scope["level"].unique().tolist()]
+    levels_in_data = [lv for lv in ["n5", "n4", "n3"] if lv in df_for_tags["level"].unique().tolist()]
     if not levels_in_data:
-        # fallback: 전체 df_for_tags에서라도 표시
-        levels_in_data = [lv for lv in ["n5", "n4", "n3"] if lv in df_for_tags["level"].unique().tolist()] or ["n5", "n4", "n3"]
+        levels_in_data = ["n5", "n4", "n3"]
     level = st.selectbox(
         "레벨",
         options=levels_in_data,
@@ -371,18 +355,7 @@ pool_df = pool_df[(pool_df["tag"] == tag) & (pool_df["level"] == level)].copy().
 if "section" in pool_df.columns and tag in ["business"] and section != "all":
     pool_df = pool_df[pool_df["section"].astype(str).str.lower().str.strip() == str(section).lower().strip()].copy().reset_index(drop=True)
 if pool_df.empty:
-    st.warning("해당 조건의 회화 문제가 없습니다. (CSV의 tag/level/section 조합이 현재 선택과 일치하지 않습니다)")
-    with st.expander("🔍 데이터에 실제로 존재하는 조합 보기"):
-        try:
-            show = DF.copy()
-            cols = [c for c in ["mode","tag","section","level"] if c in show.columns]
-            if cols:
-                st.dataframe(show[cols].drop_duplicates().sort_values(cols).reset_index(drop=True), use_container_width=True)
-            else:
-                st.write("mode/tag/section/level 컬럼이 없습니다.")
-        except Exception as _e:
-            st.write(_e)
-
+    st.warning("해당 조건의 회화 문제가 없습니다. (CSV의 mode/tag/level/section 확인)")
     st.stop()
 
 # ============================================================
