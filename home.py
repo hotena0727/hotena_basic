@@ -103,6 +103,13 @@ import html as html_module  # ✅ for html escaping in admin cards
 # ============================================================
 st.set_page_config(page_title="Hotena Hub", layout="centered")
 
+# ✅ Kill component iframe placeholders ASAP (before any other output)
+try:
+    core.hide_component_iframe_placeholders()
+except Exception:
+    pass
+
+
 
 # ============================================================
 # ✅ TOP SPACING FIX (PC + Mobile)
@@ -146,7 +153,7 @@ div[data-testid="stAppViewContainer"]{
 div[data-testid="stAppViewContainer"] .block-container{
   padding-top: 0 !important;
   margin-top: 0 !important;
-  padding-bottom: 1.25rem !important; /* top nav only */
+  padding-bottom: 5.25rem !important; /* keep breathing room for bottom nav */
 }
 
 /* Headlines: tighter */
@@ -209,7 +216,7 @@ div[data-testid="stMetric"]{
     padding-left: 1.0rem !important;
     padding-right: 1.0rem !important;
     padding-top: 0.15rem !important;
-    padding-bottom: 1.5rem !important;
+    padding-bottom: 6.0rem !important;
   }
 
   /* Slightly larger tap targets on phones */
@@ -1724,61 +1731,93 @@ def _hub_build_base_qs() -> str:
         parts.append("at=" + _q(at_enc))
     return ("&".join(parts) + "&") if parts else ""
 
-def render_bottom_nav(active: str = "home"):
-    """Mobile-only bottom nav. Hidden on wide screens."""
+def render_top_nav(active: str = "home"):
+    """✅ Top sticky nav (bottom-nav 방식의 UX를 상단으로 이동)
+    - sticky top (스크롤 내려도 상단 고정)
+    - 5분할 균등 배치
+    - 텍스트-only + 그레이 톤
+    - active는 얇은 underline만
+    - rt/at query param 유지
+    """
     base = _hub_build_base_qs()
     def href(p: str) -> str:
         return "?" + base + "p=" + p
 
-    # Mobile only: hide on >= 801px
     html = f"""<style>
-.hub-bottom-nav {{
-  position: fixed;
-  left: 0; right: 0; bottom: 0;
+/* ===== Hide Streamlit default UI (keep only our nav) ===== */
+#MainMenu {{visibility:hidden;}}
+header {{visibility:hidden;}}
+footer {{visibility:hidden;}}
+section[data-testid="stSidebar"] {{display:none !important;}}
+div[data-testid="stSidebarNav"] {{display:none !important;}}
+
+/* ===== Top sticky nav (minimal) ===== */
+.hub-top-nav {{
+  position: sticky;
+  top: 0;
   z-index: 2147483000;
-  padding: 10px 12px 12px;
-  background: rgba(255,255,255,0.92);
+  padding: 10px 12px;
+  background: rgba(255,255,255,0.96);
   backdrop-filter: blur(10px);
-  border-top: 1px solid rgba(0,0,0,0.08);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(0,0,0,0.06);
 }}
-.hub-bottom-nav .row {{
-  display:flex; gap: 10px; justify-content:space-between;
-  max-width: 840px; margin: 0 auto;
+
+.hub-top-nav .row {{
+  display:flex;
+  gap: 6px;
+  justify-content:space-between;
+  max-width: 840px;
+  margin: 0 auto;
 }}
-.hub-bottom-nav a {{
+
+.hub-top-nav a {{
   flex: 1 1 0;
-  text-decoration:none;
-  color: rgba(20,20,20,0.92);
-  border: 1px solid rgba(0,0,0,0.08);
-  border-radius: 14px;
-  padding: 10px 8px;
-  display:flex; flex-direction:column; align-items:center; justify-content:center;
-  font-size: 12px;
-  background: rgba(0,0,0,0.02);
+  text-decoration:none !important;
+  color: rgba(0,0,0,0.55);
+  border-radius: 12px;
+  padding: 10px 6px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-size: 14px;
+  font-weight: 650;
+  letter-spacing: -0.2px;
+  position: relative;
 }}
-.hub-bottom-nav a .ic {{ font-size: 18px; line-height: 1; margin-bottom: 4px; }}
-.hub-bottom-nav a.active {{
-  background: rgba(0,0,0,0.88);
-  color: #fff;
-  border-color: rgba(0,0,0,0.88);
+
+.hub-top-nav a:hover {{
+  color: rgba(0,0,0,0.82);
+  background: rgba(0,0,0,0.03);
 }}
-@media (min-width: 801px) {{
-  .hub-bottom-nav {{ display:none !important; }}
+
+.hub-top-nav a.active {{
+  color: rgba(0,0,0,0.88);
 }}
+
+.hub-top-nav a.active::after {{
+  content: "";
+  position:absolute;
+  left: 32%;
+  bottom: 6px;
+  width: 36%;
+  height: 2px;
+  background: #2f80ed;
+  border-radius: 2px;
+}}
+
 </style>
-<div class="hub-bottom-nav">
+<div class="hub-top-nav">
   <div class="row">
-    <a href="{href('home')}" target="_self" class="{ 'active' if active=='home' else '' }"><div class="ic">🏠</div><div>홈</div></a>
-    <a href="{href('word')}" target="_self" class="{ 'active' if active=='word' else '' }"><div class="ic">📘</div><div>단어</div></a>
-    <a href="{href('kanji')}" target="_self" class="{ 'active' if active=='kanji' else '' }"><div class="ic">🈶</div><div>한자</div></a>
-    <a href="{href('talk')}" target="_self" class="{ 'active' if active=='talk' else '' }"><div class="ic">💬</div><div>회화</div></a>
-    <a href="{href('my')}" target="_self" class="{ 'active' if active=='my' else '' }"><div class="ic">👤</div><div>MY</div></a>
+    <a href="{href('home')}"  target="_self" class="{{ 'active' if active=='home' else '' }}">홈</a>
+    <a href="{href('word')}"  target="_self" class="{{ 'active' if active=='word' else '' }}">단어</a>
+    <a href="{href('kanji')}" target="_self" class="{{ 'active' if active=='kanji' else '' }}">한자</a>
+    <a href="{href('talk')}"  target="_self" class="{{ 'active' if active=='talk' else '' }}">회화</a>
+    <a href="{href('my')}"    target="_self" class="{{ 'active' if active=='my' else '' }}">MY</a>
   </div>
 </div>"""
     st.markdown(html, unsafe_allow_html=True)
 
-
-    return
 def run_script(filename: str):
     path = (BASE_DIR / filename).resolve()
     if not path.exists() or not path.is_file():
@@ -3018,11 +3057,12 @@ if isinstance(p, str) and p:
     if p in allowed:
         st.session_state["hub_page"] = p
 
-# ✅ Top nav (common)
+# ✅ Always render floating menu + plan pill in hub mode (after auth)
+# render_floating_menu()  # removed (use top nav only)
+render_plan_pill()
+
 page = st.session_state.get("hub_page", "home")
-core.render_top_nav(active=page)
-
-
+render_top_nav(active=page)
 if page == "admin":
     if not st.session_state.get("is_admin"):
         st.warning("관리자만 접근할 수 있습니다.")

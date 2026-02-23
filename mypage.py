@@ -1889,32 +1889,4 @@ def render() -> None:
     with tab_m:
         _render_msgs(msgs)
 
-# ✅ Logout (moved from nav to MY)
-try:
-    from urllib.parse import urlencode
-    qp = st.query_params
-    rt = qp.get("rt", "")
-    at = qp.get("at", "")
-    q = {}
-    if rt:
-        q["rt"] = rt
-    if at:
-        q["at"] = at
-    q["action"] = "logout"
-    logout_href = "?" + urlencode(q)
-
-    st.markdown("<div style='height:18px;'></div>", unsafe_allow_html=True)
-    st.markdown(
-        f"""
-        <div style="padding:14px 0 6px 0; border-top:1px solid rgba(0,0,0,0.06);">
-          <a href="{logout_href}" target="_self"
-             style="text-decoration:none; color: rgba(0,0,0,0.62); font-weight: 650;">
-             로그아웃
-          </a>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
-except Exception:
-    pass
     _wrap_end()
