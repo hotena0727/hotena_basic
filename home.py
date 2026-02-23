@@ -134,6 +134,9 @@ header[data-testid="stHeader"]{
   height:0 !important;
   min-height:0 !important;
 }
+div[data-testid="stDecoration"] { display:none !important; height:0 !important; }
+div[data-testid="stAppToolbar"] { display:none !important; height:0 !important; }
+
 div[data-testid="stToolbar"]{
   display:none !important;
   height:0 !important;
