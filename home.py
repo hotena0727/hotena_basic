@@ -12,8 +12,8 @@ import base64
 from cryptography.fernet import Fernet
 from datetime import date, datetime, timedelta, timezone
 import streamlit as st
-import streamlit.components.v1 as components
 import core
+import streamlit.components.v1 as components
 
 # ============================================================
 # ✅ Module runner (NO runpy/run_path)
@@ -103,13 +103,13 @@ import html as html_module  # ✅ for html escaping in admin cards
 # ============================================================
 st.set_page_config(page_title="Hotena Hub", layout="centered")
 
-# ✅ F5 시 상단에 생기는 컴포넌트 iframe '빈칸' 제거 (CSS-only)
+
+
+# ✅ Kill Streamlit component iframe placeholders BEFORE anything else renders (prevents '8 blank bars' on F5)
 try:
     core.hide_component_iframe_placeholders()
 except Exception:
     pass
-
-
 
 # ============================================================
 # ✅ TOP SPACING FIX (PC + Mobile)

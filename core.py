@@ -46,11 +46,17 @@ def get_cfg(key: str) -> str:
 
 
 
+def _hide_streamlit_component_iframes() -> None:
+    """Back-compat wrapper."""
+    try:
+        hide_component_iframe_placeholders()
+    except Exception:
+        return
+
+
+
 def hide_component_iframe_placeholders() -> None:
-    """✅ F5 때 생기는 '회색/파란 스켈레톤(컴포넌트 iframe 자리)'를 CSS-only로 제거.
-    - components.html(JS)로 숨기면 그 자체가 iframe을 또 만들어서 역효과가 날 수 있어
-      JS fallback은 쓰지 않습니다.
-    """
+    """CSS-only: hide Streamlit custom-component iframe placeholders that create top 'blank bars' on refresh."""
     if st.session_state.get("_core_hide_iframe_wrappers_done"):
         return
     st.session_state["_core_hide_iframe_wrappers_done"] = True
@@ -58,15 +64,12 @@ def hide_component_iframe_placeholders() -> None:
     st.markdown(
         """
 <style>
-/* 0) 상단 기본 패딩/마진 정리 */
-div.block-container{ padding-top: 0.75rem !important; }
-
-/* 1) iframe wrapper 자체 제거 (빈칸 원인) */
+/* Remove component iframe wrappers (prevents 8-bars blank space on F5) */
 div[data-testid="stIFrame"]:has(iframe[title^="streamlit.components.v1."]),
 div[data-testid="stIFrame"]:has(iframe[title*="streamlit.components"]),
 div[data-testid="stIFrame"]:has(iframe[title*="streamlit"]),
 div[data-testid="stIFrame"]:has(iframe[src*="component"]),
-div[data-testid="stIFrame"]:has(iframe[srcdoc]){
+div[data-testid="stIFrame"]:has(iframe[srcdoc]) {
   display:none !important;
   height:0 !important;
   min-height:0 !important;
@@ -75,11 +78,12 @@ div[data-testid="stIFrame"]:has(iframe[srcdoc]){
   overflow:hidden !important;
 }
 
-/* 2) 한 겹 더 바깥 컨테이너까지 제거 (빈칸이 남는 케이스 방지) */
+/* Sometimes the blank space is held by the outer element container */
 div[data-testid="stElementContainer"]:has(div[data-testid="stIFrame"]:has(iframe[title^="streamlit.components.v1."])),
 div[data-testid="stElementContainer"]:has(div[data-testid="stIFrame"]:has(iframe[title*="streamlit.components"])),
 div[data-testid="stElementContainer"]:has(div[data-testid="stIFrame"]:has(iframe[title*="streamlit"])),
-div[data-testid="stElementContainer"]:has(div[data-testid="stIFrame"]:has(iframe[src*="component"])){
+div[data-testid="stElementContainer"]:has(div[data-testid="stIFrame"]:has(iframe[src*="component"])),
+div[data-testid="stElementContainer"]:has(div[data-testid="stIFrame"]:has(iframe[srcdoc])) {
   display:none !important;
   height:0 !important;
   min-height:0 !important;
@@ -91,14 +95,6 @@ div[data-testid="stElementContainer"]:has(div[data-testid="stIFrame"]:has(iframe
         """,
         unsafe_allow_html=True,
     )
-
-
-# (호환용) 예전 이름을 쓰는 코드가 있으면 그대로 동작하게
-def _hide_streamlit_component_iframes() -> None:
-    hide_component_iframe_placeholders()
-
-
-
 
 
 def ensure_core(
