@@ -427,7 +427,14 @@ with p2:
 # ✅ Current question
 # ============================================================
 qid = qids[idx]
-row = pool_df[pool_df["qid"].astype(str) == str(qid)].iloc[0].to_dict()
+_cur = pool_df[pool_df["qid"].astype(str) == str(qid)]
+# ✅ 필터/상황/레벨 변경 등으로 qid가 풀에서 사라질 수 있음 → 안전 처리
+if _cur.empty:
+    # 가장 첫 문제로 강제 리셋
+    st.session_state[f"{NS}_idx"] = 0
+    qid = qids[0]
+    _cur = pool_df[pool_df["qid"].astype(str) == str(qid)]
+row = _cur.iloc[0].to_dict()
 
 # options fixed per qid
 opt_key = f"{NS}_opts_{qid}"
