@@ -512,27 +512,30 @@ picked = st.radio(
 if not submitted:
     st.session_state[sel_key] = picked
     selected = picked
-    st.info(f"선택: **{selected}**")
 
 # ============================================================
-# ✅ Submit / Next controls
+# ✅ Controls (단순화)
+# - 이전/다음 제거
+# - 정답 제출 후에만 "다음 문제" 버튼 노출
 # ============================================================
-cc1, cc2, cc3 = st.columns([1, 1, 1])
-
-with cc1:
-    if st.button("이전", use_container_width=True, disabled=(idx == 0), key=f"{NS}_prev"):
-        st.session_state[f"{NS}_idx"] = idx - 1
-        st.rerun()
-
-with cc2:
-    can_submit = (not submitted) and bool(selected)
+if not submitted:
+    can_submit = bool(selected)
     if st.button("정답 제출", use_container_width=True, disabled=not can_submit, key=f"{NS}_submit"):
         st.session_state[submitted_key] = True
         submitted = True
-
-with cc3:
-    if st.button("다음", use_container_width=True, disabled=(idx >= len(qids) - 1), key=f"{NS}_next"):
-        st.session_state[f"{NS}_idx"] = idx + 1
+        st.rerun()
+else:
+    # 제출 후: 발음 체크(TTS 등) 하고 넘어가도록 "다음 문제"만 노출
+    if st.button("다음 문제", use_container_width=True, key=f"{NS}_next_after"):
+        # 다음 문제로 이동(끝이면 처음으로)
+        nxt = idx + 1
+        if nxt >= len(qids):
+            nxt = 0
+        st.session_state[f"{NS}_idx"] = nxt
+        # 상태 초기화
+        st.session_state[submitted_key] = False
+        st.session_state.pop(sel_key, None)
+        st.session_state.pop(f"{NS}_radio_{qid}", None)
         st.rerun()
 
 # ============================================================
@@ -541,7 +544,7 @@ with cc3:
 if submitted:
     correct = str(row.get("answer_jp", "")).strip()
     ok = (selected == correct)
-        # ============================================================
+    # ============================================================
     # ✅ 오답 상세 저장 (wrong_notes) — 회화도 '단어/정답/내답' 기록
     # ============================================================
     if not ok:
