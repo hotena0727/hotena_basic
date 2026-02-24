@@ -453,6 +453,80 @@ def tts_button(text: str, label: str, key: str):
         height=(44 if is_icon else 60),
     )
 
+
+def tts_inline_row(role_label: str, text: str, key: str, show_text: bool = True):
+    # 문장 오른쪽에 스피커 아이콘 버튼을 '딱 붙여' 보여주는 1줄 UI (iframe 1개로 렌더링)
+    txt = text or ""
+    safe = txt.replace("\\", "\\\\").replace("`", "").replace("\n", " ")
+    disabled = "true" if (not IS_PRO) else "false"
+    btn = "🔒" if (not IS_PRO) else "🔊"
+    show = "block" if show_text else "none"
+
+    components.html(
+        f'''
+<div style="display:flex;align-items:center;gap:8px;line-height:1.25;">
+  <div style="min-width:72px;font-weight:800;opacity:.85;">{role_label}</div>
+  <div style="flex:1;display:{show};font-weight:500;">{txt}</div>
+  <button id="tts_{key}" {'disabled' if not IS_PRO else ''}
+    style="margin-left:auto;width:34px;height:34px;border-radius:999px;
+           border:1px solid rgba(49,51,63,.18);
+           background:{'#f6f7f9' if not IS_PRO else 'white'};
+           cursor:{'not-allowed' if not IS_PRO else 'pointer'};
+           font-size:18px;font-weight:900;opacity:{'0.7' if not IS_PRO else '1.0'};">
+    {btn}
+  </button>
+</div>
+<script>
+(function() {{
+  const btn = document.getElementById("tts_{key}");
+  if (!btn) return;
+  if ({disabled}) return;
+  if (btn.dataset.bound === "1") return;
+  btn.dataset.bound = "1";
+
+  const synth = window.speechSynthesis;
+
+  function pickJaVoice() {{
+    const voices = synth.getVoices() || [];
+    const ja = voices.filter(v => String(v.lang || "").toLowerCase().startsWith("ja"));
+    if (!ja.length) return null;
+    return ja.find(v => /google/i.test(v.name || ""))
+        || ja.find(v => /日本|japanese/i.test(v.name || ""))
+        || ja[0] || null;
+  }}
+
+  function speak() {{
+    try {{
+      const u = new SpeechSynthesisUtterance({safe!r});
+      u.lang = "ja-JP";
+      const v = pickJaVoice();
+      if (v) u.voice = v;
+      synth.cancel();
+      synth.speak(u);
+    }} catch(e) {{}}
+  }}
+
+  btn.addEventListener("click", () => {{
+    if ((synth.getVoices() || []).length === 0) {{
+      let tried = 0;
+      const t = setInterval(() => {{
+        tried += 1;
+        if ((synth.getVoices() || []).length > 0 || tried >= 10) {{
+          clearInterval(t);
+          speak();
+        }}
+      }}, 150);
+    }} else {{
+      speak();
+    }}
+  }});
+}})();
+</script>
+''',
+        height=52,
+    )
+
+
 # ======================================
 # ======================================
 # ✅ Build choices (문제 로딩 시 1회 셔플 후 고정)
@@ -575,26 +649,11 @@ submitted = bool(st.session_state.get(submitted_key))
 with st.container(border=True):
     st.markdown(f"**상황**: {row.get('situation_kr','')}")
     # FREE는 듣기가 잠겨 있으니, 문제 단계에서 스크립트를 보여줍니다.
-    # 상대(말): FREE는 스크립트 노출, PRO는 스크립트 숨김 + 아이콘 듣기만
+    # 상대(말): FREE는 스크립트(+잠금), PRO는 스크립트 숨김(듣기만)
     if not IS_PRO:
-        st.markdown(
-            f"""<div class='talk-bubble-row'>
-  <div class='talk-bubble-label'>상대(말)</div>
-  <span style='font-weight:500;'>{row.get('partner_jp','')}</span>
-</div>""",
-            unsafe_allow_html=True,
-        )
+        tts_inline_row("상대(말)", row.get("partner_jp",""), key=f"{qid}_partner_q", show_text=True)
     else:
-        st.markdown(
-            """<div class='talk-bubble-row'>
-  <div class='talk-bubble-label'>상대(말)</div>
-  <div class='talk-bubble-sub'>듣기 버튼을 눌러 확인하세요.</div>
-</div>""",
-            unsafe_allow_html=True,
-        )
-        
-        tts_button(row.get("partner_jp", ""), "🔊", key=f"{qid}_partner_q")
-        
+        tts_inline_row("상대(말)", row.get("partner_jp",""), key=f"{qid}_partner_q", show_text=False)
 
     st.markdown("---")
     with st.container(border=True):
