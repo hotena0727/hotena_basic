@@ -516,27 +516,17 @@ if not submitted:
 # ============================================================
 # ✅ Controls (단순화)
 # - 이전/다음 제거
-# - 정답 제출 후에만 "다음 문제" 버튼 노출
+# - "정답 제출" 버튼은 유지 (제출 후에는 비활성)
+# - "다음 문제" 버튼은 최하단(말하기 완료 아래)에서만 노출
 # ============================================================
-if not submitted:
-    can_submit = bool(selected)
-    if st.button("정답 제출", use_container_width=True, disabled=not can_submit, key=f"{NS}_submit"):
-        st.session_state[submitted_key] = True
-        submitted = True
-        st.rerun()
-else:
-    # 제출 후: 발음 체크(TTS 등) 하고 넘어가도록 "다음 문제"만 노출
-    if st.button("다음 문제", use_container_width=True, key=f"{NS}_next_after"):
-        # 다음 문제로 이동(끝이면 처음으로)
-        nxt = idx + 1
-        if nxt >= len(qids):
-            nxt = 0
-        st.session_state[f"{NS}_idx"] = nxt
-        # 상태 초기화
-        st.session_state[submitted_key] = False
-        st.session_state.pop(sel_key, None)
-        st.session_state.pop(f"{NS}_radio_{qid}", None)
-        st.rerun()
+can_submit = bool(selected) and (not submitted)
+st.button(
+    "정답 제출",
+    use_container_width=True,
+    disabled=not can_submit,
+    key=f"{NS}_submit",
+    on_click=(lambda: st.session_state.__setitem__(submitted_key, True)),
+)
 
 # ============================================================
 # ✅ After submit
@@ -628,6 +618,12 @@ if submitted:
             st.info(hint)
         else:
             st.info("포인트: 상황에서 ‘요청/사과/확인/거절’ 중 무엇인지 먼저 잡고, 그에 맞는 톤(정중/캐주얼)을 고르면 실수가 줄어듭니다.")
+# ✅ 원포인트 해설(한국어) — CSV에 explain_kr 컬럼이 있으면 표시
+explain_kr = str(row.get("explain_kr", "")).strip()
+if explain_kr:
+    st.markdown("**✅ 원포인트 해설**")
+    st.write(explain_kr)
+
 
     # 말하기 완료 체크 (B안)
     st.markdown("#### 🎤 말하기(체크형)")
@@ -645,6 +641,19 @@ if submitted:
         # XP 지급(1문제 말하기 완료)
         award_xp(1, "회화 말하기 완료")
         st.success("+1 XP (말하기 완료)")
+# ✅ 말하기 완료 이후에만 다음 문제로 이동
+if submitted:
+    if st.button("다음 문제", use_container_width=True, key=f"{NS}_next_after"):
+        nxt = idx + 1
+        if nxt >= len(qids):
+            nxt = 0
+        st.session_state[f"{NS}_idx"] = nxt
+        # 상태 초기화(다음 문제)
+        st.session_state[submitted_key] = False
+        st.session_state.pop(sel_key, None)
+        st.session_state.pop(f"{NS}_radio_{qid}", None)
+        st.rerun()
+
 
 # ============================================================
 # ✅ Set completion (10문제 모두 제출되면 자동 집계)
