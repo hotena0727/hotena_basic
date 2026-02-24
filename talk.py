@@ -634,15 +634,11 @@ if explain_kr:
         st.session_state[spoken_key] = False
 
     already = bool(st.session_state.get(spoken_key))
-    speak_done = st.checkbox("말하기 완료", value=already, key=f"{NS}_spoken_cb_{qid}")
-
-    if speak_done and not already:
-        st.session_state[spoken_key] = True
-        # XP 지급(1문제 말하기 완료)
-        award_xp(1, "회화 말하기 완료")
-        st.success("+1 XP (말하기 완료)")
-# ✅ 말하기 완료 이후에만 다음 문제로 이동
-if submitted:
+    # ✅ 제출 후 발음 확인(말하기) 완료 체크 — 기존 UX 유지
+speak_done = st.checkbox("발음 확인 완료", key=f"{NS}_speak_done_{qid}", disabled=(not submitted))
+if submitted and speak_done:
+    st.success("+1 XP (발음 확인 완료)")
+    # ✅ 발음 확인 완료 후에만 다음 문제로 이동
     if st.button("다음 문제", use_container_width=True, key=f"{NS}_next_after"):
         nxt = idx + 1
         if nxt >= len(qids):
@@ -652,6 +648,7 @@ if submitted:
         st.session_state[submitted_key] = False
         st.session_state.pop(sel_key, None)
         st.session_state.pop(f"{NS}_radio_{qid}", None)
+        st.session_state.pop(f"{NS}_speak_done_{qid}", None)
         st.rerun()
 
 
