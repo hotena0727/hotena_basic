@@ -987,21 +987,21 @@ if submitted:
     correct = str(row.get("answer_jp", "")).strip()
     ok = (selected == correct)
 
-# ✅ 최근 2턴 저장(정답 제출 직후 1회만)
-try:
-    snap_key = f"talk_turn_saved_{qid}"
-    if not st.session_state.get(snap_key):
-        _push_recent_turn({
-            "qid": str(qid),
-            "situation_kr": str(row.get("situation_kr", "")).strip(),
-            "partner_jp": str(row.get("partner_jp", "")).strip(),
-            "selected": str(selected or "").strip(),
-            "correct": str(correct or "").strip(),
-            "ok": bool(ok),
-        })
-        st.session_state[snap_key] = True
-except Exception:
-    pass
+    # ✅ 최근 2턴 저장(정답 제출 직후 1회만)
+    try:
+        snap_key = f"talk_turn_saved_{qid}"
+        if not st.session_state.get(snap_key):
+            _push_recent_turn({
+                "qid": str(qid),
+                "situation_kr": str(row.get("situation_kr", "")).strip(),
+                "partner_jp": str(row.get("partner_jp", "")).strip(),
+                "selected": str(selected or "").strip(),
+                "correct": str(correct or "").strip(),
+                "ok": bool(ok),
+            })
+            st.session_state[snap_key] = True
+    except Exception:
+        pass
 
 
     # ============================================================
