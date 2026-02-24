@@ -2627,12 +2627,28 @@ def render_admin_dashboard(sb_authed):
                                 # save action (re-uses existing rpc if available)
                                 confirm_save = st.checkbox("변경사항 저장 전 확인", value=False, key="admin_detail_confirm_save")
                                 if st.button("저장", type="primary", use_container_width=True, disabled=not confirm_save, key="admin_detail_save_btn"):
+                                    # ✅ 정책: '등급 변경' 시 PRO 기간을 무조건 30일로 확정
+                                    # - free -> pro  : 오늘 + 30일
+                                    # - pro  -> free : 만료일 제거(None)
+                                    # - 동일 플랜 내에서는(예: pro 유지) 현재 입력값 유지
+                                    effective_until = new_until
+                                    try:
+                                        if str(new_plan).lower() != str(cur_plan).lower():
+                                            if str(new_plan).lower() == "pro":
+                                                effective_until = date.today() + timedelta(days=30)
+                                                st.session_state["admin_detail_until"] = effective_until
+                                            else:
+                                                effective_until = None
+                                                st.session_state["admin_detail_until"] = None
+                                    except Exception:
+                                        effective_until = new_until
+
                                     try:
                                         _ = _rpc("admin_update_profile_plan", {
                                             "p_user_id": user_id,
                                             "p_plan": new_plan,
                                             "p_is_admin": bool(new_admin),
-                                            "p_pro_until": (str(new_until) if new_until else None),
+                                            "p_pro_until": (str(effective_until) if effective_until else None),
                                         })
                                         st.success("저장 완료")
                                     except Exception:
