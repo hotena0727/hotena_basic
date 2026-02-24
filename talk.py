@@ -455,26 +455,28 @@ def tts_button(text: str, label: str, key: str):
 
 
 def tts_inline_row(role_label: str, text: str, key: str, show_text: bool = True):
-    # 문장 오른쪽에 스피커 아이콘 버튼을 '딱 붙여' 보여주는 1줄 UI (iframe 1개로 렌더링)
+    # 문장 오른쪽에 스피커 아이콘을 '텍스트 바로 옆'에 붙여 표시 (iframe 1개로 렌더링)
     txt = text or ""
     safe = txt.replace("\\", "\\\\").replace("`", "").replace("\n", " ")
     disabled = "true" if (not IS_PRO) else "false"
     btn = "🔒" if (not IS_PRO) else "🔊"
-    show = "block" if show_text else "none"
+    show = "inline" if show_text else "none"
 
     components.html(
         f'''
 <div style="display:flex;align-items:center;gap:8px;line-height:1.25;">
   <div style="min-width:72px;font-weight:800;opacity:.85;">{role_label}</div>
-  <div style="flex:1;display:{show};font-weight:500;">{txt}</div>
-  <button id="tts_{key}" {'disabled' if not IS_PRO else ''}
-    style="margin-left:auto;width:34px;height:34px;border-radius:999px;
-           border:1px solid rgba(49,51,63,.18);
-           background:{'#f6f7f9' if not IS_PRO else 'white'};
-           cursor:{'not-allowed' if not IS_PRO else 'pointer'};
-           font-size:18px;font-weight:900;opacity:{'0.7' if not IS_PRO else '1.0'};">
-    {btn}
-  </button>
+  <div style="flex:1;display:flex;align-items:center;gap:6px;">
+    <span style="display:{show};font-weight:500;">{txt}</span>
+    <button id="tts_{key}" {'disabled' if not IS_PRO else ''}
+      title="발음 듣기"
+      style="padding:0;margin:0;border:none;background:transparent;
+             cursor:{'not-allowed' if not IS_PRO else 'pointer'};
+             font-size:18px;font-weight:900;line-height:1;
+             opacity:{'0.55' if not IS_PRO else '0.9'};">
+      {btn}
+    </button>
+  </div>
 </div>
 <script>
 (function() {{
@@ -525,6 +527,7 @@ def tts_inline_row(role_label: str, text: str, key: str, show_text: bool = True)
 ''',
         height=52,
     )
+
 
 
 # ======================================
@@ -768,23 +771,11 @@ if submitted:
             st.caption(f"상황: {situation}")
 
         # ✅ 상대(말) / 내(말) — 스피커 아이콘 버튼은 여기서만 노출
-        c1, c2, c3 = st.columns([0.17, 0.68, 0.15])
-        with c1:
-            st.markdown("**상대(말)**")
-        with c2:
-            st.markdown(f"<span style='font-weight:500;'>{row.get('partner_jp','')}</span>", unsafe_allow_html=True)
-        with c3:
-            tts_button(row.get("partner_jp", ""), "🔊", key=f"{qid}_partner_after")
-
-        c1, c2, c3 = st.columns([0.17, 0.68, 0.15])
-        with c1:
-            st.markdown("**내(말)**")
-        with c2:
-            st.markdown(f"<span style='font-weight:600;'>{correct}</span>", unsafe_allow_html=True)
-        with c3:
-            tts_button(correct, "🔊", key=f"{qid}_answer")
-
-        # ✅ 하테나쌤 코멘트 (explain_kr 우선, 없으면 hint_kr)
+        
+        # ✅ 상대(말) / 내(말) — 문장 오른쪽에 아이콘을 딱 붙여 표시
+        tts_inline_row("상대(말)", row.get("partner_jp", ""), key=f"{qid}_partner_r", show_text=True)
+        tts_inline_row("내(말)", row.get("answer_jp", ""), key=f"{qid}_answer_r", show_text=True)
+# ✅ 하테나쌤 코멘트 (explain_kr 우선, 없으면 hint_kr)
         explain_kr = str(row.get("explain_kr", "")).strip()
         hint = str(row.get("hint_kr", "")).strip()
 
