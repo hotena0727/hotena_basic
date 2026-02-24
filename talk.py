@@ -187,6 +187,8 @@ LEVEL_LABELS = {"n5": "N5", "n4": "N4", "n3": "N3"}
 # ✅ Progress I/O (profiles.progress)
 # ============================================================
 
+st.write("현재 talk.py 위치:", __file__)
+
 def load_progress() -> dict:
     if isinstance(st.session_state.get("progress_all"), dict):
         return st.session_state["progress_all"]
