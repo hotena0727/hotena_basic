@@ -907,14 +907,21 @@ if submitted:
 
 if submitted:
     with st.container(border=True):
-        st.markdown("### 🎙️ 발음 체크")
-
         total_cnt = len(qids)
         current_no = idx + 1
-        st.caption(f"📘 진행: {current_no} / {total_cnt}")
+        st.markdown(
+            f"""
+        <div style="display:flex; align-items:baseline; justify-content:space-between; gap:12px;">
+          <div style="font-size:1.25rem; font-weight:700;">🎙️ 발음 체크</div>
+          <div style="font-size:1rem; opacity:0.85;">📘 진행: {current_no} / {total_cnt}</div>
+        </div>
+        """,
+            unsafe_allow_html=True,
+        )
+
         # ✅ 말하기 녹음(선택) — 모든 브라우저에서 항상 보이도록 Streamlit 기본 녹음기로 고정
-        st.caption("🎤 (선택) 내 발음을 녹음하고 들어보세요")
-        _audio = st.audio_input("내 발음 녹음", key=f"{qid}_record")
+
+        _audio = st.audio_input("🎤 (선택) 내 발음을 녹음하고 들어보세요", key=f"{qid}_record")
         if _audio is not None:
             st.audio(_audio)
 
