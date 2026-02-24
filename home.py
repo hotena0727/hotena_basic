@@ -2142,21 +2142,7 @@ def render_admin_dashboard(sb_authed):
         st.error("quiz_attempts 조회 실패 (RLS/권한/컬럼 확인 필요)")
         st.exception(att_err)
 
-    # ✅ 관리자 대시보드 탭: Streamlit st.tabs는 위젯 변경 시 선택 탭이 튀는 경우가 있어
-    #    (특히 회원 탭 내부 라디오/셀렉트 변경 시) 라디오 기반 탭으로 고정합니다.
-    _ADMIN_TABS = ["📊 통계", "👥 회원", "🕒 기록", "🗂 백업·버전"]
-    if "admin_active_tab" not in st.session_state:
-        # 기본은 회원 탭(요청사항)
-        st.session_state["admin_active_tab"] = "👥 회원"
-    _admin_tab = st.radio(
-        "관리자 탭",
-        options=_ADMIN_TABS,
-        index=_ADMIN_TABS.index(st.session_state.get("admin_active_tab") or "👥 회원") if (st.session_state.get("admin_active_tab") or "👥 회원") in _ADMIN_TABS else 1,
-        horizontal=True,
-        label_visibility="collapsed",
-        key="admin_active_tab_radio",
-    )
-    st.session_state["admin_active_tab"] = _admin_tab
+    tab_stats, tab_users, tab_logs, tab_backup = st.tabs(["📊 통계", "👥 회원", "🕒 기록", "🗂 백업·버전"])
 
     # ---------- Admin helpers (profiles update / backup) ----------
     def _admin_update_profile(user_id: str, payload: dict):
@@ -2249,7 +2235,7 @@ def render_admin_dashboard(sb_authed):
         st.line_chart(daily_df.set_index(date_col)[value_col])
 
     # ---------- tab: stats ----------
-    if _admin_tab == "📊 통계":
+    with tab_stats:
         # --- 회원별(개인) 통계 ---
         st.markdown('<div class="ha-section"><div class="ha-title">회원별 통계</div><div class="ha-sub">특정 회원의 사용 패턴을 확인합니다.</div>', unsafe_allow_html=True)
         if dfa.empty or "user_email" not in dfa.columns:
@@ -2337,7 +2323,7 @@ def render_admin_dashboard(sb_authed):
         st.markdown("</div>", unsafe_allow_html=True)
 
     # ---------- tab: users ----------
-    if _admin_tab == "👥 회원":
+    with tab_users:
         st.markdown("""
         <div class="ha-section">
           <div class="ha-title">회원 관리</div>
@@ -2710,11 +2696,11 @@ def render_admin_dashboard(sb_authed):
                                     days_custom = st.number_input("직접 입력(일)", min_value=1, max_value=3650, value=30, step=1, key="admin_purge_days_custom")
 
                                 purge_days = int(days_custom) if days_opt == "직접 입력" else int(days_opt.replace("일", ""))
+                                
+                                whole_delete = st.checkbox("⚠️ 전체삭제(기간 무시)", value=False, key="admin_purge_whole_delete")
+                                if whole_delete:
+                                    purge_days = 0
                                 scope = st.radio("대상", options=["이 회원만", "전체 회원(공통 정리)"], horizontal=True, index=0, key="admin_purge_scope")
-
-                                # ✅ 추가: 기간 무시 전체삭제
-                                full_delete = st.checkbox("⚠️ 전체삭제(기간 무시)", value=False, key="admin_purge_full_delete")
-                                purge_days_effective = 0 if full_delete else purge_days
 
                                 st.caption("✅ 안전장치: 먼저 **미리보기(삭제될 개수)**를 확인한 뒤 실행하세요.")
                                 puid = user_id if scope == "이 회원만" else None
@@ -2723,7 +2709,7 @@ def render_admin_dashboard(sb_authed):
                                 with pc1:
                                     if st.button("삭제 미리보기", key="admin_purge_preview_btn"):
                                         try:
-                                            resp = _rpc("admin_preview_purge_quiz_attempts", {"p_user_id": puid, "p_days": purge_days_effective})
+                                            resp = _rpc("admin_preview_purge_quiz_attempts", {"p_user_id": puid, "p_days": purge_days})
                                             data = getattr(resp, "data", None) if resp is not None else None
                                             n = None
                                             if isinstance(data, list) and data:
@@ -2738,10 +2724,7 @@ def render_admin_dashboard(sb_authed):
                                             else:
                                                 st.session_state["admin_purge_preview_n"] = int(n)
                                                 who = "이 회원" if puid else "전체 회원"
-                                                if full_delete:
-                                                    st.success(f"미리보기: {who}의 **전체 기록** {int(n):,}건이 삭제 대상입니다.")
-                                                else:
-                                                    st.success(f"미리보기: {who}의 **{purge_days_effective}일 이전** 기록 {int(n):,}건이 삭제 대상입니다.")
+                                                st.success(f"미리보기: {who}의 **{purge_days}일 이전** 기록 {int(n):,}건이 삭제 대상입니다.")
                                         except Exception:
                                             st.error("미리보기 실패: admin_preview_purge_quiz_attempts RPC가 없거나 권한이 없습니다.")
 
@@ -2750,7 +2733,7 @@ def render_admin_dashboard(sb_authed):
                                 with pc3:
                                     if st.button("삭제 실행", type="primary", use_container_width=True, disabled=not confirm, key="admin_purge_run_btn"):
                                         try:
-                                            resp = _rpc("admin_run_purge_quiz_attempts", {"p_user_id": puid, "p_days": purge_days_effective})
+                                            resp = _rpc("admin_run_purge_quiz_attempts", {"p_user_id": puid, "p_days": purge_days})
                                             data = getattr(resp, "data", None) if resp is not None else None
                                             n = None
                                             if isinstance(data, list) and data:
@@ -2764,10 +2747,7 @@ def render_admin_dashboard(sb_authed):
                                                 st.success("삭제 실행 완료 (삭제 건수는 RPC 반환 형식 확인 필요)")
                                             else:
                                                 who = "이 회원" if puid else "전체 회원"
-                                                if full_delete:
-                                                    st.success(f"삭제 완료: {who}의 **전체 기록** {int(n):,}건 삭제")
-                                                else:
-                                                    st.success(f"삭제 완료: {who}의 **{purge_days_effective}일 이전** 기록 {int(n):,}건 삭제")
+                                                st.success(f"삭제 완료: {who}의 **{purge_days}일 이전** 기록 {int(n):,}건 삭제")
                                         except Exception:
                                             st.error("삭제 실행 실패: admin_run_purge_quiz_attempts RPC가 없거나 권한이 없습니다.")
 
@@ -2905,7 +2885,7 @@ def render_admin_dashboard(sb_authed):
         st.markdown("</div>", unsafe_allow_html=True)
 
     # ---------- tab: logs ----------
-    if _admin_tab == "🕒 기록":
+    with tab_logs:
         st.markdown('<div class="ha-section"><div class="ha-title">기록</div><div class="ha-sub">필터 · 카드형 피드</div>', unsafe_allow_html=True)
 
         if dfa.empty:
@@ -3113,7 +3093,7 @@ def render_admin_dashboard(sb_authed):
             st.caption("※ '관리자 작업 로그(플랜 변경 이력)'까지 원하시면, 별도 admin_audit_logs 테이블/RPC를 추가해 붙일 수 있습니다.")
             st.markdown("</div>", unsafe_allow_html=True)
 
-    if _admin_tab == "🗂 백업·버전":
+    with tab_backup:
         st.markdown('<div class="ha-section"><div class="ha-title">백업 · 버전</div><div class="ha-sub">현재 핵심 파일을 ZIP으로 백업합니다.</div>', unsafe_allow_html=True)
         tag = st.text_input("버전 태그", value="stable", key="admin_backup_tag")
         if st.button("백업 ZIP 만들기", type="primary", key="admin_backup_make"):
