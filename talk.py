@@ -297,7 +297,7 @@ with c1:
     tag = st.selectbox(
         "상황 선택",
         options=tag_options,
-        format_func=lambda x: TAG_LABELS.get(x, x, format_func=_tag_label),
+        format_func=_tag_label,
         key=f"{NS}_tag",
     )
 
