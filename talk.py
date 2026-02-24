@@ -51,6 +51,9 @@ USE_TTS_FALLBACK = True  # mp3만 쓰려면 False
 # ============================================================
 NS = "talk"
 SET_LEN = 10
+FREE_SET_LEN = 3  # FREE는 3문제만 제공
+FREE_TTS_QUOTA = 3  # FREE 발음 듣기 3회(일)
+FREE_RECORD_QUOTA = 3  # FREE 녹음 3회(일)
 
 # ============================================================
 # ✅ Hub login required
@@ -229,6 +232,76 @@ def save_progress(progress_all: dict):
         sb.table("profiles").update({"progress": progress_all}).eq("id", USER_ID).execute()
     except Exception:
         pass
+
+
+# ============================================================
+# ✅ FREE quota (daily): TTS 3회 / 녹음 3회
+# - profiles.progress['talk']['free_quota'] 에 저장해서 새로고침/재로그인에도 유지
+# ============================================================
+from datetime import date as _date
+
+def _today_key() -> str:
+    try:
+        return _date.today().isoformat()
+    except Exception:
+        return "1970-01-01"
+
+
+def _get_free_quota() -> dict:
+    """returns dict: {'date': 'YYYY-MM-DD', 'tts_used': int, 'record_used': int}"""
+    prog = load_progress()
+    talk_prog = prog.get("talk") or {}
+    fq = talk_prog.get("free_quota") or {}
+    if not isinstance(fq, dict):
+        fq = {}
+    d = fq.get("date") or ""
+    if d != _today_key():
+        fq = {"date": _today_key(), "tts_used": 0, "record_used": 0}
+        talk_prog["free_quota"] = fq
+        prog["talk"] = talk_prog
+        save_progress(prog)
+    fq["date"] = fq.get("date") or _today_key()
+    fq["tts_used"] = int(fq.get("tts_used") or 0)
+    fq["record_used"] = int(fq.get("record_used") or 0)
+    return fq
+
+
+def _set_free_quota(fq: dict):
+    prog = load_progress()
+    talk_prog = prog.get("talk") or {}
+    talk_prog["free_quota"] = fq
+    prog["talk"] = talk_prog
+    save_progress(prog)
+
+
+def _free_tts_remaining() -> int:
+    if IS_PRO:
+        return 9999
+    fq = _get_free_quota()
+    return max(0, int(FREE_TTS_QUOTA) - int(fq.get("tts_used") or 0))
+
+
+def _free_record_remaining() -> int:
+    if IS_PRO:
+        return 9999
+    fq = _get_free_quota()
+    return max(0, int(FREE_RECORD_QUOTA) - int(fq.get("record_used") or 0))
+
+
+def _use_free_tts_once():
+    if IS_PRO:
+        return
+    fq = _get_free_quota()
+    fq["tts_used"] = int(fq.get("tts_used") or 0) + 1
+    _set_free_quota(fq)
+
+
+def _use_free_record_once():
+    if IS_PRO:
+        return
+    fq = _get_free_quota()
+    fq["record_used"] = int(fq.get("record_used") or 0) + 1
+    _set_free_quota(fq)
 
 
 def log_attempt(level: str, score: int, quiz_len: int, wrong_count: int, wrong_list: list[dict], tag: str):
@@ -707,7 +780,7 @@ pool_answers = pool_df["answer_jp"].astype(str).tolist()
 # ✅ Initialize set (10 qids) + pointer
 # ============================================================
 if f"{NS}_set_qids" not in st.session_state:
-    n = min(SET_LEN, len(pool_df))
+    n = min((SET_LEN if IS_PRO else FREE_SET_LEN), len(pool_df))
     sample = pool_df.sample(n=n, replace=False).reset_index(drop=True)
     qids = sample["qid"].astype(str).tolist()
     st.session_state[f"{NS}_set_qids"] = qids
@@ -777,11 +850,44 @@ submitted = bool(st.session_state.get(submitted_key))
 with st.container(border=True):
     st.markdown(f"**상황**: {row.get('situation_kr','')}")
     # FREE는 듣기가 잠겨 있으니, 문제 단계에서 스크립트를 보여줍니다.
-    # 상대(말): FREE는 스크립트(+잠금), PRO는 스크립트 숨김(듣기만)
-    if not IS_PRO:
-        tts_inline_row("상대(말)", row.get("partner_jp",""), key=f"{qid}_partner_q", show_text=True)
-    else:
+    # 상대(말): PRO는 스크립트 숨김(듣기만), FREE는 스크립트 + (발음 듣기 3회/일) 버튼
+    if IS_PRO:
         tts_inline_row("상대(말)", row.get("partner_jp",""), key=f"{qid}_partner_q", show_text=False)
+    else:
+        tts_inline_row("상대(말)", row.get("partner_jp",""), key=f"{qid}_partner_q", show_text=True)
+        rem = _free_tts_remaining()
+        if rem > 0:
+            if st.button(f"🔊 발음 듣기 (무료 {FREE_TTS_QUOTA-rem+1}/{FREE_TTS_QUOTA})", key=f"{qid}_free_tts_q", use_container_width=True):
+                _use_free_tts_once()
+                components.html(f"""<script>
+(function(){{
+  try{{
+    const synth = window.speechSynthesis;
+    function pickJaVoice(){{
+      const voices = synth.getVoices() || [];
+      const ja = voices.filter(v => String(v.lang||"").toLowerCase().startsWith("ja"));
+      if (!ja.length) return null;
+      return ja.find(v => /google/i.test(v.name||""))
+          || ja.find(v => /日本|japanese/i.test(v.name||""))
+          || ja[0] || null;
+    }}
+    const u = new SpeechSynthesisUtterance({(row.get('partner_jp','') or '').replace('\n',' ')!r});
+    u.lang = "ja-JP";
+    const v = pickJaVoice();
+    if (v) u.voice = v;
+    synth.cancel();
+    synth.speak(u);
+  }}catch(e){{}}
+}})();
+</script>""", height=0)
+        else:
+            st.markdown(
+                '<div style="margin-top:6px;display:flex;align-items:center;gap:8px;">'
+                '<span style="font-size:12px;background:#FFD54F;color:#000;padding:2px 6px;border-radius:8px;font-weight:800;">PRO</span>'
+                '<span style="font-size:0.92rem;opacity:0.85;">발음 듣기는 PRO 전용 (무료 3회 소진)</span>'
+                '</div>',
+                unsafe_allow_html=True,
+            )
 
     st.markdown("---")
     with st.container(border=True):
@@ -899,6 +1005,64 @@ if submitted:
         
         # ✅ 상대(말) / 내(말) — 한 iframe에서 2줄 렌더(간격 촘촘)
         tts_inline_pair(row.get("partner_jp", ""), row.get("answer_jp", ""), qid=str(qid), show_text=True)
+
+        # FREE: 제출 후에도 발음 듣기 하루 3회만 허용 (상대/내 각각 버튼 제공)
+        if not IS_PRO:
+            rem2 = _free_tts_remaining()
+            c1, c2 = st.columns(2)
+            with c1:
+                if rem2 > 0 and st.button("🔊 상대 발음 듣기", key=f"{qid}_free_tts_partner_after", use_container_width=True):
+                    _use_free_tts_once()
+                    components.html(f"""<script>
+(function(){{
+  try{{
+    const synth = window.speechSynthesis;
+    function pickJaVoice(){{
+      const voices = synth.getVoices() || [];
+      const ja = voices.filter(v => String(v.lang||"").toLowerCase().startsWith("ja"));
+      if (!ja.length) return null;
+      return ja.find(v => /google/i.test(v.name||""))
+          || ja.find(v => /日本|japanese/i.test(v.name||""))
+          || ja[0] || null;
+    }}
+    const u = new SpeechSynthesisUtterance({(row.get('partner_jp','') or '').replace('\n',' ')!r});
+    u.lang = "ja-JP";
+    const v = pickJaVoice();
+    if (v) u.voice = v;
+    synth.cancel();
+    synth.speak(u);
+  }}catch(e){{}}
+}})();
+</script>""", height=0)
+                elif rem2 <= 0:
+                    st.button("🔒 상대 발음 듣기 (PRO)", key=f"{qid}_free_tts_partner_after_lock", disabled=True, use_container_width=True)
+            with c2:
+                rem3 = _free_tts_remaining()
+                if rem3 > 0 and st.button("🔊 내 발음 듣기", key=f"{qid}_free_tts_answer_after", use_container_width=True):
+                    _use_free_tts_once()
+                    components.html(f"""<script>
+(function(){{
+  try{{
+    const synth = window.speechSynthesis;
+    function pickJaVoice(){{
+      const voices = synth.getVoices() || [];
+      const ja = voices.filter(v => String(v.lang||"").toLowerCase().startsWith("ja"));
+      if (!ja.length) return null;
+      return ja.find(v => /google/i.test(v.name||""))
+          || ja.find(v => /日本|japanese/i.test(v.name||""))
+          || ja[0] || null;
+    }}
+    const u = new SpeechSynthesisUtterance({(row.get('answer_jp','') or '').replace('\n',' ')!r});
+    u.lang = "ja-JP";
+    const v = pickJaVoice();
+    if (v) u.voice = v;
+    synth.cancel();
+    synth.speak(u);
+  }}catch(e){{}}
+}})();
+</script>""", height=0)
+                elif rem3 <= 0:
+                    st.button("🔒 내 발음 듣기 (PRO)", key=f"{qid}_free_tts_answer_after_lock", disabled=True, use_container_width=True)
 # ✅ 하테나쌤 코멘트 (explain_kr 우선, 없으면 hint_kr)
         explain_kr = str(row.get("explain_kr", "")).strip()
         hint = str(row.get("hint_kr", "")).strip()
@@ -933,20 +1097,28 @@ if submitted:
             if _audio is not None:
                 st.audio(_audio)
         else:
-            st.markdown(
-                '''
+            remr = _free_record_remaining()
+            if remr > 0:
+                st.caption(f"FREE 녹음 남은 횟수: {remr}/{FREE_RECORD_QUOTA} (오늘 기준)")
+                _audio = st.audio_input("🎤 (무료) 내 발음을 녹음하고 들어보세요", key=f"{qid}_record_free")
+                if _audio is not None:
+                    _use_free_record_once()
+                    st.audio(_audio)
+            else:
+                st.markdown(
+                    '''
 <div style="padding:12px;border:1px solid #FFD54F;border-radius:12px;background:#FFF8E1;">
   <div style="font-weight:800;">🎙️ 발음 녹음 기능은 PRO 전용입니다</div>
   <div style="margin-top:6px;font-size:0.92rem;opacity:0.9;">
-    🔊 발음 듣기 · 🎤 녹음 기능은 PRO 플랜에서 이용 가능합니다.
+    오늘의 무료 녹음 3회를 모두 사용했습니다.
   </div>
   <div style="margin-top:10px;">
     <span style="background:#FFD54F;color:#000;padding:3px 10px;border-radius:10px;font-weight:900;">PRO</span>
   </div>
 </div>
 ''',
-                unsafe_allow_html=True,
-            )
+                    unsafe_allow_html=True,
+                )
 
         st.caption("정답을 보고 2~3번 따라 말한 뒤, 아래 버튼을 눌러 다음으로 넘어가세요.")
 
