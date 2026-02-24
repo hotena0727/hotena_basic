@@ -912,97 +912,13 @@ if submitted:
         total_cnt = len(qids)
         current_no = idx + 1
         st.caption(f"📘 진행: {current_no} / {total_cnt}")
+        # ✅ 말하기 녹음(선택) — 모든 브라우저에서 항상 보이도록 Streamlit 기본 녹음기로 고정
+        st.markdown("#### 🎙️ (선택) 내 말 녹음")
+        _audio = st.audio_input("(선택) 내 말 녹음", key=f"{qid}_record")
+        if _audio is not None:
+            st.audio(_audio)
 
 
-        # ✅ 말하기 녹음(선택) — 채점/인식 없이 '내 발화'만 남길 수 있게
-        try:
-
-            # ✅ 로컬 녹음/재생(서버 저장 없음) — 음질 개선(A안: Opus + 비트레이트↑ + 통화 보정 OFF)
-            components.html(
-                f"""
-<div style="display:flex;flex-direction:column;gap:10px;">
-  <div style="display:flex;align-items:center;gap:10px;">
-    <button id="rec_{qid}" style="padding:.45rem .7rem;border-radius:10px;border:1px solid rgba(0,0,0,.15);background:white;cursor:pointer;">
-      🎙️ 녹음 시작
-    </button>
-    <span id="rec_status_{qid}" style="font-size:.92rem;opacity:.75;">(선택) 내 말 녹음</span>
-  </div>
-  <audio id="rec_player_{qid}" controls style="width:100%; display:none;"></audio>
-</div>
-
-<script>
-(function(){{
-  const qid = {qid!r};
-  const btn = document.getElementById("rec_"+qid);
-  const status = document.getElementById("rec_status_"+qid);
-  const player = document.getElementById("rec_player_"+qid);
-
-  let stream = null;
-  let rec = null;
-  let chunks = [];
-  let running = false;
-
-  function pickMime(){{
-    const candidates = ["audio/webm;codecs=opus","audio/webm","audio/ogg;codecs=opus","audio/ogg"];
-    for (const m of candidates){{
-      if (window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(m)) return m;
-    }}
-    return "";
-  }}
-
-  async function start(){{
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {{
-      status.textContent = "이 브라우저는 녹음을 지원하지 않습니다.";
-      return;
-    }}
-    try {{
-      stream = await navigator.mediaDevices.getUserMedia({{
-        audio: {{ echoCancellation:false, noiseSuppression:false, autoGainControl:false }}
-      }});
-      const mime = pickMime();
-      const opts = {{ mimeType: (mime || undefined), audioBitsPerSecond: 160000, bitsPerSecond: 160000 }};
-      rec = new MediaRecorder(stream, opts);
-      chunks = [];
-      rec.ondataavailable = (e) => {{ if (e.data && e.data.size > 0) chunks.push(e.data); }};
-      rec.onstop = () => {{
-        try {{
-          const blob = new Blob(chunks, {{ type: rec.mimeType || "audio/webm" }});
-          const url = URL.createObjectURL(blob);
-          player.src = url;
-          player.style.display = "block";
-          player.play().catch(()=>{{}});
-          status.textContent = "재생으로 확인해 보세요.";
-        }} catch(e) {{
-          status.textContent = "녹음 파일 생성에 실패했습니다.";
-        }}
-      }};
-      rec.start(150);
-      running = true;
-      btn.textContent = "⏹️ 녹음 종료";
-      status.textContent = "녹음 중...";
-    }} catch(e) {{
-      status.textContent = "마이크 권한이 필요합니다.";
-    }}
-  }}
-
-  function stop(){{
-    try {{ if (rec && running) rec.stop(); }} catch(e) {{}}
-    try {{ if (stream) stream.getTracks().forEach(t => t.stop()); }} catch(e) {{}}
-    running = false;
-    btn.textContent = "🎙️ 녹음 시작";
-  }}
-
-  btn.addEventListener("click", () => {{
-    if (!running) start();
-    else stop();
-  }});
-}})();
-</script>
-""",
-                height=190,
-            )
-        except Exception:
-            pass
 
         st.caption("정답을 보고 2~3번 따라 말한 뒤, 아래 버튼을 눌러 다음으로 넘어가세요.")
 
