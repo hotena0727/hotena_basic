@@ -35,6 +35,10 @@ if st.session_state.get("_entered_talk"):
 import streamlit.components.v1 as components
 from supabase import create_client
 
+# ✅ MP3 base (스토리지)
+BASE_AUDIO_URL = 'https://hotena.com/hotena/app/mp3/'
+
+
 # ============================================================
 # ✅ Settings
 # ============================================================
@@ -390,6 +394,9 @@ def tts_button(text: str, label: str, key: str):
 def play_audio_or_tts(text: str, audio_url: str, label: str, key: str):
     """PRO: mp3 URL 재생 / FREE: 잠금. URL 없으면 TTS fallback."""
     audio_url = (audio_url or "").strip()
+    # URL이 전체가 아니면 BASE_AUDIO_URL을 붙입니다.
+    if audio_url and (not audio_url.startswith('http://')) and (not audio_url.startswith('https://')):
+        audio_url = BASE_AUDIO_URL.rstrip('/') + '/' + audio_url.lstrip('/')
 
     if audio_url:
         if IS_PRO:
@@ -511,45 +518,46 @@ with st.container(border=True):
     tts_button(row.get("partner_jp", ""), "🔊 상대 듣기", key=f"{qid}_partner")
 
     st.markdown("---")
-    st.markdown("**내가 할 말(보기)**")
+    with st.container(border=True):
+        st.markdown("**내가 할 말(보기)**")
 
-# ✅ 보기 선택(속도/안정성 개선)
-# - st.button 4개는 클릭할 때마다 전체가 재렌더링되어 체감이 느릴 수 있어
-# - st.radio 1개 위젯으로 선택만 바꾸면 훨씬 가볍고, 보기 순서도 고정됨
-radio_key = f"{NS}_radio_{qid}"
-# 기존 selected가 있으면 라디오 기본값으로 반영
-if selected and selected in choices:
-    default_idx = choices.index(selected)
-else:
-    default_idx = 0
+        # ✅ 보기 선택(속도/안정성 개선)
+        # - st.button 4개는 클릭할 때마다 전체가 재렌더링되어 체감이 느릴 수 있어
+        # - st.radio 1개 위젯으로 선택만 바꾸면 훨씬 가볍고, 보기 순서도 고정됨
+        radio_key = f"{NS}_radio_{qid}"
+        # 기존 selected가 있으면 라디오 기본값으로 반영
+        if selected and selected in choices:
+            default_idx = choices.index(selected)
+        else:
+            default_idx = 0
 
-picked = st.radio(
-    label="보기 선택",
-    options=choices,
-    index=default_idx,
-    key=radio_key,
-    disabled=submitted,
-    label_visibility="collapsed",
-)
-# 선택값 반영
-if not submitted:
-    st.session_state[sel_key] = picked
-    selected = picked
+        picked = st.radio(
+            label="보기 선택",
+            options=choices,
+            index=default_idx,
+            key=radio_key,
+            disabled=submitted,
+            label_visibility="collapsed",
+        )
+        # 선택값 반영
+        if not submitted:
+            st.session_state[sel_key] = picked
+            selected = picked
 
-# ============================================================
-# ✅ Controls (단순화)
-# - 이전/다음 제거
-# - "정답 제출" 버튼은 유지 (제출 후에는 비활성)
-# - "다음 문제" 버튼은 최하단(말하기 완료 아래)에서만 노출
-# ============================================================
-can_submit = bool(selected) and (not submitted)
-st.button(
-    "정답 제출",
-    use_container_width=True,
-    disabled=not can_submit,
-    key=f"{NS}_submit",
-    on_click=(lambda: st.session_state.__setitem__(submitted_key, True)),
-)
+        # ============================================================
+        # ✅ Controls (단순화)
+        # - 이전/다음 제거
+        # - "정답 제출" 버튼은 유지 (제출 후에는 비활성)
+        # - "다음 문제" 버튼은 최하단(말하기 완료 아래)에서만 노출
+        # ============================================================
+        can_submit = bool(selected) and (not submitted)
+        st.button(
+            "정답 제출",
+            use_container_width=True,
+            disabled=not can_submit,
+            key=f"{NS}_submit",
+            on_click=(lambda: st.session_state.__setitem__(submitted_key, True)),
+        )
 
 # ============================================================
 # ✅ After submit
@@ -557,9 +565,6 @@ st.button(
 if submitted:
     correct = str(row.get("answer_jp", "")).strip()
     ok = (selected == correct)
-    # 🔊 정답 단계: 상대/정답 듣기 (PRO mp3, 없으면 TTS fallback)
-    play_audio_or_tts(row.get('partner_jp',''), row.get('audio_partner_url',''), '상대 듣기', f"{qid}_a_partner")
-    play_audio_or_tts(row.get('answer_jp',''), row.get('audio_answer_url',''), '정답 듣기', f"{qid}_a_answer")
 
     # ============================================================
     # ✅ 오답 상세 저장 (wrong_notes) — 회화도 '단어/정답/내답' 기록
