@@ -117,7 +117,16 @@ sb = get_sb()
 # ✅ CSV load
 # ============================================================
 BASE_DIR = Path(__file__).resolve().parent
-CSV_PATH = BASE_DIR / "data" / "talk_situations.csv"
+
+CSV_PATH = BASE_DIR / "talk_situations.csv"  # ✅ 경로 고정(권장)
+if not CSV_PATH.exists():
+    alt = BASE_DIR / "data" / "talk_situations.csv"
+    if alt.exists():
+        CSV_PATH = alt
+    else:
+        st.error(f"CSV 파일을 찾을 수 없습니다.\n- 시도: {BASE_DIR / 'talk_situations.csv'}\n- 시도: {alt}")
+        st.stop()
+
 
 if not CSV_PATH.exists():
     st.error(f"CSV 파일이 없습니다: {CSV_PATH}")
@@ -146,6 +155,18 @@ def load_csv(path: Path) -> pd.DataFrame:
 
 
 DF = load_csv(CSV_PATH)
+
+# --- normalize columns (공백/대소문자/전각공백 문제 방지) ---
+for _c in ["tag", "mode", "level", "qid"]:
+    if _c in DF.columns:
+        DF[_c] = DF[_c].astype(str).fillna("").map(lambda s: str(s).replace("\u3000", " ").strip())
+if "tag" in DF.columns:
+    DF["tag"] = DF["tag"].str.lower().str.replace(r"[\s\-]+", "_", regex=True)
+if "mode" in DF.columns:
+    DF["mode"] = DF["mode"].str.lower().str.replace(" ", "")
+if "level" in DF.columns:
+    DF["level"] = DF["level"].str.lower().str.replace(" ", "")
+
 
 # ============================================================
 # ✅ Labels
@@ -272,8 +293,6 @@ def _tag_label(t: str) -> str:
 
 tags_in_data = [t for t in DF_BASE["tag"].astype(str).unique().tolist() if t]
 tag_options = ["aisatsu"]
-
-
 if not tag_options:
     st.warning("해당 상황의 회화 문제가 없습니다. (CSV의 tag 확인)")
     st.stop()
@@ -291,6 +310,11 @@ pool_df = DF_BASE[(DF_BASE["tag"] == tag)].copy().reset_index(drop=True)
 
 if pool_df.empty:
     st.warning("해당 상황의 회화 문제가 없습니다. (CSV의 tag 확인)")
+    st.caption(f"CSV_PATH: {CSV_PATH}")
+    try:
+        st.caption("tag unique: " + ", ".join(sorted(set(DF_BASE["tag"].astype(str).tolist()))))
+    except Exception:
+        pass
     st.stop()
 
 # ============================================================
