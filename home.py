@@ -994,44 +994,99 @@ def render_home_dashboard(sb_authed, user):
         unsafe_allow_html=True,
     )
 
-    # ---- first-visit guide (Hub only) ----
+        # ---- first-visit guide (Hub only) ----
+    # First visit: expanded card. Once dismissed, it stays collapsed on next visits.
     try:
         progress_all = st.session_state.get("progress_all", {}) or {}
         _guide_collapsed = bool(progress_all.get("hub_guide_collapsed", False))
-        with st.container():
-            st.markdown('<div class="h-guide-card">', unsafe_allow_html=True)
-            with st.expander("👋 처음 오셨나요? 1분 가이드", expanded=(not _guide_collapsed)):
-                st.markdown(
-                    """**하테나 사용 흐름은 이렇게 추천드려요.**
 
-1) **단어/한자/회화** 중 하나를 골라서 **한 세트(10문제)**  
-2) 틀린 문제는 **오답**에서 한 번 더  
-3) 매일 **짧게라도 이어가기**가 실력의 핵심이에요
+        # CSS for onboarding card (Hub only)
+        st.markdown(
+            """
+<style>
+  .hub-onboard{border:1px solid rgba(0,0,0,.08); background:rgba(255,255,255,.95);
+               border-radius:18px; padding:14px 14px 12px; box-shadow:0 6px 18px rgba(0,0,0,.06);
+               margin:.20rem 0 .55rem;}
+  .hub-onboard .ttl{font-weight:800; font-size:1.05rem; margin:0 0 .35rem;}
+  .hub-onboard .sub{margin:0 0 .55rem; opacity:.85; font-size:.95rem;}
+  .hub-steps{display:flex; gap:.4rem; flex-wrap:wrap; align-items:center; margin:.10rem 0 .60rem;}
+  .hub-step{display:inline-flex; align-items:center; gap:.35rem; padding:.32rem .55rem;
+            border-radius:999px; border:1px solid rgba(0,0,0,.08);
+            background:rgba(0,0,0,.02); font-size:.92rem;}
+  .hub-arrow{opacity:.45; font-size:1.0rem;}
+  .hub-actions{display:flex; gap:.55rem; flex-wrap:wrap; margin-top:.15rem;}
+  .hub-a{display:inline-flex; align-items:center; justify-content:center; padding:.52rem .85rem;
+         border-radius:12px; border:1px solid rgba(0,0,0,.10); text-decoration:none !important;
+         font-weight:700; background:rgba(0,0,0,.02); color:rgba(0,0,0,.82);}
+  .hub-a.primary{background:rgba(44,62,80,.10); border-color:rgba(44,62,80,.22); }
+  .hub-a:active{transform:translateY(1px);}
+  .hub-mini{border:1px solid rgba(0,0,0,.08); background:rgba(0,0,0,.02);
+            border-radius:14px; padding:10px 12px; margin:.15rem 0 .55rem;}
+  .hub-mini-btn{background:transparent; border:none; padding:0; margin:0; font-weight:800;
+                cursor:pointer; color:rgba(0,0,0,.80); font-size:.98rem;}
+  .hub-mini-btn:hover{text-decoration:underline;}
+</style>
+            """,
+            unsafe_allow_html=True,
+        )
 
-- 상단 메뉴로 언제든 이동할 수 있어요.
-- 오늘은 부담 없이 **한 세트만** 해도 충분합니다. 😊
-"""
-                )
-                col_g1, col_g2 = st.columns([1,1])
-                with col_g1:
-                    if st.button("이 안내 접기", key="hub_guide_collapse_btn", use_container_width=True):
-                        progress_all["hub_guide_collapsed"] = True
-                        st.session_state["progress_all"] = progress_all
-                        try:
-                            save_progress(sb_authed, user.id, progress_all)
-                        except Exception:
-                            pass
-                        st.rerun()
-                with col_g2:
-                    if st.button("다시 펼치기", key="hub_guide_expand_btn", use_container_width=True, disabled=(not _guide_collapsed)):
-                        progress_all["hub_guide_collapsed"] = False
-                        st.session_state["progress_all"] = progress_all
-                        try:
-                            save_progress(sb_authed, user.id, progress_all)
-                        except Exception:
-                            pass
-                        st.rerun()
+        if _guide_collapsed:
+            # collapsed banner (shows only on Hub)
+            st.markdown('<div class="hub-mini">', unsafe_allow_html=True)
+            if st.button("📘 하테나일본어 앱 사용 흐름 보기 ▼", key="hub_onboard_show_btn", use_container_width=True):
+                progress_all["hub_guide_collapsed"] = False
+                st.session_state["progress_all"] = progress_all
+                try:
+                    save_progress(sb_authed, user.id, progress_all)
+                except Exception:
+                    pass
+                st.rerun()
             st.markdown("</div>", unsafe_allow_html=True)
+
+        else:
+            # expanded onboarding card
+            st.markdown('<div class="hub-onboard">', unsafe_allow_html=True)
+            st.markdown('<div class="ttl">📘 하테나일본어 앱 사용 흐름</div>', unsafe_allow_html=True)
+            st.markdown('<div class="sub">처음엔 길게 하지 않아도 괜찮습니다. <b>하루 1세트</b>로 시작해도 충분해요.</div>', unsafe_allow_html=True)
+
+            st.markdown(
+                """
+<div class="hub-steps">
+  <span class="hub-step">① 📘 단어</span>
+  <span class="hub-arrow">→</span>
+  <span class="hub-step">② 🈶 한자</span>
+  <span class="hub-arrow">→</span>
+  <span class="hub-step">③ 💬 회화</span>
+</div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            st.markdown(
+                """
+- **추천 루틴**: 단어(1세트) → 한자(1세트) → 회화(짧게)  
+- **오답은 1번만 복습**해도 효과가 큽니다.  
+- 중간에 길을 잃으면, **홈으로 돌아와서 다시 ①부터** 시작하면 됩니다.
+                """
+            )
+
+            st.markdown('<div class="hub-actions">', unsafe_allow_html=True)
+            col_g1, col_g2 = st.columns([1,1])
+            with col_g1:
+                # Word is the safest first step
+                st.markdown('<a class="hub-a primary" href="?p=word">단어부터 시작하기</a>', unsafe_allow_html=True)
+            with col_g2:
+                if st.button("이 안내 접기", key="hub_onboard_hide_btn", use_container_width=True):
+                    progress_all["hub_guide_collapsed"] = True
+                    st.session_state["progress_all"] = progress_all
+                    try:
+                        save_progress(sb_authed, user.id, progress_all)
+                    except Exception:
+                        pass
+                    st.rerun()
+            st.markdown("</div>", unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
+
     except Exception:
         pass
 
