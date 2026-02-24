@@ -566,9 +566,17 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
     a_safe = _safe(atxt)
 
     disabled = (not IS_PRO)
-    icon_partner = "🔒" if disabled else "🔊"
-    icon_answer = "🔒" if disabled else "🔊"
     show = "inline" if show_text else "none"
+
+    # FREE: 스피커 대신 PRO 배지로 통일
+    _pro_badge = '<span style="display:inline-flex;align-items:center;justify-content:center;padding:2px 8px;border-radius:999px;border:1px solid rgba(0,0,0,.18);background:rgba(0,0,0,.04);font-size:12px;font-weight:800;letter-spacing:.3px;">PRO</span>'
+
+    if disabled:
+        p_html = _pro_badge
+        a_html = _pro_badge
+    else:
+      {p_html}
+      {a_html}
 
     html = """
 <div style="display:flex;flex-direction:column;gap:10px;line-height:1.25;">
@@ -654,14 +662,8 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
         qid=qid,
         ptxt=ptxt,
         atxt=atxt,
-        p_dis=("disabled" if disabled else ""),
-        a_dis=("disabled" if disabled else ""),
-        p_cursor=("not-allowed" if disabled else "pointer"),
-        a_cursor=("not-allowed" if disabled else "pointer"),
-        p_opacity=("0.55" if disabled else "0.9"),
-        a_opacity=("0.55" if disabled else "0.9"),
-        p_icon=icon_partner,
-        a_icon=icon_answer,
+        p_html=p_html,
+        a_html=a_html,
         p_safe=repr(p_safe),
         a_safe=repr(a_safe),
         disabled=("true" if disabled else "false"),
