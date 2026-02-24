@@ -555,12 +555,17 @@ def tts_inline_row(role_label: str, text: str, key: str, show_text: bool = True)
 
 
 def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bool = True):
-    # 결과 박스용: 상대/내 문장 + 인라인 발음 아이콘(또는 PRO 배지)
+    """결과 박스용: 상대/내 문장 + 인라인 발음 아이콘(또는 PRO 배지)
+    - PRO: 🔊 클릭 시 브라우저 SpeechSynthesis로 재생
+    - FREE: 🔊 대신 'PRO' 배지(클릭 없음)
+    ⚠️ str.format 사용 금지: JS/CSS의 { } 때문에 오류가 나므로 Template 사용
+    """
     ptxt = partner_text or ""
     atxt = answer_text or ""
 
     def _safe(s: str) -> str:
-        return (s or "").replace("\\", "\\\\").replace("`", "").replace("\n", " ")
+        # JS 문자열로 안전하게 넣기 (Template에서 그대로 쓰므로 json.dumps로 최종 인코딩)
+        return (s or "").replace("`", "").replace("\n", " ").strip()
 
     p_safe = _safe(ptxt)
     a_safe = _safe(atxt)
@@ -569,39 +574,38 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
     show = "inline" if show_text else "none"
 
     # FREE일 때는 버튼 비활성 + 아이콘은 PRO 배지
-    pro_badge = "PRO"
-    p_icon = pro_badge if disabled else "🔊"
-    a_icon = pro_badge if disabled else "🔊"
+    p_icon = "PRO" if disabled else "🔊"
+    a_icon = "PRO" if disabled else "🔊"
     p_opacity = "0.55" if disabled else "1"
     a_opacity = "0.55" if disabled else "1"
     p_cursor = "not-allowed" if disabled else "pointer"
     a_cursor = "not-allowed" if disabled else "pointer"
-    p_dis = 'disabled="disabled"' if disabled else ""
-    a_dis = 'disabled="disabled"' if disabled else ""
+    p_dis_attr = 'disabled="disabled"' if disabled else ""
+    a_dis_attr = 'disabled="disabled"' if disabled else ""
 
-    html = """
+    tpl = Template(r"""
 <div style="display:flex;flex-direction:column;gap:10px;line-height:1.25;">
   <div style="display:flex;align-items:center;gap:10px;">
     <div style="min-width:72px;font-weight:800;opacity:.85;">상대(말)</div>
     <div style="flex:1;display:flex;align-items:center;gap:6px;">
-      <span style="display:{show};font-weight:500;">{ptxt}</span>
-      <button id="tts_{qid}_p" {p_dis} title="발음 듣기"
+      <span style="display:$show;font-weight:500;">$ptxt</span>
+      <button id="tts_${qid}_p" $p_dis_attr title="발음 듣기"
         style="padding:0;margin:0;border:none;background:transparent;
-               cursor:{p_cursor};
+               cursor:$p_cursor;
                font-size:18px;font-weight:900;line-height:1;
-               opacity:{p_opacity};">{p_icon}</button>
+               opacity:$p_opacity;">$p_icon</button>
     </div>
   </div>
 
   <div style="display:flex;align-items:center;gap:10px;">
     <div style="min-width:72px;font-weight:800;opacity:.85;">내(말)</div>
     <div style="flex:1;display:flex;align-items:center;gap:6px;">
-      <span style="display:{show};font-weight:500;">{atxt}</span>
-      <button id="tts_{qid}_a" {a_dis} title="발음 듣기"
+      <span style="display:$show;font-weight:500;">$atxt</span>
+      <button id="tts_${qid}_a" $a_dis_attr title="발음 듣기"
         style="padding:0;margin:0;border:none;background:transparent;
-               cursor:{a_cursor};
+               cursor:$a_cursor;
                font-size:18px;font-weight:900;line-height:1;
-               opacity:{a_opacity};">{a_icon}</button>
+               opacity:$a_opacity;">$a_icon</button>
     </div>
   </div>
 </div>
@@ -632,10 +636,10 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
     window.speechSynthesis.speak(u);
   }
 
-  function bind(id, txt, dis){
+  function bind(id, txt, isDisabled){
     const el = document.getElementById(id);
     if(!el) return;
-    if(dis === true) return;
+    if(isDisabled) return;
     el.addEventListener('click', function(){
       if(window.speechSynthesis && window.speechSynthesis.getVoices().length === 0){
         let tried = 0;
@@ -652,32 +656,30 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
     });
   }
 
-  bind("tts_{qid}_p", {p_safe}, {disabled});
-  bind("tts_{qid}_a", {a_safe}, {disabled});
+  bind("tts_${qid}_p", $p_js, $disabled_js);
+  bind("tts_${qid}_a", $a_js, $disabled_js);
 })();
 </script>
-"""
+""")
 
-    html = html.format(
+    html = tpl.safe_substitute(
         show=show,
-        qid=qid,
+        qid=str(qid),
         ptxt=ptxt,
         atxt=atxt,
-        p_safe=repr(p_safe),
-        a_safe=repr(a_safe),
-        disabled=("true" if disabled else "false"),
-        p_dis=p_dis,
-        a_dis=a_dis,
+        p_dis_attr=p_dis_attr,
+        a_dis_attr=a_dis_attr,
         p_cursor=p_cursor,
         a_cursor=a_cursor,
         p_opacity=p_opacity,
         a_opacity=a_opacity,
         p_icon=p_icon,
         a_icon=a_icon,
+        p_js=json.dumps(p_safe, ensure_ascii=False),
+        a_js=json.dumps(a_safe, ensure_ascii=False),
+        disabled_js=("true" if disabled else "false"),
     )
     components.html(html, height=92)
-
-
 def play_audio_or_tts(text: str, audio_url: str, label: str, key: str):
     """PRO: mp3 URL 재생 / FREE: 잠금. URL 없으면 TTS fallback."""
     audio_url = (audio_url or "").strip()
