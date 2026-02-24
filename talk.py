@@ -6,8 +6,6 @@ from pathlib import Path
 from datetime import datetime, timedelta, date
 import random
 import hashlib
-import json
-from string import Template
 
 import pandas as pd
 import streamlit as st
@@ -74,13 +72,6 @@ def _inject_talk_ui_css():
     st.session_state["_talk_ui_css_done"] = True
     st.markdown(
         """
-<style>
-.pro-lock-wrap{position:relative;border-radius:14px;overflow:hidden;border:1px solid rgba(0,0,0,.08);background:rgba(255,255,255,.6);}
-.pro-lock-blur{filter:blur(3px);opacity:.65;padding:14px;}
-.pro-lock-overlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;padding:12px;text-align:center;}
-.pro-lock-badge{display:inline-flex;align-items:center;justify-content:center;padding:.32rem .65rem;border-radius:999px;border:1px solid rgba(0,0,0,.14);background:rgba(255,255,255,.92);font-weight:700;font-size:.92rem;}
-.pro-lock-text{font-size:.92rem;opacity:.85;line-height:1.35;}
-</style>
 <style>
 .talk-bubble-row{display:flex;gap:10px;align-items:flex-end;margin:6px 0;}
 .talk-bubble-label{min-width:68px;font-weight:800;opacity:.85;}
@@ -397,16 +388,13 @@ def tts_button(text: str, label: str, key: str):
     txt = text or ""
     is_icon = (label or "").strip() in ["🔊", "🔈"]
     disabled = "true" if (not IS_PRO) else "false"
-    btn_text = (("PRO" if is_icon else f"🔒 {label}") if (not IS_PRO) else label)
+    btn_text = (f"🔒 {label}" if (not IS_PRO) else label)
 
-    # 버튼 스타일: 아이콘(스피커) / PRO 뱃지(잠금) / 일반 버튼
-    if is_icon and (not IS_PRO):
-        # FREE에서는 스피커 대신 "PRO" 뱃지로 안내
-        style_btn = "min-width:44px;height:28px;padding:0 10px;border-radius:999px;display:flex;align-items:center;justify-content:center;font-size:12px;"
-    elif is_icon:
-        style_btn = "width:36px;height:36px;border-radius:999px;display:flex;align-items:center;justify-content:center;font-size:18px;"
-    else:
-        style_btn = "width:100%;padding:8px 10px;border-radius:12px;font-size:15px;"
+    style_btn = (
+        "width:36px;height:36px;border-radius:999px;display:flex;align-items:center;justify-content:center;font-size:18px;"
+        if is_icon
+        else "width:100%;padding:8px 10px;border-radius:12px;font-size:15px;"
+    )
 
     components.html(
         f"""
@@ -474,27 +462,23 @@ def tts_inline_row(role_label: str, text: str, key: str, show_text: bool = True)
     # 문장 오른쪽에 스피커 아이콘을 '텍스트 바로 옆'에 붙여 표시 (iframe 1개로 렌더링)
     txt = text or ""
     safe = txt.replace("\\", "\\\\").replace("`", "").replace("\n", " ")
-    is_locked = (not IS_PRO)
-    disabled = "true" if is_locked else "false"
-    # FREE는 🔊 + PRO 배지를 보여줘서 '잠금' 의미를 명확히
-    btn_html = ("<span style=\"opacity:.55;\">🔊</span>"
-                "<span style=\"margin-left:4px;font-size:11px;opacity:.55;font-weight:800;\">PRO</span>") if is_locked else "🔊"
+    disabled = "true" if (not IS_PRO) else "false"
+    btn = "🔒" if (not IS_PRO) else "🔊"
     show = "inline" if show_text else "none"
 
     components.html(
         f'''
 <div style="display:flex;align-items:center;gap:8px;line-height:1.25;">
   <div style="min-width:72px;font-weight:800;opacity:.85;">{role_label}</div>
-  <div style="flex:1;min-width:0;display:flex;align-items:center;gap:6px;">
-    <span style="display:{show};font-weight:500;flex:1;min-width:0;white-space:normal;overflow-wrap:anywhere;">{txt}</span>
-    <button id="tts_{key}" {'disabled' if is_locked else ''}
-      title="{ 'PRO 전용 기능입니다' if is_locked else '발음 듣기' }"
-      aria-label="{ 'PRO 전용 발음 듣기' if is_locked else '발음 듣기' }"
+  <div style="flex:1;display:flex;align-items:center;gap:6px;">
+    <span style="display:{show};font-weight:500;">{txt}</span>
+    <button id="tts_{key}" {'disabled' if not IS_PRO else ''}
+      title="발음 듣기"
       style="padding:0;margin:0;border:none;background:transparent;
-             cursor:{'not-allowed' if is_locked else 'pointer'};
+             cursor:{'not-allowed' if not IS_PRO else 'pointer'};
              font-size:18px;font-weight:900;line-height:1;
-             opacity:{'0.9' if not is_locked else '1'};white-space:nowrap;">
-      {btn_html}
+             opacity:{'0.55' if not IS_PRO else '0.9'};">
+      {btn}
     </button>
   </div>
 </div>
@@ -545,7 +529,7 @@ def tts_inline_row(role_label: str, text: str, key: str, show_text: bool = True)
 }})();
 </script>
 ''',
-        height=52,
+        height=40,
     )
 
 
@@ -557,137 +541,121 @@ def tts_inline_row(role_label: str, text: str, key: str, show_text: bool = True)
 
 
 def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bool = True):
-    """결과 박스용: 상대/내 문장 + 인라인 발음 아이콘(또는 PRO 배지)
-    - PRO: 🔊 클릭 시 브라우저 SpeechSynthesis로 재생
-    - FREE: 🔊 대신 'PRO' 배지(클릭 없음)
-    ⚠️ str.format 사용 금지: JS/CSS의 { } 때문에 오류가 나므로 Template 사용
-    """
+    # 상대/내 2줄을 하나의 iframe 안에서 렌더링해서 줄 간격을 촘촘하게 제어
     ptxt = partner_text or ""
     atxt = answer_text or ""
 
     def _safe(s: str) -> str:
-        # JS 문자열로 안전하게 넣기 (Template에서 그대로 쓰므로 json.dumps로 최종 인코딩)
-        return (s or "").replace("`", "").replace("\n", " ").strip()
+        return (s or "").replace("\\", "\\\\").replace("`", "").replace("\n", " ")
 
     p_safe = _safe(ptxt)
     a_safe = _safe(atxt)
 
     disabled = (not IS_PRO)
+    icon_partner = "🔒" if disabled else "🔊"
+    icon_answer = "🔒" if disabled else "🔊"
     show = "inline" if show_text else "none"
 
-    # FREE일 때도 🔊 아이콘은 유지하되, 버튼은 비활성 + PRO 배지로 안내
-    p_icon = "🔊"
-    a_icon = "🔊"
-    p_pro_show = "inline-flex" if disabled else "none"
-    a_pro_show = "inline-flex" if disabled else "none"
-    p_opacity = "0.55" if disabled else "1"
-    a_opacity = "0.55" if disabled else "1"
-    p_cursor = "not-allowed" if disabled else "pointer"
-    a_cursor = "not-allowed" if disabled else "pointer"
-    p_dis_attr = 'disabled="disabled"' if disabled else ""
-    a_dis_attr = 'disabled="disabled"' if disabled else ""
-
-    tpl = Template(r"""
+    html = """
 <div style="display:flex;flex-direction:column;gap:10px;line-height:1.25;">
-  <div style="display:flex;align-items:center;gap:10px;">
+  <div style="display:flex;align-items:center;gap:8px;">
     <div style="min-width:72px;font-weight:800;opacity:.85;">상대(말)</div>
     <div style="flex:1;display:flex;align-items:center;gap:6px;">
-      <span style="display:$show;font-weight:500;">$ptxt</span>
-      <button id="tts_${qid}_p" $p_dis_attr title="발음 듣기"
+      <span style="display:{show};font-weight:500;">{ptxt}</span>
+      <button id="tts_{qid}_p" {p_dis} title="발음 듣기"
         style="padding:0;margin:0;border:none;background:transparent;
-               cursor:$p_cursor;
+               cursor:{p_cursor};
                font-size:18px;font-weight:900;line-height:1;
-               opacity:$p_opacity;">$p_icon</button>
-      <span style="display:$p_pro_show;align-items:center;justify-content:center;padding:2px 8px;border-radius:999px;border:1px solid rgba(0,0,0,.10);background:rgba(0,0,0,.04);font-size:11px;font-weight:800;letter-spacing:.02em;opacity:.55;">PRO</span>
+               opacity:{p_opacity};">{p_icon}</button>
     </div>
   </div>
 
-  <div style="display:flex;align-items:center;gap:10px;">
+  <div style="display:flex;align-items:center;gap:8px;">
     <div style="min-width:72px;font-weight:800;opacity:.85;">내(말)</div>
     <div style="flex:1;display:flex;align-items:center;gap:6px;">
-      <span style="display:$show;font-weight:500;">$atxt</span>
-      <button id="tts_${qid}_a" $a_dis_attr title="발음 듣기"
+      <span style="display:{show};font-weight:500;">{atxt}</span>
+      <button id="tts_{qid}_a" {a_dis} title="발음 듣기"
         style="padding:0;margin:0;border:none;background:transparent;
-               cursor:$a_cursor;
+               cursor:{a_cursor};
                font-size:18px;font-weight:900;line-height:1;
-               opacity:$a_opacity;">$a_icon</button>
-      <span style="display:$a_pro_show;align-items:center;justify-content:center;padding:2px 8px;border-radius:999px;border:1px solid rgba(0,0,0,.10);background:rgba(0,0,0,.04);font-size:11px;font-weight:800;letter-spacing:.02em;opacity:.55;">PRO</span>
+               opacity:{a_opacity};">{a_icon}</button>
     </div>
   </div>
 </div>
 
 <script>
-(function(){
-  function chooseVoice(){
-    try{
-      const vs = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
-      if(!vs || !vs.length) return null;
-      let v = vs.find(x => (x.lang||"").toLowerCase().startsWith("ja"));
-      if(v) return v;
-      v = vs.find(x => /japan|nihon|日本|google/i.test(x.name||""));
-      return v || null;
-    }catch(e){return null;}
-  }
+(function(){{
+  const synth = window.speechSynthesis;
 
-  function speak(txt){
-    if(!window.speechSynthesis) return;
-    const u = new SpeechSynthesisUtterance(txt);
-    const v = chooseVoice();
-    if(v) u.voice = v;
-    u.lang = "ja-JP";
-    u.rate = 1.0;
-    u.pitch = 1.0;
-    u.volume = 1.0;
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(u);
-  }
+  function pickJaVoice(){{
+    const voices = synth.getVoices() || [];
+    const ja = voices.filter(v => String(v.lang||"").toLowerCase().startsWith("ja"));
+    if (!ja.length) return null;
+    return ja.find(v => /google/i.test(v.name||""))
+        || ja.find(v => /日本|japanese/i.test(v.name||""))
+        || ja[0] || null;
+  }}
 
-  function bind(id, txt, isDisabled){
-    const el = document.getElementById(id);
-    if(!el) return;
-    if(isDisabled) return;
-    el.addEventListener('click', function(){
-      if(window.speechSynthesis && window.speechSynthesis.getVoices().length === 0){
+  function speak(text){{
+    try{{
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = "ja-JP";
+      const v = pickJaVoice();
+      if (v) u.voice = v;
+      synth.cancel();
+      synth.speak(u);
+    }}catch(e){{}}
+  }}
+
+  function bind(btnId, text, disabled){{
+    const btn = document.getElementById(btnId);
+    if (!btn || disabled) return;
+    if (btn.dataset.bound === "1") return;
+    btn.dataset.bound = "1";
+
+    btn.addEventListener("click", () => {{
+      if ((synth.getVoices() || []).length === 0){{
         let tried = 0;
-        const t = setInterval(function(){
-          tried++;
-          if(window.speechSynthesis.getVoices().length > 0 || tried >= 10){
+        const t = setInterval(() => {{
+          tried += 1;
+          if ((synth.getVoices() || []).length > 0 || tried >= 10){{
             clearInterval(t);
-            speak(txt);
-          }
-        }, 150);
-      }else{
-        speak(txt);
-      }
-    });
-  }
+            speak(text);
+          }}
+        }}, 150);
+      }} else {{
+        speak(text);
+      }}
+    }});
+  }}
 
-  bind("tts_${qid}_p", $p_js, $disabled_js);
-  bind("tts_${qid}_a", $a_js, $disabled_js);
-})();
+  bind("tts_{qid}_p", {p_safe}, {disabled});
+  bind("tts_{qid}_a", {a_safe}, {disabled});
+}})();
 </script>
-""")
+"""
 
-    html = tpl.safe_substitute(
+    html = html.format(
         show=show,
-        qid=str(qid),
+        qid=qid,
         ptxt=ptxt,
         atxt=atxt,
-        p_dis_attr=p_dis_attr,
-        a_dis_attr=a_dis_attr,
-        p_cursor=p_cursor,
-        a_cursor=a_cursor,
-        p_opacity=p_opacity,
-        a_opacity=a_opacity,
-        p_icon=p_icon,
-        a_icon=a_icon,
-        p_pro_show=p_pro_show,
-        a_pro_show=a_pro_show,
-        p_js=json.dumps(p_safe, ensure_ascii=False),
-        a_js=json.dumps(a_safe, ensure_ascii=False),
-        disabled_js=("true" if disabled else "false"),
+        p_dis=("disabled" if disabled else ""),
+        a_dis=("disabled" if disabled else ""),
+        p_cursor=("not-allowed" if disabled else "pointer"),
+        a_cursor=("not-allowed" if disabled else "pointer"),
+        p_opacity=("0.55" if disabled else "0.9"),
+        a_opacity=("0.55" if disabled else "0.9"),
+        p_icon=icon_partner,
+        a_icon=icon_answer,
+        p_safe=repr(p_safe),
+        a_safe=repr(a_safe),
+        disabled=("true" if disabled else "false"),
     )
     components.html(html, height=92)
+
+
+
 def play_audio_or_tts(text: str, audio_url: str, label: str, key: str):
     """PRO: mp3 URL 재생 / FREE: 잠금. URL 없으면 TTS fallback."""
     audio_url = (audio_url or "").strip()
@@ -937,140 +905,144 @@ if submitted:
         else:
             st.info("💡 하테나쌤 코멘트\n\n포인트: 상황에서 ‘요청/사과/확인/거절’ 중 무엇인지 먼저 잡고, 그에 맞는 톤(정중/캐주얼)을 고르면 실수가 줄어듭니다.")
 
-
 if submitted:
     with st.container(border=True):
-        # ✅ 발음 체크(말하기) — PRO 전용
-        colA, colB = st.columns([0.75, 0.25])
-        with colA:
-            st.markdown("### 🎙️ 발음 체크")
-        with colB:
-            try:
-                total_cnt = len(qids)
-                current_no = idx + 1
-                st.caption(f"📘 진행: {current_no} / {total_cnt}")
-            except Exception:
-                pass
+        total_cnt = len(qids)
+        current_no = idx + 1
+        st.markdown(
+            f"""
+        <div style="display:flex; align-items:baseline; justify-content:space-between; gap:12px;">
+          <div style="font-size:1.25rem; font-weight:700;">🎙️ 발음 체크</div>
+          <div style="font-size:1rem; opacity:0.85;">📘 진행: {current_no} / {total_cnt}</div>
+        </div>
+        """,
+            unsafe_allow_html=True,
+        )
+        # ✅ 말하기 녹음(선택) — 브라우저 내에서 즉시 보이는(항상 표시) 녹음기 UI
+        #    * 저장/DB 업로드 없음 (로컬에서 녹음 → 바로 재생만)
+        #    * Streamlit 기본 audio_input은 브라우저/OS 조합에 따라 "버튼만 보였다가"
+        #      녹음 시작 후 UI가 나타나는 경우가 있어, 커스텀 레코더로 고정 표시합니다.
 
-        st.caption("🎤 (선택) 내 발음을 녹음하고 들어보세요")
-
-        # ✅ PRO: 녹음/재생, FREE: 블러 처리된 안내 박스(잠금)
-        if IS_PRO:
-            # ✅ 로컬 녹음/재생(서버 저장 없음) — 음질은 브라우저/기기 영향이 큼
-            try:
-                _qid_json = json.dumps(str(qid))
-                components.html(
-                    Template(r"""<div style="display:flex;flex-direction:column;gap:10px;">
-  <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-    <button id="rec_$qid" style="padding:.45rem .7rem;border-radius:10px;border:1px solid rgba(0,0,0,.15);background:white;cursor:pointer;">
-      🎙️ 녹음 시작
+        rec_id = f"rec_{qid}"
+        components.html(
+            f"""
+<div style="padding:10px 10px 12px;border:1px solid rgba(0,0,0,.08);border-radius:14px;background:rgba(0,0,0,.02);">
+  <div style="font-size:0.92rem;opacity:.92;margin-bottom:8px;">🎤 (선택) 내 발음을 녹음하고 들어보세요</div>
+  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+    <button id="{{rec_id}}_btn" style="border:1px solid rgba(0,0,0,.12);background:white;border-radius:999px;padding:8px 12px;font-size:0.92rem;cursor:pointer;">
+      ● 녹음 시작
     </button>
-    <span id="rec_status_$qid" style="font-size:.92rem;opacity:.75;">대답을 2~3번 말한 뒤, 녹음해 보세요.</span>
+    <span id="{{rec_id}}_status" style="font-size:0.88rem;opacity:.75;">대기 중</span>
   </div>
-  <audio id="rec_player_$qid" controls style="width:100%; display:block; opacity:.92;"></audio>
+  <div style="margin-top:10px;">
+    <audio id="{{rec_id}}_audio" controls style="width:100%; display:none;"></audio>
+  </div>
 </div>
 
 <script>
-(function(){
-  const qid = $qid_json;
-  const btn = document.getElementById("rec_" + qid);
-  const status = document.getElementById("rec_status_" + qid);
-  const player = document.getElementById("rec_player_" + qid);
+(() => {{
+  const rid = {rec_id!r};
+  const btn = document.getElementById(rid + "_btn");
+  const status = document.getElementById(rid + "_status");
+  const audioEl = document.getElementById(rid + "_audio");
+  if (!btn || !status || !audioEl) return;
 
-  let stream = null;
-  let recorder = null;
+  let mediaRecorder = null;
   let chunks = [];
-  let running = false;
+  let stream = null;
+  let recording = false;
 
-  async function start(){
-    try{
-      stream = await navigator.mediaDevices.getUserMedia({audio: true});
-    }catch(e){
-      status.textContent = "마이크 권한을 허용해 주세요.";
-      return;
-    }
-    try{
-      recorder = new MediaRecorder(stream, {mimeType: "audio/webm"});
-    }catch(e){
-      recorder = new MediaRecorder(stream);
-    }
-    chunks = [];
-    recorder.ondataavailable = (ev)=>{ if(ev.data && ev.data.size>0) chunks.push(ev.data); };
-    recorder.onstop = ()=>{
-      try{
-        const blob = new Blob(chunks, {type: recorder.mimeType || "audio/webm"});
-        const url = URL.createObjectURL(blob);
-        player.src = url;
-        player.style.display = "block";
-        status.textContent = "녹음 완료! 재생해 보세요.";
-      }catch(e){
-        status.textContent = "녹음 파일 생성에 실패했어요.";
-      }
-      try{
-        if(stream){ stream.getTracks().forEach(t=>t.stop()); }
-      }catch(e){}
-      running = false;
-      btn.textContent = "🎙️ 다시 녹음";
-    };
-    recorder.start();
-    running = true;
-    btn.textContent = "⏹️ 녹음 종료";
-    status.textContent = "녹음 중… (10초 내외 추천)";
-  }
+  function setUI() {{
+    if (recording) {{
+      btn.textContent = "■ 녹음 종료";
+      status.textContent = "녹음 중…";
+    }} else {{
+      btn.textContent = "● 녹음 시작";
+      if (!audioEl.src) status.textContent = "대기 중";
+    }}
+  }}
 
-  function stop(){
-    try{
-      if(recorder && running){ recorder.stop(); }
-    }catch(e){
-      status.textContent = "녹음 종료에 실패했어요.";
-    }
-  }
+  async function startRec() {{
+    try {{
+      stream = await navigator.mediaDevices.getUserMedia({{ audio: true }});
 
-  btn.addEventListener("click", ()=>{
-    if(!running) start(); else stop();
-  });
-})();
+      const mt = (MediaRecorder.isTypeSupported("audio/webm;codecs=opus") ? "audio/webm;codecs=opus"
+                : (MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : ""));
+
+      mediaRecorder = mt ? new MediaRecorder(stream, {{ mimeType: mt }}) : new MediaRecorder(stream);
+      chunks = [];
+
+      mediaRecorder.ondataavailable = (e) => {{
+        if (e.data && e.data.size > 0) chunks.push(e.data);
+      }};
+
+      mediaRecorder.onstop = () => {{
+        try {{
+          const blob = new Blob(chunks, {{ type: mediaRecorder.mimeType || "audio/webm" }});
+          const url = URL.createObjectURL(blob);
+          audioEl.src = url;
+          audioEl.style.display = "block";
+          status.textContent = "녹음 완료 (재생 가능)";
+        }} catch (e) {{
+          status.textContent = "녹음 처리 실패";
+        }}
+
+        if (stream) {{
+          stream.getTracks().forEach(t => t.stop());
+          stream = null;
+        }}
+      }};
+
+      recording = true;
+      setUI();
+      mediaRecorder.start();
+
+    }} catch (e) {{
+      status.textContent = "마이크 권한이 필요합니다.";
+      recording = false;
+      setUI();
+    }}
+  }}
+
+  function stopRec() {{
+    try {{
+      if (mediaRecorder && mediaRecorder.state !== "inactive") {{
+        mediaRecorder.stop();
+      }}
+    }} catch (e) {{}}
+    recording = false;
+    setUI();
+  }}
+
+  btn.addEventListener("click", () => {{
+    if (!recording) startRec();
+    else stopRec();
+  }});
+
+  setUI();
+}})();
 </script>
-""").safe_substitute(qid=str(qid), qid_json=_qid_json),
-                    height=140,
-                )
-            except Exception:
-                # fallback: Streamlit 기본 오디오 입력(지원되는 브라우저에서만 노출)
-                try:
-                    st.audio_input("🎤 (선택) 내 발음을 녹음하고 들어보세요", key=f"{NS}_audio_{qid}")
-                except Exception:
-                    st.warning("이 환경에서는 녹음 기능을 사용할 수 없습니다.")
-        else:
-            # ✅ FREE: 녹음 UI는 보이되(모자이크/블러), PRO에서만 사용 가능하도록 잠금 처리
-            components.html(
-                Template(r"""<div class='pro-lock-wrap'>
-  <div class='pro-lock-blur'>
-    <div id='mount_${key}'></div>
-    <script>
-      const mount = document.getElementById('mount_${key}');
-      mount.innerHTML = `
-        <div style="display:flex;align-items:center;gap:10px;">
-          <button disabled style="padding:8px 12px;border-radius:10px;border:1px solid rgba(0,0,0,.15);background:rgba(0,0,0,.03);">
-            🎙️ 녹음 시작
-          </button>
-          <span style="font-size:12px;opacity:.75;">PRO 전용 기능</span>
-        </div>
-      `;
-    </script>
-  </div>
-  <div class='pro-lock-badge'>PRO</div>
-</div>
-<style>
-  .pro-lock-wrap{position:relative;border-radius:14px;border:1px solid rgba(0,0,0,.10);padding:12px;margin-top:8px;background:rgba(0,0,0,.015);}
-  .pro-lock-blur{filter: blur(1.6px);opacity:.55;pointer-events:none;}
-  .pro-lock-badge{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-weight:800;font-size:20px;letter-spacing:.08em;
-    padding:6px 14px;border-radius:999px;background:rgba(0,0,0,.08);color:rgba(0,0,0,.55);border:1px solid rgba(0,0,0,.10);}
-</style>""").safe_substitute({"key": f"{qid}_free_lock"}),
-                height=120,
-                scrolling=False,
-            )
+""",
+            height=190,
+        )
 
 
+
+        st.caption("정답을 보고 2~3번 따라 말한 뒤, 아래 버튼을 눌러 다음으로 넘어가세요.")
+
+        if st.button("✅ 다 했어요 (다음)", use_container_width=True, key=f"{NS}_next_after"):
+            st.success("+2 XP 🎤 (말하기 완료 보상)")
+
+            nxt = idx + 1
+            if nxt >= len(qids):
+                nxt = 0
+            st.session_state[f"{NS}_idx"] = nxt
+            # 상태 초기화(다음 문제)
+            st.session_state[submitted_key] = False
+            st.session_state.pop(sel_key, None)
+            st.session_state.pop(f"{NS}_radio_{qid}", None)
+            st.session_state.pop(f"{NS}_speak_done_{qid}", None)
+            st.rerun()
 # ============================================================
 # ✅ Set completion (10문제 모두 제출되면 자동 집계)
 # ============================================================
