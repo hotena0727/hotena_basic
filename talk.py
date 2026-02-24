@@ -331,7 +331,7 @@ def tts_button(text: str, label: str, key: str):
     - PRO: 클릭 시 재생
     - FREE: 잠금된 버튼(비활성) 표시
     """
-    safe = (text or "").replace("\", "\\").replace("`", "").replace("\n", " ")
+    safe = (text or "").replace("\\", "\\\\").replace("`", "").replace("\n", " ")
     disabled = "true" if (not IS_PRO) else "false"
     btn_text = (f"🔒 {label}" if (not IS_PRO) else label)
     # key마다 고유한 mount id
