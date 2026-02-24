@@ -6,6 +6,7 @@ from pathlib import Path
 from datetime import datetime, timedelta, date
 import random
 import hashlib
+from string import Template
 
 import pandas as pd
 import streamlit as st
@@ -918,113 +919,123 @@ if submitted:
         """,
             unsafe_allow_html=True,
         )
-        # ✅ 말하기 녹음(선택) — 브라우저 내에서 즉시 보이는(항상 표시) 녹음기 UI
-        #    * 저장/DB 업로드 없음 (로컬에서 녹음 → 바로 재생만)
-        #    * Streamlit 기본 audio_input은 브라우저/OS 조합에 따라 "버튼만 보였다가"
-        #      녹음 시작 후 UI가 나타나는 경우가 있어, 커스텀 레코더로 고정 표시합니다.
 
-        rec_id = f"rec_{qid}"
-        components.html(
-            f"""
-<div style="padding:10px 10px 12px;border:1px solid rgba(0,0,0,.08);border-radius:14px;background:rgba(0,0,0,.02);">
-  <div style="font-size:0.92rem;opacity:.92;margin-bottom:8px;">🎤 (선택) 내 발음을 녹음하고 들어보세요</div>
-  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-    <button id="{{rec_id}}_btn" style="border:1px solid rgba(0,0,0,.12);background:white;border-radius:999px;padding:8px 12px;font-size:0.92rem;cursor:pointer;">
-      ● 녹음 시작
-    </button>
-    <span id="{{rec_id}}_status" style="font-size:0.88rem;opacity:.75;">대기 중</span>
+        # ✅ 말하기 녹음(선택) — 모든 브라우저에서 항상 보이도록 Streamlit 기본 녹음기로 고정
+
+        # ✅ (선택) 내 발음 녹음/재생 — 항상 보이는 커스텀 녹음기 (브라우저 MediaRecorder)
+        _rec_key = f"{qid}_rec"
+        _is_free = (not IS_PRO)
+
+        recorder_html = Template(r'''
+<style>
+  .ht-rec-wrap{position:relative; padding:10px 10px 12px; border:1px solid rgba(0,0,0,.08); border-radius:14px; background:rgba(0,0,0,.02);}
+  .ht-rec-top{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:8px;}
+  .ht-rec-title{font-size:0.92rem; opacity:.90;}
+  .ht-rec-btns{display:flex; gap:8px; align-items:center;}
+  .ht-rec-btn{appearance:none; border:1px solid rgba(0,0,0,.12); background:white; border-radius:999px; padding:6px 10px; font-size:0.90rem; cursor:pointer;}
+  .ht-rec-btn:disabled{opacity:.45; cursor:not-allowed;}
+  .ht-rec-timer{font-variant-numeric:tabular-nums; font-size:0.92rem; opacity:.80;}
+  .ht-rec-audio{width:100%; margin-top:8px;}
+  .ht-rec-note{font-size:0.82rem; opacity:.75; margin-top:6px;}
+  .ht-rec-lock{position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    border-radius:14px; backdrop-filter: blur(6px); background:rgba(255,255,255,.55);}
+  .ht-rec-lock .badge{display:inline-flex; align-items:center; gap:6px; padding:10px 14px; border-radius:999px;
+    border:1px solid rgba(0,0,0,.15); background:rgba(255,255,255,.92); font-weight:700;}
+</style>
+
+<div class="ht-rec-wrap" id="wrap_${uid}">
+  <div class="ht-rec-top">
+    <div class="ht-rec-title">🎤 (선택) 내 발음을 녹음하고 들어보세요</div>
+    <div class="ht-rec-btns">
+      <button class="ht-rec-btn" id="start_${uid}">녹음 시작</button>
+      <button class="ht-rec-btn" id="stop_${uid}" disabled>정지</button>
+      <div class="ht-rec-timer" id="timer_${uid}">00:00</div>
+    </div>
   </div>
-  <div style="margin-top:10px;">
-    <audio id="{{rec_id}}_audio" controls style="width:100%; display:none;"></audio>
-  </div>
+
+  <!-- ✅ 항상 보이게: 처음부터 controls 노출 (src는 비어있음) -->
+  <audio class="ht-rec-audio" id="audio_${uid}" controls></audio>
+  <div class="ht-rec-note">녹음 후 바로 여기서 재생할 수 있습니다.</div>
+
+  ${lock_layer}
 </div>
 
 <script>
-(() => {{
-  const rid = {rec_id!r};
-  const btn = document.getElementById(rid + "_btn");
-  const status = document.getElementById(rid + "_status");
-  const audioEl = document.getElementById(rid + "_audio");
-  if (!btn || !status || !audioEl) return;
+(() => {
+  const uid = "${uid}";
+  const isFree = ${is_free};
 
-  let mediaRecorder = null;
-  let chunks = [];
-  let stream = null;
-  let recording = false;
+  const startBtn = document.getElementById("start_"+uid);
+  const stopBtn  = document.getElementById("stop_"+uid);
+  const timerEl  = document.getElementById("timer_"+uid);
+  const audioEl  = document.getElementById("audio_"+uid);
 
-  function setUI() {{
-    if (recording) {{
-      btn.textContent = "■ 녹음 종료";
-      status.textContent = "녹음 중…";
-    }} else {{
-      btn.textContent = "● 녹음 시작";
-      if (!audioEl.src) status.textContent = "대기 중";
-    }}
-  }}
+  if (isFree) {
+    startBtn.disabled = true;
+    stopBtn.disabled = true;
+    return;
+  }
 
-  async function startRec() {{
-    try {{
-      stream = await navigator.mediaDevices.getUserMedia({{ audio: true }});
+  let rec, chunks = [];
+  let t0 = null;
+  let timer = null;
 
-      const mt = (MediaRecorder.isTypeSupported("audio/webm;codecs=opus") ? "audio/webm;codecs=opus"
-                : (MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : ""));
+  function fmt(ms){
+    const s = Math.floor(ms/1000);
+    const mm = String(Math.floor(s/60)).padStart(2,'0');
+    const ss = String(s%60).padStart(2,'0');
+    return mm+":"+ss;
+  }
+  function tick(){
+    if (!t0) return;
+    timerEl.textContent = fmt(Date.now() - t0);
+  }
 
-      mediaRecorder = mt ? new MediaRecorder(stream, {{ mimeType: mt }}) : new MediaRecorder(stream);
+  startBtn.addEventListener("click", async () => {
+    try{
+      const stream = await navigator.mediaDevices.getUserMedia({audio:true});
       chunks = [];
+      rec = new MediaRecorder(stream);
+      rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };
+      rec.onstop = () => {
+        const blob = new Blob(chunks, {type: rec.mimeType || "audio/webm"});
+        const url = URL.createObjectURL(blob);
+        audioEl.src = url;
+        // stop tracks
+        stream.getTracks().forEach(t=>t.stop());
+      };
+      rec.start();
+      t0 = Date.now();
+      timerEl.textContent = "00:00";
+      timer = setInterval(tick, 250);
+      startBtn.disabled = true;
+      stopBtn.disabled = false;
+    }catch(err){
+      alert("마이크 권한이 필요합니다. 브라우저 설정에서 마이크를 허용해 주세요.");
+    }
+  });
 
-      mediaRecorder.ondataavailable = (e) => {{
-        if (e.data && e.data.size > 0) chunks.push(e.data);
-      }};
-
-      mediaRecorder.onstop = () => {{
-        try {{
-          const blob = new Blob(chunks, {{ type: mediaRecorder.mimeType || "audio/webm" }});
-          const url = URL.createObjectURL(blob);
-          audioEl.src = url;
-          audioEl.style.display = "block";
-          status.textContent = "녹음 완료 (재생 가능)";
-        }} catch (e) {{
-          status.textContent = "녹음 처리 실패";
-        }}
-
-        if (stream) {{
-          stream.getTracks().forEach(t => t.stop());
-          stream = null;
-        }}
-      }};
-
-      recording = true;
-      setUI();
-      mediaRecorder.start();
-
-    }} catch (e) {{
-      status.textContent = "마이크 권한이 필요합니다.";
-      recording = false;
-      setUI();
-    }}
-  }}
-
-  function stopRec() {{
-    try {{
-      if (mediaRecorder && mediaRecorder.state !== "inactive") {{
-        mediaRecorder.stop();
-      }}
-    }} catch (e) {{}}
-    recording = false;
-    setUI();
-  }}
-
-  btn.addEventListener("click", () => {{
-    if (!recording) startRec();
-    else stopRec();
-  }});
-
-  setUI();
-}})();
+  stopBtn.addEventListener("click", () => {
+    try{
+      if (rec && rec.state !== "inactive") rec.stop();
+    }catch(e){}
+    if (timer){ clearInterval(timer); timer=null; }
+    startBtn.disabled = false;
+    stopBtn.disabled = true;
+  });
+})();
 </script>
-""",
-            height=190,
+''').substitute(
+            uid=f"{NS}_{qid}",
+            is_free=("true" if _is_free else "false"),
+            lock_layer=(
+                '<div class="ht-rec-lock"><div class="badge">PRO 전용 🎙️ 발음 체크</div></div>'
+                if _is_free else ""
+            ),
         )
+
+        components.html(recorder_html, height=190, scrolling=False)
+
 
 
 
