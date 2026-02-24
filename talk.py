@@ -580,7 +580,7 @@ with st.container(border=True):
         st.markdown(
             f"""<div class='talk-bubble-row'>
   <div class='talk-bubble-label'>상대(말)</div>
-  <div class='talk-bubble partner'>{row.get('partner_jp','')}</div>
+  <span style='font-weight:500;'>{row.get('partner_jp','')}</span>
 </div>""",
             unsafe_allow_html=True,
         )
@@ -592,9 +592,9 @@ with st.container(border=True):
 </div>""",
             unsafe_allow_html=True,
         )
-        st.markdown("<div class='talk-tts-col'>", unsafe_allow_html=True)
+        
         tts_button(row.get("partner_jp", ""), "🔊", key=f"{qid}_partner_q")
-        st.markdown("</div>", unsafe_allow_html=True)
+        
 
     st.markdown("---")
     with st.container(border=True):
@@ -713,7 +713,7 @@ if submitted:
         with c1:
             st.markdown("**상대(말)**")
         with c2:
-            st.markdown(f"<div class='talk-bubble partner'>{row.get('partner_jp','')}</div>", unsafe_allow_html=True)
+            st.markdown(f"<span style='font-weight:500;'>{row.get('partner_jp','')}</span>", unsafe_allow_html=True)
         with c3:
             tts_button(row.get("partner_jp", ""), "🔊", key=f"{qid}_partner_after")
 
@@ -721,7 +721,7 @@ if submitted:
         with c1:
             st.markdown("**내(말)**")
         with c2:
-            st.markdown(f"<div class='talk-bubble me'>{correct}</div>", unsafe_allow_html=True)
+            st.markdown(f"<span style='font-weight:600;'>{correct}</span>", unsafe_allow_html=True)
         with c3:
             tts_button(correct, "🔊", key=f"{qid}_answer")
 
@@ -730,11 +730,11 @@ if submitted:
         hint = str(row.get("hint_kr", "")).strip()
 
         if explain_kr:
-            st.info("하테나쌤 코멘트\n\n" + explain_kr)
+            st.info("💡 하테나쌤 코멘트\n\n" + explain_kr)
         elif hint:
-            st.info("하테나쌤 코멘트\n\n" + hint)
+            st.info("💡 하테나쌤 코멘트\n\n" + hint)
         else:
-            st.info("하테나쌤 코멘트\n\n포인트: 상황에서 ‘요청/사과/확인/거절’ 중 무엇인지 먼저 잡고, 그에 맞는 톤(정중/캐주얼)을 고르면 실수가 줄어듭니다.")
+            st.info("💡 하테나쌤 코멘트\n\n포인트: 상황에서 ‘요청/사과/확인/거절’ 중 무엇인지 먼저 잡고, 그에 맞는 톤(정중/캐주얼)을 고르면 실수가 줄어듭니다.")
 
 if submitted:
     with st.container(border=True):
