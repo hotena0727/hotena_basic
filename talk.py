@@ -287,7 +287,7 @@ tag = st.selectbox(
 # 레벨 선택은 사용하지 않음(인사말에서 N4~N3 혼합)
 level = "mix"
 
-pool_df = DF_BASE[(DF_BASE["tag"] == aisatsu)].copy().reset_index(drop=True)
+pool_df = DF_BASE[(DF_BASE["tag"] == tag)].copy().reset_index(drop=True)
 
 if pool_df.empty:
     st.warning("해당 상황의 회화 문제가 없습니다. (CSV의 tag 확인)")
@@ -663,3 +663,5 @@ def finalize_set_if_ready():
 
 
 finalize_set_if_ready()
+
+st.write("현재 CSV tag 목록:", DF["tag"].unique())
