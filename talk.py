@@ -663,5 +663,3 @@ def finalize_set_if_ready():
 
 
 finalize_set_if_ready()
-
-st.write("현재 CSV tag 목록:", DF["tag"].unique())
