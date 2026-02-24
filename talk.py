@@ -609,36 +609,27 @@ if submitted:
                 st.info(hint)
         else:
             st.info("포인트: 상황에서 ‘요청/사과/확인/거절’ 중 무엇인지 먼저 잡고, 그에 맞는 톤(정중/캐주얼)을 고르면 실수가 줄어듭니다.")
+if submitted:
     with st.container(border=True):
         st.markdown("### 🎤 발음/말하기")
-    # ✅ 말하기 녹음(선택) — 채점/인식 없이 '내 발화'만 남길 수 있게
-    try:
-        if hasattr(st, "audio_input"):
-            audio = st.audio_input("내 말 녹음(선택)", key=f"{NS}_rec_{qid}")
-            if audio is not None:
-                st.audio(audio)
-        else:
-            st.caption("현재 Streamlit 버전에서는 즉시 녹음이 지원되지 않아, 파일 업로드로 대체됩니다.")
-            up = st.file_uploader("내 음성 파일 업로드(선택)", type=["wav","mp3","m4a"], key=f"{NS}_rec_up_{qid}")
-            if up is not None:
-                st.audio(up)
-    except Exception:
-        pass
-        # 말하기 완료 체크 (B안)
-        st.markdown("#### 🎤 말하기(체크형)")
-        st.caption("정답을 보고 2~3번 따라 말한 뒤, 아래 체크를 눌러 주세요. (녹음/인식 없이 가볍게!)")
 
-        spoken_key = f"{NS}_spoken_{qid}"
-        if spoken_key not in st.session_state:
-            st.session_state[spoken_key] = False
+        # ✅ 말하기 녹음(선택) — 채점/인식 없이 '내 발화'만 남길 수 있게
+        try:
+            if hasattr(st, "audio_input"):
+                audio = st.audio_input("내 말 녹음(선택)", key=f"{NS}_rec_{qid}")
+                if audio is not None:
+                    st.audio(audio)
+            else:
+                st.caption("현재 Streamlit 버전에서는 즉시 녹음이 지원되지 않아, 파일 업로드로 대체됩니다.")
+                up = st.file_uploader("내 음성 파일 업로드(선택)", type=["wav", "mp3", "m4a"], key=f"{NS}_rec_up_{qid}")
+                if up is not None:
+                    st.audio(up)
+        except Exception:
+            pass
 
-        already = bool(st.session_state.get(spoken_key))
-        # ✅ 제출 후 발음 확인(말하기) 완료 체크 — 기존 UX 유지
-    speak_done = st.checkbox("발음 확인 완료", key=f"{NS}_speak_done_{qid}", disabled=(not submitted))
-    if submitted and speak_done:
-        st.success("+1 XP (발음 확인 완료)")
-        # ✅ 발음 확인 완료 후에만 다음 문제로 이동
-        if st.button("다음 문제", use_container_width=True, key=f"{NS}_next_after"):
+        st.caption("정답을 보고 2~3번 따라 말한 뒤, 아래 버튼을 눌러 다음으로 넘어가세요.")
+
+        if st.button("✅ 다 했어요 (다음)", use_container_width=True, key=f"{NS}_next_after"):
             nxt = idx + 1
             if nxt >= len(qids):
                 nxt = 0
@@ -649,8 +640,6 @@ if submitted:
             st.session_state.pop(f"{NS}_radio_{qid}", None)
             st.session_state.pop(f"{NS}_speak_done_{qid}", None)
             st.rerun()
-
-
 # ============================================================
 # ✅ Set completion (10문제 모두 제출되면 자동 집계)
 # ============================================================
