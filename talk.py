@@ -529,109 +529,127 @@ def tts_inline_row(role_label: str, text: str, key: str, show_text: bool = True)
     )
 
 
-def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bool = True):
-    # 상대/내 두 줄을 하나의 iframe 안에서 렌더링 → 간격을 완전 제어 (가장 예쁘게 붙음)
-    ptxt = partner_text or ""
-    atxt = answer_text or ""
-    p_safe = ptxt.replace("\\", "\\\\").replace("`", "").replace("\n", " ")
-    a_safe = atxt.replace("\\", "\\\\").replace("`", "").replace("\n", " ")
-    disabled = "true" if (not IS_PRO) else "false"
-    p_btn = "🔒" if (not IS_PRO) else "🔊"
-    a_btn = "🔒" if (not IS_PRO) else "🔊"
-    show = "inline" if show_text else "none"
-
-    components.html(
-        f'''
-<div style="display:flex;flex-direction:column;gap:4px;line-height:1.25;">
-  <!-- 상대(말) -->
-  <div style="display:flex;align-items:center;gap:8px;">
-    <div style="min-width:72px;font-weight:800;opacity:.85;">상대(말)</div>
-    <div style="flex:1;display:flex;align-items:center;gap:6px;">
-      <span style="display:{show};font-weight:500;">{ptxt}</span>
-      <button id="tts_{qid}_partner_r" {'disabled' if not IS_PRO else ''}
-        title="발음 듣기"
-        style="padding:0;margin:0;border:none;background:transparent;
-               cursor:{'not-allowed' if not IS_PRO else 'pointer'};
-               font-size:18px;font-weight:900;line-height:1;
-               opacity:{'0.55' if not IS_PRO else '0.9'};">{p_btn}</button>
-    </div>
-  </div>
-
-  <!-- 내(말) -->
-  <div style="display:flex;align-items:center;gap:8px;">
-    <div style="min-width:72px;font-weight:800;opacity:.85;">내(말)</div>
-    <div style="flex:1;display:flex;align-items:center;gap:6px;">
-      <span style="display:{show};font-weight:500;">{atxt}</span>
-      <button id="tts_{qid}_answer_r" {'disabled' if not IS_PRO else ''}
-        title="발음 듣기"
-        style="padding:0;margin:0;border:none;background:transparent;
-               cursor:{'not-allowed' if not IS_PRO else 'pointer'};
-               font-size:18px;font-weight:900;line-height:1;
-               opacity:{'0.55' if not IS_PRO else '0.9'};">{a_btn}</button>
-    </div>
-  </div>
-</div>
-
-<script>
-(function() {{
-  const synth = window.speechSynthesis;
-
-  function pickJaVoice() {{
-    const voices = synth.getVoices() || [];
-    const ja = voices.filter(v => String(v.lang || "").toLowerCase().startsWith("ja"));
-    if (!ja.length) return null;
-    return ja.find(v => /google/i.test(v.name || ""))
-        || ja.find(v => /日本|japanese/i.test(v.name || ""))
-        || ja[0] || null;
-  }}
-
-  function bind(btnId, text) {{
-    const btn = document.getElementById(btnId);
-    if (!btn) return;
-    if ({disabled}) return;
-    if (btn.dataset.bound === "1") return;
-    btn.dataset.bound = "1";
-
-    function speak() {{
-      try {{
-        const u = new SpeechSynthesisUtterance(text);
-        u.lang = "ja-JP";
-        const v = pickJaVoice();
-        if (v) u.voice = v;
-        synth.cancel();
-        synth.speak(u);
-      }} catch(e) {{}}
-    }}
-
-    btn.addEventListener("click", () => {{
-      if ((synth.getVoices() || []).length === 0) {{
-        let tried = 0;
-        const t = setInterval(() => {{
-          tried += 1;
-          if ((synth.getVoices() || []).length > 0 || tried >= 10) {{
-            clearInterval(t);
-            speak();
-          }}
-        }}, 150);
-      }} else {{
-        speak();
-      }}
-    }});
-  }}
-
-  bind("tts_{qid}_partner_r", {p_safe!r});
-  bind("tts_{qid}_answer_r", {a_safe!r});
-}})();
-</script>
-''',
-        height=92,
-    )
-
 
 # ======================================
 # ======================================
 # ✅ Build choices (문제 로딩 시 1회 셔플 후 고정)
 # ============================================================
+
+
+def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bool = True):
+    # 상대/내 2줄을 하나의 iframe 안에서 렌더링해서 줄 간격을 촘촘하게 제어
+    ptxt = partner_text or ""
+    atxt = answer_text or ""
+
+    def _safe(s: str) -> str:
+        return (s or "").replace("\\", "\\\\").replace("`", "").replace("\n", " ")
+
+    p_safe = _safe(ptxt)
+    a_safe = _safe(atxt)
+
+    disabled = (not IS_PRO)
+    icon_partner = "🔒" if disabled else "🔊"
+    icon_answer = "🔒" if disabled else "🔊"
+    show = "inline" if show_text else "none"
+
+    html = """
+<div style="display:flex;flex-direction:column;gap:4px;line-height:1.25;">
+  <div style="display:flex;align-items:center;gap:8px;">
+    <div style="min-width:72px;font-weight:800;opacity:.85;">상대(말)</div>
+    <div style="flex:1;display:flex;align-items:center;gap:6px;">
+      <span style="display:{show};font-weight:500;">{ptxt}</span>
+      <button id="tts_{qid}_p" {p_dis} title="발음 듣기"
+        style="padding:0;margin:0;border:none;background:transparent;
+               cursor:{p_cursor};
+               font-size:18px;font-weight:900;line-height:1;
+               opacity:{p_opacity};">{p_icon}</button>
+    </div>
+  </div>
+
+  <div style="display:flex;align-items:center;gap:8px;">
+    <div style="min-width:72px;font-weight:800;opacity:.85;">내(말)</div>
+    <div style="flex:1;display:flex;align-items:center;gap:6px;">
+      <span style="display:{show};font-weight:500;">{atxt}</span>
+      <button id="tts_{qid}_a" {a_dis} title="발음 듣기"
+        style="padding:0;margin:0;border:none;background:transparent;
+               cursor:{a_cursor};
+               font-size:18px;font-weight:900;line-height:1;
+               opacity:{a_opacity};">{a_icon}</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){{
+  const synth = window.speechSynthesis;
+
+  function pickJaVoice(){{
+    const voices = synth.getVoices() || [];
+    const ja = voices.filter(v => String(v.lang||"").toLowerCase().startsWith("ja"));
+    if (!ja.length) return null;
+    return ja.find(v => /google/i.test(v.name||""))
+        || ja.find(v => /日本|japanese/i.test(v.name||""))
+        || ja[0] || null;
+  }}
+
+  function speak(text){{
+    try{{
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = "ja-JP";
+      const v = pickJaVoice();
+      if (v) u.voice = v;
+      synth.cancel();
+      synth.speak(u);
+    }}catch(e){{}}
+  }}
+
+  function bind(btnId, text, disabled){{
+    const btn = document.getElementById(btnId);
+    if (!btn || disabled) return;
+    if (btn.dataset.bound === "1") return;
+    btn.dataset.bound = "1";
+
+    btn.addEventListener("click", () => {{
+      if ((synth.getVoices() || []).length === 0){{
+        let tried = 0;
+        const t = setInterval(() => {{
+          tried += 1;
+          if ((synth.getVoices() || []).length > 0 || tried >= 10){{
+            clearInterval(t);
+            speak(text);
+          }}
+        }}, 150);
+      }} else {{
+        speak(text);
+      }}
+    }});
+  }}
+
+  bind("tts_{qid}_p", {p_safe}, {disabled});
+  bind("tts_{qid}_a", {a_safe}, {disabled});
+}})();
+</script>
+"""
+
+    html = html.format(
+        show=show,
+        qid=qid,
+        ptxt=ptxt,
+        atxt=atxt,
+        p_dis=("disabled" if disabled else ""),
+        a_dis=("disabled" if disabled else ""),
+        p_cursor=("not-allowed" if disabled else "pointer"),
+        a_cursor=("not-allowed" if disabled else "pointer"),
+        p_opacity=("0.55" if disabled else "0.9"),
+        a_opacity=("0.55" if disabled else "0.9"),
+        p_icon=icon_partner,
+        a_icon=icon_answer,
+        p_safe=repr(p_safe),
+        a_safe=repr(a_safe),
+        disabled=("true" if disabled else "false"),
+    )
+    components.html(html, height=92)
+
 
 
 def play_audio_or_tts(text: str, audio_url: str, label: str, key: str):
@@ -752,7 +770,125 @@ with st.container(border=True):
     # FREE는 듣기가 잠겨 있으니, 문제 단계에서 스크립트를 보여줍니다.
     # 상대(말): FREE는 스크립트(+잠금), PRO는 스크립트 숨김(듣기만)
     if not IS_PRO:
-        # ✅ 상대/내 한 블록(간격 제어)
+        tts_inline_row("상대(말)", row.get("partner_jp",""), key=f"{qid}_partner_q", show_text=True)
+    else:
+        tts_inline_row("상대(말)", row.get("partner_jp",""), key=f"{qid}_partner_q", show_text=False)
+
+    st.markdown("---")
+    with st.container(border=True):
+        st.markdown("**내가 할 말(선택)**")
+
+        # ✅ 보기 선택(속도/안정성 개선)
+        # - st.button 4개는 클릭할 때마다 전체가 재렌더링되어 체감이 느릴 수 있어
+        # - st.radio 1개 위젯으로 선택만 바꾸면 훨씬 가볍고, 보기 순서도 고정됨
+        radio_key = f"{NS}_radio_{qid}"
+        # 기존 selected가 있으면 라디오 기본값으로 반영
+        if selected and selected in choices:
+            default_idx = choices.index(selected)
+        else:
+            default_idx = 0
+
+        picked = st.radio(
+            label="보기 선택",
+            options=choices,
+            index=default_idx,
+            key=radio_key,
+            disabled=submitted,
+            label_visibility="collapsed",
+        )
+        # 선택값 반영
+        if not submitted:
+            st.session_state[sel_key] = picked
+            selected = picked
+
+        # ============================================================
+        # ✅ Controls (단순화)
+        # - 이전/다음 제거
+        # - "정답 제출" 버튼은 유지 (제출 후에는 비활성)
+        # - "다음 문제" 버튼은 최하단(말하기 완료 아래)에서만 노출
+        # ============================================================
+        can_submit = bool(selected) and (not submitted)
+        st.button(
+            "정답 제출",
+            use_container_width=True,
+            disabled=not can_submit,
+            key=f"{NS}_submit",
+            on_click=(lambda: st.session_state.__setitem__(submitted_key, True)),
+        )
+
+# ============================================================
+# ✅ After submit
+# ============================================================
+if submitted:
+    correct = str(row.get("answer_jp", "")).strip()
+    ok = (selected == correct)
+
+    # ============================================================
+    # ✅ 오답 상세 저장 (wrong_notes) — 회화도 '단어/정답/내답' 기록
+    # ============================================================
+    if not ok:
+        try:
+            sb2 = st.session_state.get("sb_authed") or sb  # hub에서 공유되면 sb_authed 우선
+            if sb2 and USER_ID:
+                q_text = (str(row.get("q_jp", "")) or str(row.get("situation_kr",""))).strip()
+                sb2 = get_authed_sb() or sb2
+
+                if not sb2:
+
+                    _wn_warn("오답 저장 실패: authed client 없음(access_token).")
+
+                else:
+
+                    try:
+
+                        sb2.table("wrong_notes").insert({
+
+                            "user_id": USER_ID,
+
+                            "quiz_type": "talk",
+
+                            "question": q_text if q_text else str(row.get("id", "")),
+
+                            "correct_answer": str(correct),
+
+                            "user_answer": str(selected),
+
+                            "level": "talk",
+
+                        }).execute()
+
+                    except Exception as e:
+
+                        _wn_warn(f"오답 저장 실패: {e}")
+        except Exception:
+            pass
+
+# 저장(answers)
+    answers.setdefault(qid, {})
+    answers[qid]["selected"] = selected
+    answers[qid]["ok"] = ok
+    st.session_state[f"{NS}_answers"] = answers
+
+    st.markdown("---")
+    st.subheader("결과")
+
+    if ok:
+        st.success("정답 ✅")
+    else:
+        st.error("오답 ❌")
+
+    # 상대/정답 스크립트 + 해설(제출 후에만)
+    with st.container(border=True):
+        st.markdown("### 🧑‍🏫 발음/말하기")
+
+        # ✅ 상황(제출 전에도 보이지만, 결과 박스에도 다시 한 번 노출)
+        situation = str(row.get("situation_kr", "")).strip()
+        if situation:
+            st.caption(f"상황: {situation}")
+
+        # ✅ 상대(말) / 내(말) — 스피커 아이콘 버튼은 여기서만 노출
+        
+        # ✅ 상대(말) / 내(말) — 한 iframe에서 2줄 렌더(간격 촘촘)
         tts_inline_pair(row.get("partner_jp", ""), row.get("answer_jp", ""), qid=str(qid), show_text=True)
 # ✅ 하테나쌤 코멘트 (explain_kr 우선, 없으면 hint_kr)
         explain_kr = str(row.get("explain_kr", "")).strip()
@@ -776,15 +912,91 @@ if submitted:
 
         # ✅ 말하기 녹음(선택) — 채점/인식 없이 '내 발화'만 남길 수 있게
         try:
-            if hasattr(st, "audio_input"):
-                audio = st.audio_input("내 말 녹음(선택)", key=f"{NS}_rec_{qid}")
-                if audio is not None:
-                    st.audio(audio)
-            else:
-                st.caption("현재 Streamlit 버전에서는 즉시 녹음이 지원되지 않아, 파일 업로드로 대체됩니다.")
-                up = st.file_uploader("내 음성 파일 업로드(선택)", type=["wav", "mp3", "m4a"], key=f"{NS}_rec_up_{qid}")
-                if up is not None:
-                    st.audio(up)
+
+            # ✅ 로컬 녹음/재생(서버 저장 없음) — 음질 개선(A안: Opus + 비트레이트↑ + 통화 보정 OFF)
+            components.html(
+                f"""
+<div style="display:flex;flex-direction:column;gap:10px;">
+  <div style="display:flex;align-items:center;gap:10px;">
+    <button id="rec_{qid}" style="padding:.45rem .7rem;border-radius:10px;border:1px solid rgba(0,0,0,.15);background:white;cursor:pointer;">
+      🎙️ 녹음 시작
+    </button>
+    <span id="rec_status_{qid}" style="font-size:.92rem;opacity:.75;">(선택) 내 말 녹음</span>
+  </div>
+  <audio id="rec_player_{qid}" controls style="width:100%; display:none;"></audio>
+</div>
+
+<script>
+(function(){{
+  const qid = {qid!r};
+  const btn = document.getElementById("rec_"+qid);
+  const status = document.getElementById("rec_status_"+qid);
+  const player = document.getElementById("rec_player_"+qid);
+
+  let stream = null;
+  let rec = null;
+  let chunks = [];
+  let running = false;
+
+  function pickMime(){{
+    const candidates = ["audio/webm;codecs=opus","audio/webm","audio/ogg;codecs=opus","audio/ogg"];
+    for (const m of candidates){{
+      if (window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(m)) return m;
+    }}
+    return "";
+  }}
+
+  async function start(){{
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {{
+      status.textContent = "이 브라우저는 녹음을 지원하지 않습니다.";
+      return;
+    }}
+    try {{
+      stream = await navigator.mediaDevices.getUserMedia({{
+        audio: {{ echoCancellation:false, noiseSuppression:false, autoGainControl:false }}
+      }});
+      const mime = pickMime();
+      const opts = {{ mimeType: (mime || undefined), audioBitsPerSecond: 160000, bitsPerSecond: 160000 }};
+      rec = new MediaRecorder(stream, opts);
+      chunks = [];
+      rec.ondataavailable = (e) => {{ if (e.data && e.data.size > 0) chunks.push(e.data); }};
+      rec.onstop = () => {{
+        try {{
+          const blob = new Blob(chunks, {{ type: rec.mimeType || "audio/webm" }});
+          const url = URL.createObjectURL(blob);
+          player.src = url;
+          player.style.display = "block";
+          player.play().catch(()=>{{}});
+          status.textContent = "재생으로 확인해 보세요.";
+        }} catch(e) {{
+          status.textContent = "녹음 파일 생성에 실패했습니다.";
+        }}
+      }};
+      rec.start(150);
+      running = true;
+      btn.textContent = "⏹️ 녹음 종료";
+      status.textContent = "녹음 중...";
+    }} catch(e) {{
+      status.textContent = "마이크 권한이 필요합니다.";
+    }}
+  }}
+
+  function stop(){{
+    try {{ if (rec && running) rec.stop(); }} catch(e) {{}}
+    try {{ if (stream) stream.getTracks().forEach(t => t.stop()); }} catch(e) {{}}
+    running = false;
+    btn.textContent = "🎙️ 녹음 시작";
+  }}
+
+  btn.addEventListener("click", () => {{
+    if (!running) start();
+    else stop();
+  }});
+}})();
+</script>
+""",
+                height=190,
+            )
         except Exception:
             pass
 
