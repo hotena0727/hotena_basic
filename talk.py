@@ -247,52 +247,6 @@ except Exception:
     pass
 
 # ============================================================
-# ✅ Filters (상황(tag) → 레벨(level))  ※ 실전회화만 노출
-# ============================================================
-
-# --- normalize (비교 실패/공백 문제 방지) ---
-for _c in ["mode", "tag", "level"]:
-    if _c in DF.columns:
-        DF[_c] = DF[_c].astype(str).fillna("").str.strip()
-
-if "mode" in DF.columns:
-    DF["mode"] = DF["mode"].str.lower()
-if "tag" in DF.columns:
-    DF["tag"] = DF["tag"].str.lower().str.replace(r"[\s\-]+", "_", regex=True)
-if "level" in DF.columns:
-    # n3/N3/3 혼재 방지: n3 형태로 통일
-    DF["level"] = DF["level"].str.lower().str.replace(" ", "")
-
-# --- 실전회화만 사용 (business 데이터는 CSV에 남겨두되 UI에서 제외) ---
-DF_BASE = DF.copy()
-if "mode" in DF_BASE.columns:
-    DF_BASE = DF_BASE[DF_BASE["mode"] == "real"].copy()
-
-# --- 상황(tag) 옵션: DF_BASE 기준 ---
-all_tags = [t for t in DF_BASE["tag"].astype(str).unique().tolist() if t]
-# business 같은 중복/혼란 태그는 숨김
-all_tags = [t for t in all_tags if t not in {"business"}]
-
-# 보기 순서(추천) - 데이터가 없으면 그냥 전체
-preferred_order = ["daily", "travel", "food", "shopping", "call", "emergency", "interview"]
-tag_options = [t for t in preferred_order if t in all_tags]
-TAG_LABEL = {
-    "aisatsu": "인사말",
-}
-def _tag_label(t: str) -> str:
-    return TAG_LABEL.get(str(t), str(t))
-if not tag_options:
-    tag_options = sorted(all_tags)
-
-# tag 변경 시 level이 유효하지 않으면 초기화
-_prev_tag = st.session_state.get(f"_{NS}_prev_tag")
-if _prev_tag != st.session_state.get(f"{NS}_tag"):
-    st.session_state[f"_{NS}_prev_tag"] = st.session_state.get(f"{NS}_tag")
-    # 레벨이 이전 선택값으로 남아 충돌하는 걸 방지
-    if f"{NS}_level" in st.session_state:
-        del st.session_state[f"{NS}_level"]
-
-# ============================================================
 # ✅ Filters (상황(tag))  ※ 현재는 '인사말(aisatsu)'만 노출
 # ============================================================
 
@@ -319,7 +273,7 @@ def _tag_label(t: str) -> str:
     return TAG_LABEL.get(str(t), str(t))
 
 tags_in_data = [t for t in DF_BASE["tag"].astype(str).unique().tolist() if t]
-tag_options = ["aisatsu"] if "aisatsu" in tags_in_data else (sorted(tags_in_data)[:1] if tags_in_data else ["aisatsu"])
+tag_options = ["aisatsu"]
 
 tag = st.selectbox(
     "상황 선택",
@@ -455,6 +409,11 @@ if _cur.empty:
     # 가장 첫 문제로 강제 리셋
     st.session_state[f"{NS}_idx"] = 0
     qid = qids[0]
+    _cur = pool_df[pool_df["qid"].astype(str) == str(qid)]
+if _cur.empty:
+    # 선택된 qid가 현재 풀에 없으면 첫 문제로 안전하게 재설정
+    qid = str(pool_df.iloc[0].get("qid"))
+    st.session_state[f"{NS}_qid"] = qid
     _cur = pool_df[pool_df["qid"].astype(str) == str(qid)]
 row = _cur.iloc[0].to_dict()
 
@@ -656,7 +615,10 @@ def finalize_set_if_ready():
     score = 0
     wrong_list: list[dict] = []
     for q in qids:
-        r = pool_df[pool_df["qid"].astype(str) == str(q)].iloc[0].to_dict()
+        tmp = pool_df[pool_df["qid"].astype(str) == str(q)]
+        if tmp.empty:
+            continue
+        r = tmp.iloc[0].to_dict()
         correct = str(r.get("answer_jp", "")).strip()
         sel = st.session_state.get(f"{NS}_selected_{q}")
         ok = (sel == correct)
