@@ -92,7 +92,7 @@ def _inject_talk_ui_css():
 
 _inject_talk_ui_css()
 
-st.title("회화 훈련 · 상황판단")
+st.title("일본어회화")
 st.caption("1문제씩: 상황 → 상대 발화(🔊/PRO) → 보기 선택 → 제출 → 정답/설명 → (선택)말하기 완료 체크")
 
 # ============================================================
@@ -525,7 +525,7 @@ def tts_inline_row(role_label: str, text: str, key: str, show_text: bool = True)
 }})();
 </script>
 ''',
-        height=52,
+        height=40,
     )
 
 
@@ -660,7 +660,7 @@ with st.container(border=True):
 
     st.markdown("---")
     with st.container(border=True):
-        st.markdown("**내가 할 말(보기)**")
+        st.markdown("**내가 할 말(선택)**")
 
         # ✅ 보기 선택(속도/안정성 개선)
         # - st.button 4개는 클릭할 때마다 전체가 재렌더링되어 체감이 느릴 수 있어
@@ -774,6 +774,7 @@ if submitted:
         
         # ✅ 상대(말) / 내(말) — 문장 오른쪽에 아이콘을 딱 붙여 표시
         tts_inline_row("상대(말)", row.get("partner_jp", ""), key=f"{qid}_partner_r", show_text=True)
+        st.markdown('<div style="margin-top:-10px"></div>', unsafe_allow_html=True)
         tts_inline_row("내(말)", row.get("answer_jp", ""), key=f"{qid}_answer_r", show_text=True)
 # ✅ 하테나쌤 코멘트 (explain_kr 우선, 없으면 hint_kr)
         explain_kr = str(row.get("explain_kr", "")).strip()
