@@ -1360,26 +1360,103 @@ def _go_home() -> None:
 
 
 def _logout() -> None:
+    """Best-effort logout (MyPage only).
+
+    Why: home.py may restore auth from persisted storage on rerun.
+    So we clear session_state tokens + (if present) cookie/localStorage + URL params,
+    then force a hard reload to a clean URL.
+    """
     sb = _sb()
+
+    # 1) Supabase sign out (server-side)
     try:
         if sb and hasattr(sb, "auth") and hasattr(sb.auth, "sign_out"):
             sb.auth.sign_out()
     except Exception:
         pass
 
-    for k in [
+    # 2) Clear common auth/session keys
+    explicit_keys = [
         "access_token", "refresh_token", "user_id", "uid", "email",
-        "sb_authed", "sb", "is_admin", "plan", "user_plan"
-    ]:
+        "sb_authed", "sb",
+        "is_admin", "plan", "user_plan", "pro_until",
+        "cookies",  # if a cookie-manager is stored here, we handle below as well
+    ]
+    for k in explicit_keys:
         if k in st.session_state:
             st.session_state[k] = None
+
+    # 3) Also clear any key that smells like auth/session (safe, but focused)
+    for k in list(st.session_state.keys()):
+        lk = str(k).lower()
+        if any(s in lk for s in ("token", "refresh", "access", "auth", "supabase", "jwt", "user", "profile")):
+            try:
+                st.session_state[k] = None
+            except Exception:
+                pass
+
+    # 4) Try to clear cookies if a cookie manager exists
+    try:
+        cm = st.session_state.get("cookies")
+        # common APIs: .delete(key) / .remove(key) / dict-like pop
+        for ck in ("access_token", "refresh_token", "sb_access_token", "sb_refresh_token"):
+            try:
+                if hasattr(cm, "delete"):
+                    cm.delete(ck)
+                elif hasattr(cm, "remove"):
+                    cm.remove(ck)
+                elif isinstance(cm, dict):
+                    cm.pop(ck, None)
+            except Exception:
+                pass
+        # some managers need save()
+        try:
+            if hasattr(cm, "save"):
+                cm.save()
+        except Exception:
+            pass
+    except Exception:
+        pass
+
+    # 5) Ensure router goes home AND strip query params (so ?p=my doesn't pull you back)
+    try:
+        st.query_params.clear()
+        st.query_params["p"] = "home"
+    except Exception:
+        try:
+            st.experimental_set_query_params(p="home")
+        except Exception:
+            pass
 
     for key in ("hub_page", "page", "current_page"):
         if key in st.session_state:
             st.session_state[key] = "home"
+
+    # 6) Hard reload + browser storage cleanup (best effort)
+    try:
+        components.html(
+            """
+            <script>
+              try { localStorage.clear(); } catch(e) {}
+              try { sessionStorage.clear(); } catch(e) {}
+              try {
+                const url = new URL(window.location.href);
+                url.search = '';
+                url.hash = '';
+                // keep only p=home to align with hub router
+                url.searchParams.set('p','home');
+                window.location.replace(url.toString());
+              } catch(e) {
+                window.location.reload();
+              }
+            </script>
+            """,
+            height=0,
+        )
+    except Exception:
+        pass
+
     st.rerun()
-
-
 # ---------------------------
 # Mini widget
 # ---------------------------
