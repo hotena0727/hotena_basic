@@ -555,7 +555,7 @@ def tts_inline_row(role_label: str, text: str, key: str, show_text: bool = True)
 
 
 def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bool = True):
-    # 상대/내 2줄을 하나의 iframe 안에서 렌더링해서 줄 간격을 촘촘하게 제어
+    # 결과 박스용: 상대/내 문장 + 인라인 발음 아이콘(또는 PRO 배지)
     ptxt = partner_text or ""
     atxt = answer_text or ""
 
@@ -568,19 +568,20 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
     disabled = (not IS_PRO)
     show = "inline" if show_text else "none"
 
-    # FREE: 스피커 대신 PRO 배지로 통일
-    _pro_badge = '<span style="display:inline-flex;align-items:center;justify-content:center;padding:2px 8px;border-radius:999px;border:1px solid rgba(0,0,0,.18);background:rgba(0,0,0,.04);font-size:12px;font-weight:800;letter-spacing:.3px;">PRO</span>'
-
-    if disabled:
-        p_html = _pro_badge
-        a_html = _pro_badge
-    else:
-      {p_html}
-      {a_html}
+    # FREE일 때는 버튼 비활성 + 아이콘은 PRO 배지
+    pro_badge = "PRO"
+    p_icon = pro_badge if disabled else "🔊"
+    a_icon = pro_badge if disabled else "🔊"
+    p_opacity = "0.55" if disabled else "1"
+    a_opacity = "0.55" if disabled else "1"
+    p_cursor = "not-allowed" if disabled else "pointer"
+    a_cursor = "not-allowed" if disabled else "pointer"
+    p_dis = 'disabled="disabled"' if disabled else ""
+    a_dis = 'disabled="disabled"' if disabled else ""
 
     html = """
 <div style="display:flex;flex-direction:column;gap:10px;line-height:1.25;">
-  <div style="display:flex;align-items:center;gap:8px;">
+  <div style="display:flex;align-items:center;gap:10px;">
     <div style="min-width:72px;font-weight:800;opacity:.85;">상대(말)</div>
     <div style="flex:1;display:flex;align-items:center;gap:6px;">
       <span style="display:{show};font-weight:500;">{ptxt}</span>
@@ -592,7 +593,7 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
     </div>
   </div>
 
-  <div style="display:flex;align-items:center;gap:8px;">
+  <div style="display:flex;align-items:center;gap:10px;">
     <div style="min-width:72px;font-weight:800;opacity:.85;">내(말)</div>
     <div style="flex:1;display:flex;align-items:center;gap:6px;">
       <span style="display:{show};font-weight:500;">{atxt}</span>
@@ -606,54 +607,54 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
 </div>
 
 <script>
-(function(){{
-  const synth = window.speechSynthesis;
+(function(){
+  function chooseVoice(){
+    try{
+      const vs = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+      if(!vs || !vs.length) return null;
+      let v = vs.find(x => (x.lang||"").toLowerCase().startsWith("ja"));
+      if(v) return v;
+      v = vs.find(x => /japan|nihon|日本|google/i.test(x.name||""));
+      return v || null;
+    }catch(e){return null;}
+  }
 
-  function pickJaVoice(){{
-    const voices = synth.getVoices() || [];
-    const ja = voices.filter(v => String(v.lang||"").toLowerCase().startsWith("ja"));
-    if (!ja.length) return null;
-    return ja.find(v => /google/i.test(v.name||""))
-        || ja.find(v => /日本|japanese/i.test(v.name||""))
-        || ja[0] || null;
-  }}
+  function speak(txt){
+    if(!window.speechSynthesis) return;
+    const u = new SpeechSynthesisUtterance(txt);
+    const v = chooseVoice();
+    if(v) u.voice = v;
+    u.lang = "ja-JP";
+    u.rate = 1.0;
+    u.pitch = 1.0;
+    u.volume = 1.0;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(u);
+  }
 
-  function speak(text){{
-    try{{
-      const u = new SpeechSynthesisUtterance(text);
-      u.lang = "ja-JP";
-      const v = pickJaVoice();
-      if (v) u.voice = v;
-      synth.cancel();
-      synth.speak(u);
-    }}catch(e){{}}
-  }}
-
-  function bind(btnId, text, disabled){{
-    const btn = document.getElementById(btnId);
-    if (!btn || disabled) return;
-    if (btn.dataset.bound === "1") return;
-    btn.dataset.bound = "1";
-
-    btn.addEventListener("click", () => {{
-      if ((synth.getVoices() || []).length === 0){{
+  function bind(id, txt, dis){
+    const el = document.getElementById(id);
+    if(!el) return;
+    if(dis === true) return;
+    el.addEventListener('click', function(){
+      if(window.speechSynthesis && window.speechSynthesis.getVoices().length === 0){
         let tried = 0;
-        const t = setInterval(() => {{
-          tried += 1;
-          if ((synth.getVoices() || []).length > 0 || tried >= 10){{
+        const t = setInterval(function(){
+          tried++;
+          if(window.speechSynthesis.getVoices().length > 0 || tried >= 10){
             clearInterval(t);
-            speak(text);
-          }}
-        }}, 150);
-      }} else {{
-        speak(text);
-      }}
-    }});
-  }}
+            speak(txt);
+          }
+        }, 150);
+      }else{
+        speak(txt);
+      }
+    });
+  }
 
   bind("tts_{qid}_p", {p_safe}, {disabled});
   bind("tts_{qid}_a", {a_safe}, {disabled});
-}})();
+})();
 </script>
 """
 
@@ -662,14 +663,19 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
         qid=qid,
         ptxt=ptxt,
         atxt=atxt,
-        p_html=p_html,
-        a_html=a_html,
         p_safe=repr(p_safe),
         a_safe=repr(a_safe),
         disabled=("true" if disabled else "false"),
+        p_dis=p_dis,
+        a_dis=a_dis,
+        p_cursor=p_cursor,
+        a_cursor=a_cursor,
+        p_opacity=p_opacity,
+        a_opacity=a_opacity,
+        p_icon=p_icon,
+        a_icon=a_icon,
     )
     components.html(html, height=92)
-
 
 
 def play_audio_or_tts(text: str, audio_url: str, label: str, key: str):
