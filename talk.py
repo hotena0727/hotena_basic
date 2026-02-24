@@ -506,9 +506,6 @@ submitted = bool(st.session_state.get(submitted_key))
 # ============================================================
 with st.container(border=True):
     st.markdown(f"**상황**: {row.get('situation_kr','')}")
-
-    # 🔊 문제 단계: 상대 듣기 (PRO는 재생, FREE는 잠금)
-    play_audio_or_tts(row.get('partner_jp',''), row.get('audio_partner_url',''), '상대 듣기', f"{qid}_q_partner")
     # FREE는 듣기가 잠겨 있으니, 문제 단계에서 스크립트를 보여줍니다.
     if not IS_PRO:
         st.markdown(f"<div class='talk-partner-script'>상대: {row.get('partner_jp','')}</div>", unsafe_allow_html=True)
@@ -620,16 +617,31 @@ if submitted:
     else:
         st.error("오답 ❌")
 
-    # 상대/정답 스크립트 + 발음
+    # 상대/정답 스크립트 + 해설(제출 후에만)
     with st.container(border=True):
-        st.markdown("**상대 스크립트**")
-        st.write(row.get("partner_jp", ""))
-        tts_button(row.get("partner_jp", ""), "🔊 상대 듣기", key=f"{qid}_partner_after")
+        st.markdown("### 🧑‍🏫 발음/말하기")
 
-        st.markdown("**정답 스크립트**")
-        st.write(correct)
-        tts_button(correct, "🔊 정답 듣기", key=f"{qid}_answer")        # ✅ 원포인트 해설(한국어) — CSV explain_kr 컬럼이 있으면 표시
+        # ✅ 상황(제출 전에도 보이지만, 결과 박스에도 다시 한 번 노출)
+        situation = str(row.get("situation_kr", "")).strip()
+        if situation:
+            st.caption(f"상황: {situation}")
 
+        # ✅ 상대(말) / 내(말) — 스피커 아이콘 버튼은 여기서만 노출
+        c1, c2, c3 = st.columns([0.17, 0.68, 0.15])
+        with c1:
+            st.markdown("**상대(말)**")
+        with c2:
+            st.write(row.get("partner_jp", ""))
+        with c3:
+            tts_button(row.get("partner_jp", ""), "🔊", key=f"{qid}_partner_after")
+
+        c1, c2, c3 = st.columns([0.17, 0.68, 0.15])
+        with c1:
+            st.markdown("**내(말)**")
+        with c2:
+            st.write(correct)
+        with c3:
+            tts_button(correct, "🔊", key=f"{qid}_answer")
 
         # ✅ 하테나쌤 코멘트 (explain_kr 우선, 없으면 hint_kr)
         explain_kr = str(row.get("explain_kr", "")).strip()
@@ -638,12 +650,13 @@ if submitted:
         if explain_kr:
             st.info("하테나쌤 코멘트\n\n" + explain_kr)
         elif hint:
-            st.info(hint)
+            st.info("하테나쌤 코멘트\n\n" + hint)
         else:
-            st.info("포인트: 상황에서 ‘요청/사과/확인/거절’ 중 무엇인지 먼저 잡고, 그에 맞는 톤(정중/캐주얼)을 고르면 실수가 줄어듭니다.")
+            st.info("하테나쌤 코멘트\n\n포인트: 상황에서 ‘요청/사과/확인/거절’ 중 무엇인지 먼저 잡고, 그에 맞는 톤(정중/캐주얼)을 고르면 실수가 줄어듭니다.")
+
 if submitted:
     with st.container(border=True):
-        st.markdown("### 🎤 발음/말하기")
+        st.markdown("### 🎤 말하기 체크")
 
         total_cnt = len(qids)
         current_no = idx + 1
