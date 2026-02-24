@@ -1141,69 +1141,6 @@ except Exception:
             st.info("💡 하테나쌤 코멘트\n\n" + hint)
         else:
             st.info("💡 하테나쌤 코멘트\n\n포인트: 상황에서 ‘요청/사과/확인/거절’ 중 무엇인지 먼저 잡고, 그에 맞는 톤(정중/캐주얼)을 고르면 실수가 줄어듭니다.")
-# ============================================================
-# ✅ AI 튜터: 하테나쌤 (정답 제출 후에만 작동)
-# - 현재 문제(상황/상대 발화/내 선택/정답/정오답) + 최근2턴을 자동으로 문맥에 붙입니다.
-# - 3~4줄 짧은 답변(한국어 중심 + 일본어 조금)
-# ============================================================
-with st.container(border=True):
-    st.markdown("### 💬 하테나쌤에게 물어보기")
-    q_default = st.session_state.get("talk_ai_last_q") or ""
-    user_q = st.text_input(
-        "질문",
-        value=str(q_default),
-        key=f"talk_ai_q_{qid}",
-        placeholder="예) 왜 이 표현이 정답이에요? / 다른 자연스러운 말도 있어요?",
-    )
-
-    # auto context (cheap)
-    ctx_parts = []
-    s = str(row.get("situation_kr", "")).strip()
-    p = str(row.get("partner_jp", "")).strip()
-    a = str(row.get("answer_jp", "")).strip()
-    me = str(selected or "").strip()
-    ctx_parts.append(f"현재상황: {s}")
-    ctx_parts.append(f"상대발화: {p}")
-    ctx_parts.append(f"정답표현: {a}")
-    if me:
-        ctx_parts.append(f"내선택: {me}")
-    ctx_parts.append(f"정오답: {'정답' if ok else '오답'}")
-
-    try:
-        recent = _recent_turns_summary()
-        if recent:
-            ctx_parts.append("최근2턴:\n" + recent)
-    except Exception:
-        pass
-
-    ctx = "\n".join([x for x in ctx_parts if x]).strip()
-
-    cA, cB = st.columns([0.72, 0.28], vertical_alignment="center")
-    with cA:
-        st.caption("짧게 물어보면 더 빠르고 저렴해요 🙂")
-    with cB:
-        ask = st.button("질문하기", use_container_width=True, key=f"talk_ai_ask_{qid}")
-
-    if ask and str(user_q).strip():
-        st.session_state["talk_ai_last_q"] = str(user_q).strip()
-        with st.spinner("하테나쌤 답변 중…"):
-            ans = ai_tutor.ask_hatena(
-                mode="talk",
-                user_input=str(user_q).strip(),
-                context=ctx,
-                meta={
-                    "page": "talk",
-                    "qid": str(qid),
-                    "tag": str(tag),
-                    "sub": str(sub) if 'sub' in locals() else "",
-                    "submitted": True,
-                    "ok": bool(ok),
-                },
-            )
-        st.info(ans)
-
-
-
 if submitted:
     with st.container(border=True):
         total_cnt = len(qids)
@@ -1266,6 +1203,69 @@ if submitted:
             st.session_state.pop(f"{NS}_radio_{qid}", None)
             st.session_state.pop(f"{NS}_speak_done_{qid}", None)
             st.rerun()
+
+# ============================================================
+# ✅ AI 튜터: 하테나쌤 (정답 제출 후 + 발음체크 다음)
+# - 현재 문제(상황/상대 발화/내 선택/정답/정오답) + 최근2턴을 자동으로 문맥에 붙입니다.
+# - 3~4줄 짧은 답변(한국어 중심 + 일본어 조금) + 이모지
+# ============================================================
+with st.container(border=True):
+    st.markdown("### 💬 하테나쌤에게 물어보기")
+    q_default = st.session_state.get("talk_ai_last_q") or ""
+    user_q = st.text_input(
+        "질문",
+        value=str(q_default),
+        key=f"talk_ai_q_{qid}",
+        placeholder="예) 왜 이 표현이 정답이에요? / 더 자연스러운 말도 있어요?",
+        label_visibility="collapsed",
+    )
+
+    # auto context (cheap)
+    ctx_parts = []
+    s = str(row.get("situation_kr", "")).strip()
+    p = str(row.get("partner_jp", "")).strip()
+    a = str(row.get("answer_jp", "")).strip()
+    me = str(selected or "").strip()
+    ctx_parts.append(f"현재상황: {s}")
+    ctx_parts.append(f"상대발화: {p}")
+    ctx_parts.append(f"정답표현: {a}")
+    if me:
+        ctx_parts.append(f"내선택: {me}")
+    ctx_parts.append(f"정오답: {'정답' if ok else '오답'}")
+
+    try:
+        recent = _recent_turns_summary()
+        if recent:
+            ctx_parts.append("최근2턴:\n" + recent)
+    except Exception:
+        pass
+
+    ctx = "\n".join([x for x in ctx_parts if x]).strip()
+
+    cA, cB = st.columns([0.72, 0.28], vertical_alignment="center")
+    with cA:
+        st.caption("짧게 물어보면 더 빠르고 저렴해요 🙂")
+    with cB:
+        ask = st.button("질문하기", use_container_width=True, key=f"talk_ai_ask_{qid}")
+
+    if ask and str(user_q).strip():
+        st.session_state["talk_ai_last_q"] = str(user_q).strip()
+        with st.spinner("하테나쌤 답변 중…"):
+            ans = ai_tutor.ask_hatena(
+                mode="talk",
+                user_input=str(user_q).strip(),
+                context=ctx,
+                meta={
+                    "page": "talk",
+                    "qid": str(qid),
+                    "tag": str(tag),
+                    "sub": str(sub) if 'sub' in locals() else "",
+                    "submitted": True,
+                    "ok": bool(ok),
+                },
+            )
+        st.info(ans)
+
 # ============================================================
 # ✅ Set completion (10문제 모두 제출되면 자동 집계)
 # ============================================================
