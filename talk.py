@@ -117,16 +117,7 @@ sb = get_sb()
 # ✅ CSV load
 # ============================================================
 BASE_DIR = Path(__file__).resolve().parent
-
-CSV_PATH = BASE_DIR / "talk_situations.csv"  # ✅ 경로 고정(권장)
-if not CSV_PATH.exists():
-    alt = BASE_DIR / "data" / "talk_situations.csv"
-    if alt.exists():
-        CSV_PATH = alt
-    else:
-        st.error(f"CSV 파일을 찾을 수 없습니다.\n- 시도: {BASE_DIR / 'talk_situations.csv'}\n- 시도: {alt}")
-        st.stop()
-
+CSV_PATH = BASE_DIR / "data" / "talk_situations.csv"
 
 if not CSV_PATH.exists():
     st.error(f"CSV 파일이 없습니다: {CSV_PATH}")
@@ -155,18 +146,6 @@ def load_csv(path: Path) -> pd.DataFrame:
 
 
 DF = load_csv(CSV_PATH)
-
-# --- normalize columns (공백/대소문자/전각공백 문제 방지) ---
-for _c in ["tag", "mode", "level", "qid"]:
-    if _c in DF.columns:
-        DF[_c] = DF[_c].astype(str).fillna("").map(lambda s: str(s).replace("\u3000", " ").strip())
-if "tag" in DF.columns:
-    DF["tag"] = DF["tag"].str.lower().str.replace(r"[\s\-]+", "_", regex=True)
-if "mode" in DF.columns:
-    DF["mode"] = DF["mode"].str.lower().str.replace(" ", "")
-if "level" in DF.columns:
-    DF["level"] = DF["level"].str.lower().str.replace(" ", "")
-
 
 # ============================================================
 # ✅ Labels
@@ -280,6 +259,14 @@ if "mode" in DF.columns:
     DF["mode"] = DF["mode"].str.lower()
 if "tag" in DF.columns:
     DF["tag"] = DF["tag"].str.lower().str.replace(r"[\s\-]+", "_", regex=True)
+if "sub" in DF.columns:
+    DF["sub"] = (
+        DF["sub"].astype(str)
+        .str.replace("\u3000", " ", regex=False)
+        .str.strip()
+        .str.lower()
+        .str.replace(r"[\s\-]+", "_", regex=True)
+    )
 if "level" in DF.columns:
     DF["level"] = DF["level"].str.lower().str.replace(" ", "")
 
@@ -291,11 +278,13 @@ TAG_LABEL = {"aisatsu": "인사말"}
 def _tag_label(t: str) -> str:
     return TAG_LABEL.get(str(t), str(t))
 
-tags_in_data = [t for t in DF_BASE["tag"].astype(str).unique().tolist() if t]
+# 인사말은 tag=aisatsu 고정
 tag_options = ["aisatsu"]
+
 if not tag_options:
     st.warning("해당 상황의 회화 문제가 없습니다. (CSV의 tag 확인)")
     st.stop()
+
 tag = st.selectbox(
     "상황 선택",
     options=tag_options,
@@ -303,18 +292,46 @@ tag = st.selectbox(
     key=f"{NS}_tag",
 )
 
+# ✅ 인사말 유형(sub) 선택 (CSV에 sub 컬럼이 있으면 노출)
+SUB_LABEL = {
+    "__all__": "전체",
+    "home": "집/가정",
+    "morning": "아침",
+    "day": "낮/친구",
+    "evening": "저녁/밤",
+    "thanks": "감사",
+    "apology": "사과",
+    "work": "회사 기본",
+    "meeting": "미팅/첫인사",
+    "phone": "전화",
+    "basic": "기본/기타",
+}
+
+def _sub_label(s: str) -> str:
+    return SUB_LABEL.get(str(s), str(s))
+
+sub = "__all__"
+has_sub = ("sub" in DF_BASE.columns) and DF_BASE["sub"].astype(str).str.strip().ne("").any()
+if has_sub:
+    subs_in_data = sorted(set([x for x in DF_BASE["sub"].astype(str).tolist() if str(x).strip()]))
+    sub_options = ["__all__"] + subs_in_data
+    sub = st.selectbox(
+        "인사말 유형",
+        options=sub_options,
+        format_func=_sub_label,
+        key=f"{NS}_sub",
+    )
+
 # 레벨 선택은 사용하지 않음(인사말에서 N4~N3 혼합)
 level = "mix"
 
 pool_df = DF_BASE[(DF_BASE["tag"] == tag)].copy().reset_index(drop=True)
+if has_sub and sub != "__all__":
+    pool_df = pool_df[pool_df["sub"].astype(str) == str(sub)].copy().reset_index(drop=True)
+
 
 if pool_df.empty:
     st.warning("해당 상황의 회화 문제가 없습니다. (CSV의 tag 확인)")
-    st.caption(f"CSV_PATH: {CSV_PATH}")
-    try:
-        st.caption("tag unique: " + ", ".join(sorted(set(DF_BASE["tag"].astype(str).tolist()))))
-    except Exception:
-        pass
     st.stop()
 
 # ============================================================
