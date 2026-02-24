@@ -575,9 +575,11 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
     disabled = (not IS_PRO)
     show = "inline" if show_text else "none"
 
-    # FREE일 때는 버튼 비활성 + 아이콘은 PRO 배지
-    p_icon = "PRO" if disabled else "🔊"
-    a_icon = "PRO" if disabled else "🔊"
+    # FREE일 때도 🔊 아이콘은 유지하되, 버튼은 비활성 + PRO 배지로 안내
+    p_icon = "🔊"
+    a_icon = "🔊"
+    p_pro_show = "inline-flex" if disabled else "none"
+    a_pro_show = "inline-flex" if disabled else "none"
     p_opacity = "0.55" if disabled else "1"
     a_opacity = "0.55" if disabled else "1"
     p_cursor = "not-allowed" if disabled else "pointer"
@@ -596,6 +598,7 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
                cursor:$p_cursor;
                font-size:18px;font-weight:900;line-height:1;
                opacity:$p_opacity;">$p_icon</button>
+      <span style="display:$p_pro_show;align-items:center;justify-content:center;padding:2px 8px;border-radius:999px;border:1px solid rgba(0,0,0,.10);background:rgba(0,0,0,.04);font-size:11px;font-weight:800;letter-spacing:.02em;opacity:.55;">PRO</span>
     </div>
   </div>
 
@@ -608,6 +611,7 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
                cursor:$a_cursor;
                font-size:18px;font-weight:900;line-height:1;
                opacity:$a_opacity;">$a_icon</button>
+      <span style="display:$a_pro_show;align-items:center;justify-content:center;padding:2px 8px;border-radius:999px;border:1px solid rgba(0,0,0,.10);background:rgba(0,0,0,.04);font-size:11px;font-weight:800;letter-spacing:.02em;opacity:.55;">PRO</span>
     </div>
   </div>
 </div>
@@ -677,6 +681,8 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
         a_opacity=a_opacity,
         p_icon=p_icon,
         a_icon=a_icon,
+        p_pro_show=p_pro_show,
+        a_pro_show=a_pro_show,
         p_js=json.dumps(p_safe, ensure_ascii=False),
         a_js=json.dumps(a_safe, ensure_ascii=False),
         disabled_js=("true" if disabled else "false"),
@@ -953,7 +959,8 @@ if submitted:
             # ✅ 로컬 녹음/재생(서버 저장 없음) — 음질은 브라우저/기기 영향이 큼
             try:
                 _qid_json = json.dumps(str(qid))
-                rec_html = Template(r'''<div style="display:flex;flex-direction:column;gap:10px;">
+                components.html(
+                    Template(r"""<div style="display:flex;flex-direction:column;gap:10px;">
   <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
     <button id="rec_$qid" style="padding:.45rem .7rem;border-radius:10px;border:1px solid rgba(0,0,0,.15);background:white;cursor:pointer;">
       🎙️ 녹음 시작
@@ -966,69 +973,67 @@ if submitted:
 <script>
 (function(){
   const qid = $qid_json;
-  const btn = document.getElementById("rec_"+qid);
-  const status = document.getElementById("rec_status_"+qid);
-  const player = document.getElementById("rec_player_"+qid);
+  const btn = document.getElementById("rec_" + qid);
+  const status = document.getElementById("rec_status_" + qid);
+  const player = document.getElementById("rec_player_" + qid);
 
   let stream = null;
-  let rec = null;
+  let recorder = null;
   let chunks = [];
   let running = false;
 
-  function pickMime(){
-    const candidates = ["audio/webm;codecs=opus","audio/webm","audio/ogg;codecs=opus","audio/ogg"];
-    for (const m of candidates){
-      if (window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(m)) return m;
-    }
-    return "";
-  }
-
   async function start(){
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      status.textContent = "이 브라우저는 녹음을 지원하지 않습니다.";
+    try{
+      stream = await navigator.mediaDevices.getUserMedia({audio: true});
+    }catch(e){
+      status.textContent = "마이크 권한을 허용해 주세요.";
       return;
     }
-    try {
-      stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation:false, noiseSuppression:false, autoGainControl:false } });
-      const mime = pickMime();
-      const opts = { mimeType: (mime || undefined), audioBitsPerSecond: 128000, bitsPerSecond: 128000 };
-      rec = new MediaRecorder(stream, opts);
-      chunks = [];
-      rec.ondataavailable = (e) => { if (e.data && e.data.size > 0) chunks.push(e.data); };
-      rec.onstop = () => {
-        try {
-          const blob = new Blob(chunks, { type: rec.mimeType || "audio/webm" });
-          const url = URL.createObjectURL(blob);
-          player.src = url;
-          player.style.display = "block";
-          player.play().catch(()=>{});
-          status.textContent = "재생으로 확인해 보세요.";
-        } catch(e) {
-          status.textContent = "녹음 파일 생성에 실패했습니다.";
-        }
-      };
-      rec.start(200);
-      running = true;
-      btn.textContent = "⏹️ 녹음 종료";
-      status.textContent = "녹음 중...";
-    } catch(e) {
-      status.textContent = "마이크 권한이 필요합니다.";
+    try{
+      recorder = new MediaRecorder(stream, {mimeType: "audio/webm"});
+    }catch(e){
+      recorder = new MediaRecorder(stream);
     }
+    chunks = [];
+    recorder.ondataavailable = (ev)=>{ if(ev.data && ev.data.size>0) chunks.push(ev.data); };
+    recorder.onstop = ()=>{
+      try{
+        const blob = new Blob(chunks, {type: recorder.mimeType || "audio/webm"});
+        const url = URL.createObjectURL(blob);
+        player.src = url;
+        player.style.display = "block";
+        status.textContent = "녹음 완료! 재생해 보세요.";
+      }catch(e){
+        status.textContent = "녹음 파일 생성에 실패했어요.";
+      }
+      try{
+        if(stream){ stream.getTracks().forEach(t=>t.stop()); }
+      }catch(e){}
+      running = false;
+      btn.textContent = "🎙️ 다시 녹음";
+    };
+    recorder.start();
+    running = true;
+    btn.textContent = "⏹️ 녹음 종료";
+    status.textContent = "녹음 중… (10초 내외 추천)";
   }
 
   function stop(){
-    try { if (rec && running) rec.stop(); } catch(e) {}
-    try { if (stream) stream.getTracks().forEach(t => t.stop()); } catch(e) {}
-    running = false;
-    btn.textContent = "🎙️ 다시 녹음";
+    try{
+      if(recorder && running){ recorder.stop(); }
+    }catch(e){
+      status.textContent = "녹음 종료에 실패했어요.";
+    }
   }
 
-  btn.addEventListener("click", () => {
-    if (!running) start(); else stop();
+  btn.addEventListener("click", ()=>{
+    if(!running) start(); else stop();
   });
 })();
-</script>''').safe_substitute(qid=str(qid), qid_json=_qid_json)
-                components.html(rec_html, height=140)
+</script>
+""").safe_substitute(qid=str(qid), qid_json=_qid_json),
+                    height=140,
+                )
             except Exception:
                 # fallback: Streamlit 기본 오디오 입력(지원되는 브라우저에서만 노출)
                 try:
@@ -1052,7 +1057,7 @@ if submitted:
                 unsafe_allow_html=True,
             )
         st.caption("정답을 보고 2~3번 따라 말한 뒤, 아래 버튼을 눌러 다음으로 넘어가세요.")
-        if st.button("✅ 다 했어요 (다음)", use_container_width=True, key=f"{NS}_next_after"):
+if st.button("✅ 다 했어요 (다음)", use_container_width=True, key=f"{NS}_next_after"):
             st.success("+2 XP 🎤 (말하기 완료 보상)")
 
             nxt = idx + 1
