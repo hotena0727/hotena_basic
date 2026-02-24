@@ -596,11 +596,6 @@ if submitted:
         st.markdown("**정답 스크립트**")
         st.write(correct)
         tts_button(correct, "🔊 정답 듣기", key=f"{qid}_answer")        # ✅ 원포인트 해설(한국어) — CSV explain_kr 컬럼이 있으면 표시
-        explain_kr = str(row.get("explain_kr", "")).strip()
-        if explain_kr:
-            st.markdown("**✅ 원포인트 해설**")
-            st.write(explain_kr)
-
         # ✅ 말하기 녹음(선택) — 채점/인식 없이 '내 발화'만 남길 수 있게
         try:
             if hasattr(st, "audio_input"):
@@ -619,16 +614,14 @@ if submitted:
         # 납득 가능한 안내
         hint = str(row.get("hint_kr", "")).strip()
         if hint:
-            st.info(hint)
+            # ✅ 원포인트 해설(explain_kr)이 있으면 파란 안내 박스에 표시
+            explain_kr = str(row.get("explain_kr", "")).strip()
+            if explain_kr:
+                st.info(explain_kr)
+            elif hint:
+                st.info(hint)
         else:
             st.info("포인트: 상황에서 ‘요청/사과/확인/거절’ 중 무엇인지 먼저 잡고, 그에 맞는 톤(정중/캐주얼)을 고르면 실수가 줄어듭니다.")
-# ✅ 원포인트 해설(한국어) — CSV에 explain_kr 컬럼이 있으면 표시
-explain_kr = str(row.get("explain_kr", "")).strip()
-if explain_kr:
-    st.markdown("**✅ 원포인트 해설**")
-    st.write(explain_kr)
-
-
     # 말하기 완료 체크 (B안)
     st.markdown("#### 🎤 말하기(체크형)")
     st.caption("정답을 보고 2~3번 따라 말한 뒤, 아래 체크를 눌러 주세요. (녹음/인식 없이 가볍게!)")
