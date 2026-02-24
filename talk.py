@@ -38,6 +38,9 @@ from supabase import create_client
 # ✅ MP3 base (스토리지)
 BASE_AUDIO_URL = 'https://hotena.com/hotena/app/mp3/'
 
+# ✅ MP3 URL이 없을 때 브라우저 TTS로 대체할지 여부
+USE_TTS_FALLBACK = True  # mp3만 쓰려면 False
+
 
 # ============================================================
 # ✅ Settings
@@ -58,6 +61,36 @@ USER_EMAIL = getattr(u, "email", "") or ""
 
 USER_PLAN = (st.session_state.get("user_plan") or "free").lower()
 IS_PRO = USER_PLAN == "pro"
+
+def _inject_talk_ui_css():
+    if st.session_state.get("_talk_ui_css_done", False):
+        return
+    st.session_state["_talk_ui_css_done"] = True
+    st.markdown(
+        """
+<style>
+.talk-bubble-row{display:flex;gap:10px;align-items:flex-end;margin:6px 0;}
+.talk-bubble-label{min-width:68px;font-weight:800;opacity:.85;}
+.talk-bubble{
+  display:inline-block;
+  max-width:100%;
+  padding:10px 12px;
+  border-radius:16px;
+  border:1px solid rgba(49,51,63,.14);
+  box-shadow:0 1px 0 rgba(0,0,0,.02);
+  line-height:1.25;
+  word-break:break-word;
+}
+.talk-bubble.partner{background:rgba(0,0,0,.02);}
+.talk-bubble.me{background:rgba(33,150,243,.08);}
+.talk-bubble-sub{font-size:.86rem;opacity:.70;margin-top:2px;}
+.talk-tts-col{display:flex;justify-content:flex-end;align-items:center;}
+</style>
+""",
+        unsafe_allow_html=True,
+    )
+
+_inject_talk_ui_css()
 
 st.title("회화 훈련 · 상황판단")
 st.caption("1문제씩: 상황 → 상대 발화(🔊/PRO) → 보기 선택 → 제출 → 정답/설명 → (선택)말하기 완료 체크")
@@ -344,45 +377,80 @@ if pool_df.empty:
 
 
 def tts_button(text: str, label: str, key: str):
-    """브라우저 SpeechSynthesis 기반 TTS 버튼.
-    - Streamlit iframe 안에서 직접 버튼을 렌더링(부모 DOM 주입 X) → 가장 안정적
-    - PRO: 클릭 시 재생
-    - FREE: 잠금된 버튼(비활성) 표시
-    """
-    safe = (text or "").replace("\\", "\\\\").replace("`", "").replace("\n", " ")
+    '''브라우저 SpeechSynthesis 기반 TTS 버튼.
+    - PRO: 클릭 시 재생 / FREE: 잠금(비활성)
+    - 일본어 voice 자동 선택(가능하면 Google/日本語系)
+    '''
+    txt = text or ""
+    is_icon = (label or "").strip() in ["🔊", "🔈"]
     disabled = "true" if (not IS_PRO) else "false"
     btn_text = (f"🔒 {label}" if (not IS_PRO) else label)
-    # key마다 고유한 mount id
+
+    style_btn = (
+        "width:36px;height:36px;border-radius:999px;display:flex;align-items:center;justify-content:center;font-size:18px;"
+        if is_icon
+        else "width:100%;padding:8px 10px;border-radius:12px;font-size:15px;"
+    )
+
     components.html(
         f"""
-<div style='width:100%'>
-  <button id='tts_{key}' {'disabled' if not IS_PRO else ''} 
-    style='width:100%;padding:8px 10px;border-radius:12px;border:1px solid rgba(49,51,63,.18);
-           background:{'#f6f7f9' if not IS_PRO else 'white'};cursor:{'not-allowed' if not IS_PRO else 'pointer'};
-           font-weight:800;opacity:{'0.7' if not IS_PRO else '1.0'};'>
+<div style="width:100%;display:flex;justify-content:{'flex-end' if is_icon else 'stretch'};">
+  <button id="tts_{key}" {'disabled' if not IS_PRO else ''} style="{style_btn}
+           border:1px solid rgba(49,51,63,.18);
+           background:{'#f6f7f9' if not IS_PRO else 'white'};
+           cursor:{'not-allowed' if not IS_PRO else 'pointer'};
+           font-weight:800;opacity:{'0.7' if not IS_PRO else '1.0'};">
     {btn_text}
   </button>
 </div>
 <script>
 (function() {{
-  const btn = document.getElementById('tts_{key}');
+  const btn = document.getElementById("tts_{key}");
   if (!btn) return;
   if ({disabled}) return;
-  // 동일 rerun에서 이벤트 중복 등록 방지
-  if (btn.dataset.bound === '1') return;
-  btn.dataset.bound = '1';
-  btn.addEventListener('click', () => {{
+  if (btn.dataset.bound === "1") return;
+  btn.dataset.bound = "1";
+
+  const synth = window.speechSynthesis;
+
+  function pickJaVoice() {{
+    const voices = synth.getVoices() || [];
+    const ja = voices.filter(v => String(v.lang || "").toLowerCase().startsWith("ja"));
+    if (!ja.length) return null;
+    return ja.find(v => /google/i.test(v.name || "")) 
+        || ja.find(v => /日本|japanese/i.test(v.name || "")) 
+        || ja[0] || null;
+  }}
+
+  function speak() {{
     try {{
-      const u = new SpeechSynthesisUtterance({safe!r});
-      u.lang = 'ja-JP';
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.speak(u);
+      const u = new SpeechSynthesisUtterance({txt!r});
+      u.lang = "ja-JP";
+      const v = pickJaVoice();
+      if (v) u.voice = v;
+      synth.cancel();
+      synth.speak(u);
     }} catch(e) {{}}
+  }}
+
+  btn.addEventListener("click", () => {{
+    if ((synth.getVoices() || []).length === 0) {{
+      let tried = 0;
+      const t = setInterval(() => {{
+        tried += 1;
+        if ((synth.getVoices() || []).length > 0 || tried >= 10) {{
+          clearInterval(t);
+          speak();
+        }}
+      }}, 150);
+    }} else {{
+      speak();
+    }}
   }});
 }})();
 </script>
 """,
-        height=60,
+        height=(44 if is_icon else 60),
     )
 
 # ======================================
@@ -507,12 +575,26 @@ submitted = bool(st.session_state.get(submitted_key))
 with st.container(border=True):
     st.markdown(f"**상황**: {row.get('situation_kr','')}")
     # FREE는 듣기가 잠겨 있으니, 문제 단계에서 스크립트를 보여줍니다.
+    # 상대(말): FREE는 스크립트 노출, PRO는 스크립트 숨김 + 아이콘 듣기만
     if not IS_PRO:
-        st.markdown(f"<div class='talk-partner-script'>상대: {row.get('partner_jp','')}</div>", unsafe_allow_html=True)
-
-    st.markdown("**상대 발화**")
-# 상대 발음(제출 전/후 모두)
-    tts_button(row.get("partner_jp", ""), "🔊 상대 듣기", key=f"{qid}_partner")
+        st.markdown(
+            f"""<div class='talk-bubble-row'>
+  <div class='talk-bubble-label'>상대(말)</div>
+  <div class='talk-bubble partner'>{row.get('partner_jp','')}</div>
+</div>""",
+            unsafe_allow_html=True,
+        )
+    else:
+        st.markdown(
+            """<div class='talk-bubble-row'>
+  <div class='talk-bubble-label'>상대(말)</div>
+  <div class='talk-bubble-sub'>듣기 버튼을 눌러 확인하세요.</div>
+</div>""",
+            unsafe_allow_html=True,
+        )
+        st.markdown("<div class='talk-tts-col'>", unsafe_allow_html=True)
+        tts_button(row.get("partner_jp", ""), "🔊", key=f"{qid}_partner_q")
+        st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("---")
     with st.container(border=True):
@@ -631,7 +713,7 @@ if submitted:
         with c1:
             st.markdown("**상대(말)**")
         with c2:
-            st.write(row.get("partner_jp", ""))
+            st.markdown(f"<div class='talk-bubble partner'>{row.get('partner_jp','')}</div>", unsafe_allow_html=True)
         with c3:
             tts_button(row.get("partner_jp", ""), "🔊", key=f"{qid}_partner_after")
 
@@ -639,7 +721,7 @@ if submitted:
         with c1:
             st.markdown("**내(말)**")
         with c2:
-            st.write(correct)
+            st.markdown(f"<div class='talk-bubble me'>{correct}</div>", unsafe_allow_html=True)
         with c3:
             tts_button(correct, "🔊", key=f"{qid}_answer")
 
