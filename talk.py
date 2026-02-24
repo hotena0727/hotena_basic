@@ -482,9 +482,8 @@ submitted = bool(st.session_state.get(submitted_key))
 # ============================================================
 with st.container(border=True):
     st.markdown(f"**상황**: {row.get('situation_kr','')}")
-    st.markdown(f"**상대**: {row.get('partner_jp','')}")
-
-    # 상대 발음(제출 전/후 모두)
+    st.markdown("**상대 발화**")
+# 상대 발음(제출 전/후 모두)
     tts_button(row.get("partner_jp", ""), "🔊 상대 듣기", key=f"{qid}_partner")
 
     st.markdown("---")
@@ -596,7 +595,12 @@ if submitted:
 
         st.markdown("**정답 스크립트**")
         st.write(correct)
-        tts_button(correct, "🔊 정답 듣기", key=f"{qid}_answer")
+        tts_button(correct, "🔊 정답 듣기", key=f"{qid}_answer")        # ✅ 원포인트 해설(한국어) — CSV explain_kr 컬럼이 있으면 표시
+        explain_kr = str(row.get("explain_kr", "")).strip()
+        if explain_kr:
+            st.markdown("**✅ 원포인트 해설**")
+            st.write(explain_kr)
+
         # ✅ 말하기 녹음(선택) — 채점/인식 없이 '내 발화'만 남길 수 있게
         try:
             if hasattr(st, "audio_input"):
