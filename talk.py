@@ -1210,7 +1210,7 @@ if submitted:
 # - 3~4줄 짧은 답변(한국어 중심 + 일본어 조금) + 이모지
 # ============================================================
 with st.container(border=True):
-    st.markdown("### 💬 하테나쌤에게 물어보기")
+    st.markdown("### 💬 하테나쌤 스마트 코치")
     q_default = st.session_state.get("talk_ai_last_q") or ""
     user_q = st.text_input(
         "질문",
@@ -1244,9 +1244,9 @@ with st.container(border=True):
 
     cA, cB = st.columns([0.72, 0.28], vertical_alignment="center")
     with cA:
-        st.caption("짧게 물어보면 더 빠르고 저렴해요 🙂")
+        st.caption("핵심을 짚어 질문할수록 더 정밀한 코칭을 받을 수 있어요.")
     with cB:
-        ask = st.button("질문하기", use_container_width=True, key=f"talk_ai_ask_{qid}")
+        ask = st.button("AI 코칭 받기 시작", use_container_width=True, key=f"talk_ai_ask_{qid}")
 
     if ask and str(user_q).strip():
         st.session_state["talk_ai_last_q"] = str(user_q).strip()
