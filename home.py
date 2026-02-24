@@ -987,10 +987,53 @@ def render_home_dashboard(sb_authed, user):
   font-weight: 600;
   color: rgba(44,62,80,1);
 }
+
+  .h-guide-card{margin:.25rem 0 .55rem;padding:.15rem .05rem;}
 </style>
         """,
         unsafe_allow_html=True,
     )
+
+    # ---- first-visit guide (Hub only) ----
+    try:
+        progress_all = st.session_state.get("progress_all", {}) or {}
+        _guide_collapsed = bool(progress_all.get("hub_guide_collapsed", False))
+        with st.container():
+            st.markdown('<div class="h-guide-card">', unsafe_allow_html=True)
+            with st.expander("👋 처음 오셨나요? 1분 가이드", expanded=(not _guide_collapsed)):
+                st.markdown(
+                    """**하테나 사용 흐름은 이렇게 추천드려요.**
+
+1) **단어/한자/회화** 중 하나를 골라서 **한 세트(10문제)**  
+2) 틀린 문제는 **오답**에서 한 번 더  
+3) 매일 **짧게라도 이어가기**가 실력의 핵심이에요
+
+- 상단 메뉴로 언제든 이동할 수 있어요.
+- 오늘은 부담 없이 **한 세트만** 해도 충분합니다. 😊
+"""
+                )
+                col_g1, col_g2 = st.columns([1,1])
+                with col_g1:
+                    if st.button("이 안내 접기", key="hub_guide_collapse_btn", use_container_width=True):
+                        progress_all["hub_guide_collapsed"] = True
+                        st.session_state["progress_all"] = progress_all
+                        try:
+                            save_progress(sb_authed, user.id, progress_all)
+                        except Exception:
+                            pass
+                        st.rerun()
+                with col_g2:
+                    if st.button("다시 펼치기", key="hub_guide_expand_btn", use_container_width=True, disabled=(not _guide_collapsed)):
+                        progress_all["hub_guide_collapsed"] = False
+                        st.session_state["progress_all"] = progress_all
+                        try:
+                            save_progress(sb_authed, user.id, progress_all)
+                        except Exception:
+                            pass
+                        st.rerun()
+            st.markdown("</div>", unsafe_allow_html=True)
+    except Exception:
+        pass
 
     # ---- header ----
     st.markdown(
