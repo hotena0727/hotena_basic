@@ -420,6 +420,33 @@ if sb is None:
 # ============================================================
 
 def refresh_session_from_cookie_if_needed(force: bool = False) -> bool:
+    # ✅ If a page explicitly set auth keys to None (logout intent),
+    #    do NOT restore session from cookies/query/localStorage.
+    #    Instead, hard-clear all persistence once.
+    if (not force
+        and ("access_token" in st.session_state and st.session_state.get("access_token") is None)
+        and ("user" in st.session_state and st.session_state.get("user") is None)
+    ):
+        try:
+            cookies["access_token"] = ""
+            cookies["refresh_token"] = ""
+            _cookies_save_once_per_run()
+        except Exception:
+            pass
+        try:
+            st.query_params.clear()
+        except Exception:
+            pass
+        try:
+            _js_remove_localstorage("hotena_rt")
+            _js_remove_localstorage("hotena_at")
+        except Exception:
+            pass
+        # Clean a minimal set of keys; keep the rest of UI state intact.
+        for k in ["access_token", "refresh_token", "user", "sb_authed", "sb_authed_token"]:
+            st.session_state.pop(k, None)
+        return False
+
     if not force and st.session_state.get("user") and st.session_state.get("access_token"):
         return True
 
