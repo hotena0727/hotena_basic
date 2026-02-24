@@ -292,32 +292,49 @@ if _prev_tag != st.session_state.get(f"{NS}_tag"):
     if f"{NS}_level" in st.session_state:
         del st.session_state[f"{NS}_level"]
 
-c1, c2 = st.columns([1.4, 1], vertical_alignment="bottom")
-with c1:
-    tag = st.selectbox(
-        "상황 선택",
-        options=tag_options,
-        format_func=_tag_label,
-        key=f"{NS}_tag",
-    )
+# ============================================================
+# ✅ Filters (상황(tag))  ※ 현재는 '인사말(aisatsu)'만 노출
+# ============================================================
 
-# --- 레벨 옵션: 선택된 tag에 실제로 존재하는 level만 ---
-_df_tag = DF_BASE[DF_BASE["tag"] == tag].copy() if "tag" in DF_BASE.columns else DF_BASE.copy()
-levels_in_data = sorted([lv for lv in _df_tag["level"].unique().tolist() if str(lv).strip()])
-preferred_lv = [lv for lv in ["n5", "n4", "n3", "n2", "n1"] if lv in levels_in_data]
-levels_in_data = preferred_lv or levels_in_data or ["n4", "n3"]
+# --- normalize (비교 실패/공백 문제 방지) ---
+for _c in ["mode", "tag", "level"]:
+    if _c in DF.columns:
+        DF[_c] = DF[_c].astype(str).fillna("").str.strip()
 
-with c2:
-    level = st.selectbox(
-        "레벨",
-        options=levels_in_data,
-        format_func=lambda x: LEVEL_LABELS.get(x, str(x).upper()),
-        key=f"{NS}_level",
-    )
+if "mode" in DF.columns:
+    DF["mode"] = DF["mode"].str.lower()
+if "tag" in DF.columns:
+    DF["tag"] = DF["tag"].str.lower().str.replace(r"[\s\-]+", "_", regex=True)
+if "level" in DF.columns:
+    DF["level"] = DF["level"].str.lower().str.replace(" ", "")
 
-pool_df = DF_BASE[(DF_BASE["tag"] == tag) & (DF_BASE["level"] == level)].copy().reset_index(drop=True)
+# --- 실전회화만 사용 ---
+DF_BASE = DF.copy()
+if "mode" in DF_BASE.columns:
+    DF_BASE = DF_BASE[DF_BASE["mode"] == "real"].copy()
+
+# --- 현재는 인사말만(aisatsu) ---
+TAG_LABEL = {"aisatsu": "인사말"}
+def _tag_label(t: str) -> str:
+    return TAG_LABEL.get(str(t), str(t))
+
+tags_in_data = [t for t in DF_BASE["tag"].astype(str).unique().tolist() if t]
+tag_options = ["aisatsu"] if "aisatsu" in tags_in_data else (sorted(tags_in_data)[:1] if tags_in_data else ["aisatsu"])
+
+tag = st.selectbox(
+    "상황 선택",
+    options=tag_options,
+    format_func=_tag_label,
+    key=f"{NS}_tag",
+)
+
+# 레벨 선택은 사용하지 않음(인사말에서 N4~N3 혼합)
+level = "mix"
+
+pool_df = DF_BASE[(DF_BASE["tag"] == tag)].copy().reset_index(drop=True)
+
 if pool_df.empty:
-    st.warning("해당 조건의 회화 문제가 없습니다. (CSV의 tag/level 확인)")
+    st.warning("해당 상황의 회화 문제가 없습니다. (CSV의 tag 확인)")
     st.stop()
 
 # ============================================================
