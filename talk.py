@@ -273,42 +273,6 @@ if "level" in DF.columns:
 # --- 실전회화만 사용 ---
 DF_BASE = DF.copy()
 
-# ✅ sub 컬럼이 없으면 situation_kr 기반으로 자동 생성(인사말 1차 확장용)
-if "sub" not in DF.columns:
-    if "situation_kr" in DF.columns:
-        _sk = DF["situation_kr"].astype(str)
-        def _auto_sub(s: str) -> str:
-            s = (s or "").strip()
-            if "집" in s or "가정" in s:
-                return "home"
-            if "아침" in s:
-                return "morning"
-            if "저녁" in s or "밤" in s:
-                return "evening"
-            if "전화" in s:
-                return "phone"
-            if "회사" in s or "업무" in s:
-                return "work"
-            if "첫" in s or "미팅" in s or "만나" in s or "소개" in s:
-                return "meeting"
-            if "사과" in s:
-                return "apology"
-            if "감사" in s:
-                return "thanks"
-            return "basic"
-        DF["sub"] = _sk.apply(_auto_sub)
-    else:
-        DF["sub"] = "basic"
-
-# sub 정규화(있으면)
-DF["sub"] = (
-    DF["sub"].astype(str)
-    .str.replace("\u3000", " ", regex=False)
-    .str.strip()
-    .str.lower()
-    .str.replace(r"[\s\-]+", "_", regex=True)
-)
-
 # --- 현재는 인사말만(aisatsu) ---
 TAG_LABEL = {"aisatsu": "인사말"}
 def _tag_label(t: str) -> str:
@@ -526,24 +490,29 @@ with st.container(border=True):
     st.markdown("---")
     st.markdown("**내가 할 말(보기)**")
 
-    # 보기 버튼(선택 없음 상태 유지)
-    # 버튼은 클릭 시 selected 저장, 보기 순서는 고정(choices 리스트)
-    btn_cols = st.columns(1)
-    for j, opt in enumerate(choices):
-        # 보기 버튼 key는 qid+index로 고정
-        bkey = f"{NS}_optbtn_{qid}_{j}"
-        label = opt
-        pressed = st.button(label, use_container_width=True, key=bkey, disabled=submitted)
-        if pressed:
-            st.session_state[sel_key] = opt
-            selected = opt
+# ✅ 보기 선택(속도/안정성 개선)
+# - st.button 4개는 클릭할 때마다 전체가 재렌더링되어 체감이 느릴 수 있어
+# - st.radio 1개 위젯으로 선택만 바꾸면 훨씬 가볍고, 보기 순서도 고정됨
+radio_key = f"{NS}_radio_{qid}"
+# 기존 selected가 있으면 라디오 기본값으로 반영
+if selected and selected in choices:
+    default_idx = choices.index(selected)
+else:
+    default_idx = 0
 
-    # 선택 표시(제출 전)
-    if not submitted:
-        if selected:
-            st.info(f"선택: **{selected}**")
-        else:
-            st.warning("보기를 하나 선택해 주세요.")
+picked = st.radio(
+    label="보기 선택",
+    options=choices,
+    index=default_idx,
+    key=radio_key,
+    disabled=submitted,
+    label_visibility="collapsed",
+)
+# 선택값 반영
+if not submitted:
+    st.session_state[sel_key] = picked
+    selected = picked
+    st.info(f"선택: **{selected}**")
 
 # ============================================================
 # ✅ Submit / Next controls
