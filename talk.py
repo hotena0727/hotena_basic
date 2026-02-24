@@ -21,7 +21,11 @@ def _wn_warn(msg: str):
         try:
             st.warning(msg)
         except Exception:
-            pass
+            # fallback: Streamlit 기본 녹음(브라우저/환경에 따라 components 녹음이 막힐 때)
+            try:
+                st.audio_input("(선택) 내 말 녹음")
+            except Exception:
+                pass
 # ============================================================
 # ✅ HUB 진입 시: 선택/제출 상태 초기화 (회화)
 # ============================================================
@@ -553,7 +557,7 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
     show = "inline" if show_text else "none"
 
     html = """
-<div style="display:flex;flex-direction:column;gap:4px;line-height:1.25;">
+<div style="display:flex;flex-direction:column;gap:10px;line-height:1.25;">
   <div style="display:flex;align-items:center;gap:8px;">
     <div style="min-width:72px;font-weight:800;opacity:.85;">상대(말)</div>
     <div style="flex:1;display:flex;align-items:center;gap:6px;">
