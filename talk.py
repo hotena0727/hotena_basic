@@ -272,21 +272,42 @@ if "level" in DF.columns:
 
 # --- 실전회화만 사용 ---
 DF_BASE = DF.copy()
-# ============================================================
-# 🔎 Debug (문제 발생 시 확인용)
-# ============================================================
-with st.expander("디버그(문제 발생 시 열기)", expanded=False):
-    try:
-        st.write("CSV_PATH:", str(CSV_PATH))
-    except Exception:
-        pass
-    st.write("컬럼:", list(DF.columns))
-    if "tag" in DF.columns:
-        st.write("tag unique:", sorted(set(DF["tag"].astype(str).tolist())))
-    if "sub" in DF.columns:
-        subs = [s for s in DF["sub"].astype(str).tolist() if str(s).strip()]
-        st.write("sub unique:", sorted(set(subs)))
 
+# ✅ sub 컬럼이 없으면 situation_kr 기반으로 자동 생성(인사말 1차 확장용)
+if "sub" not in DF.columns:
+    if "situation_kr" in DF.columns:
+        _sk = DF["situation_kr"].astype(str)
+        def _auto_sub(s: str) -> str:
+            s = (s or "").strip()
+            if "집" in s or "가정" in s:
+                return "home"
+            if "아침" in s:
+                return "morning"
+            if "저녁" in s or "밤" in s:
+                return "evening"
+            if "전화" in s:
+                return "phone"
+            if "회사" in s or "업무" in s:
+                return "work"
+            if "첫" in s or "미팅" in s or "만나" in s or "소개" in s:
+                return "meeting"
+            if "사과" in s:
+                return "apology"
+            if "감사" in s:
+                return "thanks"
+            return "basic"
+        DF["sub"] = _sk.apply(_auto_sub)
+    else:
+        DF["sub"] = "basic"
+
+# sub 정규화(있으면)
+DF["sub"] = (
+    DF["sub"].astype(str)
+    .str.replace("\u3000", " ", regex=False)
+    .str.strip()
+    .str.lower()
+    .str.replace(r"[\s\-]+", "_", regex=True)
+)
 
 # --- 현재는 인사말만(aisatsu) ---
 TAG_LABEL = {"aisatsu": "인사말"}
