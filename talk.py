@@ -529,6 +529,104 @@ def tts_inline_row(role_label: str, text: str, key: str, show_text: bool = True)
     )
 
 
+def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bool = True):
+    # 상대/내 두 줄을 하나의 iframe 안에서 렌더링 → 간격을 완전 제어 (가장 예쁘게 붙음)
+    ptxt = partner_text or ""
+    atxt = answer_text or ""
+    p_safe = ptxt.replace("\\", "\\\\").replace("`", "").replace("\n", " ")
+    a_safe = atxt.replace("\\", "\\\\").replace("`", "").replace("\n", " ")
+    disabled = "true" if (not IS_PRO) else "false"
+    p_btn = "🔒" if (not IS_PRO) else "🔊"
+    a_btn = "🔒" if (not IS_PRO) else "🔊"
+    show = "inline" if show_text else "none"
+
+    components.html(
+        f'''
+<div style="display:flex;flex-direction:column;gap:4px;line-height:1.25;">
+  <!-- 상대(말) -->
+  <div style="display:flex;align-items:center;gap:8px;">
+    <div style="min-width:72px;font-weight:800;opacity:.85;">상대(말)</div>
+    <div style="flex:1;display:flex;align-items:center;gap:6px;">
+      <span style="display:{show};font-weight:500;">{ptxt}</span>
+      <button id="tts_{qid}_partner_r" {'disabled' if not IS_PRO else ''}
+        title="발음 듣기"
+        style="padding:0;margin:0;border:none;background:transparent;
+               cursor:{'not-allowed' if not IS_PRO else 'pointer'};
+               font-size:18px;font-weight:900;line-height:1;
+               opacity:{'0.55' if not IS_PRO else '0.9'};">{p_btn}</button>
+    </div>
+  </div>
+
+  <!-- 내(말) -->
+  <div style="display:flex;align-items:center;gap:8px;">
+    <div style="min-width:72px;font-weight:800;opacity:.85;">내(말)</div>
+    <div style="flex:1;display:flex;align-items:center;gap:6px;">
+      <span style="display:{show};font-weight:500;">{atxt}</span>
+      <button id="tts_{qid}_answer_r" {'disabled' if not IS_PRO else ''}
+        title="발음 듣기"
+        style="padding:0;margin:0;border:none;background:transparent;
+               cursor:{'not-allowed' if not IS_PRO else 'pointer'};
+               font-size:18px;font-weight:900;line-height:1;
+               opacity:{'0.55' if not IS_PRO else '0.9'};">{a_btn}</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function() {{
+  const synth = window.speechSynthesis;
+
+  function pickJaVoice() {{
+    const voices = synth.getVoices() || [];
+    const ja = voices.filter(v => String(v.lang || "").toLowerCase().startsWith("ja"));
+    if (!ja.length) return null;
+    return ja.find(v => /google/i.test(v.name || ""))
+        || ja.find(v => /日本|japanese/i.test(v.name || ""))
+        || ja[0] || null;
+  }}
+
+  function bind(btnId, text) {{
+    const btn = document.getElementById(btnId);
+    if (!btn) return;
+    if ({disabled}) return;
+    if (btn.dataset.bound === "1") return;
+    btn.dataset.bound = "1";
+
+    function speak() {{
+      try {{
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = "ja-JP";
+        const v = pickJaVoice();
+        if (v) u.voice = v;
+        synth.cancel();
+        synth.speak(u);
+      }} catch(e) {{}}
+    }}
+
+    btn.addEventListener("click", () => {{
+      if ((synth.getVoices() || []).length === 0) {{
+        let tried = 0;
+        const t = setInterval(() => {{
+          tried += 1;
+          if ((synth.getVoices() || []).length > 0 || tried >= 10) {{
+            clearInterval(t);
+            speak();
+          }}
+        }}, 150);
+      }} else {{
+        speak();
+      }}
+    }});
+  }}
+
+  bind("tts_{qid}_partner_r", {p_safe!r});
+  bind("tts_{qid}_answer_r", {a_safe!r});
+}})();
+</script>
+''',
+        height=92,
+    )
+
 
 # ======================================
 # ======================================
@@ -654,128 +752,8 @@ with st.container(border=True):
     # FREE는 듣기가 잠겨 있으니, 문제 단계에서 스크립트를 보여줍니다.
     # 상대(말): FREE는 스크립트(+잠금), PRO는 스크립트 숨김(듣기만)
     if not IS_PRO:
-        tts_inline_row("상대(말)", row.get("partner_jp",""), key=f"{qid}_partner_q", show_text=True)
-    else:
-        tts_inline_row("상대(말)", row.get("partner_jp",""), key=f"{qid}_partner_q", show_text=False)
-
-    st.markdown("---")
-    with st.container(border=True):
-        st.markdown("**내가 할 말(선택)**")
-
-        # ✅ 보기 선택(속도/안정성 개선)
-        # - st.button 4개는 클릭할 때마다 전체가 재렌더링되어 체감이 느릴 수 있어
-        # - st.radio 1개 위젯으로 선택만 바꾸면 훨씬 가볍고, 보기 순서도 고정됨
-        radio_key = f"{NS}_radio_{qid}"
-        # 기존 selected가 있으면 라디오 기본값으로 반영
-        if selected and selected in choices:
-            default_idx = choices.index(selected)
-        else:
-            default_idx = 0
-
-        picked = st.radio(
-            label="보기 선택",
-            options=choices,
-            index=default_idx,
-            key=radio_key,
-            disabled=submitted,
-            label_visibility="collapsed",
-        )
-        # 선택값 반영
-        if not submitted:
-            st.session_state[sel_key] = picked
-            selected = picked
-
-        # ============================================================
-        # ✅ Controls (단순화)
-        # - 이전/다음 제거
-        # - "정답 제출" 버튼은 유지 (제출 후에는 비활성)
-        # - "다음 문제" 버튼은 최하단(말하기 완료 아래)에서만 노출
-        # ============================================================
-        can_submit = bool(selected) and (not submitted)
-        st.button(
-            "정답 제출",
-            use_container_width=True,
-            disabled=not can_submit,
-            key=f"{NS}_submit",
-            on_click=(lambda: st.session_state.__setitem__(submitted_key, True)),
-        )
-
-# ============================================================
-# ✅ After submit
-# ============================================================
-if submitted:
-    correct = str(row.get("answer_jp", "")).strip()
-    ok = (selected == correct)
-
-    # ============================================================
-    # ✅ 오답 상세 저장 (wrong_notes) — 회화도 '단어/정답/내답' 기록
-    # ============================================================
-    if not ok:
-        try:
-            sb2 = st.session_state.get("sb_authed") or sb  # hub에서 공유되면 sb_authed 우선
-            if sb2 and USER_ID:
-                q_text = (str(row.get("q_jp", "")) or str(row.get("situation_kr",""))).strip()
-                sb2 = get_authed_sb() or sb2
-
-                if not sb2:
-
-                    _wn_warn("오답 저장 실패: authed client 없음(access_token).")
-
-                else:
-
-                    try:
-
-                        sb2.table("wrong_notes").insert({
-
-                            "user_id": USER_ID,
-
-                            "quiz_type": "talk",
-
-                            "question": q_text if q_text else str(row.get("id", "")),
-
-                            "correct_answer": str(correct),
-
-                            "user_answer": str(selected),
-
-                            "level": "talk",
-
-                        }).execute()
-
-                    except Exception as e:
-
-                        _wn_warn(f"오답 저장 실패: {e}")
-        except Exception:
-            pass
-
-# 저장(answers)
-    answers.setdefault(qid, {})
-    answers[qid]["selected"] = selected
-    answers[qid]["ok"] = ok
-    st.session_state[f"{NS}_answers"] = answers
-
-    st.markdown("---")
-    st.subheader("결과")
-
-    if ok:
-        st.success("정답 ✅")
-    else:
-        st.error("오답 ❌")
-
-    # 상대/정답 스크립트 + 해설(제출 후에만)
-    with st.container(border=True):
-        st.markdown("### 🧑‍🏫 발음/말하기")
-
-        # ✅ 상황(제출 전에도 보이지만, 결과 박스에도 다시 한 번 노출)
-        situation = str(row.get("situation_kr", "")).strip()
-        if situation:
-            st.caption(f"상황: {situation}")
-
-        # ✅ 상대(말) / 내(말) — 스피커 아이콘 버튼은 여기서만 노출
-        
-        # ✅ 상대(말) / 내(말) — 문장 오른쪽에 아이콘을 딱 붙여 표시
-        tts_inline_row("상대(말)", row.get("partner_jp", ""), key=f"{qid}_partner_r", show_text=True)
-        st.markdown('<div style="margin-top:-10px"></div>', unsafe_allow_html=True)
-        tts_inline_row("내(말)", row.get("answer_jp", ""), key=f"{qid}_answer_r", show_text=True)
+        # ✅ 상대/내 한 블록(간격 제어)
+        tts_inline_pair(row.get("partner_jp", ""), row.get("answer_jp", ""), qid=str(qid), show_text=True)
 # ✅ 하테나쌤 코멘트 (explain_kr 우선, 없으면 hint_kr)
         explain_kr = str(row.get("explain_kr", "")).strip()
         hint = str(row.get("hint_kr", "")).strip()
