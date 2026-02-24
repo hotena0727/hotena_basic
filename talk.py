@@ -117,7 +117,7 @@ sb = get_sb()
 # ✅ CSV load
 # ============================================================
 BASE_DIR = Path(__file__).resolve().parent
-CSV_PATH = BASE_DIR / data / "talk_situations.csv"
+CSV_PATH = BASE_DIR / "data" / "talk_situations.csv"
 
 if not CSV_PATH.exists():
     st.error(f"CSV 파일이 없습니다: {CSV_PATH}")
