@@ -272,6 +272,21 @@ if "level" in DF.columns:
 
 # --- 실전회화만 사용 ---
 DF_BASE = DF.copy()
+# ============================================================
+# 🔎 Debug (문제 발생 시 확인용)
+# ============================================================
+with st.expander("디버그(문제 발생 시 열기)", expanded=False):
+    try:
+        st.write("CSV_PATH:", str(CSV_PATH))
+    except Exception:
+        pass
+    st.write("컬럼:", list(DF.columns))
+    if "tag" in DF.columns:
+        st.write("tag unique:", sorted(set(DF["tag"].astype(str).tolist())))
+    if "sub" in DF.columns:
+        subs = [s for s in DF["sub"].astype(str).tolist() if str(s).strip()]
+        st.write("sub unique:", sorted(set(subs)))
+
 
 # --- 현재는 인사말만(aisatsu) ---
 TAG_LABEL = {"aisatsu": "인사말"}

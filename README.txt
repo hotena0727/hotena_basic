@@ -1,15 +1,11 @@
-# Hotena 회화(인사말) 1차 패키지
+# Hotena 회화(인사말) 1차 패키지 (디버그 포함)
+
+## 증상: '인사말 유형(sub)'이 안 뜰 때
+1) 디버그(문제 발생 시 열기) 확장 펼치기
+2) 컬럼에 'sub'가 있는지 확인
+3) sub unique가 비어있으면 -> CSV가 옛 파일이거나, sub 값이 비어있음
+4) CSV_PATH가 /data/... 인지 확인 후 그 위치에 CSV를 덮어쓰기
 
 ## 포함 파일
-- talk.py
-- data/talk_situations.csv  (인사말 aisatsu 50문항, sub 컬럼 포함)
-
-## 적용 방법 (Streamlit Cloud / Cloud Run 공통)
-1) 서버의 /mount/src/hotena_basic/ 폴더에 talk.py를 덮어쓰기
-2) 서버의 /mount/src/hotena_basic/data/ 폴더에 talk_situations.csv를 덮어쓰기
-3) Streamlit 캐시가 남아있으면 앱 재시작(또는 Clear cache)
-
-## 동작
-- 상황 선택: 인사말(aisatsu)만
-- 레벨 선택: 없음
-- 인사말 유형(sub): CSV에 값이 있으면 자동 노출(전체/집/회사/전화/감사/사과 등)
+- talk.py (디버그 expander 포함)
+- data/talk_situations.csv  (aisatsu 50문항, sub 포함)
