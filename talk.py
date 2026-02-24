@@ -1041,35 +1041,36 @@ if submitted:
                 except Exception:
                     st.warning("이 환경에서는 녹음 기능을 사용할 수 없습니다.")
         else:
-            # ✅ FREE: 영역은 보여주되, 흐릿하게 잠금 처리 + 중앙 PRO 안내
-            st.markdown(
-                """
-                <div class="pro-lock-wrap">
-                  <div class="pro-lock-blur">
-                    <div style="height:56px;border-radius:12px;border:1px dashed rgba(0,0,0,.15);background:rgba(255,255,255,.7);"></div>
-                  </div>
-                  <div class="pro-lock-overlay">
-                    <div class="pro-lock-badge">🔒 PRO 전용</div>
-                    <div class="pro-lock-text">발음 체크(녹음/재생)는 PRO에서 사용할 수 있어요.</div>
-                  </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
+            # ✅ FREE: 녹음 UI는 보이되(모자이크/블러), PRO에서만 사용 가능하도록 잠금 처리
+            components.html(
+                Template(r"""<div class='pro-lock-wrap'>
+  <div class='pro-lock-blur'>
+    <div id='mount_${key}'></div>
+    <script>
+      const mount = document.getElementById('mount_${key}');
+      mount.innerHTML = `
+        <div style="display:flex;align-items:center;gap:10px;">
+          <button disabled style="padding:8px 12px;border-radius:10px;border:1px solid rgba(0,0,0,.15);background:rgba(0,0,0,.03);">
+            🎙️ 녹음 시작
+          </button>
+          <span style="font-size:12px;opacity:.75;">PRO 전용 기능</span>
+        </div>
+      `;
+    </script>
+  </div>
+  <div class='pro-lock-badge'>PRO</div>
+</div>
+<style>
+  .pro-lock-wrap{position:relative;border-radius:14px;border:1px solid rgba(0,0,0,.10);padding:12px;margin-top:8px;background:rgba(0,0,0,.015);}
+  .pro-lock-blur{filter: blur(1.6px);opacity:.55;pointer-events:none;}
+  .pro-lock-badge{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-weight:800;font-size:20px;letter-spacing:.08em;
+    padding:6px 14px;border-radius:999px;background:rgba(0,0,0,.08);color:rgba(0,0,0,.55);border:1px solid rgba(0,0,0,.10);}
+</style>""").safe_substitute({"key": f"{qid}_free_lock"}),
+                height=120,
+                scrolling=False,
             )
-        st.caption("정답을 보고 2~3번 따라 말한 뒤, 아래 버튼을 눌러 다음으로 넘어가세요.")
-if st.button("✅ 다 했어요 (다음)", use_container_width=True, key=f"{NS}_next_after"):
-            st.success("+2 XP 🎤 (말하기 완료 보상)")
 
-            nxt = idx + 1
-            if nxt >= len(qids):
-                nxt = 0
-            st.session_state[f"{NS}_idx"] = nxt
-            # 상태 초기화(다음 문제)
-            st.session_state[submitted_key] = False
-            st.session_state.pop(sel_key, None)
-            st.session_state.pop(f"{NS}_radio_{qid}", None)
-            st.session_state.pop(f"{NS}_speak_done_{qid}", None)
-            st.rerun()
+
 # ============================================================
 # ✅ Set completion (10문제 모두 제출되면 자동 집계)
 # ============================================================
