@@ -967,7 +967,7 @@ if submitted:
     </button>
     <span id="rec_status_$qid" style="font-size:.92rem;opacity:.75;">대답을 2~3번 말한 뒤, 녹음해 보세요.</span>
   </div>
-  <audio id="rec_player_$qid" controls style="width:100%; display:none;"></audio>
+  <audio id="rec_player_$qid" controls style="width:100%; display:block; opacity:.92;"></audio>
 </div>
 
 <script>
