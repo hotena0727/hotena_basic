@@ -463,11 +463,7 @@ def tts_inline_row(role_label: str, text: str, key: str, show_text: bool = True)
     txt = text or ""
     safe = txt.replace("\\", "\\\\").replace("`", "").replace("\n", " ")
     disabled = "true" if (not IS_PRO) else "false"
-    # FREE도 스피커 아이콘은 보여주되(동작은 잠금), PRO 배지로 안내
-    btn = "🔊"
-    badge = ('<span style="font-size:11px;font-weight:800;opacity:.35;'
-             'border:1px solid rgba(0,0,0,.12);padding:1px 6px;'
-             'border-radius:999px;letter-spacing:.02em;">PRO</span>') if (not IS_PRO) else ""
+    btn = "🔒" if (not IS_PRO) else "🔊"
     show = "inline" if show_text else "none"
 
     components.html(
@@ -484,7 +480,6 @@ def tts_inline_row(role_label: str, text: str, key: str, show_text: bool = True)
              opacity:{'0.55' if not IS_PRO else '0.9'};">
       {btn}
     </button>
-    {badge}
   </div>
 </div>
 <script>
@@ -492,21 +487,23 @@ def tts_inline_row(role_label: str, text: str, key: str, show_text: bool = True)
   const btn = document.getElementById("tts_{key}");
   if (!btn) return;
   if ({disabled}) return;
+  if (btn.dataset.bound === "1") return;
+  btn.dataset.bound = "1";
 
   const synth = window.speechSynthesis;
 
   function pickJaVoice() {{
     const voices = synth.getVoices() || [];
-    const ja = voices.filter(v => String(v.lang||"").toLowerCase().startsWith("ja"));
+    const ja = voices.filter(v => String(v.lang || "").toLowerCase().startsWith("ja"));
     if (!ja.length) return null;
-    return ja.find(v => /google/i.test(v.name||""))
-        || ja.find(v => /日本|japanese/i.test(v.name||""))
+    return ja.find(v => /google/i.test(v.name || ""))
+        || ja.find(v => /日本|japanese/i.test(v.name || ""))
         || ja[0] || null;
   }}
 
-  function speak(text) {{
+  function speak() {{
     try {{
-      const u = new SpeechSynthesisUtterance(text);
+      const u = new SpeechSynthesisUtterance({safe!r});
       u.lang = "ja-JP";
       const v = pickJaVoice();
       if (v) u.voice = v;
@@ -515,28 +512,33 @@ def tts_inline_row(role_label: str, text: str, key: str, show_text: bool = True)
     }} catch(e) {{}}
   }}
 
-  if (btn.dataset.bound === "1") return;
-  btn.dataset.bound = "1";
-
   btn.addEventListener("click", () => {{
     if ((synth.getVoices() || []).length === 0) {{
       let tried = 0;
       const t = setInterval(() => {{
         tried += 1;
-        if ((synth.getVoices() || []).length > 0 || tried > 12) {{
+        if ((synth.getVoices() || []).length > 0 || tried >= 10) {{
           clearInterval(t);
-          speak({safe!r});
+          speak();
         }}
-      }}, 80);
+      }}, 150);
     }} else {{
-      speak({safe!r});
+      speak();
     }}
   }});
 }})();
 </script>
 ''',
-        height=46,
+        height=40,
     )
+
+
+
+# ======================================
+# ======================================
+# ✅ Build choices (문제 로딩 시 1회 셔플 후 고정)
+# ============================================================
+
 
 def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bool = True):
     # 상대/내 2줄을 하나의 iframe 안에서 렌더링해서 줄 간격을 촘촘하게 제어
@@ -550,14 +552,8 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
     a_safe = _safe(atxt)
 
     disabled = (not IS_PRO)
-    icon_partner = "🔊"
-    icon_answer = "🔊"
-    # FREE: 스피커는 보이되(비활성), PRO 배지로 안내
-    badge_html = (
-        '<span style="font-size:11px;font-weight:800;opacity:.35;'
-        'border:1px solid rgba(0,0,0,.12);padding:1px 6px;'
-        'border-radius:999px;letter-spacing:.02em;">PRO</span>'
-    ) if disabled else ""
+    icon_partner = "🔒" if disabled else "🔊"
+    icon_answer = "🔒" if disabled else "🔊"
     show = "inline" if show_text else "none"
 
     html = """
@@ -570,7 +566,7 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
         style="padding:0;margin:0;border:none;background:transparent;
                cursor:{p_cursor};
                font-size:18px;font-weight:900;line-height:1;
-               opacity:{p_opacity};">{p_icon}</button>{p_badge}
+               opacity:{p_opacity};">{p_icon}</button>
     </div>
   </div>
 
@@ -582,7 +578,7 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
         style="padding:0;margin:0;border:none;background:transparent;
                cursor:{a_cursor};
                font-size:18px;font-weight:900;line-height:1;
-               opacity:{a_opacity};">{a_icon}</button>{a_badge}
+               opacity:{a_opacity};">{a_icon}</button>
     </div>
   </div>
 </div>
@@ -652,8 +648,6 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
         a_opacity=("0.55" if disabled else "0.9"),
         p_icon=icon_partner,
         a_icon=icon_answer,
-        p_badge=badge_html,
-        a_badge=badge_html,
         p_safe=repr(p_safe),
         a_safe=repr(a_safe),
         disabled=("true" if disabled else "false"),
@@ -924,113 +918,12 @@ if submitted:
         """,
             unsafe_allow_html=True,
         )
-        # ✅ 말하기 녹음(선택) — 브라우저 내에서 즉시 보이는(항상 표시) 녹음기 UI
-        #    * 저장/DB 업로드 없음 (로컬에서 녹음 → 바로 재생만)
-        #    * Streamlit 기본 audio_input은 브라우저/OS 조합에 따라 "버튼만 보였다가"
-        #      녹음 시작 후 UI가 나타나는 경우가 있어, 커스텀 레코더로 고정 표시합니다.
 
-        rec_id = f"rec_{qid}"
-        components.html(
-            f"""
-<div style="padding:10px 10px 12px;border:1px solid rgba(0,0,0,.08);border-radius:14px;background:rgba(0,0,0,.02);">
-  <div style="font-size:0.92rem;opacity:.92;margin-bottom:8px;">🎤 (선택) 내 발음을 녹음하고 들어보세요</div>
-  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-    <button id="{{rec_id}}_btn" style="border:1px solid rgba(0,0,0,.12);background:white;border-radius:999px;padding:8px 12px;font-size:0.92rem;cursor:pointer;">
-      ● 녹음 시작
-    </button>
-    <span id="{{rec_id}}_status" style="font-size:0.88rem;opacity:.75;">대기 중</span>
-  </div>
-  <div style="margin-top:10px;">
-    <audio id="{{rec_id}}_audio" controls style="width:100%; display:none;"></audio>
-  </div>
-</div>
+        # ✅ 말하기 녹음(선택) — 모든 브라우저에서 항상 보이도록 Streamlit 기본 녹음기로 고정
 
-<script>
-(() => {{
-  const rid = {rec_id!r};
-  const btn = document.getElementById(rid + "_btn");
-  const status = document.getElementById(rid + "_status");
-  const audioEl = document.getElementById(rid + "_audio");
-  if (!btn || !status || !audioEl) return;
-
-  let mediaRecorder = null;
-  let chunks = [];
-  let stream = null;
-  let recording = false;
-
-  function setUI() {{
-    if (recording) {{
-      btn.textContent = "■ 녹음 종료";
-      status.textContent = "녹음 중…";
-    }} else {{
-      btn.textContent = "● 녹음 시작";
-      if (!audioEl.src) status.textContent = "대기 중";
-    }}
-  }}
-
-  async function startRec() {{
-    try {{
-      stream = await navigator.mediaDevices.getUserMedia({{ audio: true }});
-
-      const mt = (MediaRecorder.isTypeSupported("audio/webm;codecs=opus") ? "audio/webm;codecs=opus"
-                : (MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm" : ""));
-
-      mediaRecorder = mt ? new MediaRecorder(stream, {{ mimeType: mt }}) : new MediaRecorder(stream);
-      chunks = [];
-
-      mediaRecorder.ondataavailable = (e) => {{
-        if (e.data && e.data.size > 0) chunks.push(e.data);
-      }};
-
-      mediaRecorder.onstop = () => {{
-        try {{
-          const blob = new Blob(chunks, {{ type: mediaRecorder.mimeType || "audio/webm" }});
-          const url = URL.createObjectURL(blob);
-          audioEl.src = url;
-          audioEl.style.display = "block";
-          status.textContent = "녹음 완료 (재생 가능)";
-        }} catch (e) {{
-          status.textContent = "녹음 처리 실패";
-        }}
-
-        if (stream) {{
-          stream.getTracks().forEach(t => t.stop());
-          stream = null;
-        }}
-      }};
-
-      recording = true;
-      setUI();
-      mediaRecorder.start();
-
-    }} catch (e) {{
-      status.textContent = "마이크 권한이 필요합니다.";
-      recording = false;
-      setUI();
-    }}
-  }}
-
-  function stopRec() {{
-    try {{
-      if (mediaRecorder && mediaRecorder.state !== "inactive") {{
-        mediaRecorder.stop();
-      }}
-    }} catch (e) {{}}
-    recording = false;
-    setUI();
-  }}
-
-  btn.addEventListener("click", () => {{
-    if (!recording) startRec();
-    else stopRec();
-  }});
-
-  setUI();
-}})();
-</script>
-""",
-            height=190,
-        )
+        _audio = st.audio_input("🎤 (선택) 내 발음을 녹음하고 들어보세요", key=f"{qid}_record")
+        if _audio is not None:
+            st.audio(_audio)
 
 
 
