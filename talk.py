@@ -6,6 +6,8 @@ from pathlib import Path
 from datetime import datetime, timedelta, date
 import random
 import hashlib
+import json
+from string import Template
 
 import pandas as pd
 import streamlit as st
@@ -951,20 +953,19 @@ if submitted:
             # ✅ 로컬 녹음/재생(서버 저장 없음) — 음질은 브라우저/기기 영향이 큼
             try:
                 _qid_json = json.dumps(str(qid))
-                components.html(
-                    """<div style="display:flex;flex-direction:column;gap:10px;">
+                rec_html = Template(r'''<div style="display:flex;flex-direction:column;gap:10px;">
   <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-    <button id="rec_{qid}" style="padding:.45rem .7rem;border-radius:10px;border:1px solid rgba(0,0,0,.15);background:white;cursor:pointer;">
+    <button id="rec_$qid" style="padding:.45rem .7rem;border-radius:10px;border:1px solid rgba(0,0,0,.15);background:white;cursor:pointer;">
       🎙️ 녹음 시작
     </button>
-    <span id="rec_status_{qid}" style="font-size:.92rem;opacity:.75;">대답을 2~3번 말한 뒤, 녹음해 보세요.</span>
+    <span id="rec_status_$qid" style="font-size:.92rem;opacity:.75;">대답을 2~3번 말한 뒤, 녹음해 보세요.</span>
   </div>
-  <audio id="rec_player_{qid}" controls style="width:100%; display:none;"></audio>
+  <audio id="rec_player_$qid" controls style="width:100%; display:none;"></audio>
 </div>
 
 <script>
 (function(){
-  const qid = {qid_json};
+  const qid = $qid_json;
   const btn = document.getElementById("rec_"+qid);
   const status = document.getElementById("rec_status_"+qid);
   const player = document.getElementById("rec_player_"+qid);
@@ -1026,10 +1027,8 @@ if submitted:
     if (!running) start(); else stop();
   });
 })();
-</script>
-""".format(qid=str(qid), qid_json=_qid_json),
-                    height=140,
-                )
+</script>''').safe_substitute(qid=str(qid), qid_json=_qid_json)
+                components.html(rec_html, height=140)
             except Exception:
                 # fallback: Streamlit 기본 오디오 입력(지원되는 브라우저에서만 노출)
                 try:
@@ -1053,7 +1052,7 @@ if submitted:
                 unsafe_allow_html=True,
             )
         st.caption("정답을 보고 2~3번 따라 말한 뒤, 아래 버튼을 눌러 다음으로 넘어가세요.")
-if st.button("✅ 다 했어요 (다음)", use_container_width=True, key=f"{NS}_next_after"):
+        if st.button("✅ 다 했어요 (다음)", use_container_width=True, key=f"{NS}_next_after"):
             st.success("+2 XP 🎤 (말하기 완료 보상)")
 
             nxt = idx + 1
