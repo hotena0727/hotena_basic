@@ -395,13 +395,16 @@ def tts_button(text: str, label: str, key: str):
     txt = text or ""
     is_icon = (label or "").strip() in ["🔊", "🔈"]
     disabled = "true" if (not IS_PRO) else "false"
-    btn_text = (f"🔒 {label}" if (not IS_PRO) else label)
+    btn_text = (("PRO" if is_icon else f"🔒 {label}") if (not IS_PRO) else label)
 
-    style_btn = (
-        "width:36px;height:36px;border-radius:999px;display:flex;align-items:center;justify-content:center;font-size:18px;"
-        if is_icon
-        else "width:100%;padding:8px 10px;border-radius:12px;font-size:15px;"
-    )
+    # 버튼 스타일: 아이콘(스피커) / PRO 뱃지(잠금) / 일반 버튼
+    if is_icon and (not IS_PRO):
+        # FREE에서는 스피커 대신 "PRO" 뱃지로 안내
+        style_btn = "min-width:44px;height:28px;padding:0 10px;border-radius:999px;display:flex;align-items:center;justify-content:center;font-size:12px;"
+    elif is_icon:
+        style_btn = "width:36px;height:36px;border-radius:999px;display:flex;align-items:center;justify-content:center;font-size:18px;"
+    else:
+        style_btn = "width:100%;padding:8px 10px;border-radius:12px;font-size:15px;"
 
     components.html(
         f"""
