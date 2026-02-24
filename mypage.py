@@ -1434,22 +1434,48 @@ def _logout() -> None:
 
     # 6) Hard reload + browser storage cleanup (best effort)
     try:
-        components.html(
-            """
+                    """
+
             <script>
+              // best-effort: clear storage + non-HttpOnly cookies, then hard-navigate to a clean URL
               try { localStorage.clear(); } catch(e) {}
               try { sessionStorage.clear(); } catch(e) {}
+
+              // clear non-HttpOnly cookies (HttpOnly cookies can't be cleared from JS)
+              try {
+                const cookies = document.cookie ? document.cookie.split(';') : [];
+                for (let c of cookies) {
+                  const eqPos = c.indexOf('=');
+                  const name = (eqPos > -1 ? c.substr(0, eqPos) : c).trim();
+                  if (!name) continue;
+                  // expire for common paths/domains
+                  document.cookie = name + "=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
+                  document.cookie = name + "=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; samesite=lax";
+                }
+                // also try common supabase cookie names explicitly (in case not enumerable)
+                const known = [
+                  "sb-access-token","sb-refresh-token","supabase-auth-token",
+                  "access_token","refresh_token","sb_access_token","sb_refresh_token"
+                ];
+                for (let name of known) {
+                  document.cookie = name + "=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/";
+                  document.cookie = name + "=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/; samesite=lax";
+                }
+              } catch(e) {}
+
               try {
                 const url = new URL(window.location.href);
                 url.search = '';
                 url.hash = '';
-                // keep only p=home to align with hub router
                 url.searchParams.set('p','home');
+                url.searchParams.set('logged_out','1');
+                url.searchParams.set('ts', String(Date.now()));
                 window.location.replace(url.toString());
               } catch(e) {
                 window.location.reload();
               }
             </script>
+    
             """,
             height=0,
         )
