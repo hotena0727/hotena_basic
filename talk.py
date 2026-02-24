@@ -613,6 +613,11 @@ if submitted:
     with st.container(border=True):
         st.markdown("### 🎤 발음/말하기")
 
+        total_cnt = len(qids)
+        current_no = idx + 1
+        st.caption(f"📘 진행: {current_no} / {total_cnt}")
+
+
         # ✅ 말하기 녹음(선택) — 채점/인식 없이 '내 발화'만 남길 수 있게
         try:
             if hasattr(st, "audio_input"):
@@ -630,6 +635,8 @@ if submitted:
         st.caption("정답을 보고 2~3번 따라 말한 뒤, 아래 버튼을 눌러 다음으로 넘어가세요.")
 
         if st.button("✅ 다 했어요 (다음)", use_container_width=True, key=f"{NS}_next_after"):
+            st.success("+2 XP 🎤 (말하기 완료 보상)")
+
             nxt = idx + 1
             if nxt >= len(qids):
                 nxt = 0
