@@ -42,6 +42,21 @@ from supabase import create_client
 # ✅ MP3 base (스토리지)
 BASE_AUDIO_URL = 'https://hotena.com/hotena/app/mp3/'
 
+def resolve_audio_url(v: str) -> str:
+    """CSV에 '00.mp3' 처럼 파일명만 적어도 재생되도록 URL을 보정한다.
+    - v가 http(s)로 시작하면 그대로 사용
+    - BASE_AUDIO_URL이 있으면 BASE_AUDIO_URL + v 로 결합
+    - BASE_AUDIO_URL이 없으면 상대경로(v)를 그대로 사용(예: 'mp3/00.mp3')
+    """
+    v = (v or "").strip()
+    if not v:
+        return ""
+    if v.startswith("http://") or v.startswith("https://"):
+        return v
+    if BASE_AUDIO_URL:
+        return BASE_AUDIO_URL.rstrip("/") + "/" + v.lstrip("/")
+    return v
+
 # ✅ MP3 URL이 없을 때 브라우저 TTS로 대체할지 여부
 USE_TTS_FALLBACK = True  # mp3만 쓰려면 False
 
@@ -531,206 +546,153 @@ def tts_button(text: str, label: str, key: str):
     )
 
 
-def tts_inline_row(role_label: str, text: str, key: str, show_text: bool = True):
-    # 문장 오른쪽에 스피커 아이콘을 '텍스트 바로 옆'에 붙여 표시 (iframe 1개로 렌더링)
-    txt = text or ""
-    safe = txt.replace("\\", "\\\\").replace("`", "").replace("\n", " ")
-    disabled = "true" if (not IS_PRO) else "false"
-    btn = "🔊"
-    badge = '<span style="margin-left:6px;font-size:12px;background:#FFD54F;color:#000;padding:2px 6px;border-radius:8px;font-weight:800;line-height:1;">PRO</span>' if (not IS_PRO) else ""
-    show = "inline" if show_text else "none"
 
-    components.html(
-        f'''
-<div style="display:flex;align-items:center;gap:8px;line-height:1.25;">
-  <div style="min-width:72px;font-weight:800;opacity:.85;">{role_label}</div>
-  <div style="flex:1;display:flex;align-items:center;gap:6px;">
-    <span style="display:{show};font-weight:500;">{txt}</span>
-    <button id="tts_{key}" {'disabled' if not IS_PRO else ''}
-      title="발음 듣기"
-      style="padding:0;margin:0;border:none;background:transparent;
-             cursor:{'not-allowed' if not IS_PRO else 'pointer'};
-             font-size:18px;font-weight:900;line-height:1;
-             opacity:{'0.55' if not IS_PRO else '0.9'};">
-      {btn}
-    </button>{badge}
-  </div>
+def tts_inline_row(role_label: str, text: str, key: str, show_text: bool = True, audio_url: str = ""):
+    """문장 오른쪽에 스피커 아이콘을 '텍스트 바로 옆'에 붙여 표시.
+    - PRO: 클릭 시 (mp3가 있으면 mp3, 없으면 TTS) 재생
+    - FREE: PRO 배지로 잠금 표시(문장은 FREE에만 노출되도록 show_text로 제어)
+    """
+    txt = (text or "").strip()
+    safe = txt.replace("\\", "\\\\").replace('"', '\"').replace("`", "").replace(chr(10), ' ')
+    au = resolve_audio_url(audio_url).replace("\\", "\\\\").replace('"', '\"').replace("`", "").replace(chr(10), ' ')
+    disabled = (not IS_PRO) or (not txt)
+    # 텍스트 노출: show_text=False면 화면엔 숨기되, 음성은 재생 가능(PRO)
+    show = "block" if show_text else "none"
+
+    html = f"""
+<div class="ttsline-wrap" id="wrap-{key}">
+  <div class="ttsline-role">{role_label}</div>
+  <div class="ttsline-text" style="display:{show}">{safe}</div>
+  <button class="ttsline-btn" id="btn-{key}" aria-label="listen" {'disabled' if disabled else ''}>🔊</button>
+  {'<span class="ttsline-pro">PRO</span>' if (not IS_PRO) else ''}
 </div>
-<script>
-(function() {{
-  const btn = document.getElementById("tts_{key}");
-  if (!btn) return;
-  if ({disabled}) return;
-  if (btn.dataset.bound === "1") return;
-  btn.dataset.bound = "1";
-
-  const synth = window.speechSynthesis;
-
-  function pickJaVoice() {{
-    const voices = synth.getVoices() || [];
-    const ja = voices.filter(v => String(v.lang || "").toLowerCase().startsWith("ja"));
-    if (!ja.length) return null;
-    return ja.find(v => /google/i.test(v.name || ""))
-        || ja.find(v => /日本|japanese/i.test(v.name || ""))
-        || ja[0] || null;
-  }}
-
-  function speak() {{
-    try {{
-      const u = new SpeechSynthesisUtterance({safe!r});
-      u.lang = "ja-JP";
-      const v = pickJaVoice();
-      if (v) u.voice = v;
-      synth.cancel();
-      synth.speak(u);
-    }} catch(e) {{}}
-  }}
-
-  btn.addEventListener("click", () => {{
-    if ((synth.getVoices() || []).length === 0) {{
-      let tried = 0;
-      const t = setInterval(() => {{
-        tried += 1;
-        if ((synth.getVoices() || []).length > 0 || tried >= 10) {{
-          clearInterval(t);
-          speak();
-        }}
-      }}, 150);
-    }} else {{
-      speak();
-    }}
-  }});
-}})();
-</script>
-''',
-        height=40,
-    )
-
-
-
-# ======================================
-# ======================================
-# ✅ Build choices (문제 로딩 시 1회 셔플 후 고정)
-# ============================================================
-
-
-def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bool = True):
-    # 상대/내 2줄을 하나의 iframe 안에서 렌더링해서 줄 간격을 촘촘하게 제어
-    ptxt = partner_text or ""
-    atxt = answer_text or ""
-
-    def _safe(s: str) -> str:
-        return (s or "").replace("\\", "\\\\").replace("`", "").replace("\n", " ")
-
-    p_safe = _safe(ptxt)
-    a_safe = _safe(atxt)
-
-    disabled = (not IS_PRO)
-    icon_partner = "🔊"
-    icon_answer = "🔊"
-    p_badge = '<span style="margin-left:6px;font-size:12px;background:#FFD54F;color:#000;padding:2px 6px;border-radius:8px;font-weight:800;line-height:1;">PRO</span>' if disabled else ""
-    a_badge = '<span style="margin-left:6px;font-size:12px;background:#FFD54F;color:#000;padding:2px 6px;border-radius:8px;font-weight:800;line-height:1;">PRO</span>' if disabled else ""
-    show = "inline" if show_text else "none"
-
-    html = """
-<div style="display:flex;flex-direction:column;gap:10px;line-height:1.25;">
-  <div style="display:flex;align-items:center;gap:8px;">
-    <div style="min-width:72px;font-weight:800;opacity:.85;">상대(말)</div>
-    <div style="flex:1;display:flex;align-items:center;gap:6px;">
-      <span style="display:{show};font-weight:500;">{ptxt}</span>
-      <button id="tts_{qid}_p" {p_dis} title="발음 듣기"
-        style="padding:0;margin:0;border:none;background:transparent;
-               cursor:{p_cursor};
-               font-size:18px;font-weight:900;line-height:1;
-               opacity:{p_opacity};">{p_icon}</button>{p_badge}
-    </div>
-  </div>
-
-  <div style="display:flex;align-items:center;gap:8px;">
-    <div style="min-width:72px;font-weight:800;opacity:.85;">내(말)</div>
-    <div style="flex:1;display:flex;align-items:center;gap:6px;">
-      <span style="display:{show};font-weight:500;">{atxt}</span>
-      <button id="tts_{qid}_a" {a_dis} title="발음 듣기"
-        style="padding:0;margin:0;border:none;background:transparent;
-               cursor:{a_cursor};
-               font-size:18px;font-weight:900;line-height:1;
-               opacity:{a_opacity};">{a_icon}</button>{a_badge}
-    </div>
-  </div>
-</div>
-
+<style>
+  .ttsline-wrap{{display:flex;align-items:center;gap:8px;line-height:1.45;}}
+  .ttsline-role{{min-width:52px;font-weight:700;opacity:.85;}}
+  .ttsline-text{{font-size:1.05rem;}}
+  .ttsline-btn{{border:0;background:transparent;padding:0;margin-left:2px;font-size:1.05rem;cursor:pointer;opacity:.95;}}
+  .ttsline-btn[disabled]{{cursor:not-allowed;opacity:.35;}}
+  .ttsline-pro{{font-size:.75rem;letter-spacing:.02em;border:1px solid rgba(0,0,0,.18);border-radius:999px;padding:1px 6px;opacity:.45;}}
+</style>
 <script>
 (function(){{
-  const synth = window.speechSynthesis;
-
+  const btn = document.getElementById("btn-{key}");
+  if(!btn) return;
+  const text = "{safe}";
+  const audioUrl = "{au}";
   function pickJaVoice(){{
-    const voices = synth.getVoices() || [];
-    const ja = voices.filter(v => String(v.lang||"").toLowerCase().startsWith("ja"));
-    if (!ja.length) return null;
-    return ja.find(v => /google/i.test(v.name||""))
-        || ja.find(v => /日本|japanese/i.test(v.name||""))
-        || ja[0] || null;
+    const vs = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+    const ja = vs.filter(v => (v.lang||"").toLowerCase().startsWith("ja"));
+    if(!ja.length) return null;
+    const prefer = ja.find(v => /google/i.test(v.name||"")) || ja[0];
+    return prefer;
   }}
-
-  function speak(text){{
-    try{{
-      const u = new SpeechSynthesisUtterance(text);
-      u.lang = "ja-JP";
-      const v = pickJaVoice();
-      if (v) u.voice = v;
-      synth.cancel();
-      synth.speak(u);
-    }}catch(e){{}}
+  function speak(){{
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = "ja-JP";
+    const v = pickJaVoice();
+    if (v) u.voice = v;
+    u.rate = 1.0; u.pitch = 1.0;
+    window.speechSynthesis.speak(u);
   }}
-
-  function bind(btnId, text, disabled){{
-    const btn = document.getElementById(btnId);
-    if (!btn || disabled) return;
-    if (btn.dataset.bound === "1") return;
-    btn.dataset.bound = "1";
-
-    btn.addEventListener("click", () => {{
-      if ((synth.getVoices() || []).length === 0){{
-        let tried = 0;
-        const t = setInterval(() => {{
-          tried += 1;
-          if ((synth.getVoices() || []).length > 0 || tried >= 10){{
-            clearInterval(t);
-            speak(text);
-          }}
-        }}, 150);
-      }} else {{
-        speak(text);
-      }}
-    }});
+  function playAudio(){{
+    try {{
+      const a = new Audio(audioUrl);
+      a.play();
+    }} catch(e) {{
+      speak();
+    }}
   }}
-
-  bind("tts_{qid}_p", {p_safe}, {disabled});
-  bind("tts_{qid}_a", {a_safe}, {disabled});
+  btn.addEventListener("click", (e) => {{
+    e.preventDefault();
+    if (btn.disabled) return;
+    if (audioUrl) playAudio();
+    else speak();
+  }});
 }})();
 </script>
 """
 
-    html = html.format(
-        show=show,
-        qid=qid,
-        ptxt=ptxt,
-        atxt=atxt,
-        p_badge=p_badge,
-        a_badge=a_badge,
-        p_dis=("disabled" if disabled else ""),
-        a_dis=("disabled" if disabled else ""),
-        p_cursor=("not-allowed" if disabled else "pointer"),
-        a_cursor=("not-allowed" if disabled else "pointer"),
-        p_opacity=("0.55" if disabled else "0.9"),
-        a_opacity=("0.55" if disabled else "0.9"),
-        p_icon=icon_partner,
-        a_icon=icon_answer,
-        p_safe=repr(p_safe),
-        a_safe=repr(a_safe),
-        disabled=("true" if disabled else "false"),
-    )
-    components.html(html, height=92)
+    components.html(html, height=44)
+
+
+
+
+def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bool = True,
+                    partner_audio_url: str = "", answer_audio_url: str = ""):
+    """결과 박스에서 상대/내 문장을 한 줄씩 + 스피커(문장 오른쪽) 표시.
+    - PRO: mp3가 있으면 mp3, 없으면 TTS 재생
+    - FREE: 스피커는 흐리게 비활성 + PRO 배지 표시
+    """
+    p = (partner_text or "").strip()
+    a = (answer_text or "").strip()
+    p_safe = p.replace("\\", "\\\\").replace('"', '\"').replace("`", "").replace(chr(10), ' ')
+    a_safe = a.replace("\\", "\\\\").replace('"', '\"').replace("`", "").replace(chr(10), ' ')
+    p_au = resolve_audio_url(partner_audio_url).replace("\\", "\\\\").replace('"', '\"').replace("`", "").replace(chr(10), ' ')
+    a_au = resolve_audio_url(answer_audio_url).replace("\\", "\\\\").replace('"', '\"').replace("`", "").replace(chr(10), ' ')
+
+    disabled = (not IS_PRO)
+    show = "block" if show_text else "none"
+
+    html = f"""
+<div class="ttspair">
+  <div class="row">
+    <span class="lab">상대(말)</span>
+    <span class="txt">{p_safe}</span>
+    <button class="btn" id="pbtn-{qid}" aria-label="listen" {'disabled' if disabled else ''}>🔊</button>
+    {'<span class="pro">PRO</span>' if (not IS_PRO) else ''}
+  </div>
+  <div class="row">
+    <span class="lab">내(말)</span>
+    <span class="txt">{a_safe}</span>
+    <button class="btn" id="abtn-{qid}" aria-label="listen" {'disabled' if disabled else ''}>🔊</button>
+    {'<span class="pro">PRO</span>' if (not IS_PRO) else ''}
+  </div>
+</div>
+<style>
+  .ttspair{{display:flex;flex-direction:column;gap:8px;}}
+  .ttspair .row{{display:flex;align-items:center;gap:8px;}}
+  .ttspair .lab{{min-width:52px;font-weight:700;opacity:.85;}}
+  .ttspair .txt{{font-size:1.05rem;}}
+  .ttspair .btn{{border:0;background:transparent;padding:0;margin-left:2px;font-size:1.05rem;cursor:pointer;opacity:.95;}}
+  .ttspair .btn[disabled]{{cursor:not-allowed;opacity:.35;}}
+  .ttspair .pro{{font-size:.75rem;letter-spacing:.02em;border:1px solid rgba(0,0,0,.18);border-radius:999px;padding:1px 6px;opacity:.45;}}
+</style>
+<script>
+(function(){{
+  function pickJaVoice(){{
+    const vs = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+    const ja = vs.filter(v => (v.lang||"").toLowerCase().startsWith("ja"));
+    if(!ja.length) return null;
+    return ja.find(v => /google/i.test(v.name||"")) || ja[0];
+  }}
+  function speak(text){{
+    if(!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = "ja-JP";
+    const v = pickJaVoice();
+    if(v) u.voice = v;
+    u.rate = 1.0; u.pitch = 1.0;
+    window.speechSynthesis.speak(u);
+  }}
+  function play(audioUrl, text){{
+    if(audioUrl){{
+      try{{ const a = new Audio(audioUrl); a.play(); return; }}catch(e){{}}
+    }}
+    speak(text);
+  }}
+  const pbtn = document.getElementById('pbtn-{qid}');
+  const abtn = document.getElementById('abtn-{qid}');
+  if(pbtn) pbtn.addEventListener('click', (e)=>{{ e.preventDefault(); if(pbtn.disabled) return; play("{p_au}", "{p_safe}"); }});
+  if(abtn) abtn.addEventListener('click', (e)=>{{ e.preventDefault(); if(abtn.disabled) return; play("{a_au}", "{a_safe}"); }});
+}})();
+</script>
+"""
+
+    components.html(html, height=110)
 
 
 
@@ -852,9 +814,9 @@ with st.container(border=True):
     # FREE는 듣기가 잠겨 있으니, 문제 단계에서 스크립트를 보여줍니다.
     # 상대(말): PRO는 스크립트 숨김(듣기만), FREE는 스크립트 + (발음 듣기 3회/일) 버튼
     if IS_PRO:
-        tts_inline_row("상대(말)", row.get("partner_jp",""), key=f"{qid}_partner_q", show_text=False)
+        tts_inline_row("상대(말)", row.get("partner_jp",""), key=f"{qid}_partner_q", show_text=False, audio_url=row.get("partner_mp3","") or row.get("partner_audio","") or row.get("partner_audio_url","") or "")
     else:
-        tts_inline_row("상대(말)", row.get("partner_jp",""), key=f"{qid}_partner_q", show_text=True)
+        tts_inline_row("상대(말)", row.get("partner_jp",""), key=f"{qid}_partner_q", show_text=True, audio_url=row.get("partner_mp3","") or row.get("partner_audio","") or row.get("partner_audio_url","") or "")
         rem = _free_tts_remaining()
         if rem > 0:
             if st.button(f"🔊 발음 듣기 (무료 {FREE_TTS_QUOTA-rem+1}/{FREE_TTS_QUOTA})", key=f"{qid}_free_tts_q", use_container_width=True):
@@ -871,7 +833,7 @@ with st.container(border=True):
           || ja.find(v => /日本|japanese/i.test(v.name||""))
           || ja[0] || null;
     }}
-    const u = new SpeechSynthesisUtterance({(row.get('partner_jp','') or '').replace('\n',' ')!r});
+    const u = new SpeechSynthesisUtterance({(row.get('partner_jp','') or '').replace(chr(10),' ')!r});
     u.lang = "ja-JP";
     const v = pickJaVoice();
     if (v) u.voice = v;
@@ -1004,7 +966,9 @@ if submitted:
         # ✅ 상대(말) / 내(말) — 스피커 아이콘 버튼은 여기서만 노출
         
         # ✅ 상대(말) / 내(말) — 한 iframe에서 2줄 렌더(간격 촘촘)
-        tts_inline_pair(row.get("partner_jp", ""), row.get("answer_jp", ""), qid=str(qid), show_text=True)
+        tts_inline_pair(row.get("partner_jp",""), row.get("answer_jp",""), qid=str(qid), show_text=True,
+                   partner_audio_url=row.get("partner_mp3","") or row.get("partner_audio","") or row.get("partner_audio_url","") or "",
+                   answer_audio_url=row.get("answer_mp3","") or row.get("answer_audio","") or row.get("answer_audio_url","") or "")
 
         # FREE: 제출 후에도 발음 듣기 하루 3회만 허용 (상대/내 각각 버튼 제공)
         if not IS_PRO:
@@ -1025,7 +989,7 @@ if submitted:
           || ja.find(v => /日本|japanese/i.test(v.name||""))
           || ja[0] || null;
     }}
-    const u = new SpeechSynthesisUtterance({(row.get('partner_jp','') or '').replace('\n',' ')!r});
+    const u = new SpeechSynthesisUtterance({(row.get('partner_jp','') or '').replace(chr(10),' ')!r});
     u.lang = "ja-JP";
     const v = pickJaVoice();
     if (v) u.voice = v;
@@ -1052,7 +1016,7 @@ if submitted:
           || ja.find(v => /日本|japanese/i.test(v.name||""))
           || ja[0] || null;
     }}
-    const u = new SpeechSynthesisUtterance({(row.get('answer_jp','') or '').replace('\n',' ')!r});
+    const u = new SpeechSynthesisUtterance({(row.get('answer_jp','') or '').replace(chr(10),' ')!r});
     u.lang = "ja-JP";
     const v = pickJaVoice();
     if (v) u.voice = v;
