@@ -1019,6 +1019,33 @@ def render_home_dashboard(sb_authed, user):
   border:1px solid rgba(226,232,240,1);
   background: rgba(248,250,252,1);
 }
+.h-guide-actions{
+  display:flex;align-items:center;justify-content:space-between;gap:.6rem;
+  margin-top:.65rem;padding-top:.65rem;
+  border-top:1px solid rgba(226,232,240,1);
+}
+.h-guide-mini-actions{
+  display:flex;align-items:center;justify-content:flex-end;gap:.5rem;
+}
+.h-guide-btn{
+  display:inline-flex;align-items:center;justify-content:center;
+  padding:.48rem .78rem;border-radius:999px;
+  font-size:.86rem;font-weight:800;
+  text-decoration:none !important;
+  border:1px solid rgba(226,232,240,1);
+  background: rgba(255,255,255,1);
+  color: rgba(51,65,85,1);
+  white-space:nowrap;
+}
+.h-guide-btn.primary{
+  background: rgba(74,108,247,1);
+  border-color: rgba(74,108,247,1);
+  color: rgba(255,255,255,1);
+}
+.h-guide-btn.ghost{
+  background: rgba(255,255,255,1);
+}
+.h-guide-btn:hover{filter:brightness(.98);}
 .h-guide-mini-t{font-size:.92rem;font-weight:800;color:rgba(15,23,42,1);margin:0;}
 
 </style>
@@ -1031,6 +1058,25 @@ def render_home_dashboard(sb_authed, user):
     try:
         progress_all = st.session_state.get("progress_all", {}) or {}
         _collapsed = bool(progress_all.get("hub_flow_guide_collapsed", False))
+
+        _flow_action = st.query_params.get("flow")
+        if _flow_action in ("hide", "open"):
+            # apply once then clear param
+            try:
+                _set_val = True if _flow_action == "hide" else False
+                progress_all["hub_flow_guide_collapsed"] = bool(_set_val)
+                st.session_state["progress_all"] = progress_all
+                try:
+                    save_progress(sb_authed, user.id, progress_all)  # type: ignore[name-defined]
+                except Exception:
+                    pass
+            except Exception:
+                pass
+            try:
+                del st.query_params["flow"]
+            except Exception:
+                st.query_params.update({})
+            st.rerun()
 
         def _set_collapsed(v: bool):
             progress_all["hub_flow_guide_collapsed"] = bool(v)
@@ -1048,19 +1094,15 @@ def render_home_dashboard(sb_authed, user):
 <div class="h-guidebox">
   <div class="h-guide-mini">
     <p class="h-guide-mini-t">📘 하테나일본어 앱 사용 흐름</p>
+    <div class="h-guide-mini-actions">
+      <a class="h-guide-btn ghost" href="?flow=open">사용 흐름 보기 ▼</a>
+      <a class="h-guide-btn primary" href="?p=word">단어부터 시작하기</a>
+    </div>
   </div>
 </div>
 ''',
                 unsafe_allow_html=True,
             )
-            c1, c2 = st.columns([1, 1])
-            with c1:
-                if st.button("사용 흐름 보기 ▼", key="hub_flow_guide_open", use_container_width=True):
-                    _set_collapsed(False)
-            with c2:
-                if st.button("단어부터 시작하기", key="hub_flow_guide_word", use_container_width=True):
-                    st.query_params["p"] = "word"
-                    st.rerun()
         else:
             st.markdown(
                 '''
@@ -1068,7 +1110,7 @@ def render_home_dashboard(sb_authed, user):
   <div class="h-guide-top">
     <div>
       <p class="h-guide-title">📘 하테나일본어 앱 사용 흐름</p>
-      <p class="h-guide-sub">처음엔 “어디부터?”가 헷갈릴 수 있어요. 아래 순서로 가볍게 시작해보세요.</p>
+      <p class="h-guide-sub">처음 오신 분은 아래 순서로 가볍게 시작해 보세요.</p>
     </div>
   </div>
   <ul class="h-guide-steps">
@@ -1076,18 +1118,14 @@ def render_home_dashboard(sb_authed, user):
     <li class="h-step"><span class="h-step-badge">2</span><span class="h-step-t">틀린 문제는 <b>오답</b>에서 한 번 더</span></li>
     <li class="h-step"><span class="h-step-badge">3</span><span class="h-step-t">익숙해지면 <b>회화</b>까지 확장 (매일 조금씩)</span></li>
   </ul>
+  <div class="h-guide-actions">
+    <a class="h-guide-btn primary" href="?p=word">단어부터 시작하기</a>
+    <a class="h-guide-btn ghost" href="?flow=hide">이 안내 접기</a>
+  </div>
 </div>
 ''',
                 unsafe_allow_html=True,
             )
-            c1, c2 = st.columns([1, 1])
-            with c1:
-                if st.button("단어부터 시작하기", key="hub_flow_guide_cta", use_container_width=True):
-                    st.query_params["p"] = "word"
-                    st.rerun()
-            with c2:
-                if st.button("이 안내 접기", key="hub_flow_guide_close", use_container_width=True):
-                    _set_collapsed(True)
         st.markdown("</div>", unsafe_allow_html=True)
     except Exception:
         pass
@@ -2242,7 +2280,7 @@ def render_admin_dashboard(sb_authed):
         st.error("quiz_attempts 조회 실패 (RLS/권한/컬럼 확인 필요)")
         st.exception(att_err)
 
-    tab_stats, tab_users, tab_logs, tab_backup = st.tabs(["📊 통계", "👥 회원", "🕒 기록", "🗂 백업·버전"])
+    tab_users, tab_stats, tab_logs, tab_backup = st.tabs(["👥 회원", "📊 통계", "🕒 기록", "🗂 백업·버전"])
 
     # ---------- Admin helpers (profiles update / backup) ----------
     def _admin_update_profile(user_id: str, payload: dict):
@@ -2793,10 +2831,14 @@ def render_admin_dashboard(sb_authed):
                                 with dcol1:
                                     days_opt = st.selectbox("기준 기간", options=["10일", "30일", "90일", "직접 입력"], index=1, key="admin_purge_days_opt")
                                 with dcol2:
-                                    days_custom = st.number_input("직접 입력(일)", min_value=1, max_value=3650, value=30, step=1, key="admin_purge_days_custom")
+                                    days_custom = st.number_input("직접 입력(일)", min_value=0, max_value=3650, value=30, step=1, key="admin_purge_days_custom")
 
                                 purge_days = int(days_custom) if days_opt == "직접 입력" else int(days_opt.replace("일", ""))
                                 scope = st.radio("대상", options=["이 회원만", "전체 회원(공통 정리)"], horizontal=True, index=0, key="admin_purge_scope")
+
+                                full_purge = st.checkbox("⚠️ 전체삭제(기간 무시)", value=False, key="admin_purge_full")
+                                if full_purge:
+                                    purge_days = 0
 
                                 st.caption("✅ 안전장치: 먼저 **미리보기(삭제될 개수)**를 확인한 뒤 실행하세요.")
                                 puid = user_id if scope == "이 회원만" else None
