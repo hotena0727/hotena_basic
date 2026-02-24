@@ -10,6 +10,8 @@ import hashlib
 import pandas as pd
 import streamlit as st
 
+import ai_tutor
+
 
 
 # ============================================================
@@ -83,6 +85,98 @@ USER_EMAIL = getattr(u, "email", "") or ""
 
 USER_PLAN = (st.session_state.get("user_plan") or "free").lower()
 IS_PRO = USER_PLAN == "pro"
+
+# ============================================================
+# ✅ Recent 2 turns (stable, persisted in profiles.progress too)
+# - Always kept at length 2
+# - Seeded from profiles.progress['talk']['recent_turns'] when available
+# ============================================================
+def _ensure_recent_turns():
+    lst = st.session_state.get("talk_recent_turns")
+    if not isinstance(lst, list) or not lst:
+        # seed from DB-backed progress if possible
+        try:
+            prog = load_progress()
+            talk_prog = prog.get("talk") or {}
+            seeded = talk_prog.get("recent_turns") or []
+            if isinstance(seeded, list) and seeded:
+                lst = seeded
+        except Exception:
+            lst = []
+
+    if not isinstance(lst, list):
+        lst = []
+
+    # keep only dicts
+    lst = [x for x in lst if isinstance(x, dict)]
+
+    # pad to 2
+    pad = {"qid": "", "situation_kr": "", "partner_jp": "", "selected": "", "correct": "", "ok": None}
+    while len(lst) < 2:
+        lst.insert(0, dict(pad))
+    lst = lst[-2:]
+
+    st.session_state["talk_recent_turns"] = lst
+
+    # persist back into progress (best effort)
+    try:
+        prog = load_progress()
+        talk_prog = prog.get("talk") or {}
+        talk_prog["recent_turns"] = lst
+        prog["talk"] = talk_prog
+        save_progress(prog)
+    except Exception:
+        pass
+
+def _push_recent_turn(turn: dict):
+    _ensure_recent_turns()
+    lst = st.session_state.get("talk_recent_turns") or []
+    if not isinstance(lst, list):
+        lst = []
+    try:
+        lst.append(turn if isinstance(turn, dict) else {})
+    except Exception:
+        pass
+
+    # normalize + keep last 2
+    pad = {"qid": "", "situation_kr": "", "partner_jp": "", "selected": "", "correct": "", "ok": None}
+    lst = [x for x in lst if isinstance(x, dict)][-2:]
+    while len(lst) < 2:
+        lst.insert(0, dict(pad))
+
+    st.session_state["talk_recent_turns"] = lst
+
+    # persist (best effort)
+    try:
+        prog = load_progress()
+        talk_prog = prog.get("talk") or {}
+        talk_prog["recent_turns"] = lst
+        prog["talk"] = talk_prog
+        save_progress(prog)
+    except Exception:
+        pass
+
+def _recent_turns_summary() -> str:
+    _ensure_recent_turns()
+    lst = st.session_state.get("talk_recent_turns") or []
+    lines = []
+    for i, t in enumerate(lst, start=1):
+        s = str((t or {}).get("situation_kr") or "").strip()
+        p = str((t or {}).get("partner_jp") or "").strip()
+        me = str((t or {}).get("selected") or "").strip()
+        ok = (t or {}).get("ok")
+        ok_mark = "O" if ok is True else ("X" if ok is False else "-")
+        if not (s or p or me):
+            continue
+        lines.append(f"[최근{i}] ({ok_mark}) 상황:{s[:40]} / 상대:{p[:40]} / 내:{me[:40]}")
+    return "\n".join(lines).strip()
+
+# init buffer early
+try:
+    _ensure_recent_turns()
+except Exception:
+    pass
+
 
 def _inject_talk_ui_css():
     if st.session_state.get("_talk_ui_css_done", False):
@@ -851,6 +945,60 @@ with st.container(border=True):
                 unsafe_allow_html=True,
             )
 
+
+# ============================================================
+# ✅ 하테나쌤에게 물어보기 (요청형 AI, 저비용)
+# - 현재 문제(상황/상대 발화/내 선택)를 자동으로 문맥에 붙입니다.
+# - 최근 2턴 요약도 함께 붙여, 반복 질문을 줄입니다.
+# ============================================================
+with st.expander("💬 하테나쌤에게 물어보기", expanded=False):
+    q_default = st.session_state.get("talk_ai_last_q") or ""
+    user_q = st.text_input("질문", value=str(q_default), key=f"talk_ai_q_{qid}", placeholder="예) 이 상황에서 왜 이 표현을 써요?")
+
+    # build compact context (cheap)
+    ctx_parts = []
+    s = str(row.get("situation_kr", "")).strip()
+    p = str(row.get("partner_jp", "")).strip()
+    if s:
+        ctx_parts.append(f"현재상황: {s}")
+    if p:
+        ctx_parts.append(f"상대발화: {p}")
+    if selected:
+        ctx_parts.append(f"내선택: {selected}")
+    # include last 2 turns summary (if any)
+    try:
+        recent = _recent_turns_summary()
+        if recent:
+            ctx_parts.append("최근2턴:\n" + recent)
+    except Exception:
+        pass
+    ctx = "\n".join(ctx_parts).strip()
+
+    cA, cB = st.columns([0.72, 0.28], vertical_alignment="center")
+    with cA:
+        st.caption("짧게 물어보면 더 빠르고 저렴해요 🙂")
+    with cB:
+        ask = st.button("질문하기", use_container_width=True, key=f"talk_ai_ask_{qid}")
+
+    if ask and str(user_q).strip():
+        st.session_state["talk_ai_last_q"] = str(user_q).strip()
+        with st.spinner("하테나쌤 답변 중…"):
+            ans = ai_tutor.ask_hatena(
+                mode="talk",
+                user_input=str(user_q).strip(),
+                context=ctx,
+                meta={
+                    "page": "talk",
+                    "qid": str(qid),
+                    "situation_kr": s,
+                    "partner_jp": p,
+                    "selected": str(selected or "").strip(),
+                    "submitted": bool(submitted),
+                },
+            )
+        st.info(ans)
+
+
     st.markdown("---")
     with st.container(border=True):
         st.markdown("**내가 할 말(선택)**")
@@ -899,6 +1047,23 @@ with st.container(border=True):
 if submitted:
     correct = str(row.get("answer_jp", "")).strip()
     ok = (selected == correct)
+
+# ✅ recent-2-turn snapshot (once per submission)
+try:
+    snap_key = f"talk_turn_saved_{qid}"
+    if not st.session_state.get(snap_key):
+        _push_recent_turn({
+            "qid": str(qid),
+            "situation_kr": str(row.get("situation_kr", "")).strip(),
+            "partner_jp": str(row.get("partner_jp", "")).strip(),
+            "selected": str(selected or "").strip(),
+            "correct": str(correct or "").strip(),
+            "ok": bool(ok),
+        })
+        st.session_state[snap_key] = True
+except Exception:
+    pass
+
 
     # ============================================================
     # ✅ 오답 상세 저장 (wrong_notes) — 회화도 '단어/정답/내답' 기록
