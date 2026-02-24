@@ -386,6 +386,23 @@ def tts_button(text: str, label: str, key: str):
 # ✅ Build choices (문제 로딩 시 1회 셔플 후 고정)
 # ============================================================
 
+
+def play_audio_or_tts(text: str, audio_url: str, label: str, key: str):
+    """PRO: mp3 URL 재생 / FREE: 잠금. URL 없으면 TTS fallback."""
+    audio_url = (audio_url or "").strip()
+
+    if audio_url:
+        if IS_PRO:
+            if st.button(f"🔊 {label}", key=f"{key}_btn"):
+                st.audio(audio_url)
+        else:
+            st.button(f"🔒 {label} (PRO 전용)", disabled=True, key=f"{key}_lock")
+        return
+
+    # URL이 없으면 브라우저 TTS fallback
+    if st.button(f"🔊 {label}", key=f"{key}_ttsbtn"):
+        tts_button(text, label, key=f"{key}_tts")
+
 def build_choices(row: dict, pool_answers: list[str]) -> list[str]:
     correct = str(row.get("answer_jp", "")).strip()
     picks: list[str] = []
@@ -482,6 +499,13 @@ submitted = bool(st.session_state.get(submitted_key))
 # ============================================================
 with st.container(border=True):
     st.markdown(f"**상황**: {row.get('situation_kr','')}")
+
+    # 🔊 문제 단계: 상대 듣기 (PRO는 재생, FREE는 잠금)
+    play_audio_or_tts(row.get('partner_jp',''), row.get('audio_partner_url',''), '상대 듣기', f"{qid}_q_partner")
+    # FREE는 듣기가 잠겨 있으니, 문제 단계에서 스크립트를 보여줍니다.
+    if not IS_PRO:
+        st.markdown(f"<div class='talk-partner-script'>상대: {row.get('partner_jp','')}</div>", unsafe_allow_html=True)
+
     st.markdown("**상대 발화**")
 # 상대 발음(제출 전/후 모두)
     tts_button(row.get("partner_jp", ""), "🔊 상대 듣기", key=f"{qid}_partner")
@@ -533,6 +557,10 @@ st.button(
 if submitted:
     correct = str(row.get("answer_jp", "")).strip()
     ok = (selected == correct)
+    # 🔊 정답 단계: 상대/정답 듣기 (PRO mp3, 없으면 TTS fallback)
+    play_audio_or_tts(row.get('partner_jp',''), row.get('audio_partner_url',''), '상대 듣기', f"{qid}_a_partner")
+    play_audio_or_tts(row.get('answer_jp',''), row.get('audio_answer_url',''), '정답 듣기', f"{qid}_a_answer")
+
     # ============================================================
     # ✅ 오답 상세 저장 (wrong_notes) — 회화도 '단어/정답/내답' 기록
     # ============================================================
