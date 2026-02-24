@@ -463,7 +463,8 @@ def tts_inline_row(role_label: str, text: str, key: str, show_text: bool = True)
     txt = text or ""
     safe = txt.replace("\\", "\\\\").replace("`", "").replace("\n", " ")
     disabled = "true" if (not IS_PRO) else "false"
-    btn = "🔒" if (not IS_PRO) else "🔊"
+    btn = "🔊"
+    badge = '<span style="margin-left:6px;font-size:12px;background:#FFD54F;color:#000;padding:2px 6px;border-radius:8px;font-weight:800;line-height:1;">PRO</span>' if (not IS_PRO) else ""
     show = "inline" if show_text else "none"
 
     components.html(
@@ -479,7 +480,7 @@ def tts_inline_row(role_label: str, text: str, key: str, show_text: bool = True)
              font-size:18px;font-weight:900;line-height:1;
              opacity:{'0.55' if not IS_PRO else '0.9'};">
       {btn}
-    </button>
+    </button>{badge}
   </div>
 </div>
 <script>
@@ -552,8 +553,10 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
     a_safe = _safe(atxt)
 
     disabled = (not IS_PRO)
-    icon_partner = "🔒" if disabled else "🔊"
-    icon_answer = "🔒" if disabled else "🔊"
+    icon_partner = "🔊"
+    icon_answer = "🔊"
+    p_badge = '<span style="margin-left:6px;font-size:12px;background:#FFD54F;color:#000;padding:2px 6px;border-radius:8px;font-weight:800;line-height:1;">PRO</span>' if disabled else ""
+    a_badge = '<span style="margin-left:6px;font-size:12px;background:#FFD54F;color:#000;padding:2px 6px;border-radius:8px;font-weight:800;line-height:1;">PRO</span>' if disabled else ""
     show = "inline" if show_text else "none"
 
     html = """
@@ -566,7 +569,7 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
         style="padding:0;margin:0;border:none;background:transparent;
                cursor:{p_cursor};
                font-size:18px;font-weight:900;line-height:1;
-               opacity:{p_opacity};">{p_icon}</button>
+               opacity:{p_opacity};">{p_icon}</button>{p_badge}
     </div>
   </div>
 
@@ -578,7 +581,7 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
         style="padding:0;margin:0;border:none;background:transparent;
                cursor:{a_cursor};
                font-size:18px;font-weight:900;line-height:1;
-               opacity:{a_opacity};">{a_icon}</button>
+               opacity:{a_opacity};">{a_icon}</button>{a_badge}
     </div>
   </div>
 </div>
@@ -640,6 +643,8 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
         qid=qid,
         ptxt=ptxt,
         atxt=atxt,
+        p_badge=p_badge,
+        a_badge=a_badge,
         p_dis=("disabled" if disabled else ""),
         a_dis=("disabled" if disabled else ""),
         p_cursor=("not-allowed" if disabled else "pointer"),
@@ -919,15 +924,32 @@ if submitted:
             unsafe_allow_html=True,
         )
 
-        # ✅ 말하기 녹음(선택) — 모든 브라우저에서 항상 보이도록 Streamlit 기본 녹음기로 고정
 
-        _audio = st.audio_input("🎤 (선택) 내 발음을 녹음하고 들어보세요", key=f"{qid}_record")
-        if _audio is not None:
-            st.audio(_audio)
-
-
+        # ✅ 말하기 녹음(선택)
+        # - PRO: 녹음 가능
+        # - FREE: PRO 안내 카드 노출
+        if IS_PRO:
+            _audio = st.audio_input("🎤 (선택) 내 발음을 녹음하고 들어보세요", key=f"{qid}_record")
+            if _audio is not None:
+                st.audio(_audio)
+        else:
+            st.markdown(
+                '''
+<div style="padding:12px;border:1px solid #FFD54F;border-radius:12px;background:#FFF8E1;">
+  <div style="font-weight:800;">🎙️ 발음 녹음 기능은 PRO 전용입니다</div>
+  <div style="margin-top:6px;font-size:0.92rem;opacity:0.9;">
+    🔊 발음 듣기 · 🎤 녹음 기능은 PRO 플랜에서 이용 가능합니다.
+  </div>
+  <div style="margin-top:10px;">
+    <span style="background:#FFD54F;color:#000;padding:3px 10px;border-radius:10px;font-weight:900;">PRO</span>
+  </div>
+</div>
+''',
+                unsafe_allow_html=True,
+            )
 
         st.caption("정답을 보고 2~3번 따라 말한 뒤, 아래 버튼을 눌러 다음으로 넘어가세요.")
+
 
         if st.button("✅ 다 했어요 (다음)", use_container_width=True, key=f"{NS}_next_after"):
             st.success("+2 XP 🎤 (말하기 완료 보상)")
