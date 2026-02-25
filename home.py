@@ -153,6 +153,10 @@ import html as html_module  # ✅ for html escaping in admin cards
 # ============================================================
 st.set_page_config(page_title="Hotena Hub", layout="centered")
 
+# ✅ Anchor for bottom-right '맨 위로' button
+st.markdown('<div id="hotena-top"></div>', unsafe_allow_html=True)
+
+
 # ✅ Kill component iframe placeholders ASAP (before any other output)
 try:
     core.hide_component_iframe_placeholders()
@@ -3266,10 +3270,6 @@ render_plan_pill()
 page = st.session_state.get("hub_page", "home")
 core.render_top_nav(active=page)
 
-
-# ✅ 우측 하단 바로가기(맨 위로)
-render_float_top_anchor_button()
-
 if page == "admin":
     if not st.session_state.get("is_admin"):
         st.warning("관리자만 접근할 수 있습니다.")
@@ -3306,3 +3306,10 @@ else:
     # ✅ Fallback: unknown page -> go home
     st.session_state["hub_page"] = "home"
     render_home_dashboard(sb_authed, user)
+
+
+# ✅ Always render bottom-right '맨 위로' shortcut
+try:
+    render_float_top_anchor_button()
+except Exception:
+    pass
