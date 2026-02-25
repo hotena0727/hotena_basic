@@ -992,6 +992,40 @@ if submitted_key not in st.session_state:
     st.session_state[submitted_key] = False
 submitted = bool(st.session_state.get(submitted_key))
 
+
+# ============================================================
+# ✅ Next question helper (명확한 UX) + FAB queryparam hook
+# ============================================================
+def _go_next_question():
+    nxt = idx + 1
+    if nxt >= len(qids):
+        nxt = 0
+    st.session_state[f"{NS}_idx"] = nxt
+    # 상태 초기화(다음 문제)
+    st.session_state[submitted_key] = False
+    st.session_state.pop(sel_key, None)
+    st.session_state.pop(f"{NS}_radio_{qid}", None)
+    st.session_state.pop(f"{NS}_speak_done_{qid}", None)
+    st.session_state.pop(f"{NS}_reward_ready_{qid}", None)
+    st.rerun()
+
+# ✅ FAB(우측 하단)에서 URL queryparam으로 다음 이동 요청
+try:
+    qp = st.query_params
+    if str(qp.get("talk_next", "")) == "1":
+        # param 먼저 제거(무한루프 방지)
+        try:
+            del qp["talk_next"]
+        except Exception:
+            pass
+        # 제출된 상태에서만 다음으로 이동(미제출이면 이동하지 않음)
+        if submitted:
+            _go_next_question()
+        else:
+            st.rerun()
+except Exception:
+    pass
+
 # ============================================================
 # ✅ Render card
 # ============================================================
@@ -1344,22 +1378,73 @@ if submitted:
                 )
 
         st.caption("정답을 보고 2~3번 따라 말한 뒤, 아래 버튼을 눌러 다음으로 넘어가세요.")
+        reward_key = f"{NS}_reward_ready_{qid}"
+        if st.button("✅ 다 했어요 (보상 받기)", use_container_width=True, key=f"{NS}_next_after"):
+            # ✅ 1단계: 보상만 보여주고, 다음 이동은 사용자가 명확히 누르도록 분리
+            st.session_state[reward_key] = True
 
-
-        if st.button("✅ 다 했어요 (다음)", use_container_width=True, key=f"{NS}_next_after"):
+        if st.session_state.get(reward_key):
             st.success("+2 XP 🎤 (말하기 완료 보상)")
+            st.caption("👇 아래 버튼을 누르면 다음 문제로 넘어갑니다.")
 
-            nxt = idx + 1
-            if nxt >= len(qids):
-                nxt = 0
-            st.session_state[f"{NS}_idx"] = nxt
-            # 상태 초기화(다음 문제)
-            st.session_state[submitted_key] = False
-            st.session_state.pop(sel_key, None)
-            st.session_state.pop(f"{NS}_radio_{qid}", None)
-            st.session_state.pop(f"{NS}_speak_done_{qid}", None)
-            # st.rerun()  # Streamlit은 버튼 클릭 시 자동 rerun됩니다.
+            if st.button("➡️ 다음 문제 풀기", use_container_width=True, key=f"{NS}_go_next_after_reward_{qid}"):
+                _go_next_question()
+# st.rerun()  # Streamlit은 버튼 클릭 시 자동 rerun됩니다.
 
+
+
+# ============================================================
+# ✅ 우측 하단 바로가기(FAB): 제출 후 "다음 문제" 빠른 이동
+# - Streamlit 위젯 클릭 rerun을 피하기 위해, queryparam 방식으로 트리거
+# ============================================================
+def _render_talk_fab_next():
+    if not submitted:
+        return
+    components.html(
+        r"""
+<style>
+  .talk-fab-next{
+    position: fixed;
+    right: 16px;
+    bottom: 18px;
+    z-index: 9999;
+    width: 56px;
+    height: 56px;
+    border-radius: 999px;
+    border: 1px solid rgba(0,0,0,.12);
+    box-shadow: 0 10px 28px rgba(0,0,0,.16);
+    background: white;
+    cursor: pointer;
+    font-size: 18px;
+    font-weight: 800;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    user-select:none;
+  }
+  .talk-fab-next:active{ transform: translateY(1px); }
+</style>
+<button class="talk-fab-next" id="talkFabNext" aria-label="다음 문제">➡️</button>
+<script>
+(function(){
+  const b = document.getElementById("talkFabNext");
+  if(!b) return;
+  if(b.dataset.bound === "1") return;
+  b.dataset.bound = "1";
+  b.addEventListener("click", () => {
+    try{
+      const url = new URL(window.location.href);
+      url.searchParams.set("talk_next","1");
+      window.location.href = url.toString();
+    }catch(e){}
+  });
+})();
+</script>
+""",
+        height=0,
+    )
+
+_render_talk_fab_next()
 
 # ============================================================# ✅ Set completion (10문제 모두 제출되면 자동 집계)
 # ============================================================
