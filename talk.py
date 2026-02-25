@@ -1266,14 +1266,15 @@ if submitted:
 
         if explain_kr:
             st.markdown("<div style='margin-top:-14px'></div>", unsafe_allow_html=True)
-        st.info("💡 하테나쌤 원포인트 일본어\n\n" + explain_kr)
+            st.info("💡 하테나쌤 원포인트 일본어\n\n" + explain_kr)
         elif hint:
+            st.markdown("<div style='margin-top:-14px'></div>", unsafe_allow_html=True)
             st.info("💡 하테나쌤 원포인트 일본어\n\n" + hint)
         else:
             st.markdown("<div style='margin-top:-14px'></div>", unsafe_allow_html=True)
-        st.info("💡 하테나쌤 원포인트 일본어\n\n포인트: 상황에서 ‘요청/사과/확인/거절’ 중 무엇인지 먼저 잡고, 그에 맞는 톤(정중/캐주얼)을 고르면 실수가 줄어듭니다.")
+            st.info("💡 하테나쌤 원포인트 일본어\n\n포인트: 상황에서 ‘요청/사과/확인/거절’ 중 무엇인지 먼저 잡고, 그에 맞는 톤(정중/캐주얼)을 고르면 실수가 줄어듭니다.")
 
-        with st.expander("🤖 내용이 어려우면 하테나쌤에게 물어보세요", expanded=False):
+with st.expander("🤖 내용이 어려우면 하테나쌤에게 물어보세요", expanded=False):
             st.markdown("### 💬 하테나쌤 스마트 코치")
 
             q_default = st.session_state.get("talk_ai_last_q") or ""
