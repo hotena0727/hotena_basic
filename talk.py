@@ -6,10 +6,6 @@ from pathlib import Path
 from datetime import datetime, timedelta, date
 import random
 import hashlib
-import os
-import io
-import difflib
-import re
 
 import pandas as pd
 import streamlit as st
@@ -42,6 +38,65 @@ if st.session_state.get("_entered_talk"):
 
 
 import streamlit.components.v1 as components
+
+# ============================================================
+# ✅ 말하기 점수 (A안: 서버 STT → 문장 일치도 점수)
+# - 브라우저 STT와 무관하게, '녹음 파일'로만 점수 계산
+# - 버튼을 눌렀을 때만 서버 호출(보기 선택 시 리런 체감 최소화)
+# ============================================================
+import difflib
+import re
+
+def _normalize_jp_for_score(s: str) -> str:
+    s = (s or "").strip()
+    s = re.sub(r"[\s　]", "", s)
+    s = re.sub(r"[、。！？!?,.「」『』（）()\[\]【】]", "", s)
+    return s
+
+def _similarity_score(stt_text: str, target_text: str) -> int:
+    u = _normalize_jp_for_score(stt_text)
+    c = _normalize_jp_for_score(target_text)
+    if not u or not c:
+        return 0
+    r = difflib.SequenceMatcher(None, u, c).ratio()
+    return int(round(r * 100))
+
+def _transcribe_audio_bytes(audio_bytes: bytes, filename: str = "audio.wav") -> str:
+    """OpenAI Transcribe (서버 STT). OPENAI_API_KEY 필요."""
+    if not audio_bytes:
+        return ""
+
+    api_key = None
+    try:
+        api_key = st.secrets.get("OPENAI_API_KEY")
+    except Exception:
+        api_key = None
+
+    model = None
+    try:
+        model = st.secrets.get("OPENAI_TRANSCRIBE_MODEL")
+    except Exception:
+        model = None
+    model = (model or "gpt-4o-mini-transcribe").strip()
+
+    try:
+        from openai import OpenAI  # type: ignore
+    except Exception as e:
+        raise RuntimeError(f"openai SDK가 필요합니다: {e}")
+
+    client = OpenAI(api_key=api_key) if api_key else OpenAI()
+
+    import io
+    f = io.BytesIO(audio_bytes)
+    f.name = filename
+
+    resp = client.audio.transcriptions.create(
+        model=model,
+        file=f,
+        language="ja"
+    )
+    return (getattr(resp, "text", None) or str(resp) or "").strip()
+
 from supabase import create_client
 
 # ✅ MP3 base (스토리지)
@@ -171,74 +226,6 @@ def get_cfg(key: str) -> str:
     except Exception:
         return ""
 
-
-# ============================================================
-# ✅ Pronunciation score (A): Server STT (Whisper/Transcribe) + similarity score
-# - 브라우저 STT는 사용하지 않음(환경/iframe 제약)
-# - 점수 계산은 '발음 체크' 섹션의 녹음 파일 기준으로만 수행
-# ============================================================
-def _get_openai_api_key() -> str:
-    # secrets 우선, 그 다음 env
-    try:
-        k = st.secrets.get("OPENAI_API_KEY")  # type: ignore[attr-defined]
-        if k:
-            return str(k).strip()
-    except Exception:
-        pass
-    return (os.getenv("OPENAI_API_KEY", "") or "").strip()
-
-def _normalize_jp(s: str) -> str:
-    s = (s or "").strip()
-    # 공백/구두점 최소 정리
-    s = re.sub(r"[\s\u3000]+", "", s)
-    s = re.sub(r"[。．\.、,，!！\?？「」『』（）\(\)\[\]{}<>＜＞·…・：:;；ー－―〜~]", "", s)
-    return s
-
-def _similarity_score(a: str, b: str) -> int:
-    aa = _normalize_jp(a)
-    bb = _normalize_jp(b)
-    if not aa or not bb:
-        return 0
-    r = difflib.SequenceMatcher(None, aa, bb).ratio()
-    return int(round(r * 100))
-
-def _transcribe_audio_bytes(audio_bytes: bytes, filename: str = "speech.wav", mime: str = "audio/wav") -> str:
-    """OpenAI 음성 인식. 실패 시 예외 발생."""
-    api_key = _get_openai_api_key()
-    if not api_key:
-        raise RuntimeError("OPENAI_API_KEY가 설정되어 있지 않습니다.")
-
-    model = (os.getenv("OPENAI_TRANSCRIBE_MODEL", "") or "gpt-4o-mini-transcribe").strip()
-
-    # 1) openai SDK가 있으면 사용
-    try:
-        from openai import OpenAI  # type: ignore
-        client = OpenAI(api_key=api_key)
-        bio = io.BytesIO(audio_bytes)
-        bio.name = filename  # 일부 SDK는 name 필요
-        # OpenAI Python SDK: client.audio.transcriptions.create
-        resp = client.audio.transcriptions.create(
-            model=model,
-            file=bio,
-        )
-        txt = getattr(resp, "text", None) or ""
-        return str(txt).strip()
-    except Exception:
-        pass
-
-    # 2) requests로 직접 호출 (SDK가 없거나 실패할 때)
-    import requests  # local import to avoid cost on rerun
-    url = "https://api.openai.com/v1/audio/transcriptions"
-    headers = {"Authorization": f"Bearer {api_key}"}
-    files = {
-        "file": (filename, audio_bytes, mime),
-    }
-    data = {"model": model}
-    r = requests.post(url, headers=headers, files=files, data=data, timeout=60)
-    if r.status_code >= 400:
-        raise RuntimeError(f"STT 실패: HTTP {r.status_code} / {r.text[:200]}")
-    j = r.json()
-    return str(j.get("text") or "").strip()
 
 @st.cache_resource(show_spinner=False)
 def _make_sb(url: str, key: str):
@@ -1421,7 +1408,6 @@ if submitted:
         # ✅ 말하기 녹음(선택)
         # - PRO: 녹음 가능
         # - FREE: PRO 안내 카드 노출
-        _audio = None
         if IS_PRO:
             _audio = st.audio_input("🎤 (선택) 내 발음을 녹음하고 들어보세요", key=f"{qid}_record")
             if _audio is not None:
@@ -1448,28 +1434,25 @@ if submitted:
 </div>
 ''',
                     unsafe_allow_html=True,
-     
-# ✅ 말하기 점수 (A안: 서버 STT 기반)
-# - 브라우저 STT/정지 버튼과 무관하게, '녹음 파일'로만 점수 계산
+                )
+
+
+# ✅ 말하기 점수 (A안: 서버 STT 기반) — 녹음 파일로만 계산
 score_key = f"{qid}_pron_score"
 text_key = f"{qid}_pron_text"
 
-calc_disabled = (_audio is None)
 c_sc1, c_sc2 = st.columns([0.72, 0.28], vertical_alignment="center")
 with c_sc1:
     st.markdown("**📊 말하기 점수**")
     if _audio is None:
-        st.caption("먼저 위에서 녹음하면, 점수 계산 버튼이 활성화됩니다.")
+        st.caption("먼저 위에서 녹음한 뒤, 오른쪽 버튼으로 점수를 계산할 수 있어요.")
 with c_sc2:
-    do_calc = st.button("점수 계산", use_container_width=True, disabled=calc_disabled, key=f"{qid}_pron_calc")
+    do_calc = st.button("점수 계산", use_container_width=True, disabled=(_audio is None), key=f"{qid}_pron_calc")
 
 if do_calc and _audio is not None:
     try:
         # bytes 추출(UploadedFile/BytesIO 대응)
-        if hasattr(_audio, "getvalue"):
-            audio_bytes = _audio.getvalue()
-        else:
-            audio_bytes = _audio.read()
+        audio_bytes = _audio.getvalue() if hasattr(_audio, "getvalue") else _audio.read()
         with st.spinner("말하기 점수 계산 중…"):
             stt_text = _transcribe_audio_bytes(audio_bytes, filename=f"{qid}.wav")
             st.session_state[text_key] = stt_text
@@ -1483,8 +1466,6 @@ if score_key in st.session_state:
     rec_txt = str(st.session_state.get(text_key) or "").strip()
     if rec_txt:
         st.caption(f"인식 결과: {rec_txt}")
-
-           )
 
         st.caption("정답을 보고 2~3번 따라 말한 뒤, 아래 버튼을 눌러 다음으로 넘어가세요.")
         reward_key = f"{NS}_reward_ready_{qid}"
