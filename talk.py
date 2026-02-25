@@ -61,45 +61,56 @@ def calc_speaking_score(user_text: str, correct_text: str) -> int:
     r = difflib.SequenceMatcher(None, u, c).ratio()
     return int(round(r * 100))
 
-def browser_stt_component(key: str, lang: str = "ja-JP"):
-    """브라우저 STT(Chrome Web Speech API)로 텍스트를 받아 Streamlit로 반환.
-    - 반환값: {"text": "...", "final": True/False, "error": "..."} 또는 None
+def browser_stt_component(widget_id: str, qid: str, lang: str = "ja-JP"):
+    """브라우저 STT(무료) — 커스텀 컴포넌트 없이 queryparam으로 텍스트를 전달합니다.
+    사용 흐름:
+      - 사용자: 🎙 시작 → ⏹ 정지
+      - JS: 인식된 텍스트를 URL queryparam(talk_stt_qid, talk_stt_txt, talk_stt_nonce)으로 넣고 페이지 리로드
+      - Python: st.query_params에서 값을 읽어 세션에 저장하고, queryparam을 지운 뒤 rerun
     """
-    html = f"""<div style="padding:10px 12px;border:1px solid rgba(0,0,0,.08);border-radius:12px;background:rgba(0,0,0,.02);">
+    # JS-safe escape for IDs only
+    wid = (widget_id or "stt").replace('"', '').replace("'", "").replace(" ", "_")
+    qid_safe = (qid or "").replace('"', '').replace("'", "")
+
+    html = f"""
+<div style="padding:10px 12px;border:1px solid rgba(0,0,0,.08);border-radius:12px;background:rgba(0,0,0,.02);">
   <div style="font-weight:800; margin-bottom:6px;">📝 브라우저 STT (무료)</div>
   <div style="font-size:0.92rem; opacity:0.9; line-height:1.35;">
     Chrome에서 가장 안정적입니다. (iOS Safari는 동작이 불안정할 수 있어요)
   </div>
   <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
-    <button id="sttStart" style="padding:8px 10px;border-radius:10px;border:1px solid rgba(0,0,0,.12);background:white;font-weight:700;cursor:pointer;">🎙 시작</button>
-    <button id="sttStop"  style="padding:8px 10px;border-radius:10px;border:1px solid rgba(0,0,0,.12);background:white;font-weight:700;cursor:pointer;">⏹ 정지</button>
-    <span id="sttState" style="align-self:center; font-size:0.92rem; opacity:0.85;">대기 중</span>
+    <button id="{wid}_start" style="padding:8px 10px;border-radius:10px;border:1px solid rgba(0,0,0,.12);background:white;font-weight:700;cursor:pointer;">🎙 시작</button>
+    <button id="{wid}_stop"  style="padding:8px 10px;border-radius:10px;border:1px solid rgba(0,0,0,.12);background:white;font-weight:700;cursor:pointer;">⏹ 정지</button>
+    <span id="{wid}_state" style="align-self:center; font-size:0.92rem; opacity:0.85;">대기 중</span>
   </div>
   <div style="margin-top:10px;">
     <div style="font-size:0.9rem; font-weight:700; opacity:0.85;">인식 결과</div>
-    <div id="sttText" style="margin-top:6px; padding:10px; border-radius:10px; background:white; border:1px solid rgba(0,0,0,.08); min-height:44px; white-space:pre-wrap;"></div>
+    <div id="{wid}_text" style="margin-top:6px; padding:10px; border-radius:10px; background:white; border:1px solid rgba(0,0,0,.08); min-height:44px; white-space:pre-wrap;"></div>
   </div>
 </div>
 
 <script>
 (function() {{
   const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  const stateEl = document.getElementById("sttState");
-  const textEl  = document.getElementById("sttText");
-  const btnStart = document.getElementById("sttStart");
-  const btnStop  = document.getElementById("sttStop");
+  const stateEl = document.getElementById("{wid}_state");
+  const textEl  = document.getElementById("{wid}_text");
+  const btnStart = document.getElementById("{wid}_start");
+  const btnStop  = document.getElementById("{wid}_stop");
 
-  function sendValue(obj) {{
-    window.parent.postMessage({{
-      isStreamlitMessage: true,
-      type: "streamlit:setComponentValue",
-      value: obj
-    }}, "*");
+  function pushToUrl(txt) {{
+    try {{
+      const url = new URL(window.location.href);
+      url.searchParams.set("talk_stt_qid", "{qid_safe}");
+      url.searchParams.set("talk_stt_txt", txt || "");
+      url.searchParams.set("talk_stt_nonce", String(Date.now()));
+      window.location.href = url.toString();
+    }} catch(e) {{}}
   }}
 
   if (!SpeechRecognition) {{
     stateEl.textContent = "이 브라우저는 STT를 지원하지 않습니다.";
-    sendValue({{text:"", final:true, error:"NO_SPEECH_RECOGNITION"}});
+    btnStart.disabled = true;
+    btnStop.disabled = true;
     return;
   }}
 
@@ -111,15 +122,10 @@ def browser_stt_component(key: str, lang: str = "ja-JP"):
   let finalText = "";
   let interim = "";
 
-  rec.onstart = () => {{
-    stateEl.textContent = "듣는 중…";
-  }};
-  rec.onend = () => {{
-    stateEl.textContent = "대기 중";
-  }};
+  rec.onstart = () => {{ stateEl.textContent = "듣는 중…"; }};
+  rec.onend = () => {{ stateEl.textContent = "대기 중"; }};
   rec.onerror = (e) => {{
     stateEl.textContent = "오류: " + (e.error || "unknown");
-    sendValue({{text: (finalText || "").trim(), final:true, error: (e.error || "unknown")}});
   }};
   rec.onresult = (event) => {{
     interim = "";
@@ -132,29 +138,26 @@ def browser_stt_component(key: str, lang: str = "ja-JP"):
       }}
     }}
     textEl.textContent = (finalText + interim).trim();
-    sendValue({{text: (finalText + interim).trim(), final:false, error:""}});
   }};
 
   btnStart.onclick = () => {{
     finalText = "";
     interim = "";
     textEl.textContent = "";
-    try {{
-      rec.start();
-    }} catch (e) {{}}
+    try {{ rec.start(); }} catch(e) {{}}
   }};
 
   btnStop.onclick = () => {{
-    try {{
-      rec.stop();
-    }} catch (e) {{}}
+    try {{ rec.stop(); }} catch(e) {{}}
     const out = (finalText + interim).trim();
-    sendValue({{text: out, final:true, error:""}});
+    // ✅ 정지 시 최종 텍스트를 URL로 넘김
+    pushToUrl(out);
   }};
 }})();
 </script>
 """
-    return components.html(html, height=220, scrolling=False, key=key)
+    # NOTE: 일부 Streamlit 버전에서 components.html은 key 인자를 받지 않습니다.
+    return components.html(html, height=220, scrolling=False)
 
 from supabase import create_client
 
@@ -1502,37 +1505,52 @@ if submitted:
         # ===========================
         correct_text = (row.get("answer_jp", "") or "").strip()
         if correct_text:
-            stt_val = browser_stt_component(key=f"{qid}_browser_stt", lang="ja-JP")
-            if isinstance(stt_val, dict):
-                stt_text = (stt_val.get("text") or "").strip()
-                is_final = bool(stt_val.get("final"))
-                err = (stt_val.get("error") or "").strip()
+                        # 브라우저 STT UI (정지 시 URL queryparam으로 텍스트 전달)
+            browser_stt_component(widget_id=f"{qid}_browser_stt", qid=str(qid), lang="ja-JP")
 
-                # 인식 결과는 세션에 보관(다음 rerun에도 유지)
-                if stt_text:
-                    st.session_state[f"{qid}_stt_text"] = stt_text
+            # ✅ URL queryparam에서 STT 결과 수신 (커스텀 컴포넌트 없이)
+            qp = st.query_params
+            qp_qid = (qp.get("talk_stt_qid") or "").strip()
+            qp_txt = (qp.get("talk_stt_txt") or "").strip()
+            qp_nonce = (qp.get("talk_stt_nonce") or "").strip()
 
-                if err and err != "NO_SPEECH_RECOGNITION":
-                    st.caption(f"STT 상태: {err}")
+            # 현재 문제(qid)와 일치하는 STT 결과만 반영
+            if qp_qid and qp_qid == str(qid) and qp_nonce:
+                if qp_txt:
+                    st.session_state[f"{qid}_stt_text"] = qp_txt
+                st.session_state[f"{qid}_stt_nonce"] = qp_nonce
 
-                # 최종 결과(final)일 때 점수 계산/표시 + 저장
-                if is_final and stt_text:
-                    score = calc_speaking_score(stt_text, correct_text)
+                # queryparam 제거 후 rerun (중복 반영 방지)
+                try:
+                    for k in ["talk_stt_qid", "talk_stt_txt", "talk_stt_nonce"]:
+                        if k in st.query_params:
+                            del st.query_params[k]
+                except Exception:
+                    pass
+                st.rerun()
 
-                    st.markdown("---")
-                    st.markdown(f"### 🗣 말하기 정확도: **{score}점**")
-                    st.caption(f"인식: {stt_text}")
+            stt_text = (st.session_state.get(f"{qid}_stt_text") or "").strip()
+            stt_nonce_saved = (st.session_state.get(f"{qid}_stt_nonce") or "").strip()
 
-                    if score >= 90:
-                        st.success("아주 좋아요! 거의 그대로 말했어요 👏")
-                    elif score >= 75:
-                        st.info("거의 정확해요! 한 번만 더 다듬어볼까요?")
-                    elif score >= 60:
-                        st.warning("좋아요. 일부 표현이 달라요. 표시된 부분만 다시!")
-                    else:
-                        st.error("괜찮아요. 짧게 끊어서 또박또박 말해볼까요?")
+            if stt_text:
+                score = calc_speaking_score(stt_text, correct_text)
 
-                    # ✅ 점수 저장 (profiles.progress → talk.speaking_scores)
+                st.markdown("---")
+                st.markdown(f"### 🗣 말하기 정확도: **{score}점**")
+                st.caption(f"인식: {stt_text}")
+
+                if score >= 90:
+                    st.success("아주 좋아요! 거의 그대로 말했어요 👏")
+                elif score >= 75:
+                    st.info("거의 정확해요! 한 번만 더 다듬어볼까요?")
+                elif score >= 60:
+                    st.warning("좋아요. 일부 표현이 달라요. 표시된 부분만 다시!")
+                else:
+                    st.error("괜찮아요. 짧게 끊어서 또박또박 말해볼까요?")
+
+                # ✅ 점수 저장 (같은 nonce로 중복 저장 방지)
+                save_key = f"{qid}_saved_nonce"
+                if stt_nonce_saved and st.session_state.get(save_key) != stt_nonce_saved:
                     try:
                         prog = load_progress()
                         talk_prog = prog.get("talk") or {}
@@ -1549,17 +1567,16 @@ if submitted:
                             "correct": correct_text,
                         })
 
-                        # 최근 50개만 유지
                         if len(scores) > 50:
                             scores = scores[-50:]
 
                         talk_prog["speaking_scores"] = scores
                         prog["talk"] = talk_prog
                         save_progress(prog)
+
+                        st.session_state[save_key] = stt_nonce_saved
                     except Exception:
                         pass
-        else:
-            st.caption("말하기 정확도를 계산할 정답 문장이 비어 있어요. (answer_jp 확인)")
         st.caption("정답을 보고 2~3번 따라 말한 뒤, 아래 버튼을 눌러 다음으로 넘어가세요.")
         reward_key = f"{NS}_reward_ready_{qid}"
         if st.button("✅ 다 했어요 (보상 받기)", use_container_width=True, key=f"{NS}_next_after"):
