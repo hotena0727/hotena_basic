@@ -106,7 +106,8 @@ def _js_bridge_localstorage_to_queryparam(ls_key: str, qp_key: str):
       const v = localStorage.getItem(lsKey);
       if (v) {{
         url.searchParams.set(qpKey, v);
-        window.location.replace(url.toString());
+        // ✅ 리로드 없이 URL만 교체
+        window.history.replaceState(null, "", url.toString());
       }}
     }}
   }} catch(e) {{}}
