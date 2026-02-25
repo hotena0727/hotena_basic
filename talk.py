@@ -115,6 +115,9 @@ def _inject_talk_ui_css():
 
 _inject_talk_ui_css()
 
+# ✅ TTS 플레이어(1개) 렌더 — 요청이 있을 때만 재생
+_render_talk_tts_player()
+
 st.title("일본어회화")
 st.caption("1문제씩: 상황 → 상대 발화(🔊/PRO) → 보기 선택 → 제출 → 정답/설명 → (선택)말하기 완료 체크")
 
@@ -566,234 +569,145 @@ if pool_df.empty:
 # ============================================================
 
 
-def tts_button(text: str, label: str, key: str):
-    '''브라우저 SpeechSynthesis 기반 TTS 버튼.
-    - PRO: 클릭 시 재생 / FREE: 잠금(비활성)
-    - 일본어 voice 자동 선택(가능하면 Google/日本語系)
-    '''
-    txt = text or ""
-    is_icon = (label or "").strip() in ["🔊", "🔈"]
-    disabled = "true" if (not IS_PRO) else "false"
-    btn_text = (f"🔒 {label}" if (not IS_PRO) else label)
+# ============================================================
+# ✅ TTS (Unified player: single iframe, no per-line components.html)
+# - 버튼 클릭 → session_state에 요청 저장 → 아래 플레이어가 1회 재생
+# - UI/기능은 유지하되, iframe 난립으로 인한 번쩍임을 줄입니다.
+# ============================================================
 
-    style_btn = (
-        "width:36px;height:36px;border-radius:999px;display:flex;align-items:center;justify-content:center;font-size:18px;"
-        if is_icon
-        else "width:100%;padding:8px 10px;border-radius:12px;font-size:15px;"
-    )
+def _talk_tts_request(text: str, audio_url: str = "") -> None:
+    txt = (text or "").strip()
+    au = (audio_url or "").strip()
+    if not txt and not au:
+        return
+    st.session_state["_talk_tts_nonce"] = int(st.session_state.get("_talk_tts_nonce") or 0) + 1
+    st.session_state["_talk_tts_req"] = {
+        "text": txt,
+        "audio_url": resolve_audio_url(au),
+        "nonce": int(st.session_state["_talk_tts_nonce"]),
+    }
+
+def _render_talk_tts_player() -> None:
+    req = st.session_state.get("_talk_tts_req")
+    if not isinstance(req, dict):
+        return
+    txt = str(req.get("text") or "")
+    au = str(req.get("audio_url") or "")
+    nonce = int(req.get("nonce") or 0)
+
+    # JS-safe escape
+    def _esc(s: str) -> str:
+        return (
+            s.replace("\\", "\\\\")
+             .replace('"', '\"')
+             .replace("`", "")
+             .replace("\n", " ")
+             .replace("\r", " ")
+        )
+
+    txt_js = _esc(txt)
+    au_js = _esc(au)
 
     components.html(
-        f"""
-<div style="width:100%;display:flex;justify-content:{'flex-end' if is_icon else 'stretch'};">
-  <button id="tts_{key}" {'disabled' if not IS_PRO else ''} style="{style_btn}
-           border:1px solid rgba(49,51,63,.18);
-           background:{'#f6f7f9' if not IS_PRO else 'white'};
-           cursor:{'not-allowed' if not IS_PRO else 'pointer'};
-           font-weight:800;opacity:{'0.7' if not IS_PRO else '1.0'};">
-    {btn_text}
-  </button>
-</div>
-<script>
-(function() {{
-  const btn = document.getElementById("tts_{key}");
-  if (!btn) return;
-  if ({disabled}) return;
-  if (btn.dataset.bound === "1") return;
-  btn.dataset.bound = "1";
+        f"""<script>
+(function(){{
+  // nonce가 바뀔 때마다 재생
+  const nonce = {nonce};
+  const text = "{txt_js}";
+  const audioUrl = "{au_js}";
 
-  const synth = window.speechSynthesis;
-
-  function pickJaVoice() {{
-    const voices = synth.getVoices() || [];
-    const ja = voices.filter(v => String(v.lang || "").toLowerCase().startsWith("ja"));
-    if (!ja.length) return null;
-    return ja.find(v => /google/i.test(v.name || "")) 
-        || ja.find(v => /日本|japanese/i.test(v.name || "")) 
-        || ja[0] || null;
+  function pickJaVoice(){{
+    try {{
+      const synth = window.speechSynthesis;
+      const vs = synth ? (synth.getVoices() || []) : [];
+      const ja = vs.filter(v => String(v.lang||"").toLowerCase().startsWith("ja"));
+      if(!ja.length) return null;
+      return ja.find(v => /google/i.test(v.name||"")) || ja.find(v => /日本|japanese/i.test(v.name||"")) || ja[0] || null;
+    }} catch(e) {{
+      return null;
+    }}
   }}
 
-  function speak() {{
+  function speak(){{
     try {{
-      const u = new SpeechSynthesisUtterance({txt!r});
+      if (!window.speechSynthesis) return;
+      const synth = window.speechSynthesis;
+      synth.cancel();
+      const u = new SpeechSynthesisUtterance(text);
       u.lang = "ja-JP";
       const v = pickJaVoice();
       if (v) u.voice = v;
-      synth.cancel();
+      u.rate = 1.0; u.pitch = 1.0;
       synth.speak(u);
     }} catch(e) {{}}
   }}
 
-  btn.addEventListener("click", () => {{
-    if ((synth.getVoices() || []).length === 0) {{
-      let tried = 0;
-      const t = setInterval(() => {{
-        tried += 1;
-        if ((synth.getVoices() || []).length > 0 || tried >= 10) {{
-          clearInterval(t);
-          speak();
-        }}
-      }}, 150);
-    }} else {{
-      speak();
-    }}
-  }});
-}})();
-</script>
-""",
-        height=(44 if is_icon else 60),
-    )
-
-
-
-def tts_inline_row(role_label: str, text: str, key: str, show_text: bool = True, audio_url: str = ""):
-    """문장 오른쪽에 스피커 아이콘을 '텍스트 바로 옆'에 붙여 표시.
-    - PRO: 클릭 시 (mp3가 있으면 mp3, 없으면 TTS) 재생
-    - FREE: PRO 배지로 잠금 표시(문장은 FREE에만 노출되도록 show_text로 제어)
-    """
-    txt = (text or "").strip()
-    safe = txt.replace("\\", "\\\\").replace('"', '\"').replace("`", "").replace(chr(10), ' ')
-    au = resolve_audio_url(audio_url).replace("\\", "\\\\").replace('"', '\"').replace("`", "").replace(chr(10), ' ')
-    disabled = (not IS_PRO) or (not txt)
-    # 텍스트 노출: show_text=False면 화면엔 숨기되, 음성은 재생 가능(PRO)
-    show = "block" if show_text else "none"
-
-    html = f"""
-<div class="ttsline-wrap" id="wrap-{key}">
-  <div class="ttsline-role">{role_label}</div>
-  <div class="ttsline-text" style="display:{show}">{safe}</div>
-  <button class="ttsline-btn" id="btn-{key}" aria-label="listen" {'disabled' if disabled else ''}>🔊</button>
-  {'<span class="ttsline-pro">PRO</span>' if (not IS_PRO) else ''}
-</div>
-<style>
-  .ttsline-wrap{{display:flex;align-items:center;gap:8px;line-height:1.45;}}
-  .ttsline-role{{min-width:52px;font-weight:700;opacity:.85;}}
-  .ttsline-text{{font-size:1.05rem;}}
-  .ttsline-btn{{border:0;background:transparent;padding:0;margin-left:2px;font-size:1.05rem;cursor:pointer;opacity:.95;}}
-  .ttsline-btn[disabled]{{cursor:not-allowed;opacity:.35;}}
-  .ttsline-pro{{font-size:.75rem;letter-spacing:.02em;border:1px solid rgba(0,0,0,.18);border-radius:999px;padding:1px 6px;opacity:.45;}}
-</style>
-<script>
-(function(){{
-  const btn = document.getElementById("btn-{key}");
-  if(!btn) return;
-  const text = "{safe}";
-  const audioUrl = "{au}";
-  function pickJaVoice(){{
-    const vs = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
-    const ja = vs.filter(v => (v.lang||"").toLowerCase().startsWith("ja"));
-    if(!ja.length) return null;
-    const prefer = ja.find(v => /google/i.test(v.name||"")) || ja[0];
-    return prefer;
-  }}
-  function speak(){{
-    if (!window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = "ja-JP";
-    const v = pickJaVoice();
-    if (v) u.voice = v;
-    u.rate = 1.0; u.pitch = 1.0;
-    window.speechSynthesis.speak(u);
-  }}
   function playAudio(){{
     try {{
       const a = new Audio(audioUrl);
-      a.play();
+      a.play().catch(()=>{{ speak(); }});
     }} catch(e) {{
       speak();
     }}
   }}
-  btn.addEventListener("click", (e) => {{
-    e.preventDefault();
-    if (btn.disabled) return;
-    if (audioUrl) playAudio();
-    else speak();
-  }});
+
+  if (audioUrl) playAudio();
+  else speak();
 }})();
-</script>
-"""
+</script>""",
+        height=0,
+    )
 
-    components.html(html, height=(80 if show_text else 44))
+def tts_inline_row(role_label: str, text: str, key: str, show_text: bool = True, audio_url: str = ""):
+    """문장 오른쪽 스피커 아이콘(동일 UX) — iframe 대신 Streamlit 버튼으로 트리거."""
+    txt = (text or "").strip()
+    au = resolve_audio_url(audio_url)
 
-
-
+    c1, c2, c3 = st.columns([0.18, 0.72, 0.10], vertical_alignment="center")
+    with c1:
+        st.markdown(f"**{role_label}**")
+    with c2:
+        if show_text:
+            st.markdown(txt if txt else "")
+        else:
+            st.markdown("&nbsp;", unsafe_allow_html=True)
+    with c3:
+        if IS_PRO and txt:
+            if st.button("🔊", key=f"ttsbtn_{key}", help="발음 듣기"):
+                _talk_tts_request(txt, au)
+        else:
+            st.button("🔊", key=f"ttsbtn_{key}", disabled=True)
+            if not IS_PRO:
+                st.markdown('<span style="font-size:.75rem;letter-spacing:.02em;border:1px solid rgba(0,0,0,.18);border-radius:999px;padding:1px 6px;opacity:.45;">PRO</span>', unsafe_allow_html=True)
 
 def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bool = True,
                     partner_audio_url: str = "", answer_audio_url: str = ""):
-    """결과 박스에서 상대/내 문장을 한 줄씩 + 스피커(문장 오른쪽) 표시.
-    - PRO: mp3가 있으면 mp3, 없으면 TTS 재생
-    - FREE: 스피커는 흐리게 비활성 + PRO 배지 표시
-    """
+    """결과 박스: 상대/내 문장을 한 줄씩 + 스피커(문장 오른쪽)."""
     p = (partner_text or "").strip()
     a = (answer_text or "").strip()
-    p_safe = p.replace("\\", "\\\\").replace('"', '\"').replace("`", "").replace(chr(10), ' ')
-    a_safe = a.replace("\\", "\\\\").replace('"', '\"').replace("`", "").replace(chr(10), ' ')
-    p_au = resolve_audio_url(partner_audio_url).replace("\\", "\\\\").replace('"', '\"').replace("`", "").replace(chr(10), ' ')
-    a_au = resolve_audio_url(answer_audio_url).replace("\\", "\\\\").replace('"', '\"').replace("`", "").replace(chr(10), ' ')
+    p_au = resolve_audio_url(partner_audio_url)
+    a_au = resolve_audio_url(answer_audio_url)
 
-    disabled = (not IS_PRO)
-    show = "block" if show_text else "none"
+    def _row(label: str, txt: str, au: str, k: str):
+        c1, c2, c3 = st.columns([0.18, 0.72, 0.10], vertical_alignment="center")
+        with c1:
+            st.markdown(f"**{label}**")
+        with c2:
+            if show_text:
+                st.markdown(txt if txt else "")
+            else:
+                st.markdown("&nbsp;", unsafe_allow_html=True)
+        with c3:
+            if IS_PRO and txt:
+                if st.button("🔊", key=f"ttsbtn_{k}", help="발음 듣기"):
+                    _talk_tts_request(txt, au)
+            else:
+                st.button("🔊", key=f"ttsbtn_{k}", disabled=True)
+                if not IS_PRO:
+                    st.markdown('<span style="font-size:.75rem;letter-spacing:.02em;border:1px solid rgba(0,0,0,.18);border-radius:999px;padding:1px 6px;opacity:.45;">PRO</span>', unsafe_allow_html=True)
 
-    html = f"""
-<div class="ttspair">
-  <div class="row">
-    <span class="lab">상대(말)</span>
-    <span class="txt">{p_safe}</span>
-    <button class="btn" id="pbtn-{qid}" aria-label="listen" {'disabled' if disabled else ''}>🔊</button>
-    {'<span class="pro">PRO</span>' if (not IS_PRO) else ''}
-  </div>
-  <div class="row">
-    <span class="lab">내(말)</span>
-    <span class="txt">{a_safe}</span>
-    <button class="btn" id="abtn-{qid}" aria-label="listen" {'disabled' if disabled else ''}>🔊</button>
-    {'<span class="pro">PRO</span>' if (not IS_PRO) else ''}
-  </div>
-</div>
-<style>
-  .ttspair{{display:flex;flex-direction:column;gap:8px;}}
-  .ttspair .row{{display:flex;align-items:center;gap:8px;}}
-  .ttspair .lab{{min-width:52px;font-weight:700;opacity:.85;}}
-  .ttspair .txt{{font-size:1.05rem;}}
-  .ttspair .btn{{border:0;background:transparent;padding:0;margin-left:2px;font-size:1.05rem;cursor:pointer;opacity:.95;}}
-  .ttspair .btn[disabled]{{cursor:not-allowed;opacity:.35;}}
-  .ttspair .pro{{font-size:.75rem;letter-spacing:.02em;border:1px solid rgba(0,0,0,.18);border-radius:999px;padding:1px 6px;opacity:.45;}}
-</style>
-<script>
-(function(){{
-  function pickJaVoice(){{
-    const vs = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
-    const ja = vs.filter(v => (v.lang||"").toLowerCase().startsWith("ja"));
-    if(!ja.length) return null;
-    return ja.find(v => /google/i.test(v.name||"")) || ja[0];
-  }}
-  function speak(text){{
-    if(!window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = "ja-JP";
-    const v = pickJaVoice();
-    if(v) u.voice = v;
-    u.rate = 1.0; u.pitch = 1.0;
-    window.speechSynthesis.speak(u);
-  }}
-  function play(audioUrl, text){{
-    if(audioUrl){{
-      try{{ const a = new Audio(audioUrl); a.play(); return; }}catch(e){{}}
-    }}
-    speak(text);
-  }}
-  const pbtn = document.getElementById('pbtn-{qid}');
-  const abtn = document.getElementById('abtn-{qid}');
-  if(pbtn) pbtn.addEventListener('click', (e)=>{{ e.preventDefault(); if(pbtn.disabled) return; play("{p_au}", "{p_safe}"); }});
-  if(abtn) abtn.addEventListener('click', (e)=>{{ e.preventDefault(); if(abtn.disabled) return; play("{a_au}", "{a_safe}"); }});
-}})();
-</script>
-"""
-
-    components.html(html, height=180)
-
-
-
+    _row("상대(말)", p, p_au, f"{qid}_p")
+    _row("내(말)", a, a_au, f"{qid}_a")
 def play_audio_or_tts(text: str, audio_url: str, label: str, key: str):
     """PRO: mp3 URL 재생 / FREE: 잠금. URL 없으면 TTS fallback."""
     audio_url = (audio_url or "").strip()
