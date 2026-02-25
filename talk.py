@@ -99,12 +99,12 @@ def browser_stt_component(widget_id: str, qid: str, lang: str = "ja-JP"):
 
   function pushToUrl(txt) {{
     try {{
-      const url = new URL(window.location.href);
+      const url = new URL(window.parent.location.href);
       url.searchParams.set("talk_stt_qid", "{qid_safe}");
       url.searchParams.set("talk_stt_txt", txt || "");
       url.searchParams.set("talk_stt_nonce", String(Date.now()));
       window.parent.location.href = url.toString();
-    }} catch(e) {{}}
+    }} catch(e) {{ stateEl.textContent = "URL 전달 실패"; }}
   }}
 
   if (!SpeechRecognition) {{
