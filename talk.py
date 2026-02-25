@@ -928,55 +928,14 @@ pool_answers = pool_df["answer_jp"].astype(str).tolist()
 # ✅ Initialize set (10 qids) + pointer
 # ============================================================
 if f"{NS}_set_qids" not in st.session_state:
-    # ✅ 2턴 페어 지원: CSV에 pair_id + turn(1/2) 컬럼이 있으면 pair 기준으로 2개씩 묶어 출제
-    has_pair = ("pair_id" in pool_df.columns) and ("turn" in pool_df.columns)
-
-    if has_pair:
-        # FREE는 2턴 원칙을 유지하기 위해 1페어(=2문항)로 고정 (기존 FREE_SET_LEN이 홀수인 경우 대비)
-        desired_q = int(SET_LEN if IS_PRO else 2)
-        desired_pairs = max(1, desired_q // 2)
-
-        tmp = pool_df.copy()
-        tmp["pair_id"] = tmp["pair_id"].astype(str).fillna("").str.strip()
-        tmp["__turn"] = tmp["turn"].astype(str).fillna("").str.strip()
-        tmp["__turn"] = tmp["__turn"].replace({"１": "1", "２": "2"})
-        tmp["__turn"] = tmp["__turn"].map(lambda x: 1 if x == "1" else (2 if x == "2" else None))
-
-        t1 = set(tmp.loc[tmp["__turn"] == 1, "pair_id"].tolist())
-        t2 = set(tmp.loc[tmp["__turn"] == 2, "pair_id"].tolist())
-        valid_pairs = sorted([p for p in (t1 & t2) if p])
-
-        if valid_pairs:
-            k = min(desired_pairs, len(valid_pairs))
-            picked_pairs = pd.Series(valid_pairs).sample(n=k, replace=False).tolist()
-            qids = []
-            for pid in picked_pairs:
-                r1 = tmp[(tmp["pair_id"] == pid) & (tmp["__turn"] == 1)].sort_values("qid").head(1)
-                r2 = tmp[(tmp["pair_id"] == pid) & (tmp["__turn"] == 2)].sort_values("qid").head(1)
-                if (not r1.empty) and (not r2.empty):
-                    qids.append(str(r1.iloc[0].get("qid")))
-                    qids.append(str(r2.iloc[0].get("qid")))
-
-            # 혹시라도 부족하면 폴백(예외 안전)
-            if len(qids) < 2:
-                n = min(desired_q, len(pool_df))
-                sample = pool_df.sample(n=n, replace=False).reset_index(drop=True)
-                qids = sample["qid"].astype(str).tolist()
-        else:
-            # pair_id/turn이 있어도 1/2 페어가 없으면 기존 방식으로 폴백
-            n = min(desired_q, len(pool_df))
-            sample = pool_df.sample(n=n, replace=False).reset_index(drop=True)
-            qids = sample["qid"].astype(str).tolist()
-
-    else:
-        n = min((SET_LEN if IS_PRO else FREE_SET_LEN), len(pool_df))
-        sample = pool_df.sample(n=n, replace=False).reset_index(drop=True)
-        qids = sample["qid"].astype(str).tolist()
-
+    n = min((SET_LEN if IS_PRO else FREE_SET_LEN), len(pool_df))
+    sample = pool_df.sample(n=n, replace=False).reset_index(drop=True)
+    qids = sample["qid"].astype(str).tolist()
     st.session_state[f"{NS}_set_qids"] = qids
     st.session_state[f"{NS}_idx"] = 0
     st.session_state[f"{NS}_answers"] = {qid: {"selected": None, "ok": None, "spoken": False} for qid in qids}
     st.session_state[f"{NS}_submitted"] = False
+
 qids: list[str] = st.session_state[f"{NS}_set_qids"]
 idx: int = int(st.session_state.get(f"{NS}_idx") or 0)
 idx = max(0, min(idx, len(qids) - 1))
