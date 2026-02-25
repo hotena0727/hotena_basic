@@ -6,6 +6,23 @@ import random
 import pandas as pd
 import streamlit as st
 
+
+# ============================================================
+# ✅ TTL cache helper (session_state 기반) - DB 호출/무거운 계산 최소화
+# ============================================================
+import time as _time
+def _hotena_ttl_cache(key: str, ttl_sec: int, fn):
+    try:
+        now = _time.time()
+        box = st.session_state.get(key)
+        if isinstance(box, dict) and ("t" in box) and ("v" in box):
+            if now - float(box["t"]) < float(ttl_sec):
+                return box["v"]
+        v = fn()
+        st.session_state[key] = {"t": now, "v": v}
+        return v
+    except Exception:
+        return fn()
 # -------------------------------
 # ✅ 한자 헤더 중복 방지 플래그
 # -------------------------------
@@ -63,6 +80,22 @@ header[data-testid="stHeader"]{
     margin-top: 0rem !important;
   }
 }
+
+/* === Hotena: radio(보기) font/spacing 고정 === */
+label[data-baseweb="radio"],
+label[data-baseweb="radio"] *{
+  font-family: var(--jp-rounded) !important;
+  font-weight: 800 !important;
+  font-size: 15px !important;
+  letter-spacing: .1px !important;
+}
+label[data-baseweb="radio"]{
+  margin: 0 0 6px 0 !important;
+  padding: 8px 10px !important;
+  border-radius: 12px !important;
+}
+div[role="radiogroup"]{ gap: 0px !important; }
+
 </style>""", unsafe_allow_html=True)
     st.session_state["_top_compact_css_applied"] = True
 
@@ -1593,8 +1626,7 @@ def build_quiz(qtype: str, level: str) -> list[dict]:
         st.session_state.mastery_done[k] = True
         return []
 
-    seed = int(st.session_state.get("quiz_version", 0) or 0)
-    sampled = base.sample(n=N, replace=False, random_state=seed).reset_index(drop=True)
+    sampled = base.sample(n=N, replace=False).reset_index(drop=True)
     return [make_question(sampled.iloc[i], qtype, pool) for i in range(N)]
 
 
@@ -1618,8 +1650,7 @@ def build_quiz_from_wrongs(wrong_list: list, qtype: str) -> list:
         st.error("오답 단어를 풀에서 찾지 못했습니다. (jp_word/reading 매칭 확인)")
         st.stop()
 
-    seed = int(st.session_state.get("quiz_version", 0) or 0)
-    retry_df = retry_df.sample(frac=1, random_state=seed + 999).reset_index(drop=True)
+    retry_df = retry_df.sample(frac=1).reset_index(drop=True)
     return [make_question(retry_df.iloc[i], qtype, pool) for i in range(len(retry_df))]
 
 
@@ -1664,8 +1695,7 @@ def build_quiz(qtype: str, level: str) -> list[dict]:
         st.session_state.mastery_done[k] = True
         return []
 
-    seed = int(st.session_state.get("quiz_version", 0) or 0)
-    sampled = base.sample(n=N, replace=False, random_state=seed).reset_index(drop=True)
+    sampled = base.sample(n=N, replace=False).reset_index(drop=True)
     return [make_question(sampled.iloc[i], qtype, pool) for i in range(N)]
 
 def build_quiz_from_wrongs(wrong_list: list, qtype: str) -> list:
@@ -1688,8 +1718,7 @@ def build_quiz_from_wrongs(wrong_list: list, qtype: str) -> list:
         st.error("오답 단어를 풀에서 찾지 못했습니다. (jp_word/reading 매칭 확인)")
         st.stop()
 
-    seed = int(st.session_state.get("quiz_version", 0) or 0)
-    retry_df = retry_df.sample(frac=1, random_state=seed + 999).reset_index(drop=True)
+    retry_df = retry_df.sample(frac=1).reset_index(drop=True)
     return [make_question(retry_df.iloc[i], qtype, pool) for i in range(len(retry_df))]
 
 # ============================================================
