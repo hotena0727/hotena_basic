@@ -1136,7 +1136,7 @@ if submitted:
         hint = str(row.get("hint_kr", "")).strip()
 
         if explain_kr:
-            st.markdown("<div style='margin-top:-20px'></div>", unsafe_allow_html=True)
+            st.markdown("<div style='margin-top:-50px'></div>", unsafe_allow_html=True)
             st.info("💡 하테나쌤 원포인트 일본어\n\n" + explain_kr)
         elif hint:
             st.info("💡 하테나쌤 원포인트 일본어\n\n" + hint)
