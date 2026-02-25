@@ -110,7 +110,33 @@ header[data-testid="stHeader"]{
   }
 }
 </style>""", unsafe_allow_html=True)
-    st.session_state["_top_compact_css_applied"] = True
+    
+# HN_RADIO_STABLE_GAP_FIX_V3
+st.markdown("""<style>
+
+/* ===========================
+   HN RADIO STABLE (gap fix)
+   - keep Streamlit default font
+   - make spacing identical before/after selection
+   =========================== */
+div[data-testid="stRadio"] div[role="radiogroup"]{
+  gap: 0px !important;           /* disable baseweb gap fluctuation */
+}
+div[data-testid="stRadio"] div[data-baseweb="radio"]{
+  margin: 0 0 0.55rem 0 !important;  /* consistent option spacing */
+  padding: 0 !important;
+}
+div[data-testid="stRadio"] div[data-baseweb="radio"] > div{
+  padding: 0 !important;
+}
+div[data-testid="stRadio"] label,
+div[data-testid="stRadio"] span{
+  font-weight: inherit !important;    /* prevent bolding on checked */
+  line-height: 1.45 !important;
+}
+
+</style>""", unsafe_allow_html=True)
+st.session_state["_top_compact_css_applied"] = True
 
 st.session_state['_page_config_set'] = True
 # ============================================================
