@@ -38,6 +38,124 @@ if st.session_state.get("_entered_talk"):
 
 
 import streamlit.components.v1 as components
+
+# ============================================================
+# ✅ Speaking score (Browser STT -> text similarity)  [FREE first]
+# - "발음 점수"가 아니라 "말하기 정확도(문장 일치도)"로 사용
+# ============================================================
+import re
+import difflib
+
+def _normalize_jp_for_score(s: str) -> str:
+    s = (s or "").strip()
+    # 공백/기본 문장부호 제거(너무 엄격하지 않게)
+    s = re.sub(r"[\s\u3000]", "", s)
+    s = re.sub(r"[、。！？!?,.「」『』（）()\[\]【】]", "", s)
+    return s
+
+def calc_speaking_score(user_text: str, correct_text: str) -> int:
+    u = _normalize_jp_for_score(user_text)
+    c = _normalize_jp_for_score(correct_text)
+    if not u or not c:
+        return 0
+    r = difflib.SequenceMatcher(None, u, c).ratio()
+    return int(round(r * 100))
+
+def browser_stt_component(key: str, lang: str = "ja-JP"):
+    """브라우저 STT(Chrome Web Speech API)로 텍스트를 받아 Streamlit로 반환.
+    - 반환값: {"text": "...", "final": True/False, "error": "..."} 또는 None
+    """
+    html = f"""<div style="padding:10px 12px;border:1px solid rgba(0,0,0,.08);border-radius:12px;background:rgba(0,0,0,.02);">
+  <div style="font-weight:800; margin-bottom:6px;">📝 브라우저 STT (무료)</div>
+  <div style="font-size:0.92rem; opacity:0.9; line-height:1.35;">
+    Chrome에서 가장 안정적입니다. (iOS Safari는 동작이 불안정할 수 있어요)
+  </div>
+  <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
+    <button id="sttStart" style="padding:8px 10px;border-radius:10px;border:1px solid rgba(0,0,0,.12);background:white;font-weight:700;cursor:pointer;">🎙 시작</button>
+    <button id="sttStop"  style="padding:8px 10px;border-radius:10px;border:1px solid rgba(0,0,0,.12);background:white;font-weight:700;cursor:pointer;">⏹ 정지</button>
+    <span id="sttState" style="align-self:center; font-size:0.92rem; opacity:0.85;">대기 중</span>
+  </div>
+  <div style="margin-top:10px;">
+    <div style="font-size:0.9rem; font-weight:700; opacity:0.85;">인식 결과</div>
+    <div id="sttText" style="margin-top:6px; padding:10px; border-radius:10px; background:white; border:1px solid rgba(0,0,0,.08); min-height:44px; white-space:pre-wrap;"></div>
+  </div>
+</div>
+
+<script>
+(function() {{
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const stateEl = document.getElementById("sttState");
+  const textEl  = document.getElementById("sttText");
+  const btnStart = document.getElementById("sttStart");
+  const btnStop  = document.getElementById("sttStop");
+
+  function sendValue(obj) {{
+    window.parent.postMessage({{
+      isStreamlitMessage: true,
+      type: "streamlit:setComponentValue",
+      value: obj
+    }}, "*");
+  }}
+
+  if (!SpeechRecognition) {{
+    stateEl.textContent = "이 브라우저는 STT를 지원하지 않습니다.";
+    sendValue({{text:"", final:true, error:"NO_SPEECH_RECOGNITION"}});
+    return;
+  }}
+
+  const rec = new SpeechRecognition();
+  rec.lang = "{lang}";
+  rec.interimResults = true;
+  rec.continuous = false;
+
+  let finalText = "";
+  let interim = "";
+
+  rec.onstart = () => {{
+    stateEl.textContent = "듣는 중…";
+  }};
+  rec.onend = () => {{
+    stateEl.textContent = "대기 중";
+  }};
+  rec.onerror = (e) => {{
+    stateEl.textContent = "오류: " + (e.error || "unknown");
+    sendValue({{text: (finalText || "").trim(), final:true, error: (e.error || "unknown")}});
+  }};
+  rec.onresult = (event) => {{
+    interim = "";
+    for (let i = event.resultIndex; i < event.results.length; i++) {{
+      const transcript = event.results[i][0].transcript || "";
+      if (event.results[i].isFinal) {{
+        finalText += transcript;
+      }} else {{
+        interim += transcript;
+      }}
+    }}
+    textEl.textContent = (finalText + interim).trim();
+    sendValue({{text: (finalText + interim).trim(), final:false, error:""}});
+  }};
+
+  btnStart.onclick = () => {{
+    finalText = "";
+    interim = "";
+    textEl.textContent = "";
+    try {{
+      rec.start();
+    }} catch (e) {{}}
+  }};
+
+  btnStop.onclick = () => {{
+    try {{
+      rec.stop();
+    }} catch (e) {{}}
+    const out = (finalText + interim).trim();
+    sendValue({{text: out, final:true, error:""}});
+  }};
+}})();
+</script>
+"""
+    return components.html(html, height=220, scrolling=False, key=key)
+
 from supabase import create_client
 
 # ✅ MP3 base (스토리지)
@@ -1377,6 +1495,71 @@ if submitted:
                     unsafe_allow_html=True,
                 )
 
+
+        # ===========================
+        # ✅ 브라우저 STT → 말하기 정확도(무료)
+        # - 정답(answer_jp)을 보고 따라 말했는지 "문장 일치도"로 점수화
+        # ===========================
+        correct_text = (row.get("answer_jp", "") or "").strip()
+        if correct_text:
+            stt_val = browser_stt_component(key=f"{qid}_browser_stt", lang="ja-JP")
+            if isinstance(stt_val, dict):
+                stt_text = (stt_val.get("text") or "").strip()
+                is_final = bool(stt_val.get("final"))
+                err = (stt_val.get("error") or "").strip()
+
+                # 인식 결과는 세션에 보관(다음 rerun에도 유지)
+                if stt_text:
+                    st.session_state[f"{qid}_stt_text"] = stt_text
+
+                if err and err != "NO_SPEECH_RECOGNITION":
+                    st.caption(f"STT 상태: {err}")
+
+                # 최종 결과(final)일 때 점수 계산/표시 + 저장
+                if is_final and stt_text:
+                    score = calc_speaking_score(stt_text, correct_text)
+
+                    st.markdown("---")
+                    st.markdown(f"### 🗣 말하기 정확도: **{score}점**")
+                    st.caption(f"인식: {stt_text}")
+
+                    if score >= 90:
+                        st.success("아주 좋아요! 거의 그대로 말했어요 👏")
+                    elif score >= 75:
+                        st.info("거의 정확해요! 한 번만 더 다듬어볼까요?")
+                    elif score >= 60:
+                        st.warning("좋아요. 일부 표현이 달라요. 표시된 부분만 다시!")
+                    else:
+                        st.error("괜찮아요. 짧게 끊어서 또박또박 말해볼까요?")
+
+                    # ✅ 점수 저장 (profiles.progress → talk.speaking_scores)
+                    try:
+                        prog = load_progress()
+                        talk_prog = prog.get("talk") or {}
+                        scores = talk_prog.get("speaking_scores") or []
+                        if not isinstance(scores, list):
+                            scores = []
+
+                        scores.append({
+                            "ts": datetime.now().isoformat(timespec="seconds"),
+                            "qid": str(qid),
+                            "tag": str(tag),
+                            "score": int(score),
+                            "stt": stt_text,
+                            "correct": correct_text,
+                        })
+
+                        # 최근 50개만 유지
+                        if len(scores) > 50:
+                            scores = scores[-50:]
+
+                        talk_prog["speaking_scores"] = scores
+                        prog["talk"] = talk_prog
+                        save_progress(prog)
+                    except Exception:
+                        pass
+        else:
+            st.caption("말하기 정확도를 계산할 정답 문장이 비어 있어요. (answer_jp 확인)")
         st.caption("정답을 보고 2~3번 따라 말한 뒤, 아래 버튼을 눌러 다음으로 넘어가세요.")
         reward_key = f"{NS}_reward_ready_{qid}"
         if st.button("✅ 다 했어요 (보상 받기)", use_container_width=True, key=f"{NS}_next_after"):
