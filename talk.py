@@ -89,103 +89,6 @@ def _transcribe_audio_openai(audio_bytes: bytes, mime: str = "audio/wav", langua
         _wn_warn(f"STT 실패: {e}")
         return None
 
-def _browser_stt_preview_box(lang: str = "ja-JP"):
-    """Preview-only browser STT box (cannot feed back into Python in Streamlit iframe reliably)."""
-    components.html(f"""
-<div style="padding:10px 12px;border:1px solid rgba(0,0,0,.08);border-radius:12px;background:rgba(0,0,0,.02);">
-  <div style="font-weight:800; margin-bottom:6px;">📝 브라우저 STT (선택)</div>
-  <div style="font-size:0.9rem; opacity:0.85; line-height:1.35;">
-    텍스트 확인용입니다. 일부 환경에서는 점수와 직접 연동되지 않을 수 있어요.
-  </div>
-  <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
-    <button id="sttStart" style="padding:8px 10px;border-radius:10px;border:1px solid rgba(0,0,0,.12);background:white;font-weight:700;cursor:pointer;">🎙 시작</button>
-    <button id="sttStop"  style="padding:8px 10px;border-radius:10px;border:1px solid rgba(0,0,0,.12);background:white;font-weight:700;cursor:pointer;">⏹ 정지</button>
-    <span id="sttState" style="align-self:center; font-size:0.92rem; opacity:0.85;">대기 중</span>
-  </div>
-  <div style="margin-top:10px;">
-    <div style="font-size:0.9rem; font-weight:700; opacity:0.85;">인식 결과</div>
-    <div id="sttText" style="margin-top:6px; padding:10px; border-radius:10px; background:white; border:1px solid rgba(0,0,0,.08); min-height:44px; white-space:pre-wrap;"></div>
-  </div>
-</div>
-
-<script>
-(function() {{
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  const stateEl = document.getElementById("sttState");
-  const textEl  = document.getElementById("sttText");
-  const btnStart = document.getElementById("sttStart");
-  const btnStop  = document.getElementById("sttStop");
-
-  if (!SpeechRecognition) {{
-    stateEl.textContent = "이 브라우저는 STT를 지원하지 않습니다.";
-    return;
-  }}
-
-  const rec = new SpeechRecognition();
-  rec.lang = "{lang}";
-  rec.interimResults = true;
-  rec.continuous = true;
-
-  let finalText = "";
-  let interim = "";
-  let isListening = false;
-
-  rec.onstart = () => {{
-    stateEl.textContent = "듣는 중…";
-  }};
-  rec.onend = () => {{
-    if (isListening) {{
-      // 일부 환경에서 자동 종료되는 경우가 있어 재시작
-      try {{ rec.start(); }} catch (e) {{}}
-      stateEl.textContent = "듣는 중…";
-    }} else {{
-      stateEl.textContent = "대기 중";
-    }}
-  }};
-  rec.onerror = (e) => {{
-    stateEl.textContent = "오류: " + (e.error || "unknown");
-  }};
-  rec.onresult = (event) => {{
-    interim = "";
-    for (let i = event.resultIndex; i < event.results.length; i++) {{
-      const transcript = event.results[i][0].transcript || "";
-      if (event.results[i].isFinal) {{
-        finalText += transcript;
-      }} else {{
-        interim += transcript;
-      }}
-    }}
-    textEl.textContent = (finalText + interim).trim();
-  }};
-
-  btnStart.onclick = () => {{
-    finalText = "";
-    interim = "";
-    textEl.textContent = "";
-    isListening = true;
-    stateEl.textContent = "듣는 중…";
-    try {{
-      rec.start();
-    }} catch (e) {{
-      stateEl.textContent = "시작 실패(권한/환경)";
-      isListening = false;
-    }}
-  }};
-
-  btnStop.onclick = () => {{
-    isListening = false;
-    stateEl.textContent = "정지";
-    try {{
-      rec.stop();
-    }} catch (e) {{}}
-  }};
-}})();
-</script>
-""", height=260, scrolling=False)
-
-# ✅ MP3 base (스토리지)
-BASE_AUDIO_URL = 'https://hotena.com/hotena/app/mp3/'
-
 def resolve_audio_url(v: str) -> str:
     """CSV에 '00.mp3' 처럼 파일명만 적어도 재생되도록 URL을 보정한다.
     - v가 http(s)로 시작하면 그대로 사용
@@ -1580,10 +1483,6 @@ if submitted:
                     save_progress(prog)
                 except Exception:
                     pass
-
-        # 🧪 (선택) 브라우저 STT — 텍스트 확인용 (기본 접힘)
-        with st.expander("🧪 브라우저 STT로 텍스트 확인 (선택)", expanded=False):
-            _browser_stt_preview_box(lang="ja-JP")
 
         st.caption("정답을 보고 2~3번 따라 말한 뒤, 아래 버튼을 눌러 다음으로 넘어가세요.")
         reward_key = f"{NS}_reward_ready_{qid}"
