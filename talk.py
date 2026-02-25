@@ -1013,8 +1013,8 @@ def _go_next_question():
 # ✅ FAB(우측 하단)에서 URL queryparam으로 다음 이동 요청
 try:
     qp = st.query_params
-    if str(qp.get("talk_next", "")) == "10":
-        # param 먼저 제거(무한루프 방지)
+    v = str(qp.get("talk_next", "")).strip()
+    if v.isdigit() and int(v) >= 10:
         try:
             del qp["talk_next"]
         except Exception:
