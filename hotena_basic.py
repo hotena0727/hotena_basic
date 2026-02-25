@@ -1339,7 +1339,7 @@ def render_sound_toggle():
     with c1:
         st.session_state.sound_enabled = st.toggle("🔊", value=st.session_state.sound_enabled, label_visibility="collapsed")
     with c2:
-        st.caption("소리 " + ("ON OK" if st.session_state.sound_enabled else "OFF"))
+        st.caption("소리 " + ("ON" if st.session_state.sound_enabled else "OFF"))
     with c3:
         if st.session_state.sound_enabled:
             if st.button("🔈 테스트", use_container_width=True, key="btn_sound_test"):
@@ -2314,7 +2314,7 @@ def render_my_dashboard():
                 ]:
                     st.session_state.pop(k, None)
 
-                st.success("OK 전체 학습 기록이 완전 초기화되었습니다.")
+                st.success("전체 학습 기록이 완전 초기화되었습니다.")
                 st.session_state.page = "quiz"
                 st.rerun()
 
@@ -2997,7 +2997,7 @@ if not st.session_state.get("HUB_MODE", False):
     did_today = st.session_state.get("did_attend_today")
     if streak is not None:
         if did_today:
-            st.success(f"OK 오늘 출석 완료!  (연속 {streak}일)")
+            st.success(f"오늘 출석 완료!  (연속 {streak}일)")
         else:
             st.caption(f"연속 출석 {streak}일")
         if streak >= 30:
@@ -3094,7 +3094,7 @@ if not st.session_state.get("HUB_MODE", False):
               <div style="display:flex; justify-content:space-between; align-items:center;">
                 <div style="font-weight:900; font-size:14px; opacity:.80;">🎯 오늘 목표</div>
                 <div style="font-size:12px; font-weight:900; opacity:.85;">
-                  {"OK 달성" if goal_done else "⏳ 진행중"}
+                  {"달성" if goal_done else "⏳ 진행중"}
                 </div>
               </div>
         
@@ -3214,7 +3214,7 @@ for i, ps in enumerate(POS_GROUP_OPTIONS):
     with pos_cols[i]:
         is_sel = (ps == st.session_state.pos_group)
         st.button(
-            ("OK " if is_sel else "") + POS_LABEL_MAP.get(ps, ps),
+            ("" if is_sel else "") + POS_LABEL_MAP.get(ps, ps),
             use_container_width=True,
             type=("primary" if is_sel else "secondary"),
             key=f"btn_posg_{ps}",
@@ -3254,7 +3254,7 @@ for i, qt in enumerate(available_types):
     with type_cols[i]:
         is_sel = (qt == st.session_state.quiz_type)
         st.button(
-            ("OK " if is_sel else "") + quiz_label_map.get(qt, qt),
+            ("" if is_sel else "") + quiz_label_map.get(qt, qt),
             use_container_width=True,
             type=("primary" if is_sel else "secondary"),
             key=f"btn_qtype_{qt}",
@@ -3373,7 +3373,7 @@ if (not is_mastered_done) and len(st.session_state.quiz) == 0:
 
 if len(st.session_state.quiz) == 0:
     if bool(st.session_state.get("mastery_done", {}).get(k_now, False)):
-        st.success("OK 이 설정에서 새로 출제할 문제가 더 이상 없습니다.")
+        st.success("이 설정에서 새로 출제할 문제가 더 이상 없습니다.")
         st.caption("👉 ‘출제 이력 초기화(다시 시작)’를 누르거나, 다른 품사·유형을 선택해 주세요.")
         st.caption("👉 틀린 문제는 마이페이지에서 ‘틀린 문제만 다시 풀기’로 복습하세요~")
         st.stop()
@@ -3528,7 +3528,7 @@ for idx, q in enumerate(st.session_state.quiz):
 all_answered = (quiz_len > 0) and all(a is not None for a in selected_now)
 
 if st.button(
-    "OK 제출하고 채점하기",
+    "제출하고 채점하기",
     disabled=not all_answered,
     type="primary",
     use_container_width=True,
@@ -3853,7 +3853,7 @@ if st.session_state.get("submitted", False):
             st.caption("🔒 오늘 무료 한도(30문항)를 모두 사용했어요.")
 
         if st.button(
-            "OK 다음 10문항 시작하기",
+            "다음 10문항 시작하기",
             type="primary",
             use_container_width=True,
             key="btn_next_10",
