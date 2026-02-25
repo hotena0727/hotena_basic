@@ -590,25 +590,41 @@ def sync_answers_from_widgets():
             st.session_state.answers[idx] = st.session_state[widget_key]
 
 def mark_progress_dirty():
-    st.session_state.progress_dirty = True
-    st.session_state._progress_dirty_ts = time.time()
+    """Mark progress as dirty (changed) without doing a DB write.
 
-    sb_authed_local = get_authed_sb()
-    u = st.session_state.get("user")
-    if (sb_authed_local is None) or (u is None):
+    NOTE: Streamlit reruns on every widget interaction. Writing to Supabase on each
+    option click makes the UI feel like it's "loading". We only flush on explicit
+    events (submit/finish/navigation) instead.
+    """
+    st.session_state["_progress_dirty"] = True
+    st.session_state["_progress_dirty_touched_at"] = time.time()
+
+
+def flush_progress_if_dirty(force: bool = False):
+    """Persist progress to DB if there are unsaved changes.
+
+    - force=True: always try to save once.
+    - force=False: save at most once per ~10s to avoid hammering the DB.
+    """
+    if not st.session_state.get("_progress_dirty", False):
         return
 
+    last = float(st.session_state.get("_progress_last_saved_at") or 0.0)
     now = time.time()
-    last = st.session_state.get("_last_progress_save_ts", 0.0)
-    if now - last < 10.0:
+    if (not force) and (now - last < 10.0):
         return
 
     try:
-        save_progress_to_db(sb_authed_local, u.id)
-        st.session_state._last_progress_save_ts = now
-        st.session_state.progress_dirty = False
+        sb_authed = st.session_state.get("sb_authed")
+        user = st.session_state.get("user")
+        if sb_authed and user and getattr(user, "id", None):
+            save_progress_to_db(sb_authed, str(user.id))
+            st.session_state["_progress_dirty"] = False
+            st.session_state["_progress_last_saved_at"] = now
     except Exception:
+        # best-effort only
         pass
+
 
 def start_quiz_state(quiz_list: list, qtype: str, clear_wrongs: bool = True):
     st.session_state.quiz_version = int(st.session_state.get("quiz_version", 0)) + 1
@@ -2416,6 +2432,7 @@ def render_kanji_hub(HUB_MODE: bool = False):
     all_answered = (quiz_len > 0) and all(a is not None for a in st.session_state.answers)
 
     if st.button("제출하고 채점하기", disabled=not all_answered, type="primary", use_container_width=True, key="btn_submit"):
+        flush_progress_if_dirty(force=True)
         st.session_state.submitted = True
         st.session_state.session_stats_applied_this_attempt = False
 
