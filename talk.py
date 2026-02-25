@@ -1014,7 +1014,7 @@ def _go_next_question():
 try:
     qp = st.query_params
     v = str(qp.get("talk_next", "")).strip()
-    if v.isdigit() and int(v) >= 10:
+    if v.isdigit() and int(v) >= 1:
         try:
             del qp["talk_next"]
         except Exception:
