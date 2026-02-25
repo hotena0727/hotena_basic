@@ -403,7 +403,20 @@ if str(st.session_state.get("pos_group", "noun")).lower().strip() in POS_ONLY_2T
 # ============================================================
 st.markdown(
     """
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Kosugi+Maru&family=Noto+Sans+JP:wght@400;500;700;800&display=swap" rel="stylesheet">
+
 <style>
+:root{
+  --jp-rounded: "Noto Sans JP","Kosugi Maru","Hiragino Sans","Yu Gothic","Meiryo",sans-serif;
+}
+.jp, .jp *{
+  font-family: var(--jp-rounded) !important;
+  line-height:1.7;
+  letter-spacing:.2px;
+}
+
 /* 메인 컨테이너 위쪽 여백 줄이기 */
 div[data-testid="stAppViewContainer"] .block-container{
   padding-top: 1.0rem !important;   /* 0.5~1.5rem 사이로 취향 조절 */
