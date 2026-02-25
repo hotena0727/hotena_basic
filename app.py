@@ -7,7 +7,13 @@ import pandas as pd
 import streamlit as st
 
 
-_HN_CHOICE_CSS = '<style>\n/* Hotena: stabilize choice (st.radio) spacing across checked/unchecked */\n.hn-choice div[data-baseweb="radio"] > div{ margin: 0 0 10px 0 !important; }\n.hn-choice div[data-baseweb="radio"] label{\n  margin: 0 !important;\n}\n.hn-choice div[data-baseweb="radio"] div[role="radio"]{\n  padding: 8px 10px !important;\n  border-radius: 12px !important;\n  line-height: 1.45 !important;\n}\n/* Keep font weight stable (do not bold on select) */\n.hn-choice div[data-baseweb="radio"] div[role="radio"] *{\n  font-weight: inherit !important;\n}\n/* Avoid layout jump from focus outline */\n.hn-choice div[data-baseweb="radio"] div[role="radio"]:focus{\n  outline: none !important;\n  box-shadow: none !important;\n}\n</style>'
+_HN_CHOICE_CSS = '<style>\n/* Hotena: stabilize choice (st.radio) spacing across checked/unchecked */\n.hn-choice div[data-baseweb="radio"] > div{ margin: 0 0 10px 0 !important; }\n.hn-choice div[data-baseweb="radio"] label{\n  margin: 0 !important;\n}\n.hn-choice div[data-baseweb="radio"] div[role="radio"]{\n  padding: 8px 10px !important;\n  border-radius: 12px !important;\n  line-height: 1.45 !important;\n}\n/* Keep font weight stable (do not bold on select) */\n.hn-choice div[data-baseweb="radio"] div[role="radio"] *{\n  font-weight: inherit !important;\n}\n/* Avoid layout jump from focus outline */\n.hn-choice div[data-baseweb="radio"] div[role="radio"]:focus{\n  outline: none !important;\n  box-shadow: none !important;\n}\n
+
+/* ✅ Radio checked/unchecked에도 동일하게 */
+div[data-testid="stRadio"] label[data-baseweb="radio"]{
+  font-weight: 500 !important;
+}
+</style>'
 
 # -------------------------------
 # ✅ 한자 헤더 중복 방지 플래그
@@ -167,6 +173,29 @@ div[data-testid="stRadio"] * ,
 div[data-baseweb="radio"] * ,
 label[data-baseweb="radio"] * {
   font-family: var(--jp-rounded) !important;
+}
+
+
+/* ✅ Radio(보기) 안정화: 선택 전/후 폰트·간격 고정 */
+div[data-testid="stRadio"] div[role="radiogroup"]{
+  gap: 8px !important;
+}
+
+div[data-testid="stRadio"] div[role="radiogroup"] > label{
+  padding: 10px 12px !important;
+  margin: 0 !important;
+  border-radius: 14px !important;
+}
+
+div[data-testid="stRadio"] div[role="radiogroup"] > label > div{
+  gap: 10px !important;
+  align-items: flex-start !important;
+}
+
+div[data-testid="stRadio"] div[role="radiogroup"] span{
+  font-size: 16px !important;
+  font-weight: 500 !important;
+  line-height: 1.25 !important;
 }
 
 /* 헤더 여백 */
