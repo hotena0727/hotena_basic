@@ -567,7 +567,7 @@ SUB_LABEL = {
     "work": "회사 기본",
     "meeting": "미팅/첫인사",
     "phone": "전화",
-    "basic": "기본/기타",
+    "basic": "기본",
 }
 
 def _sub_label(s: str) -> str:
