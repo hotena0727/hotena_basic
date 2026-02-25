@@ -124,16 +124,23 @@ def _browser_stt_preview_box(lang: str = "ja-JP"):
   const rec = new SpeechRecognition();
   rec.lang = "{lang}";
   rec.interimResults = true;
-  rec.continuous = false;
+  rec.continuous = true;
 
   let finalText = "";
   let interim = "";
+  let isListening = false;
 
   rec.onstart = () => {{
     stateEl.textContent = "듣는 중…";
   }};
   rec.onend = () => {{
-    stateEl.textContent = "대기 중";
+    if (isListening) {{
+      // 일부 환경에서 자동 종료되는 경우가 있어 재시작
+      try {{ rec.start(); }} catch (e) {{}}
+      stateEl.textContent = "듣는 중…";
+    }} else {{
+      stateEl.textContent = "대기 중";
+    }}
   }};
   rec.onerror = (e) => {{
     stateEl.textContent = "오류: " + (e.error || "unknown");
@@ -155,14 +162,19 @@ def _browser_stt_preview_box(lang: str = "ja-JP"):
     finalText = "";
     interim = "";
     textEl.textContent = "";
+    isListening = true;
+    stateEl.textContent = "듣는 중…";
     try {{
       rec.start();
     }} catch (e) {{
       stateEl.textContent = "시작 실패(권한/환경)";
+      isListening = false;
     }}
   }};
 
   btnStop.onclick = () => {{
+    isListening = false;
+    stateEl.textContent = "정지";
     try {{
       rec.stop();
     }} catch (e) {{}}
