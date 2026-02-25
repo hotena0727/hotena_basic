@@ -6,6 +6,7 @@ from pathlib import Path
 from datetime import datetime, timedelta, date
 import random
 import hashlib
+import os
 
 import pandas as pd
 import streamlit as st
@@ -55,7 +56,6 @@ from supabase import create_client
 # ✅ 말하기 점수(A): 서버 STT(Transcribe) + 문장 일치도 점수
 # - 점수는 "발음" 자체가 아니라 "말한 문장이 정답과 얼마나 일치하는지"에 가까움
 # ============================================================
-import os
 import difflib
 import re as _re
 
