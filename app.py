@@ -590,16 +590,8 @@ def sync_answers_from_widgets():
             st.session_state.answers[idx] = st.session_state[widget_key]
 
 def mark_progress_dirty():
-    # ✅ 보기 선택 시에는 DB 저장을 하지 않고, '변경됨' 플래그만 세팅합니다.
-    #    (라디오/셀렉트 변경 때마다 DB 저장하면 체감 로딩이 커집니다.)
     st.session_state.progress_dirty = True
     st.session_state._progress_dirty_ts = time.time()
-
-
-def flush_progress_if_dirty(force: bool = False):
-    """Progress를 DB에 저장(필요할 때만). 기본은 제출/확정 시점에 force=True로 호출."""
-    if not st.session_state.get("progress_dirty", False):
-        return
 
     sb_authed_local = get_authed_sb()
     u = st.session_state.get("user")
@@ -608,9 +600,7 @@ def flush_progress_if_dirty(force: bool = False):
 
     now = time.time()
     last = st.session_state.get("_last_progress_save_ts", 0.0)
-
-    # ✅ 평상시에는 너무 자주 저장하지 않도록 제한
-    if (not force) and (now - last < 10.0):
+    if now - last < 10.0:
         return
 
     try:
@@ -2426,7 +2416,6 @@ def render_kanji_hub(HUB_MODE: bool = False):
     all_answered = (quiz_len > 0) and all(a is not None for a in st.session_state.answers)
 
     if st.button("제출하고 채점하기", disabled=not all_answered, type="primary", use_container_width=True, key="btn_submit"):
-        flush_progress_if_dirty(force=True)
         st.session_state.submitted = True
         st.session_state.session_stats_applied_this_attempt = False
 
