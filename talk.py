@@ -1487,64 +1487,69 @@ if submitted:
             if remr > 0:
                 st.caption(f"FREE 녹음 남은 횟수: {remr}/{FREE_RECORD_QUOTA} (오늘 기준)")
                 _audio = st.audio_input("🎤 (무료) 내 발음을 녹음하고 들어보세요", key=f"{qid}_record_free")
-                if _audio is not None:
+
+                if _audio is None:
+                    st.caption("녹음이 완료되면, 자동으로 말하기 정확도(문장 일치도)를 계산합니다.")
+                else:
                     _use_free_record_once()
                     st.audio(_audio)
-                # ✅ 서버 STT로 말하기 정확도 점수 (A)
-                correct_text = (row.get("answer_jp", "") or "").strip()
-                if correct_text:
-                    try:
-                        audio_bytes = None
+
+                    correct_text = (row.get("answer_jp", "") or "").strip()
+                    if not correct_text:
+                        st.caption("(안내) answer_jp가 비어 있어 점수를 계산할 수 없습니다.")
+                    elif not OPENAI_API_KEY:
+                        st.warning("STT 점수 계산을 위해 OPENAI_API_KEY 설정이 필요합니다.")
+                    else:
                         try:
-                            audio_bytes = _audio.getvalue()  # UploadedFile
-                        except Exception:
+                            audio_bytes = None
                             try:
-                                audio_bytes = _audio.read()
+                                audio_bytes = _audio.getvalue()  # UploadedFile
                             except Exception:
-                                audio_bytes = None
-
-                        if audio_bytes:
-                            with st.spinner("말하기 정확도 계산 중..."):
-                                stt_text, stt_err = transcribe_with_openai(
-                                    audio_bytes,
-                                    filename=getattr(_audio, "name", "speech.wav"),
-                                    language="ja",
-                                )
-                            if stt_err:
-                                st.warning(f"STT 실패: {stt_err}")
-                            elif stt_text:
-                                score = calc_speaking_score(stt_text, correct_text)
-                                st.markdown(f"### 🗣 말하기 정확도: **{score}점**")
-                                st.caption(f"인식: {stt_text}")
-
-                                # ✅ 점수 저장 (profiles.progress → talk.speaking_scores)
                                 try:
-                                    prog = load_progress()
-                                    talk_prog = prog.get("talk") or {}
-                                    scores = talk_prog.get("speaking_scores") or []
-                                    if not isinstance(scores, list):
-                                        scores = []
-                                    scores.append({
-                                        "ts": datetime.now().isoformat(timespec="seconds"),
-                                        "qid": str(qid),
-                                        "tag": str(tag),
-                                        "score": int(score),
-                                        "stt": stt_text,
-                                        "correct": correct_text,
-                                    })
-                                    if len(scores) > 50:
-                                        scores = scores[-50:]
-                                    talk_prog["speaking_scores"] = scores
-                                    prog["talk"] = talk_prog
-                                    save_progress(prog)
+                                    audio_bytes = _audio.read()
                                 except Exception:
-                                    pass
-                        else:
-                            st.warning("오디오 데이터를 읽지 못했습니다.")
-                    except Exception as e:
-                        st.warning(f"말하기 점수 계산 중 오류: {e}")
-                else:
-                    st.caption("(안내) answer_jp가 비어 있어 점수를 계산할 수 없습니다.")
+                                    audio_bytes = None
+
+                            if audio_bytes:
+                                with st.spinner("말하기 정확도 계산 중..."):
+                                    stt_text, stt_err = transcribe_with_openai(
+                                        audio_bytes,
+                                        filename=getattr(_audio, "name", "speech.wav"),
+                                        language="ja",
+                                    )
+                                if stt_err:
+                                    st.warning(f"STT 실패: {stt_err}")
+                                elif stt_text:
+                                    score = calc_speaking_score(stt_text, correct_text)
+                                    st.markdown(f"### 🗣 말하기 정확도: **{score}점**")
+                                    st.caption(f"인식: {stt_text}")
+
+                                    # ✅ 점수 저장 (profiles.progress → talk.speaking_scores)
+                                    try:
+                                        prog = load_progress()
+                                        talk_prog = prog.get("talk") or {}
+                                        scores = talk_prog.get("speaking_scores") or []
+                                        if not isinstance(scores, list):
+                                            scores = []
+                                        scores.append({
+                                            "ts": datetime.now().isoformat(timespec="seconds"),
+                                            "qid": str(qid),
+                                            "tag": str(tag),
+                                            "score": int(score),
+                                            "stt": stt_text,
+                                            "correct": correct_text,
+                                        })
+                                        if len(scores) > 50:
+                                            scores = scores[-50:]
+                                        talk_prog["speaking_scores"] = scores
+                                        prog["talk"] = talk_prog
+                                        save_progress(prog)
+                                    except Exception:
+                                        pass
+                            else:
+                                st.warning("오디오 데이터를 읽지 못했습니다.")
+                        except Exception as e:
+                            st.warning(f"말하기 점수 계산 중 오류: {e}")
             else:
                 st.markdown(
                     '''
@@ -1560,7 +1565,6 @@ if submitted:
 ''',
                     unsafe_allow_html=True,
                 )
-
         st.caption("정답을 보고 2~3번 따라 말한 뒤, 아래 버튼을 눌러 다음으로 넘어가세요.")
         reward_key = f"{NS}_reward_ready_{qid}"
         if st.button("✅ 다 했어요 (보상 받기)", use_container_width=True, key=f"{NS}_next_after"):
