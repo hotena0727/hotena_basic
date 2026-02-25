@@ -1561,7 +1561,7 @@ def render_float_top_anchor_button():
   align-items: center;
   justify-content: center;
   text-decoration: none !important;
-  background: rgba(17,17,17,0.86);
+  background: rgba(17,17,17,0.43);
   color: #fff !important;
   font-size: 18px;
   box-shadow: 0 12px 26px rgba(0,0,0,0.22);
