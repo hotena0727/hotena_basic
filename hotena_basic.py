@@ -27,9 +27,6 @@ from __future__ import annotations
 # ============================================================
 
 
-_HN_CHOICE_CSS = '<style>\n/* Hotena: stabilize choice (st.radio) spacing across checked/unchecked */\n.hn-choice div[data-baseweb="radio"] > div{ margin: 0 0 10px 0 !important; }\n.hn-choice div[data-baseweb="radio"] label{\n  margin: 0 !important;\n}\n.hn-choice div[data-baseweb="radio"] div[role="radio"]{\n  padding: 8px 10px !important;\n  border-radius: 12px !important;\n  line-height: 1.45 !important;\n}\n/* Keep font weight stable (do not bold on select) */\n.hn-choice div[data-baseweb="radio"] div[role="radio"] *{\n  font-weight: inherit !important;\n}\n/* Avoid layout jump from focus outline */\n.hn-choice div[data-baseweb="radio"] div[role="radio"]:focus{\n  outline: none !important;\n  box-shadow: none !important;\n}\n</style>'
-
-
 from pathlib import Path
 import random
 import pandas as pd
@@ -113,6 +110,25 @@ header[data-testid="stHeader"]{
   }
 }
 </style>""", unsafe_allow_html=True)
+
+# ✅ HN_RADIO_STABLE_V6
+st.markdown(r"""
+<style>
+/* HN_RADIO_STABLE_V6: keep Streamlit radio spacing stable (no font changes) */
+div[data-testid="stRadio"] label{
+  margin: 0 0 6px 0 !important;
+  padding: 4px 8px !important;
+  line-height: 1.45 !important;
+}
+div[data-testid="stRadio"] label > div{
+  margin: 0 !important;
+  padding: 0 !important;
+}
+div[data-testid="stRadio"] > div{
+  gap: 0.35rem !important;
+}
+</style>
+""", unsafe_allow_html=True)
     st.session_state["_top_compact_css_applied"] = True
 
 st.session_state['_page_config_set'] = True
@@ -3504,8 +3520,6 @@ for idx, q in enumerate(st.session_state.quiz):
     if prev is not None and prev in q["choices"]:
         default_index = q["choices"].index(prev)
 
-    st.markdown(_HN_CHOICE_CSS, unsafe_allow_html=True)
-    st.markdown('<div class="hn-choice">', unsafe_allow_html=True)
     choice = st.radio(
         label="보기",
         options=q["choices"],
@@ -3514,7 +3528,6 @@ for idx, q in enumerate(st.session_state.quiz):
         label_visibility="collapsed",
         on_change=mark_progress_dirty,
     )
-    st.markdown('</div>', unsafe_allow_html=True)
     st.session_state.answers[idx] = choice
 
 sync_answers_from_widgets()
