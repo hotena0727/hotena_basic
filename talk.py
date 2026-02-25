@@ -1143,128 +1143,127 @@ if submitted:
             st.info("💡 하테나쌤 원포인트 일본어\n\n포인트: 상황에서 ‘요청/사과/확인/거절’ 중 무엇인지 먼저 잡고, 그에 맞는 톤(정중/캐주얼)을 고르면 실수가 줄어듭니다.")
 
         with st.expander("🤖 내용이 어려우면 하테나쌤 스마트 코치에게 질문하기", expanded=False):
-            st.markdown("### 💬 하테나쌤 스마트 코치")
-                    q_default = st.session_state.get("talk_ai_last_q") or ""
-                    user_q = st.text_input(
-                        "질문",
-                        value=str(q_default),
-                        key=f"talk_ai_q_{qid}",
-                        placeholder="예) 왜 이 표현이 정답이에요? / 더 자연스러운 말도 있어요?",
-                        label_visibility="collapsed",
-                    )
+    st.markdown("### 💬 하테나쌤 스마트 코치")
+    q_default = st.session_state.get("talk_ai_last_q") or ""
+    user_q = st.text_input(
+    "질문",
+    value=str(q_default),
+    key=f"talk_ai_q_{qid}",
+    placeholder="예) 왜 이 표현이 정답이에요? / 더 자연스러운 말도 있어요?",
+    label_visibility="collapsed",
+    )
 
-                    # auto context (cheap)
-                    ctx_parts = []
-                    s = str(row.get("situation_kr", "")).strip()
-                    p = str(row.get("partner_jp", "")).strip()
-                    a = str(row.get("answer_jp", "")).strip()
-                    me = str(selected or "").strip()
-                    ctx_parts.append(f"현재상황: {s}")
-                    ctx_parts.append(f"상대발화: {p}")
-                    ctx_parts.append(f"정답표현: {a}")
-                    if me:
-                        ctx_parts.append(f"내선택: {me}")
-                    ctx_parts.append(f"정오답: {'정답' if ok else '오답'}")
+    # auto context (cheap)
+    ctx_parts = []
+    s = str(row.get("situation_kr", "")).strip()
+    p = str(row.get("partner_jp", "")).strip()
+    a = str(row.get("answer_jp", "")).strip()
+    me = str(selected or "").strip()
+    ctx_parts.append(f"현재상황: {s}")
+    ctx_parts.append(f"상대발화: {p}")
+    ctx_parts.append(f"정답표현: {a}")
+    if me:
+    ctx_parts.append(f"내선택: {me}")
+    ctx_parts.append(f"정오답: {'정답' if ok else '오답'}")
 
-                    try:
-                        recent = _recent_turns_summary()
-                        if recent:
-                            ctx_parts.append("최근2턴:\n" + recent)
-                    except Exception:
-                        pass
+    try:
+    recent = _recent_turns_summary()
+    if recent:
+    ctx_parts.append("최근2턴:\n" + recent)
+    except Exception:
+    pass
 
-                    ctx = "\n".join([x for x in ctx_parts if x]).strip()
+    ctx = "\n".join([x for x in ctx_parts if x]).strip()
 
-                    cA, cB = st.columns([0.72, 0.28], vertical_alignment="center")
-                    with cA:
-                        st.caption("핵심을 짚어 질문할수록 더 정밀한 코칭을 받을 수 있어요.")
-                    with cB:
-                        ask = st.button("AI 코칭 받기 시작", use_container_width=True, key=f"talk_ai_ask_{qid}")
+    cA, cB = st.columns([0.72, 0.28], vertical_alignment="center")
+    with cA:
+    st.caption("핵심을 짚어 질문할수록 더 정밀한 코칭을 받을 수 있어요.")
+    with cB:
+    ask = st.button("AI 코칭 받기 시작", use_container_width=True, key=f"talk_ai_ask_{qid}")
 
-                    if ask and str(user_q).strip():
-                        st.session_state["talk_ai_last_q"] = str(user_q).strip()
-                        with st.spinner("하테나쌤 답변 중…"):
-                            ans = ai_tutor.ask_hatena(
-                                mode="talk",
-                                user_input=str(user_q).strip(),
-                                context=ctx,
-                                meta={
-                                    "page": "talk",
-                                    "qid": str(qid),
-                                    "tag": str(tag),
-                                    "sub": str(sub) if 'sub' in locals() else "",
-                                    "submitted": True,
-                                    "ok": bool(ok),
-                                },
-                            )
-                        st.info(ans)
+    if ask and str(user_q).strip():
+    st.session_state["talk_ai_last_q"] = str(user_q).strip()
+    with st.spinner("하테나쌤 답변 중…"):
+    ans = ai_tutor.ask_hatena(
+    mode="talk",
+    user_input=str(user_q).strip(),
+    context=ctx,
+    meta={
+    "page": "talk",
+    "qid": str(qid),
+    "tag": str(tag),
+    "sub": str(sub) if 'sub' in locals() else "",
+    "submitted": True,
+    "ok": bool(ok),
+    },
+    )
+    st.info(ans)
 
-if submitted:
+    if submitted:
     with st.container(border=True):
-        total_cnt = len(qids)
-        current_no = idx + 1
-        st.markdown(
-            f"""
-        <div style="display:flex; align-items:baseline; justify-content:space-between; gap:12px;">
-          <div style="font-size:1.25rem; font-weight:700;">🎙️ 발음 체크</div>
-          <div style="font-size:1rem; opacity:0.85;">📘 진행: {current_no} / {total_cnt}</div>
-        </div>
-        """,
-            unsafe_allow_html=True,
-        )
+    total_cnt = len(qids)
+    current_no = idx + 1
+    st.markdown(
+    f"""
+    <div style="display:flex; align-items:baseline; justify-content:space-between; gap:12px;">
+    <div style="font-size:1.25rem; font-weight:700;">🎙️ 발음 체크</div>
+    <div style="font-size:1rem; opacity:0.85;">📘 진행: {current_no} / {total_cnt}</div>
+    </div>
+    """,
+    unsafe_allow_html=True,
+    )
 
 
-        # ✅ 말하기 녹음(선택)
-        # - PRO: 녹음 가능
-        # - FREE: PRO 안내 카드 노출
-        if IS_PRO:
-            _audio = st.audio_input("🎤 (선택) 내 발음을 녹음하고 들어보세요", key=f"{qid}_record")
-            if _audio is not None:
-                st.audio(_audio)
-        else:
-            remr = _free_record_remaining()
-            if remr > 0:
-                st.caption(f"FREE 녹음 남은 횟수: {remr}/{FREE_RECORD_QUOTA} (오늘 기준)")
-                _audio = st.audio_input("🎤 (무료) 내 발음을 녹음하고 들어보세요", key=f"{qid}_record_free")
-                if _audio is not None:
-                    _use_free_record_once()
-                    st.audio(_audio)
-            else:
-                st.markdown(
-                    '''
-<div style="padding:12px;border:1px solid #FFD54F;border-radius:12px;background:#FFF8E1;">
-  <div style="font-weight:800;">🎙️ 발음 녹음 기능은 PRO 전용입니다</div>
-  <div style="margin-top:6px;font-size:0.92rem;opacity:0.9;">
+    # ✅ 말하기 녹음(선택)
+    # - PRO: 녹음 가능
+    # - FREE: PRO 안내 카드 노출
+    if IS_PRO:
+    _audio = st.audio_input("🎤 (선택) 내 발음을 녹음하고 들어보세요", key=f"{qid}_record")
+    if _audio is not None:
+    st.audio(_audio)
+    else:
+    remr = _free_record_remaining()
+    if remr > 0:
+    st.caption(f"FREE 녹음 남은 횟수: {remr}/{FREE_RECORD_QUOTA} (오늘 기준)")
+    _audio = st.audio_input("🎤 (무료) 내 발음을 녹음하고 들어보세요", key=f"{qid}_record_free")
+    if _audio is not None:
+    _use_free_record_once()
+    st.audio(_audio)
+    else:
+    st.markdown(
+    '''
+    <div style="padding:12px;border:1px solid #FFD54F;border-radius:12px;background:#FFF8E1;">
+    <div style="font-weight:800;">🎙️ 발음 녹음 기능은 PRO 전용입니다</div>
+    <div style="margin-top:6px;font-size:0.92rem;opacity:0.9;">
     오늘의 무료 녹음 3회를 모두 사용했습니다.
-  </div>
-  <div style="margin-top:10px;">
+    </div>
+    <div style="margin-top:10px;">
     <span style="background:#FFD54F;color:#000;padding:3px 10px;border-radius:10px;font-weight:900;">PRO</span>
-  </div>
-</div>
-''',
-                    unsafe_allow_html=True,
-                )
+    </div>
+    </div>
+    ''',
+    unsafe_allow_html=True,
+    )
 
-        st.caption("정답을 보고 2~3번 따라 말한 뒤, 아래 버튼을 눌러 다음으로 넘어가세요.")
+    st.caption("정답을 보고 2~3번 따라 말한 뒤, 아래 버튼을 눌러 다음으로 넘어가세요.")
 
 
-        if st.button("✅ 다 했어요 (다음)", use_container_width=True, key=f"{NS}_next_after"):
-            st.success("+2 XP 🎤 (말하기 완료 보상)")
+    if st.button("✅ 다 했어요 (다음)", use_container_width=True, key=f"{NS}_next_after"):
+    st.success("+2 XP 🎤 (말하기 완료 보상)")
 
-            nxt = idx + 1
-            if nxt >= len(qids):
-                nxt = 0
-            st.session_state[f"{NS}_idx"] = nxt
-            # 상태 초기화(다음 문제)
-            st.session_state[submitted_key] = False
-            st.session_state.pop(sel_key, None)
-            st.session_state.pop(f"{NS}_radio_{qid}", None)
-            st.session_state.pop(f"{NS}_speak_done_{qid}", None)
-            st.rerun()
+    nxt = idx + 1
+    if nxt >= len(qids):
+    nxt = 0
+    st.session_state[f"{NS}_idx"] = nxt
+    # 상태 초기화(다음 문제)
+    st.session_state[submitted_key] = False
+    st.session_state.pop(sel_key, None)
+    st.session_state.pop(f"{NS}_radio_{qid}", None)
+    st.session_state.pop(f"{NS}_speak_done_{qid}", None)
+    st.rerun()
 
-if submitted:
-    # ============================================================
-# ✅ Set completion (10문제 모두 제출되면 자동 집계)
+    if submitted:
+    # ============================================================# ✅ Set completion (10문제 모두 제출되면 자동 집계)
 # ============================================================
 
 def is_done_one(qid_: str) -> bool:
