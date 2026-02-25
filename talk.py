@@ -111,12 +111,12 @@ def _inject_talk_ui_css():
 
 /* 🔥 발음(스피커) 영역 아래 여백 제거 */
 .ttspair {
-  margin-bottom: -4px !important;
+  margin-bottom: -7px !important;
 }
 
 /* st.info(파란박스) 기본 top 여백 줄이기 */
 div[data-testid="stAlert"] {
-  margin-top: 2px !important;
+  margin-top: 0px !important;
 }
 
 </style>
