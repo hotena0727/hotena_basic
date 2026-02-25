@@ -62,7 +62,7 @@ def calc_speaking_score(user_text: str, correct_text: str) -> int:
     return int(round(r * 100))
 
 def browser_stt_component(widget_id: str, qid: str, lang: str = "ja-JP"):
-    """브라우저 STT(무료) — 커스텀 컴포넌트 없이 queryparam으로 텍스트를 전달합니다.
+    """브라우저 STT — 커스텀 컴포넌트 없이 queryparam으로 텍스트를 전달합니다.
     사용 흐름:
       - 사용자: 🎙 시작 → ⏹ 정지
       - JS: 인식된 텍스트를 URL queryparam(talk_stt_qid, talk_stt_txt, talk_stt_nonce)으로 넣고 페이지 리로드
@@ -74,7 +74,7 @@ def browser_stt_component(widget_id: str, qid: str, lang: str = "ja-JP"):
 
     html = f"""
 <div style="padding:10px 12px;border:1px solid rgba(0,0,0,.08);border-radius:12px;background:rgba(0,0,0,.02);">
-  <div style="font-weight:800; margin-bottom:6px;">📝 브라우저 STT (무료)</div>
+  <div style="font-weight:800; margin-bottom:6px;">📝 브라우저 STT</div>
   <div style="font-size:0.92rem; opacity:0.9; line-height:1.35;">
     Chrome에서 가장 안정적입니다. (iOS Safari는 동작이 불안정할 수 있어요)
   </div>
@@ -103,7 +103,7 @@ def browser_stt_component(widget_id: str, qid: str, lang: str = "ja-JP"):
       url.searchParams.set("talk_stt_qid", "{qid_safe}");
       url.searchParams.set("talk_stt_txt", txt || "");
       url.searchParams.set("talk_stt_nonce", String(Date.now()));
-      window.location.href = url.toString();
+      window.parent.location.href = url.toString();
     }} catch(e) {{}}
   }}
 
@@ -144,7 +144,7 @@ def browser_stt_component(widget_id: str, qid: str, lang: str = "ja-JP"):
     finalText = "";
     interim = "";
     textEl.textContent = "";
-    try {{ rec.start(); }} catch(e) {{}}
+    try { rec.start(); } catch(e) { stateEl.textContent = "시작 실패: " + (e && e.message ? e.message : "권한/환경 문제"); }
   }};
 
   btnStop.onclick = () => {{
@@ -157,7 +157,7 @@ def browser_stt_component(widget_id: str, qid: str, lang: str = "ja-JP"):
 </script>
 """
     # NOTE: 일부 Streamlit 버전에서 components.html은 key 인자를 받지 않습니다.
-    return components.html(html, height=220, scrolling=False)
+    return components.html(html, height=280, scrolling=False)
 
 from supabase import create_client
 
@@ -1500,7 +1500,7 @@ if submitted:
 
 
         # ===========================
-        # ✅ 브라우저 STT → 말하기 정확도(무료)
+        # ✅ 브라우저 STT → 말하기 정확도
         # - 정답(answer_jp)을 보고 따라 말했는지 "문장 일치도"로 점수화
         # ===========================
         correct_text = (row.get("answer_jp", "") or "").strip()
@@ -1635,7 +1635,7 @@ def _render_talk_fab_next():
     try{
       const url = new URL(window.location.href);
       url.searchParams.set("talk_next","1");
-      window.location.href = url.toString();
+      window.parent.location.href = url.toString();
     }catch(e){}
   });
 })();
