@@ -1815,61 +1815,6 @@ def _hub_build_base_qs() -> str:
         parts.append("at=" + _q(at_enc))
     return ("&".join(parts) + "&") if parts else ""
 
-def render_bottom_nav(active: str = "home"):
-    """Mobile-only bottom nav. Hidden on wide screens."""
-    base = _hub_build_base_qs()
-    def href(p: str) -> str:
-        return "?" + base + "p=" + p
-
-    # Mobile only: hide on >= 801px
-    html = f"""<style>
-.hub-bottom-nav {{
-  position: fixed;
-  left: 0; right: 0; bottom: 0;
-  z-index: 2147483000;
-  padding: 10px 12px 12px;
-  background: rgba(255,255,255,0.92);
-  backdrop-filter: blur(10px);
-  border-top: 1px solid rgba(0,0,0,0.08);
-}}
-.hub-bottom-nav .row {{
-  display:flex; gap: 10px; justify-content:space-between;
-  max-width: 840px; margin: 0 auto;
-}}
-.hub-bottom-nav a {{
-  flex: 1 1 0;
-  text-decoration:none;
-  color: rgba(20,20,20,0.92);
-  border: 1px solid rgba(0,0,0,0.08);
-  border-radius: 14px;
-  padding: 10px 8px;
-  display:flex; flex-direction:column; align-items:center; justify-content:center;
-  font-size: 12px;
-  background: rgba(0,0,0,0.02);
-}}
-.hub-bottom-nav a .ic {{ font-size: 18px; line-height: 1; margin-bottom: 4px; }}
-.hub-bottom-nav a.active {{
-  background: rgba(0,0,0,0.88);
-  color: #fff;
-  border-color: rgba(0,0,0,0.88);
-}}
-@media (min-width: 801px) {{
-  .hub-bottom-nav {{ display:none !important; }}
-}}
-</style>
-<div class="hub-bottom-nav">
-  <div class="row">
-    <a href="{href('home')}" target="_self" class="{ 'active' if active=='home' else '' }"><div class="ic">🏠</div><div>홈</div></a>
-    <a href="{href('word')}" target="_self" class="{ 'active' if active=='word' else '' }"><div class="ic">📘</div><div>단어</div></a>
-    <a href="{href('kanji')}" target="_self" class="{ 'active' if active=='kanji' else '' }"><div class="ic">🈶</div><div>한자</div></a>
-    <a href="{href('talk')}" target="_self" class="{ 'active' if active=='talk' else '' }"><div class="ic">💬</div><div>회화</div></a>
-    <a href="{href('my')}" target="_self" class="{ 'active' if active=='my' else '' }"><div class="ic">👤</div><div>MY</div></a>
-  </div>
-</div>"""
-    st.markdown(html, unsafe_allow_html=True)
-
-
-    return
 def run_script(filename: str):
     path = (BASE_DIR / filename).resolve()
     if not path.exists() or not path.is_file():
