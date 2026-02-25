@@ -1387,6 +1387,40 @@ if submitted:
                         },
                     )
                 st.info(ans)
+# ============================================================
+# ✅ (추가) 정답 발음 확인 버튼용: 플레이어 없이 즉시 재생(JS Audio / TTS)
+# - 브라우저에 플레이어 UI가 뜨지 않게, new Audio().play()로만 재생
+# - JS 문자열은 % 포맷을 써서 f-string 중괄호 오류를 방지
+# ============================================================
+import json as _json
+
+def _play_audio_no_player(url: str) -> None:
+    url = (url or "").strip()
+    if not url:
+        return
+    try:
+        components.html(
+            "<script>(function(){try{new Audio(%s).play();}catch(e){}})();</script>" % _json.dumps(url),
+            height=0,
+        )
+    except Exception:
+        pass
+
+def _speak_no_player(text: str) -> None:
+    txt = (text or "").strip()
+    if not txt:
+        return
+    try:
+        components.html(
+            "<script>(function(){try{const synth=window.speechSynthesis;if(!synth)return;"
+            "function pick(){const vs=synth.getVoices()||[];const ja=vs.filter(v=>(String(v.lang||'').toLowerCase().startsWith('ja')));"
+            "return ja.find(v=>/google/i.test(v.name||''))||ja[0]||null;}"
+            "const u=new SpeechSynthesisUtterance(%s);u.lang='ja-JP';const v=pick();if(v)u.voice=v;"
+            "synth.cancel();synth.speak(u);}catch(e){}})();</script>" % _json.dumps(txt),
+            height=0,
+        )
+    except Exception:
+        pass
 
 if submitted:
     with st.container(border=True):
@@ -1403,7 +1437,41 @@ if submitted:
         )
 
 
-        # ✅ 말하기 녹음(선택)
+        
+        # ✅ 정답 발음 확인 (플레이어 없이)
+        # - PRO: 무제한
+        # - FREE: 남은 발음 듣기(무료 3회/일) 내에서 사용
+        _ans_audio = (
+            row.get("answer_mp3", "")
+            or row.get("answer_audio", "")
+            or row.get("answer_audio_url", "")
+            or ""
+        )
+        _ans_audio = resolve_audio_url(str(_ans_audio))
+        _ans_txt = str(row.get("answer_jp", "") or "").strip()
+
+        if IS_PRO:
+            if st.button("🔊 정답 발음 확인", key=f"{qid}_ans_pron", use_container_width=True):
+                if _ans_audio:
+                    _play_audio_no_player(_ans_audio)
+                else:
+                    _speak_no_player(_ans_txt)
+        else:
+            _rem_tts = _free_tts_remaining()
+            if _rem_tts > 0:
+                if st.button(
+                    f"🔊 정답 발음 확인 (무료 {FREE_TTS_QUOTA-_rem_tts+1}/{FREE_TTS_QUOTA})",
+                    key=f"{qid}_ans_pron_free",
+                    use_container_width=True,
+                ):
+                    _use_free_tts_once()
+                    if _ans_audio:
+                        _play_audio_no_player(_ans_audio)
+                    else:
+                        _speak_no_player(_ans_txt)
+            else:
+                st.button("🔒 정답 발음 확인 (PRO)", key=f"{qid}_ans_pron_lock", disabled=True, use_container_width=True)
+# ✅ 말하기 녹음(선택)
         # - PRO: 녹음 가능
         # - FREE: PRO 안내 카드 노출
         if IS_PRO:
@@ -1504,40 +1572,6 @@ if submitted:
         if st.session_state.get(score_key) is not None:
             st.metric("점수", int(st.session_state.get(score_key) or 0))
 
-        # ✅ 정답 발음 확인 (mp3 우선, 없으면 TTS) — 플레이어 없이 재생
-        _ans_audio = row.get('answer_mp3','') or row.get('answer_audio','') or row.get('answer_audio_url','') or ''
-        _ans_audio = resolve_audio_url(str(_ans_audio))
-        _ans_txt = str(row.get('answer_jp','') or '').strip()
-
-        def _play_audio_no_player(_url: str):
-            try:
-                components.html(f"""<script>(function(){try{new Audio({_url!r}).play();}catch(e){}})();</script>""", height=0)
-            except Exception:
-                pass
-
-        def _speak_no_player(_txt: str):
-            try:
-                components.html(f"""<script>(function(){try{const s=window.speechSynthesis;function pick(){const vs=s.getVoices()||[];const ja=vs.filter(v=>String(v.lang||'').toLowerCase().startsWith('ja'));return ja.find(v=>/google/i.test(v.name||''))||ja[0]||null;}const u=new SpeechSynthesisUtterance({_txt.replace(chr(10),' ')!r});u.lang='ja-JP';const v=pick();if(v)u.voice=v;s.cancel();s.speak(u);}catch(e){}})();</script>""", height=0)
-            except Exception:
-                pass
-
-        if IS_PRO:
-            if st.button('🔊 정답 발음 확인', use_container_width=True, key=f"{qid}_ans_pron_btn"):
-                if _ans_audio:
-                    _play_audio_no_player(_ans_audio)
-                else:
-                    _speak_no_player(_ans_txt)
-        else:
-            _rem = _free_tts_remaining()
-            if _rem > 0:
-                if st.button(f"🔊 정답 발음 확인 (무료 {FREE_TTS_QUOTA-_rem+1}/{FREE_TTS_QUOTA})", use_container_width=True, key=f"{qid}_ans_pron_btn_free"):
-                    _use_free_tts_once()
-                    if _ans_audio:
-                        _play_audio_no_player(_ans_audio)
-                    else:
-                        _speak_no_player(_ans_txt)
-            else:
-                st.button('🔒 정답 발음 확인 (PRO)', use_container_width=True, disabled=True, key=f"{qid}_ans_pron_btn_lock")
         st.caption("정답을 보고 2~3번 따라 말해 보세요. 녹음이 끝나면 점수가 자동으로 계산됩니다.")
         reward_key = f"{NS}_reward_ready_{qid}"
         if st.button("✅ 다 했어요 (보상 받기)", use_container_width=True, key=f"{NS}_next_after"):
