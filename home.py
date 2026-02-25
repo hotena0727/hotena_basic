@@ -1099,8 +1099,8 @@ def render_home_dashboard(sb_authed, user):
   <div class="h-guide-mini">
     <p class="h-guide-mini-t">📘 하테나일본어 앱 사용 흐름</p>
     <div class="h-guide-mini-actions">
-      <a class="h-guide-btn ghost" href="?flow=open">사용 흐름 보기 ▼</a>
-      <a class="h-guide-btn primary" href="?p=word">단어부터 시작하기</a>
+        <a class="h-guide-btn ghost" href="?flow=open" target="_self">사용 흐름 보기 ▼</a>
+        <a class="h-guide-btn primary" href="?p=word" target="_self">단어부터 시작하기</a>
     </div>
   </div>
 </div>
@@ -1123,8 +1123,8 @@ def render_home_dashboard(sb_authed, user):
     <li class="h-step"><span class="h-step-badge">3</span><span class="h-step-t">익숙해지면 <b>회화</b>까지 확장 (매일 조금씩)</span></li>
   </ul>
   <div class="h-guide-actions">
-    <a class="h-guide-btn primary" href="?p=word">단어부터 시작하기</a>
-    <a class="h-guide-btn ghost" href="?flow=hide">이 안내 접기</a>
+    <a class="h-guide-btn primary" href="?p=word" target="_self">단어부터 시작하기</a>
+    <a class="h-guide-btn ghost" href="?flow=hide" target="_self">이 안내 접기</a>
   </div>
 </div>
 ''',
