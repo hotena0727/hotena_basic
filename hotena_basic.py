@@ -77,6 +77,10 @@ if not st.session_state.get('_page_config_set'):
 # ============================================================
 if not st.session_state.get("_top_compact_css_applied"):
     st.markdown("""<style>
+/* ✅ A안: Streamlit 기본 헤더/푸터 숨김 + 상단 여백 최소화 */
+header{visibility:hidden;height:0px;}
+footer{visibility:hidden;height:0px;}
+
 /* === Hotena: ultra-compact top spacing (mobile + desktop) === */
 /* 핵심: block-container의 기본 top padding 제거 + 첫 요소 여백 제거 */
 section.main > div.block-container,
