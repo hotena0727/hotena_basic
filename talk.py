@@ -1331,7 +1331,6 @@ if submitted:
                 value=q_default,
                 key="talk_ai_input",
             )
-        st.markdown("### 💬 하테나쌤 스마트 코치")
 
         q_default = st.session_state.get("talk_ai_last_q") or ""
         user_q = st.text_input(
