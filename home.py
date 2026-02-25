@@ -207,7 +207,7 @@ div[data-testid="stAppViewContainer"]{
 div[data-testid="stAppViewContainer"] .block-container{
   padding-top: 0 !important;
   margin-top: 0 !important;
-  padding-bottom: 5.25rem !important; /* keep breathing room for bottom nav */
+  padding-bottom: 1.25rem !important; /* keep breathing room for bottom nav */
 }
 
 /* Headlines: tighter */
@@ -270,7 +270,7 @@ div[data-testid="stMetric"]{
     padding-left: 1.0rem !important;
     padding-right: 1.0rem !important;
     padding-top: 0.15rem !important;
-    padding-bottom: 6.0rem !important;
+    padding-bottom: 1.5rem !important;
   }
 
   /* Slightly larger tap targets on phones */
