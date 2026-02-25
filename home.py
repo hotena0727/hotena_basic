@@ -2918,6 +2918,11 @@ if isinstance(p, str) and p:
 # ✅ Always render floating menu + plan pill in hub mode (after auth)
 render_plan_pill()
 
+
+# ✅ Authed Supabase client + user object (used by dashboard/pages)
+sb_authed = get_authed_sb()
+user = st.session_state.get("user") or {}
+
 page = st.session_state.get("hub_page", "home")
 core.render_top_nav(active=page)
 
