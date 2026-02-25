@@ -1080,38 +1080,36 @@ with st.container(border=True):
         # - st.button 4개는 클릭할 때마다 전체가 재렌더링되어 체감이 느릴 수 있어
         # - st.radio 1개 위젯으로 선택만 바꾸면 훨씬 가볍고, 보기 순서도 고정됨
         radio_key = f"{NS}_radio_{qid}"
-        # 기존 selected가 있으면 라디오 기본값으로 반영
-        # ✅ 초기에는 선택이 비어있어야 하므로, 선택값이 없으면 index=None로 둡니다.
-        # (Streamlit이 지원하는 경우 라디오가 미선택 상태로 시작합니다.)
-        if selected and selected in choices:
-            default_idx = choices.index(selected)
-        else:
-            default_idx = None
 
-        form_key = f"{NS}_form_{qid}"
-        with st.form(key=form_key, clear_on_submit=False):
-            picked = st.radio(
-                label="보기 선택",
-                options=choices,
-                index=default_idx,
-                key=radio_key,
-                disabled=submitted,
-                label_visibility="collapsed",
-            )            submitted_now = st.form_submit_button(
-                "정답 제출",
-                use_container_width=True,
-                disabled=submitted,
-            )
+        # ✅ 초기 선택은 비워두기: 기존 선택이 있을 때만 index 지정
+        default_idx = choices.index(selected) if (selected and selected in choices) else None
+
+        picked = st.radio(
+            label="보기 선택",
+            options=choices,
+            index=default_idx,  # None이면 미선택 상태
+            key=radio_key,
+            disabled=submitted,
+            label_visibility="collapsed",
+        )
+
+        # ✅ radio는 선택 시 즉시 rerun되므로, 버튼 활성화가 즉시 반영됨
+        can_submit = bool(picked) and (not submitted)
+        submitted_now = st.button(
+            "정답 제출",
+            use_container_width=True,
+            disabled=not can_submit,
+            key=f"{NS}_submit_{qid}",
+        )
 
         # 제출 시에만 선택/제출 상태를 확정
         if submitted_now and (not submitted):
-            if not picked:
-                st.warning(\"보기를 선택해 주세요.\")
-            else:
-                st.session_state[sel_key] = picked
-                st.session_state[submitted_key] = True
-                selected = picked
-                submitted = True
+            st.session_state[sel_key] = picked
+            st.session_state[submitted_key] = True
+            selected = picked
+            submitted = True
+
+
 # ============================================================
 # ✅ After submit
 # ============================================================
