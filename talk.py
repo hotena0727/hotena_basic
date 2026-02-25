@@ -1097,21 +1097,21 @@ with st.container(border=True):
                 key=radio_key,
                 disabled=submitted,
                 label_visibility="collapsed",
-            )
-            can_submit = bool(picked) and (not submitted)
-            submitted_now = st.form_submit_button(
+            )            submitted_now = st.form_submit_button(
                 "정답 제출",
                 use_container_width=True,
-                disabled=not can_submit,
+                disabled=submitted,
             )
 
         # 제출 시에만 선택/제출 상태를 확정
         if submitted_now and (not submitted):
-            st.session_state[sel_key] = picked
-            st.session_state[submitted_key] = True
-            selected = picked
-            submitted = True
-
+            if not picked:
+                st.warning(\"보기를 선택해 주세요.\")
+            else:
+                st.session_state[sel_key] = picked
+                st.session_state[submitted_key] = True
+                selected = picked
+                submitted = True
 # ============================================================
 # ✅ After submit
 # ============================================================
