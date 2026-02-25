@@ -1085,33 +1085,29 @@ with st.container(border=True):
         else:
             default_idx = 0
 
-        picked = st.radio(
-            label="보기 선택",
-            options=choices,
-            index=default_idx,
-            key=radio_key,
-            disabled=submitted,
-            label_visibility="collapsed",
-        )
-        # 선택값 반영
-        if not submitted:
-            st.session_state[sel_key] = picked
-            selected = picked
+        form_key = f"{NS}_form_{qid}"
+        with st.form(key=form_key, clear_on_submit=False):
+            picked = st.radio(
+                label="보기 선택",
+                options=choices,
+                index=default_idx,
+                key=radio_key,
+                disabled=submitted,
+                label_visibility="collapsed",
+            )
+            can_submit = bool(picked) and (not submitted)
+            submitted_now = st.form_submit_button(
+                "정답 제출",
+                use_container_width=True,
+                disabled=not can_submit,
+            )
 
-        # ============================================================
-        # ✅ Controls (단순화)
-        # - 이전/다음 제거
-        # - "정답 제출" 버튼은 유지 (제출 후에는 비활성)
-        # - "다음 문제" 버튼은 최하단(말하기 완료 아래)에서만 노출
-        # ============================================================
-        can_submit = bool(selected) and (not submitted)
-        st.button(
-            "정답 제출",
-            use_container_width=True,
-            disabled=not can_submit,
-            key=f"{NS}_submit",
-            on_click=(lambda: st.session_state.__setitem__(submitted_key, True)),
-        )
+        # 제출 시에만 선택/제출 상태를 확정
+        if submitted_now and (not submitted):
+            st.session_state[sel_key] = picked
+            st.session_state[submitted_key] = True
+            selected = picked
+            submitted = True
 
 # ============================================================
 # ✅ After submit
