@@ -1266,7 +1266,7 @@ if submitted:
 
         if explain_kr:
             st.markdown("<div style='margin-top:-28px'></div>", unsafe_allow_html=True)
-            st.info("💡 하테나쌤 원포인트 일본어\n\n포인트: 상황에서 ‘요청/사과/확인/거절’ 중 무엇인지 먼저 잡고, 그에 맞는 톤(정중/캐주얼)을 고르면 실수가 줄어듭니다.")을 고르면 실수가 줄어듭니다.")
+            st.info("💡 하테나쌤 원포인트 일본어\n\n포인트: 상황에서 ‘요청/사과/확인/거절’ 중 무엇인지 먼저 잡고, 그에 맞는 톤(정중/캐주얼)을 고르면 실수가 줄어듭니다.")
 
             # ✅ AI 코칭용 컨텍스트
             ctx_parts = []
