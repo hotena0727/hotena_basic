@@ -950,23 +950,54 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
     components.html(html, height=120)
 
 def play_audio_or_tts(text: str, audio_url: str, label: str, key: str):
-    """PRO: mp3 URL 재생 / FREE: 잠금. URL 없으면 TTS fallback."""
+    """정답 발음 재생 유틸.
+    - mp3 URL이 있으면 그걸 우선 재생
+    - URL이 없으면 브라우저 TTS(SpeechSynthesis)로 fallback
+    - FREE는 일일 횟수 제한(FREE_TTS_QUOTA) 내에서만 허용
+    """
     audio_url = (audio_url or "").strip()
-    # URL이 전체가 아니면 BASE_AUDIO_URL을 붙입니다.
-    if audio_url and (not audio_url.startswith('http://')) and (not audio_url.startswith('https://')):
-        audio_url = BASE_AUDIO_URL.rstrip('/') + '/' + audio_url.lstrip('/')
 
+    # URL이 전체가 아니면 BASE_AUDIO_URL을 붙입니다.
+    if audio_url and (not audio_url.startswith("http://")) and (not audio_url.startswith("https://")):
+        audio_url = BASE_AUDIO_URL.rstrip("/") + "/" + audio_url.lstrip("/")
+
+    # FREE 남은 횟수
+    rem = _free_tts_remaining() if (not IS_PRO) else 999999
+
+    def _locked():
+        st.button(f"🔒 {label}", disabled=True, key=f"{key}_lock")
+
+    def _consume_once():
+        if not IS_PRO:
+            _use_free_tts_once()
+
+    # 1) URL 오디오가 있으면: 버튼 클릭 시 재생
     if audio_url:
         if IS_PRO:
             if st.button(f"🔊 {label}", key=f"{key}_btn"):
                 st.audio(audio_url)
         else:
-            st.button(f"🔒 {label} (PRO 전용)", disabled=True, key=f"{key}_lock")
+            if rem > 0:
+                st.caption(f"FREE 발음 듣기 남은 횟수: {rem}/{FREE_TTS_QUOTA} (오늘 기준)")
+                if st.button(f"🔊 {label}", key=f"{key}_btn_free"):
+                    _consume_once()
+                    st.audio(audio_url)
+            else:
+                _locked()
         return
 
-    # URL이 없으면 브라우저 TTS fallback
-    if st.button(f"🔊 {label}", key=f"{key}_ttsbtn"):
-        tts_button(text, label, key=f"{key}_tts")
+    # 2) URL이 없으면: 브라우저 TTS fallback
+    if IS_PRO:
+        if st.button(f"🔊 {label}", key=f"{key}_ttsbtn"):
+            tts_button(text, label, key=f"{key}_tts")
+    else:
+        if rem > 0:
+            st.caption(f"FREE 발음 듣기 남은 횟수: {rem}/{FREE_TTS_QUOTA} (오늘 기준)")
+            if st.button(f"🔊 {label}", key=f"{key}_ttsbtn_free"):
+                _consume_once()
+                tts_button(text, label, key=f"{key}_tts")
+        else:
+            _locked()
 
 def build_choices(row: dict, pool_answers: list[str]) -> list[str]:
     correct = str(row.get("answer_jp", "")).strip()
@@ -1419,6 +1450,12 @@ if submitted:
             unsafe_allow_html=True,
         )
 
+
+        # ✅ 정답 발음(TTS/MP3)
+        ans_text = (row.get("answer_jp", "") or "").strip()
+        ans_audio = row.get("answer_mp3","") or row.get("answer_audio","") or row.get("answer_audio_url","") or ""
+        if ans_text:
+            play_audio_or_tts(ans_text, ans_audio, label="정답 발음 듣기", key=f"{qid}_answer_audio")
 
         # ✅ 말하기 녹음(선택)
         # - PRO: 녹음 가능
