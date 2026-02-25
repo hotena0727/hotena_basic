@@ -872,7 +872,7 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
 </script>
 """
 
-    components.html(html, height=72)
+    components.html(html, height=120)
 
 def play_audio_or_tts(text: str, audio_url: str, label: str, key: str):
     """PRO: mp3 URL 재생 / FREE: 잠금. URL 없으면 TTS fallback."""
@@ -1265,34 +1265,39 @@ if submitted:
         hint = str(row.get("hint_kr", "")).strip()
 
         if explain_kr:
-            st.markdown("<div style='margin-top:-28px'></div>", unsafe_allow_html=True)
+            st.markdown("<div style='margin-top:-18px'></div>", unsafe_allow_html=True)
+            st.info("💡 하테나쌤 원포인트 일본어\n\n" + explain_kr)
+        elif hint:
+            st.markdown("<div style='margin-top:-18px'></div>", unsafe_allow_html=True)
+            st.info("💡 하테나쌤 원포인트 일본어\n\n" + hint)
+        else:
+            st.markdown("<div style='margin-top:-18px'></div>", unsafe_allow_html=True)
             st.info("💡 하테나쌤 원포인트 일본어\n\n포인트: 상황에서 ‘요청/사과/확인/거절’ 중 무엇인지 먼저 잡고, 그에 맞는 톤(정중/캐주얼)을 고르면 실수가 줄어듭니다.")
 
-            # ✅ AI 코칭용 컨텍스트
+        with st.expander("🤖 내용이 어려우면 하테나쌤에게 물어보세요", expanded=False):
+            st.markdown("### 💬 하테나쌤 스마트 코치")
+
+            q_default = st.session_state.get("talk_ai_last_q") or ""
+            user_q = st.text_input(
+                "질문",
+                value=str(q_default),
+                key=f"talk_ai_q_{qid}",
+                placeholder="예) 더 자연스러운 표현도 있어요? / 회화에 도움이 되는 패키지는 뭐예요?",
+                label_visibility="collapsed",
+            )
+
+            # auto context (cheap)
             ctx_parts = []
-            s0 = str(row.get("situation_jp", "")).strip()
-            p0 = str(row.get("partner_jp", "")).strip()
-            a0 = str(row.get("answer_jp", "")).strip()
-            me0 = str(selected or "").strip()
-
-            if s0:
-                ctx_parts.append(f"현재상황: {s0}")
-            if p0:
-                ctx_parts.append(f"상대발화: {p0}")
-            if a0:
-                ctx_parts.append(f"정답표현: {a0}")
-            if me0:
-                ctx_parts.append(f"내선택: {me0}")
-
-            # ✅ ok 안전화(스코프/들여쓰기 흔들림 방지)
-            try:
-                ok_flag = bool(ok)
-            except Exception:
-                try:
-                    ok_flag = bool((answers or {}).get(qid, {}).get("ok"))
-                except Exception:
-                    ok_flag = False
-            ctx_parts.append(f"정오답: {'정답' if ok_flag else '오답'}")
+            s = str(row.get("situation_kr", "")).strip()
+            p = str(row.get("partner_jp", "")).strip()
+            a = str(row.get("answer_jp", "")).strip()
+            me = str(selected or "").strip()
+            ctx_parts.append(f"현재상황: {s}")
+            ctx_parts.append(f"상대발화: {p}")
+            ctx_parts.append(f"정답표현: {a}")
+            if me:
+                ctx_parts.append(f"내선택: {me}")
+            ctx_parts.append(f"정오답: {'정답' if ok else '오답'}")
 
             try:
                 recent = _recent_turns_summary()
@@ -1305,14 +1310,7 @@ if submitted:
 
             st.caption("핵심을 짚어 질문할수록 더 정밀한 코칭을 받을 수 있어요.")
 
-            col_ai1, col_ai2 = st.columns([5, 2])
-            with col_ai1:
-                ask = st.button("AI 코칭 받기 시작", use_container_width=True, key=f"talk_ai_ask_{qid}")
-            with col_ai2:
-                # (선택) 질문 초기화
-                if st.button("초기화", use_container_width=True, key=f"talk_ai_reset_{qid}"):
-                    st.session_state["talk_ai_last_q"] = ""
-                    st.session_state[f"talk_ai_q_{qid}"] = ""
+            ask = st.button("AI 코칭 받기 시작", use_container_width=True, key=f"talk_ai_ask_{qid}")
 
             if ask and str(user_q).strip():
                 st.session_state["talk_ai_last_q"] = str(user_q).strip()
@@ -1327,15 +1325,63 @@ if submitted:
                             "tag": str(tag),
                             "sub": str(sub) if 'sub' in locals() else "",
                             "submitted": True,
-                            "ok": bool(ok_flag),
+                            "ok": bool(ok),
                         },
                     )
                 st.info(ans)
 
+if submitted:
+    with st.container(border=True):
+        total_cnt = len(qids)
+        current_no = idx + 1
+        st.markdown(
+            f"""
+        <div style="display:flex; align-items:baseline; justify-content:space-between; gap:12px;">
+          <div style="font-size:1.25rem; font-weight:700;">🎙️ 발음 체크</div>
+          <div style="font-size:1rem; opacity:0.85;">📘 진행: {current_no} / {total_cnt}</div>
+        </div>
+        """,
+            unsafe_allow_html=True,
+        )
+
+
+        # ✅ 말하기 녹음(선택)
+        # - PRO: 녹음 가능
+        # - FREE: PRO 안내 카드 노출
+        if IS_PRO:
+            _audio = st.audio_input("🎤 (선택) 내 발음을 녹음하고 들어보세요", key=f"{qid}_record")
+            if _audio is not None:
+                st.audio(_audio)
+        else:
+            remr = _free_record_remaining()
+            if remr > 0:
+                st.caption(f"FREE 녹음 남은 횟수: {remr}/{FREE_RECORD_QUOTA} (오늘 기준)")
+                _audio = st.audio_input("🎤 (무료) 내 발음을 녹음하고 들어보세요", key=f"{qid}_record_free")
+                if _audio is not None:
+                    _use_free_record_once()
+                    st.audio(_audio)
+            else:
+                st.markdown(
+                    '''
+<div style="padding:12px;border:1px solid #FFD54F;border-radius:12px;background:#FFF8E1;">
+  <div style="font-weight:800;">🎙️ 발음 녹음 기능은 PRO 전용입니다</div>
+  <div style="margin-top:6px;font-size:0.92rem;opacity:0.9;">
+    오늘의 무료 녹음 3회를 모두 사용했습니다.
+  </div>
+  <div style="margin-top:10px;">
+    <span style="background:#FFD54F;color:#000;padding:3px 10px;border-radius:10px;font-weight:900;">PRO</span>
+  </div>
+</div>
+''',
+                    unsafe_allow_html=True,
+                )
+
+        st.caption("정답을 보고 2~3번 따라 말한 뒤, 아래 버튼을 눌러 다음으로 넘어가세요.")
         reward_key = f"{NS}_reward_ready_{qid}"
         if st.button("✅ 다 했어요 (보상 받기)", use_container_width=True, key=f"{NS}_next_after"):
             # ✅ 1단계: 보상만 보여주고, 다음 이동은 사용자가 명확히 누르도록 분리
             st.session_state[reward_key] = True
+
         if st.session_state.get(reward_key):
             st.success("+2 XP 🎤 (말하기 완료 보상)")
             st.caption("👇 아래 버튼을 누르면 다음 문제로 넘어갑니다.")
