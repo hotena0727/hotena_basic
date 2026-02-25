@@ -927,10 +927,80 @@ pool_answers = pool_df["answer_jp"].astype(str).tolist()
 # ============================================================
 # ✅ Initialize set (10 qids) + pointer
 # ============================================================
+def _is_pair_mode(df: pd.DataFrame) -> bool:
+    try:
+        return ("pair_id" in df.columns) and ("turn" in df.columns) and df["pair_id"].astype(str).str.strip().ne("").any()
+    except Exception:
+        return False
+
+def _to_turn(v) -> int | None:
+    try:
+        s = str(v).strip().lower()
+        if s in ("1", "turn1", "t1", "a"):
+            return 1
+        if s in ("2", "turn2", "t2", "b"):
+            return 2
+    except Exception:
+        return None
+    return None
+
+PAIR_MODE = _is_pair_mode(pool_df)
+
 if f"{NS}_set_qids" not in st.session_state:
-    n = min((SET_LEN if IS_PRO else FREE_SET_LEN), len(pool_df))
-    sample = pool_df.sample(n=n, replace=False).reset_index(drop=True)
-    qids = sample["qid"].astype(str).tolist()
+    # ✅ 기본(기존): qid 단위 샘플링
+    # ✅ 2턴 페어 모드: pair_id 단위로 샘플링 → (turn1, turn2) 순서로 qid를 펼쳐서 세트를 구성
+    if not PAIR_MODE:
+        n = min((SET_LEN if IS_PRO else FREE_SET_LEN), len(pool_df))
+        sample = pool_df.sample(n=n, replace=False).reset_index(drop=True)
+        qids = sample["qid"].astype(str).tolist()
+    else:
+        desired_q = int(SET_LEN if IS_PRO else FREE_SET_LEN)
+
+        # 2턴 페어는 무조건 (1,2) 한 쌍으로만 진행
+        # FREE(3문제) 같은 홀수는 '쌍 학습' 원칙을 깨지 않기 위해 1페어(=2문항)로 고정
+        if not IS_PRO:
+            desired_q = 2
+
+        tmp = pool_df.copy()
+        tmp["pair_id"] = tmp["pair_id"].astype(str).str.strip()
+        tmp["__turn"] = tmp["turn"].apply(_to_turn)
+        tmp = tmp[tmp["pair_id"].ne("") & tmp["__turn"].isin([1, 2])].copy()
+
+        # (turn1, turn2) 둘 다 있는 페어만 사용
+        valid_pairs = []
+        try:
+            g = tmp.groupby("pair_id")["__turn"].agg(lambda s: set([int(x) for x in s if x is not None]))
+            valid_pairs = [pid for pid, turns in g.items() if (1 in turns and 2 in turns)]
+        except Exception:
+            valid_pairs = []
+
+        if not valid_pairs:
+            # 페어가 없으면 안전하게 기존 방식으로 폴백
+            n = min(desired_q, len(pool_df))
+            sample = pool_df.sample(n=n, replace=False).reset_index(drop=True)
+            qids = sample["qid"].astype(str).tolist()
+        else:
+            pairs_needed = max(1, desired_q // 2)
+            pairs_needed = min(pairs_needed, len(valid_pairs))
+
+            # pandas.sample과 동일하게 완전 랜덤(새 세트마다 바뀜)
+            rng = random.Random()
+            picked_pairs = rng.sample(valid_pairs, k=pairs_needed)
+
+            qids = []
+            for pid in picked_pairs:
+                r1 = tmp[(tmp["pair_id"] == pid) & (tmp["__turn"] == 1)].sort_values("qid").head(1)
+                r2 = tmp[(tmp["pair_id"] == pid) & (tmp["__turn"] == 2)].sort_values("qid").head(1)
+                if (not r1.empty) and (not r2.empty):
+                    qids.append(str(r1.iloc[0].get("qid")))
+                    qids.append(str(r2.iloc[0].get("qid")))
+
+            # 혹시라도 부족하면 폴백(예외 안전)
+            if not qids:
+                n = min(desired_q, len(pool_df))
+                sample = pool_df.sample(n=n, replace=False).reset_index(drop=True)
+                qids = sample["qid"].astype(str).tolist()
+
     st.session_state[f"{NS}_set_qids"] = qids
     st.session_state[f"{NS}_idx"] = 0
     st.session_state[f"{NS}_answers"] = {qid: {"selected": None, "ok": None, "spoken": False} for qid in qids}
@@ -941,13 +1011,6 @@ idx: int = int(st.session_state.get(f"{NS}_idx") or 0)
 idx = max(0, min(idx, len(qids) - 1))
 answers = st.session_state.get(f"{NS}_answers") or {}
 
-# ============================================================
-# ✅ Progress header (1/10)
-#   - '새 세트' 버튼을 진행 영역 오른쪽으로 이동(필터와 분리)
-# ============================================================
-progress = (idx + 1) / max(1, len(qids))
-
-p1, p2 = st.columns([1.6, 0.6], vertical_alignment="center")
 with p1:
     st.progress(progress)
     st.caption(f"진행: {idx+1}/{len(qids)}")
