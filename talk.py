@@ -144,7 +144,7 @@ def browser_stt_component(widget_id: str, qid: str, lang: str = "ja-JP"):
     finalText = "";
     interim = "";
     textEl.textContent = "";
-    try { rec.start(); } catch(e) { stateEl.textContent = "시작 실패: " + (e && e.message ? e.message : "권한/환경 문제"); }
+    try {{ rec.start(); }} catch(e) {{ stateEl.textContent = "시작 실패: " + (e && e.message ? e.message : "권한/환경 문제"); }}
   }};
 
   btnStop.onclick = () => {{
