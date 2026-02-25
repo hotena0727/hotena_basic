@@ -61,16 +61,13 @@ def calc_speaking_score(user_text: str, correct_text: str) -> int:
     r = difflib.SequenceMatcher(None, u, c).ratio()
     return int(round(r * 100))
 
-def browser_stt_component(widget_id: str, qid: str, lang: str = "ja-JP"):
-    """브라우저 STT — 커스텀 컴포넌트 없이 queryparam으로 텍스트를 전달합니다.
-    사용 흐름:
-      - 사용자: 🎙 시작 → ⏹ 정지
-      - JS: 인식된 텍스트를 URL queryparam(talk_stt_qid, talk_stt_txt, talk_stt_nonce)으로 넣고 페이지 리로드
-      - Python: st.query_params에서 값을 읽어 세션에 저장하고, queryparam을 지운 뒤 rerun
+def browser_stt_component(widget_id: str, lang: str = "ja-JP"):
+    """브라우저 STT (표시용)
+    - Streamlit components.html은 iframe이라, 결과 텍스트를 Python으로 "반환"하거나
+      부모 URL(queryparam)로 전달하는 방식이 환경에 따라 차단될 수 있습니다.
+    - 따라서 이 컴포넌트는 **인식 결과를 화면에 표시**하는 용도로만 사용합니다.
     """
-    # JS-safe escape for IDs only
     wid = (widget_id or "stt").replace('"', '').replace("'", "").replace(" ", "_")
-    qid_safe = (qid or "").replace('"', '').replace("'", "")
 
     html = f"""
 <div style="padding:10px 12px;border:1px solid rgba(0,0,0,.08);border-radius:12px;background:rgba(0,0,0,.02);">
@@ -85,7 +82,7 @@ def browser_stt_component(widget_id: str, qid: str, lang: str = "ja-JP"):
   </div>
   <div style="margin-top:10px;">
     <div style="font-size:0.9rem; font-weight:700; opacity:0.85;">인식 결과</div>
-    <div id="{wid}_text" style="margin-top:6px; padding:10px; border-radius:10px; background:white; border:1px solid rgba(0,0,0,.08); min-height:44px; white-space:pre-wrap;"></div>
+    <div id="{wid}_text" style="margin-top:6px; padding:10px; border-radius:10px; background:white; border:1px solid rgba(0,0,0,.08); min-height:60px; white-space:pre-wrap;"></div>
   </div>
 </div>
 
@@ -96,16 +93,6 @@ def browser_stt_component(widget_id: str, qid: str, lang: str = "ja-JP"):
   const textEl  = document.getElementById("{wid}_text");
   const btnStart = document.getElementById("{wid}_start");
   const btnStop  = document.getElementById("{wid}_stop");
-
-  function pushToUrl(txt) {{
-    try {{
-      const url = new URL(window.parent.location.href);
-      url.searchParams.set("talk_stt_qid", "{qid_safe}");
-      url.searchParams.set("talk_stt_txt", txt || "");
-      url.searchParams.set("talk_stt_nonce", String(Date.now()));
-      window.parent.location.href = url.toString();
-    }} catch(e) {{ stateEl.textContent = "URL 전달 실패"; }}
-  }}
 
   if (!SpeechRecognition) {{
     stateEl.textContent = "이 브라우저는 STT를 지원하지 않습니다.";
@@ -124,9 +111,7 @@ def browser_stt_component(widget_id: str, qid: str, lang: str = "ja-JP"):
 
   rec.onstart = () => {{ stateEl.textContent = "듣는 중…"; }};
   rec.onend = () => {{ stateEl.textContent = "대기 중"; }};
-  rec.onerror = (e) => {{
-    stateEl.textContent = "오류: " + (e.error || "unknown");
-  }};
+  rec.onerror = (e) => {{ stateEl.textContent = "오류: " + (e.error || "unknown"); }};
   rec.onresult = (event) => {{
     interim = "";
     for (let i = event.resultIndex; i < event.results.length; i++) {{
@@ -144,20 +129,19 @@ def browser_stt_component(widget_id: str, qid: str, lang: str = "ja-JP"):
     finalText = "";
     interim = "";
     textEl.textContent = "";
-    try {{ rec.start(); }} catch(e) {{ stateEl.textContent = "시작 실패: " + (e && e.message ? e.message : "권한/환경 문제"); }}
+    try {{ rec.start(); }} catch(e) {{
+      stateEl.textContent = "시작 실패: " + (e && e.message ? e.message : "권한/환경 문제");
+    }}
   }};
 
   btnStop.onclick = () => {{
     try {{ rec.stop(); }} catch(e) {{}}
-    const out = (finalText + interim).trim();
-    // ✅ 정지 시 최종 텍스트를 URL로 넘김
-    pushToUrl(out);
   }};
 }})();
 </script>
 """
-    # NOTE: 일부 Streamlit 버전에서 components.html은 key 인자를 받지 않습니다.
-    return components.html(html, height=280, scrolling=False)
+    return components.html(html, height=300, scrolling=False)
+
 
 from supabase import create_client
 
@@ -288,6 +272,83 @@ def get_cfg(key: str) -> str:
     except Exception:
         return ""
 
+
+
+# ============================================================
+# ✅ A안(서버 STT) helpers — OpenAI Transcribe/Whisper
+# - 브라우저 STT 결과를 Python으로 안전하게 전달하기 어려운 환경이 있어
+#   점수는 "녹음 오디오"를 서버에서 STT한 결과로 계산합니다.
+# ============================================================
+import os
+import hashlib as _hashlib
+
+def _get_openai_api_key() -> str:
+    # 우선순위: env > secrets(cfg) > session_state
+    k = (os.environ.get("OPENAI_API_KEY") or "").strip()
+    if k:
+        return k
+    try:
+        k = (get_cfg("OPENAI_API_KEY") or "").strip()
+        if k:
+            return k
+    except Exception:
+        pass
+    k = (st.session_state.get("OPENAI_API_KEY") or "").strip()
+    return k
+
+def _audio_bytes(file_obj) -> bytes:
+    if file_obj is None:
+        return b""
+    # streamlit UploadedFile는 getvalue()가 가장 안전
+    try:
+        b = file_obj.getvalue()
+        return b if isinstance(b, (bytes, bytearray)) else b""
+    except Exception:
+        pass
+    try:
+        # read() 시 포인터가 움직일 수 있으니 seek 복구 시도
+        if hasattr(file_obj, "tell") and hasattr(file_obj, "seek"):
+            p = file_obj.tell()
+            b = file_obj.read()
+            try:
+                file_obj.seek(p)
+            except Exception:
+                pass
+            return b if isinstance(b, (bytes, bytearray)) else b""
+    except Exception:
+        pass
+    return b""
+
+def _hash_audio_sig(file_obj) -> str:
+    b = _audio_bytes(file_obj)
+    if not b:
+        return ""
+    return _hashlib.md5(b).hexdigest()
+
+def transcribe_audio_openai(file_obj, api_key: str) -> str:
+    """OpenAI STT로 오디오를 텍스트로 변환. 실패 시 빈 문자열."""
+    audio_bytes = _audio_bytes(file_obj)
+    if not audio_bytes:
+        return ""
+    model = (os.environ.get("OPENAI_TRANSCRIBE_MODEL") or "gpt-4o-mini-transcribe").strip()
+
+    # openai python SDK (v1) 우선
+    try:
+        from openai import OpenAI
+        import io
+        client = OpenAI(api_key=api_key)
+        bio = io.BytesIO(audio_bytes)
+        bio.name = "speech.wav"  # 힌트용 파일명
+        r = client.audio.transcriptions.create(
+            model=model,
+            file=bio,
+            language="ja"
+        )
+        txt = getattr(r, "text", None)
+        return (txt or "").strip()
+    except Exception:
+        # SDK가 없거나, 구버전이거나, 런타임 오류면 빈값
+        return ""
 
 @st.cache_resource(show_spinner=False)
 def _make_sb(url: str, key: str):
@@ -1499,84 +1560,78 @@ if submitted:
                 )
 
 
+        
         # ===========================
-        # ✅ 브라우저 STT → 말하기 정확도
-        # - 정답(answer_jp)을 보고 따라 말했는지 "문장 일치도"로 점수화
+        # ✅ 말하기 점수(A안: 서버 STT) + (선택) 브라우저 STT 표시
+        # - 브라우저 STT는 iframe 제약으로 Python에 값을 "전달"하기가 막히는 환경이 있어
+        #   **표시용**으로만 둡니다.
+        # - 점수는 녹음된 오디오를 서버에서 STT(Transcribe/Whisper)로 텍스트화한 뒤,
+        #   정답(answer_jp)과의 문장 일치도로 계산합니다.
         # ===========================
         correct_text = (row.get("answer_jp", "") or "").strip()
         if correct_text:
-                        # 브라우저 STT UI (정지 시 URL queryparam으로 텍스트 전달)
-            browser_stt_component(widget_id=f"{qid}_browser_stt", qid=str(qid), lang="ja-JP")
+            st.markdown("#### 📝 브라우저 STT (표시용)")
+            browser_stt_component(widget_id=f"{qid}_browser_stt", lang="ja-JP")
 
-            # ✅ URL queryparam에서 STT 결과 수신 (커스텀 컴포넌트 없이)
-            qp = st.query_params
-            qp_qid = (qp.get("talk_stt_qid") or "").strip()
-            qp_txt = (qp.get("talk_stt_txt") or "").strip()
-            qp_nonce = (qp.get("talk_stt_nonce") or "").strip()
-
-            # 현재 문제(qid)와 일치하는 STT 결과만 반영
-            if qp_qid and qp_qid == str(qid) and qp_nonce:
-                if qp_txt:
-                    st.session_state[f"{qid}_stt_text"] = qp_txt
-                st.session_state[f"{qid}_stt_nonce"] = qp_nonce
-
-                # queryparam 제거 후 rerun (중복 반영 방지)
-                try:
-                    for k in ["talk_stt_qid", "talk_stt_txt", "talk_stt_nonce"]:
-                        if k in st.query_params:
-                            del st.query_params[k]
-                except Exception:
-                    pass
-                st.rerun()
-
-            stt_text = (st.session_state.get(f"{qid}_stt_text") or "").strip()
-            stt_nonce_saved = (st.session_state.get(f"{qid}_stt_nonce") or "").strip()
-
-            if stt_text:
-                score = calc_speaking_score(stt_text, correct_text)
-
-                st.markdown("---")
-                st.markdown(f"### 🗣 말하기 정확도: **{score}점**")
-                st.caption(f"인식: {stt_text}")
-
-                if score >= 90:
-                    st.success("아주 좋아요! 거의 그대로 말했어요 👏")
-                elif score >= 75:
-                    st.info("거의 정확해요! 한 번만 더 다듬어볼까요?")
-                elif score >= 60:
-                    st.warning("좋아요. 일부 표현이 달라요. 표시된 부분만 다시!")
+            st.markdown("---")
+            st.markdown("#### 🗣 말하기 점수 (서버 STT)")
+            if _audio is None:
+                st.caption("위에서 녹음한 뒤, 말하기 점수를 확인할 수 있어요.")
+            else:
+                api_key = _get_openai_api_key()
+                if not api_key:
+                    st.warning("OPENAI_API_KEY가 설정되어 있지 않아 말하기 점수를 계산할 수 없습니다.")
                 else:
-                    st.error("괜찮아요. 짧게 끊어서 또박또박 말해볼까요?")
+                    with st.spinner("말하기 점수 계산 중…"):
+                        stt_text = transcribe_audio_openai(_audio, api_key=api_key)
 
-                # ✅ 점수 저장 (같은 nonce로 중복 저장 방지)
-                save_key = f"{qid}_saved_nonce"
-                if stt_nonce_saved and st.session_state.get(save_key) != stt_nonce_saved:
-                    try:
-                        prog = load_progress()
-                        talk_prog = prog.get("talk") or {}
-                        scores = talk_prog.get("speaking_scores") or []
-                        if not isinstance(scores, list):
-                            scores = []
+                    if not stt_text:
+                        st.warning("음성을 텍스트로 변환하지 못했습니다. (권한/오디오 형식/환경 문제일 수 있어요)")
+                    else:
+                        score = calc_speaking_score(stt_text, correct_text)
 
-                        scores.append({
-                            "ts": datetime.now().isoformat(timespec="seconds"),
-                            "qid": str(qid),
-                            "tag": str(tag),
-                            "score": int(score),
-                            "stt": stt_text,
-                            "correct": correct_text,
-                        })
+                        st.markdown(f"### 🗣 말하기 정확도: **{score}점**")
+                        st.caption(f"인식: {stt_text}")
 
-                        if len(scores) > 50:
-                            scores = scores[-50:]
+                        if score >= 90:
+                            st.success("아주 좋아요! 거의 그대로 말했어요 👏")
+                        elif score >= 75:
+                            st.info("거의 정확해요! 한 번만 더 다듬어볼까요?")
+                        elif score >= 60:
+                            st.warning("좋아요. 일부 표현이 달라요. 표시된 부분만 다시!")
+                        else:
+                            st.error("괜찮아요. 짧게 끊어서 또박또박 말해볼까요?")
 
-                        talk_prog["speaking_scores"] = scores
-                        prog["talk"] = talk_prog
-                        save_progress(prog)
+                        # ✅ 점수 저장 (중복 저장 방지: 오디오 해시)
+                        try:
+                            sig = _hash_audio_sig(_audio)
+                            save_key = f"{qid}_saved_sig"
+                            if sig and st.session_state.get(save_key) != sig:
+                                prog = load_progress()
+                                talk_prog = prog.get("talk") or {}
+                                scores = talk_prog.get("speaking_scores") or []
+                                if not isinstance(scores, list):
+                                    scores = []
 
-                        st.session_state[save_key] = stt_nonce_saved
-                    except Exception:
-                        pass
+                                scores.append({
+                                    "ts": datetime.now().isoformat(timespec="seconds"),
+                                    "qid": str(qid),
+                                    "tag": str(tag),
+                                    "score": int(score),
+                                    "stt": stt_text,
+                                    "correct": correct_text,
+                                })
+
+                                if len(scores) > 50:
+                                    scores = scores[-50:]
+
+                                talk_prog["speaking_scores"] = scores
+                                prog["talk"] = talk_prog
+                                save_progress(prog)
+
+                                st.session_state[save_key] = sig
+                        except Exception:
+                            pass
         st.caption("정답을 보고 2~3번 따라 말한 뒤, 아래 버튼을 눌러 다음으로 넘어가세요.")
         reward_key = f"{NS}_reward_ready_{qid}"
         if st.button("✅ 다 했어요 (보상 받기)", use_container_width=True, key=f"{NS}_next_after"):
