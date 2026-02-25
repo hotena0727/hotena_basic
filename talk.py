@@ -6,6 +6,9 @@ from pathlib import Path
 from datetime import datetime, timedelta, date
 import random
 import hashlib
+import os
+import difflib
+import re
 
 import pandas as pd
 import streamlit as st
@@ -451,6 +454,60 @@ def _use_free_record_once():
     fq = _get_free_quota()
     fq["record_used"] = int(fq.get("record_used") or 0) + 1
     _set_free_quota(fq)
+
+
+# ============================================================
+# ✅ Pronunciation score (A안: 서버 STT → 텍스트 유사도 점수)
+# - "보기 선택" 단계에는 영향을 주지 않도록, 제출 후/버튼 클릭 시에만 실행
+# ============================================================
+def _norm_jp(s: str) -> str:
+    s = (s or "").strip()
+    # 공백/전각공백 제거
+    s = s.replace(" ", "").replace("\u3000", "")
+    # 흔한 문장부호 제거
+    s = re.sub(r"[、。．，!！?？…]+", "", s)
+    return s
+
+def _similarity_score(a: str, b: str) -> int:
+    a2, b2 = _norm_jp(a), _norm_jp(b)
+    if not a2 or not b2:
+        return 0
+    r = difflib.SequenceMatcher(None, a2, b2).ratio()
+    return int(round(r * 100))
+
+def _openai_transcribe_bytes(audio_bytes: bytes, mime: str = "audio/wav") -> str:
+    # OpenAI Python SDK (new) 사용. 없으면 예외로 안내.
+    api_key = (st.secrets.get("OPENAI_API_KEY", "") if hasattr(st, "secrets") else "") or os.getenv("OPENAI_API_KEY", "")
+    if not api_key:
+        raise RuntimeError("OPENAI_API_KEY가 설정되어 있지 않습니다.")
+    model = os.getenv("OPENAI_TRANSCRIBE_MODEL", "gpt-4o-mini-transcribe")
+    try:
+        from openai import OpenAI  # type: ignore
+    except Exception as e:
+        raise RuntimeError("openai 패키지가 설치되어 있지 않습니다.") from e
+
+    client = OpenAI(api_key=api_key)
+    # 파일 객체 형태로 전달
+    file_tuple = ("speech.wav", audio_bytes, mime)
+    try:
+        out = client.audio.transcriptions.create(
+            model=model,
+            file=file_tuple,
+        )
+        # SDK 버전에 따라 text 속성/문자열 반환이 다를 수 있어 안전 처리
+        txt = getattr(out, "text", None)
+        if isinstance(txt, str) and txt.strip():
+            return txt.strip()
+        if isinstance(out, str) and out.strip():
+            return out.strip()
+        # dict 형태 fallback
+        if isinstance(out, dict):
+            t = out.get("text")
+            if isinstance(t, str):
+                return t.strip()
+        return ""
+    except Exception as e:
+        raise RuntimeError(f"STT 실패: {e}") from e
 
 
 def log_attempt(level: str, score: int, quiz_len: int, wrong_count: int, wrong_list: list[dict], tag: str):
@@ -1376,6 +1433,49 @@ if submitted:
 ''',
                     unsafe_allow_html=True,
                 )
+
+        # ✅ 말하기 점수 (A안: 서버 STT 기반) — 제출 후/버튼 클릭 시에만 실행
+        # - 보기 선택 단계에는 영향을 주지 않습니다.
+        score_key = f"talk_pron_score_{qid}"
+        text_key = f"talk_pron_text_{qid}"
+        err_key = f"talk_pron_err_{qid}"
+
+        audio_obj = locals().get("_audio", None)
+        has_audio = audio_obj is not None
+
+        c_sc1, c_sc2 = st.columns([0.72, 0.28], vertical_alignment="center")
+        with c_sc1:
+            st.markdown("### 📊 말하기 점수")
+        with c_sc2:
+            do_calc = st.button("점수 계산", use_container_width=True, disabled=not has_audio, key=f"{qid}_pron_calc")
+
+        if do_calc:
+            try:
+                b = b""
+                mime = "audio/wav"
+                if audio_obj is not None:
+                    mime = getattr(audio_obj, "type", None) or "audio/wav"
+                    if hasattr(audio_obj, "getvalue"):
+                        b = audio_obj.getvalue()
+                    elif hasattr(audio_obj, "read"):
+                        b = audio_obj.read()
+                txt = _openai_transcribe_bytes(b, mime=mime)
+                st.session_state[text_key] = txt
+                st.session_state[score_key] = _similarity_score(txt, str(row.get("answer_jp", "")))
+                st.session_state.pop(err_key, None)
+            except Exception as e:
+                st.session_state[err_key] = str(e)
+
+        if st.session_state.get(err_key):
+            st.warning("점수 계산 실패: " + str(st.session_state.get(err_key)))
+
+        # 결과 표시(계산된 경우)
+        if st.session_state.get(text_key):
+            st.caption("인식 결과(참고)")
+            st.write(str(st.session_state.get(text_key)))
+
+        if st.session_state.get(score_key) is not None:
+            st.metric("점수", int(st.session_state.get(score_key) or 0))
 
         st.caption("정답을 보고 2~3번 따라 말한 뒤, 아래 버튼을 눌러 다음으로 넘어가세요.")
         reward_key = f"{NS}_reward_ready_{qid}"
