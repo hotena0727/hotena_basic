@@ -729,6 +729,12 @@ def play_audio_or_tts(text: str, audio_url: str, label: str, key: str):
 
 def build_choices(row: dict, pool_answers: list[str]) -> list[str]:
     correct = str(row.get("answer_jp", "")).strip()
+    qid_seed = str(row.get("qid", "") or "") + "|" + correct
+    # ✅ 보기 순서가 '클릭/리런'에 따라 바뀌지 않도록, qid 기반으로 셔플을 고정합니다.
+    # (세션키가 초기화되어도 항상 같은 순서로 재생성)
+    seed = int(hashlib.md5(qid_seed.encode("utf-8")).hexdigest()[:8], 16)
+    rng = random.Random(seed)
+
     picks: list[str] = []
 
     for c in ["d1_jp", "d2_jp", "d3_jp"]:
@@ -739,13 +745,15 @@ def build_choices(row: dict, pool_answers: list[str]) -> list[str]:
 
     if len(picks) < 3:
         cand = [a for a in pool_answers if a and a != correct and a not in picks]
-        random.shuffle(cand)
+        rng.shuffle(cand)
         picks += cand[: (3 - len(picks))]
 
     picks = picks[:3]
     choices = picks + [correct]
-    random.shuffle(choices)
+    rng.shuffle(choices)
     return choices
+
+
 
 
 pool_answers = pool_df["answer_jp"].astype(str).tolist()
