@@ -1297,7 +1297,15 @@ with st.expander("🤖 내용이 어려우면 하테나쌤에게 물어보세요
             ctx_parts.append(f"정답표현: {a}")
             if me:
                 ctx_parts.append(f"내선택: {me}")
-            ctx_parts.append(f"정오답: {'정답' if ok else '오답'}")
+            # ✅ ok 안전화(스코프/들여쓰기 흔들림 방지)
+            try:
+                ok_flag = bool(ok)
+            except Exception:
+                try:
+                    ok_flag = bool((answers or {}).get(qid, {}).get("ok"))
+                except Exception:
+                    ok_flag = False
+            ctx_parts.append(f"정오답: {'정답' if ok_flag else '오답'}")
 
             try:
                 recent = _recent_turns_summary()
