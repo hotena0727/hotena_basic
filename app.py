@@ -50,8 +50,7 @@ if not st.session_state.get("_page_config_set"):
 # - Remove Streamlit's default top padding/space
 # - Applied once per session
 # ============================================================
-if not st.session_state.get("_top_compact_css_applied"):
-    st.markdown("""<style>
+st.markdown("""<style>
 /* === Hotena: ultra-compact top spacing (mobile + desktop) === */
 /* 핵심: block-container의 기본 top padding 제거 + 첫 요소 여백 제거 */
 section.main > div.block-container,
@@ -81,23 +80,15 @@ header[data-testid="stHeader"]{
   }
 }
 
-/* === Hotena: radio(보기) font/spacing 고정 === */
+/* === Hotena: keep radio text consistent on reruns/selection === */
 label[data-baseweb="radio"],
 label[data-baseweb="radio"] *{
-  font-family: var(--jp-rounded) !important;
-  font-weight: 800 !important;
-  font-size: 15px !important;
-  letter-spacing: .1px !important;
+  font-weight: 500 !important;
+  font-synthesis: none !important;
 }
-label[data-baseweb="radio"]{
-  margin: 0 0 6px 0 !important;
-  padding: 8px 10px !important;
-  border-radius: 12px !important;
-}
-div[role="radiogroup"]{ gap: 0px !important; }
 
 </style>""", unsafe_allow_html=True)
-    st.session_state["_top_compact_css_applied"] = True
+st.session_state["_top_compact_css_applied"] = True
 
 st.session_state["_page_config_set"] = True
 # ============================================================
