@@ -1,6 +1,6 @@
 from __future__ import annotations
 # ============================================================
-# ✅ 왕초보 탈출 하테나일본어 (단어 앱) - 전체 복붙용 단일 파일
+# OK 왕초보 탈출 하테나일본어 (단어 앱) - 전체 복붙용 단일 파일
 # - 품사 선택 + 유형 선택(발음/뜻/한→일)
 # - 로그인/회원가입(Supabase Auth) + 쿠키 세션 복원
 # - 홈/퀴즈/마이페이지/관리자 라우팅
@@ -8,22 +8,22 @@ from __future__ import annotations
 # - 맞힌 단어 제외(정복) + 초기화
 # - 사운드 토글 + 테스트 재생 + 제출 후 1회 SFX
 #
-# ✅ CSV (data/.csv) 필수 컬럼(최종):
+# OK CSV (data/.csv) 필수 컬럼(최종):
 #   level, pos, jp_word, reading, meaning, example_jp, example_kr
 #   - 문제는 jp_word(한자 포함 단어)에서 뽑음
 #
-# ✅ 이번 수정 반영:
+# OK 이번 수정 반영:
 #   1) 발음(読み) 문제에서 "보기 모양"으로 찍기 방지:
 #      - verb: 가능한 한 '끝 2글자(히라가나 기준)' 동일 → 부족하면 '끝 1글자' 동일
 #      - verb: する 동사는 보기 4개 모두 '～する'로 통일
 #      - adj_i: 보기 전부 끝이 'い'로 통일(동일 pos 풀에서)
 #      - adj_na: pos가 동일하므로 기본적으로 모양 찍기 난이도 상승(동사처럼 suffix 적용은 X)
 #   2) 제출 후 SFX: perfect / (0.7 이상) correct / (그 외) wrong
-#   3) ✅ B안 반영:
+#   3) OK B안 반영:
 #      - 상단 품사 버튼: noun/verb/adj_i/adj_na/other(기타)
 #      - 기타 선택 시: 부사/조사/접속사/감탄사 체크박스(expander) + "적용(새 문제)" 버튼
 #      - 기타에서는 유형을 "뜻, 한→일" 2개만 노출 (발음 숨김)
-#   4) ✅ 필수패턴: "퀴즈"가 아니라 "카드"로(품사 그룹별) expander 제공
+#   4) OK 필수패턴: "퀴즈"가 아니라 "카드"로(품사 그룹별) expander 제공
 # ============================================================
 
 
@@ -34,7 +34,7 @@ import streamlit as st
 
 
 # ============================================================
-# ✅ wrong_notes debug helper
+# OK wrong_notes debug helper
 # ============================================================
 _WN_DEBUG = bool(st.session_state.get("is_admin", False)) or bool(st.session_state.get("is_admin_cached", False))
 def _wn_warn(msg: str):
@@ -43,7 +43,7 @@ def _wn_warn(msg: str):
             st.warning(msg)
         except Exception:
             pass
-# ✅ HUB에서 호출되면 상단 중복 UI를 숨기기 위한 플래그
+# OK HUB에서 호출되면 상단 중복 UI를 숨기기 위한 플래그
 HUB_MODE = st.session_state.get('HUB_MODE', False)
 import unicodedata
 from supabase import create_client
@@ -58,7 +58,7 @@ import json
 import html
 
 # ============================================================
-# ✅ Page Config + Paths
+# OK Page Config + Paths
 # ============================================================
 st.session_state.pop("plan_cached", None)
 
@@ -71,13 +71,13 @@ if not st.session_state.get('_page_config_set'):
     
 
 # ============================================================
-# ✅ TOP SPACING FIX (PC + Mobile)
+# OK TOP SPACING FIX (PC + Mobile)
 # - Remove Streamlit's default top padding/space
 # - Applied once per session
 # ============================================================
 if not st.session_state.get("_top_compact_css_applied"):
     st.markdown("""<style>
-/* ✅ A안: Streamlit 기본 헤더/푸터 숨김 + 상단 여백 최소화 */
+/* OK A안: Streamlit 기본 헤더/푸터 숨김 + 상단 여백 최소화 */
 header{visibility:hidden;height:0px;}
 footer{visibility:hidden;height:0px;}
 
@@ -109,12 +109,12 @@ header[data-testid="stHeader"]{
     margin-top: 0rem !important;
   }
 }
-    </style>\"\"\", unsafe_allow_html=True)
+</style>""", unsafe_allow_html=True)
     st.session_state["_top_compact_css_applied"] = True
 
 st.session_state['_page_config_set'] = True
 # ============================================================
-# ✅ [HOTFIX] Disable onboarding ("60초 이용안내") block entirely
+# OK [HOTFIX] Disable onboarding ("60초 이용안내") block entirely
 # - In case any legacy UI is still rendered, forcibly hide/remove it.
 # ============================================================
 try:
@@ -150,16 +150,16 @@ except Exception:
 
 
 # ============================================================
-# ✅ PWA/아이콘 - set_page_config 바로 아래
+# OK PWA/아이콘 - set_page_config 바로 아래
 # ============================================================
 
 components.html("""
 <script>
 window.addEventListener("load", async () => {
-  // ✅ 부모 문서(=진짜 페이지)로 주입
+  // OK 부모 문서(=진짜 페이지)로 주입
   const doc = (window.parent && window.parent.document) ? window.parent.document : document;
 
-  // ✅ 작은 로그 박스(디버그용) - 가능하면 부모 body에
+  // OK 작은 로그 박스(디버그용) - 가능하면 부모 body에
   const pre = doc.createElement("pre");
   pre.id = "pwa_debug";
   pre.style.cssText = "white-space:pre-wrap;font-size:12px;opacity:0.75;margin:6px 0 0;";
@@ -168,20 +168,20 @@ window.addEventListener("load", async () => {
 
   const log = (msg) => { pre.textContent += msg + "\\n"; };
 
-  // ✅ manifest
+  // OK manifest
   let m = doc.querySelector("link[rel='manifest']");
   if (!m) { m = doc.createElement("link"); m.rel = "manifest"; doc.head.appendChild(m); }
   m.href = "/manifest.json";
   log("manifest: /manifest.json");
 
-  // ✅ icons
+  // OK icons
   let a = doc.querySelector("link[rel='apple-touch-icon']");
   if (!a) { a = doc.createElement("link"); a.rel = "apple-touch-icon"; doc.head.appendChild(a); }
   a.setAttribute("sizes", "180x180");
   a.href = "/apple-touch-icon.png";
   log("apple-touch-icon: /apple-touch-icon.png");
 
-  // ✅ Android/Chrome icon
+  // OK Android/Chrome icon
   let i = doc.querySelector("link[rel='icon']");
   if (!i) { i = doc.createElement("link"); i.rel = "icon"; doc.head.appendChild(i); }
   i.setAttribute("type", "image/png");
@@ -189,7 +189,7 @@ window.addEventListener("load", async () => {
   i.href = "/icon-192.png";
   log("icon: /icon-192.png");
 
-  // ✅ meta (iOS + theme)
+  // OK meta (iOS + theme)
   const meta = (name, content) => {
     let el = doc.querySelector(`meta[name='${name}']`);
     if (!el) { el = doc.createElement("meta"); el.name = name; doc.head.appendChild(el); }
@@ -199,10 +199,10 @@ window.addEventListener("load", async () => {
   meta("apple-mobile-web-app-capable", "yes");
   meta("apple-mobile-web-app-status-bar-style", "black-translucent");
 
-  // ✅ SW 등록은 “부모 navigator”로 시도(환경에 따라 더 안정적)
+  // OK SW 등록은 “부모 navigator”로 시도(환경에 따라 더 안정적)
   const nav = (window.parent && window.parent.navigator) ? window.parent.navigator : navigator;
 
-  // ✅ 먼저 sw.js가 실제로 200으로 오는지 확인
+  // OK 먼저 sw.js가 실제로 200으로 오는지 확인
   try {
     const r = await fetch("/sw.js", { cache: "no-store" });
     log("fetch /sw.js status: " + r.status);
@@ -230,12 +230,12 @@ window.addEventListener("load", async () => {
 
 
 BASE_DIR = Path(__file__).resolve().parent
-CSV_PATH = BASE_DIR / "data" / "beginner.csv"   # ✅ 왕초보 단어 CSV
+CSV_PATH = BASE_DIR / "data" / "beginner.csv"   # OK 왕초보 단어 CSV
 PATTERN_CSV_PATH = BASE_DIR / "data" / "patterns_beginner.csv"
-APP_URL = "https://hotena-basic-925102605904.asia-northeast3.run.app/"      # ✅ 이메일 인증 redirect용 (스트림릿 앱 주소로 교체)
+APP_URL = "https://hotena-basic-925102605904.asia-northeast3.run.app/"      # OK 이메일 인증 redirect용 (스트림릿 앱 주소로 교체)
 
 # ============================================================
-# ✅ App Settings
+# OK App Settings
 # ============================================================
 SHOW_POST_SUBMIT_UI = "N"  # 제출 후 '내 최근 기록' 등을 퀴즈 페이지에 바로 보여줄지
 SHOW_NAVER_TALK = "Y"
@@ -245,7 +245,7 @@ KST_TZ = "Asia/Seoul"
 N = 10  # 한 번에 10문항
 
 # ============================================================
-# ✅ POS / QUIZ TYPES  (✅ B안: pos_group + other 세부 선택)
+# OK POS / QUIZ TYPES  (OK B안: pos_group + other 세부 선택)
 # ============================================================
 POS_GROUP_OPTIONS = ["noun", "adj_i", "adj_na", "verb", "other"]
 POS_LABEL_MAP = {
@@ -272,11 +272,11 @@ quiz_label_map = {
 QUIZ_TYPES_USER = ["reading", "meaning", "kr2jp"]
 QUIZ_TYPES_ADMIN = ["reading", "meaning", "kr2jp"]  # 필요시 관리자 전용 유형 추가 가능
 
-# ✅ 요청 반영: 기타(adv/particle/conj/interj)에서는 발음(reading) 숨김 → 그룹 단위로 other만 제한
+# OK 요청 반영: 기타(adv/particle/conj/interj)에서는 발음(reading) 숨김 → 그룹 단위로 other만 제한
 POS_ONLY_2TYPES = {"other"}
 
 # ============================================================
-# ✅ 필수패턴(카드) - 최소 샘플(원하면 나중에 확장)
+# OK 필수패턴(카드) - 최소 샘플(원하면 나중에 확장)
 # ============================================================
 PATTERNS = {
     "noun": [
@@ -345,7 +345,7 @@ def render_pattern_cards():
 """, unsafe_allow_html=True)
 
 # ============================================================
-# ✅ Session Defaults  (✅ pos → pos_group / 기타 체크 세트)
+# OK Session Defaults  (OK pos → pos_group / 기타 체크 세트)
 # ============================================================
 if "quiz_type" not in st.session_state:
     st.session_state.quiz_type = "meaning"  # 왕초보는 뜻부터 추천
@@ -353,7 +353,7 @@ if "pos_group" not in st.session_state:
     st.session_state.pos_group = "noun"
 
 if "other_pos_selected" not in st.session_state:
-    # ✅ 처음엔 기타 전체 체크
+    # OK 처음엔 기타 전체 체크
     st.session_state.other_pos_selected = set(["adv", "particle", "conj", "interj"])
 
 if st.session_state.quiz_type not in QUIZ_TYPES_USER:
@@ -361,12 +361,12 @@ if st.session_state.quiz_type not in QUIZ_TYPES_USER:
 if st.session_state.pos_group not in POS_GROUP_OPTIONS:
     st.session_state.pos_group = "noun"
 
-# ✅ (안전) 제한 그룹인데 reading이 잡혀 있으면 meaning으로 강제
+# OK (안전) 제한 그룹인데 reading이 잡혀 있으면 meaning으로 강제
 if str(st.session_state.get("pos_group", "noun")).lower().strip() in POS_ONLY_2TYPES and st.session_state.quiz_type == "reading":
     st.session_state.quiz_type = "meaning"
 
 # ============================================================
-# ✅ CSS (폰트/버튼/카드/간격)
+# OK CSS (폰트/버튼/카드/간격)
 # ============================================================
 st.markdown(
     """
@@ -497,7 +497,7 @@ div[data-testid="stMarkdownContainer"] h3{
 )
 
 # ============================================================
-# ✅ Scroll Top Anchor + Helpers
+# OK Scroll Top Anchor + Helpers
 # ============================================================
 st.markdown('<div id="__TOP__"></div>', unsafe_allow_html=True)
 
@@ -660,7 +660,7 @@ if st.session_state.get("_scroll_top_once"):
     scroll_to_top(nonce=st.session_state["_scroll_top_nonce"])
 
 # ============================================================
-# ✅ Cookies + Supabase (Cloud Run env + Streamlit secrets 겸용)
+# OK Cookies + Supabase (Cloud Run env + Streamlit secrets 겸용)
 # ============================================================
 import os
 import streamlit as st
@@ -689,7 +689,7 @@ COOKIE_PASSWORD = get_cfg("COOKIE_PASSWORD")
 SUPABASE_URL = get_cfg("SUPABASE_URL")
 SUPABASE_ANON_KEY = get_cfg("SUPABASE_ANON_KEY")
 
-# ✅ 필수값 체크
+# OK 필수값 체크
 missing = [k for k, v in {
     "COOKIE_PASSWORD": COOKIE_PASSWORD,
     "SUPABASE_URL": SUPABASE_URL,
@@ -700,7 +700,7 @@ if missing:
     st.error(f"설정값이 없습니다: {', '.join(missing)} (Cloud Run env 또는 Streamlit secrets 확인)")
     st.stop()
 
-# ✅ cookies/supabase는 Hub(home.py)에서 1회 생성 후 공유합니다.
+# OK cookies/supabase는 Hub(home.py)에서 1회 생성 후 공유합니다.
 cookies = st.session_state.get("cookies")
 sb = st.session_state.get("sb")
 
@@ -719,7 +719,7 @@ if sb is None:
     st.session_state["sb"] = sb
 
 # ============================================================
-# ✅ Utils: 위젯 잔상(q_...) 제거
+# OK Utils: 위젯 잔상(q_...) 제거
 # ============================================================
 def clear_question_widget_keys():
     keys_to_del = [k for k in list(st.session_state.keys()) if isinstance(k, str) and k.startswith("q_")]
@@ -728,7 +728,7 @@ def clear_question_widget_keys():
 
         
 # ============================================================
-# ✅ FREE 관련 공통 유틸 (현재 제한 OFF 모드)
+# OK FREE 관련 공통 유틸 (현재 제한 OFF 모드)
 # ============================================================
 
 def add_free_used(n: int) -> None:
@@ -744,7 +744,7 @@ def should_lock_quiz() -> bool:
     return free_limit_reached()
 
 # ============================================================
-# ✅ COMBO 시스템 (연속 정답)
+# OK COMBO 시스템 (연속 정답)
 # - 제출 시 10문항 기준으로 "최대 연속 정답" 계산
 # - 5 콤보: 🔥 / 10 콤보: 🎉 Perfect Streak
 # ============================================================
@@ -801,7 +801,7 @@ def render_combo_small_badge():
 
 
 # ============================================================
-# ✅ POS filters (✅ B안 핵심)
+# OK POS filters (OK B안 핵심)
 # ============================================================
 def get_pos_filters() -> list[str]:
     g = str(st.session_state.get("pos_group", "noun")).strip().lower()
@@ -812,7 +812,7 @@ def get_pos_filters() -> list[str]:
     return [g]
 
 # ============================================================
-# ✅ Key helpers (정복/제외/배너)
+# OK Key helpers (정복/제외/배너)
 # ============================================================
 def mastery_key(qtype: str | None = None, pos: str | None = None) -> str:
     qt = qtype or st.session_state.get("quiz_type", "meaning")
@@ -849,7 +849,7 @@ def is_admin() -> bool:
         st.session_state["is_admin_cached"] = False
         return False
 
-    # ✅ 여기: fetch 함수가 없으면 False로
+    # OK 여기: fetch 함수가 없으면 False로
     if "fetch_is_admin_from_db" not in globals():
         st.session_state["is_admin_cached"] = False
         return False
@@ -892,7 +892,7 @@ def ensure_mastery_banner_shape():
         st.session_state.mastery_done.setdefault(k, False)
 
 # ============================================================
-# ✅ Answers 동기화 + Progress save helper
+# OK Answers 동기화 + Progress save helper
 # ============================================================
 def sync_answers_from_widgets():
     qv = st.session_state.get("quiz_version", 0)
@@ -924,7 +924,7 @@ def start_quiz_state(quiz_list: list, qtype: str, clear_wrongs: bool = True):
     st.session_state.stats_saved_this_attempt = False
     st.session_state.session_stats_applied_this_attempt = False
     
-    # ✅ 추가: 새 회차 시작 시 콤보 알림 단계 초기화
+    # OK 추가: 새 회차 시작 시 콤보 알림 단계 초기화
     st.session_state["combo_last_notice"] = 0
 
     # (선택) 디버그/추적용
@@ -963,7 +963,7 @@ def mark_quiz_as_seen(quiz_list: list[dict], qtype: str, pos_group: str):
             s.add(w)
             
 # ============================================================
-# ✅ Auth helpers (JWT refresh, sb authed)
+# OK Auth helpers (JWT refresh, sb authed)
 # ============================================================
 def is_jwt_expired_error(e: Exception) -> bool:
     msg = str(e).lower()
@@ -1095,7 +1095,7 @@ def to_kst_naive(x):
     return ts.tz_convert(KST_TZ).tz_localize(None)
 
 # ============================================================
-# ✅ DB functions (기존 테이블 구조 그대로 활용)
+# OK DB functions (기존 테이블 구조 그대로 활용)
 # ============================================================
 def delete_all_learning_records(sb_authed, user_id):
     sb_authed.table("quiz_attempts").delete().eq("user_id", user_id).execute()
@@ -1125,8 +1125,8 @@ def save_attempt_to_db(sb_authed, user_id, user_email, pos, quiz_type, quiz_len,
     payload = {
         "user_id": user_id,
         "user_email": user_email,
-        "level": str(pos),          # ✅ level 컬럼에 pos_group 저장
-        "pos_mode": str(quiz_type), # ✅ pos_mode 컬럼에 유형 저장
+        "level": str(pos),          # OK level 컬럼에 pos_group 저장
+        "pos_mode": str(quiz_type), # OK pos_mode 컬럼에 유형 저장
         "quiz_len": int(quiz_len),
         "score": int(score),
         "wrong_count": int(len(wrong_list)),
@@ -1183,7 +1183,7 @@ def get_user_plan() -> str:
     return plan
 
 def is_pro() -> bool:
-    # ✅ 단일 기준: profiles.plan == "pro"
+    # OK 단일 기준: profiles.plan == "pro"
     try:
         return (get_user_plan() == "pro")
     except Exception:
@@ -1202,7 +1202,7 @@ def build_word_results_bulk_payload(quiz: list[dict], answers: list, quiz_type: 
             {
                 "word_key": word_key,
                 "level": "BEGINNER",
-                "pos": str(pos),            # ✅ pos_group 저장(통계에서는 그룹 기준)
+                "pos": str(pos),            # OK pos_group 저장(통계에서는 그룹 기준)
                 "quiz_type": str(quiz_type),
                 "is_correct": bool(is_correct),
             }
@@ -1210,7 +1210,7 @@ def build_word_results_bulk_payload(quiz: list[dict], answers: list, quiz_type: 
     return items
 
 # ============================================================
-# ✅ Progress (DB 저장/복원)  (✅ pos_group + 기타 체크 저장)
+# OK Progress (DB 저장/복원)  (OK pos_group + 기타 체크 저장)
 # ============================================================
 def save_progress_to_db(sb_authed, user_id: str):
     if "quiz" not in st.session_state or "answers" not in st.session_state:
@@ -1256,7 +1256,7 @@ def restore_progress_from_db(sb_authed, user_id: str):
     if not progress:
         return
 
-    # ✅ 구버전(progress에 pos가 있던 경우)도 최대한 흡수
+    # OK 구버전(progress에 pos가 있던 경우)도 최대한 흡수
     restored_group = progress.get("pos_group") or progress.get("pos") or st.session_state.get("pos_group", "noun")
     st.session_state.pos_group = restored_group
 
@@ -1275,7 +1275,7 @@ def restore_progress_from_db(sb_authed, user_id: str):
     if st.session_state.quiz_type not in QUIZ_TYPES_USER:
         st.session_state.quiz_type = "meaning"
 
-    # ✅ 제한 그룹이면 reading 복원되더라도 meaning으로 강제
+    # OK 제한 그룹이면 reading 복원되더라도 meaning으로 강제
     if str(st.session_state.get("pos_group", "noun")).lower().strip() in POS_ONLY_2TYPES and st.session_state.quiz_type == "reading":
         st.session_state.quiz_type = "meaning"
 
@@ -1285,12 +1285,12 @@ def restore_progress_from_db(sb_authed, user_id: str):
             st.session_state.answers = [None] * qlen
 
 # ============================================================
-# ✅ Admin
+# OK Admin
 # ============================================================
 def get_available_quiz_types() -> list[str]:
     return QUIZ_TYPES_ADMIN if is_admin() else QUIZ_TYPES_USER
 
-# ✅ (신규) pos_group에 따라 가능한 유형 필터
+# OK (신규) pos_group에 따라 가능한 유형 필터
 def get_available_quiz_types_for_pos(pos_group: str) -> list[str]:
     pos_group = str(pos_group).strip().lower()
     base = get_available_quiz_types()
@@ -1299,7 +1299,7 @@ def get_available_quiz_types_for_pos(pos_group: str) -> list[str]:
     return base
 
 # ============================================================
-# ✅ SOUND
+# OK SOUND
 # ============================================================
 def _audio_autoplay_data_uri(mime: str, b: bytes):
     b64 = base64.b64encode(b).decode("utf-8")
@@ -1328,7 +1328,7 @@ def play_sound_file(path: str):
             st.exception(e)
 
 def render_sound_toggle():
-    # ✅ Hub mode: sound toggle is rendered in home.py (plan pill)
+    # OK Hub mode: sound toggle is rendered in home.py (plan pill)
     if st.session_state.get("HUB_MODE", False):
         return
 
@@ -1339,7 +1339,7 @@ def render_sound_toggle():
     with c1:
         st.session_state.sound_enabled = st.toggle("🔊", value=st.session_state.sound_enabled, label_visibility="collapsed")
     with c2:
-        st.caption("소리 " + ("ON ✅" if st.session_state.sound_enabled else "OFF"))
+        st.caption("소리 " + ("ON OK" if st.session_state.sound_enabled else "OFF"))
     with c3:
         if st.session_state.sound_enabled:
             if st.button("🔈 테스트", use_container_width=True, key="btn_sound_test"):
@@ -1358,7 +1358,7 @@ def sfx(event: str):
         play_sound_file(path)
 
 # ============================================================
-# ✅ TTS (브라우저 Web Speech API) - 일본어 발음 버튼용
+# OK TTS (브라우저 Web Speech API) - 일본어 발음 버튼용
 # ============================================================
 def render_pronounce_button(text: str, uid: str, label: str = "🔊 발음"):
     t = (text or "").strip()
@@ -1395,11 +1395,11 @@ def render_pronounce_button(text: str, uid: str, label: str = "🔊 발음"):
   function pickFemaleJaVoice(vs){{
     if (!vs || !vs.length) return null;
 
-    // ✅ 일본어 보이스만 추림
+    // OK 일본어 보이스만 추림
     const ja = vs.filter(v => String(v.lang || "").toLowerCase().startsWith("ja"));
     if (!ja.length) return null;
 
-    // ✅ "여성"로 추정되는 이름/키워드 우선 (환경별로 다름)
+    // OK "여성"로 추정되는 이름/키워드 우선 (환경별로 다름)
     const prefer = /(kyoko|haruka|ayumi|nanami|hina|sakura|female|woman|girl)/i;
     const avoid  = /(otoya|takumi|male|man|boy)/i;
 
@@ -1431,7 +1431,7 @@ def render_pronounce_button(text: str, uid: str, label: str = "🔊 발음"):
       const u = new SpeechSynthesisUtterance(String(text));
       u.lang = "ja-JP";
 
-      // ✅ “여성 느낌” 쪽으로 살짝 보정 (너무 올리면 부자연스러울 수 있어요)
+      // OK “여성 느낌” 쪽으로 살짝 보정 (너무 올리면 부자연스러울 수 있어요)
       u.rate  = 1.0;
       u.pitch = 1.15;
 
@@ -1473,7 +1473,7 @@ def render_pronounce_button(text: str, uid: str, label: str = "🔊 발음"):
         height=43,
     )
 # ============================================================
-# ✅ Login UI
+# OK Login UI
 # ============================================================
 def auth_box():
     st.markdown("<div style='max-width:520px; margin:0 auto;'>", unsafe_allow_html=True)
@@ -1620,7 +1620,7 @@ def require_login():
         st.stop()
 
 # ============================================================
-# ✅ 네이버톡 배너 (제출 후만)
+# OK 네이버톡 배너 (제출 후만)
 # ============================================================
 def render_naver_talk():
     st.divider()
@@ -1722,7 +1722,7 @@ def render_naver_talk():
     )
 
 # ============================================================
-# ✅ Top Card (마이페이지/관리자/로그아웃)
+# OK Top Card (마이페이지/관리자/로그아웃)
 # ============================================================
 
 def nav_to(page: str, scroll_top: bool = True):
@@ -1766,7 +1766,7 @@ def render_topcard():
     st.markdown("</div>", unsafe_allow_html=True)
 
 # ============================================================
-# ✅ CSV Load Pool  (✅ CSV 최종 스펙 반영)
+# OK CSV Load Pool  (OK CSV 최종 스펙 반영)
 # ============================================================
 READ_KW = dict(
     dtype=str,
@@ -1778,7 +1778,7 @@ READ_KW = dict(
 def load_pool(csv_path_str: str) -> pd.DataFrame:
     df = pd.read_csv(csv_path_str, **READ_KW)
 
-    # ✅ CSV 최종 필수 컬럼
+    # OK CSV 최종 필수 컬럼
     required_cols = {"level", "pos", "jp_word", "reading", "meaning", "example_jp", "example_kr"}
     missing = required_cols - set(df.columns)
     if missing:
@@ -1881,7 +1881,7 @@ def ensure_patterns_ready():
     st.session_state["_patterns_ready"] = True
 
 # ============================================================
-# ✅ Quiz Logic
+# OK Quiz Logic
 # ============================================================
 def _nfkc_str(x) -> str:
     return unicodedata.normalize("NFKC", str(x or "")).strip()
@@ -2024,7 +2024,7 @@ def make_question(row: pd.Series, qtype: str, pool: pd.DataFrame) -> dict:
     ex_jp = str(row.get("example_jp", "")).strip()
     ex_kr = str(row.get("example_kr", "")).strip()
 
-    # ✅ 같은 실제 pos 풀
+    # OK 같은 실제 pos 풀
     pool_pos = pool[pool["pos"].astype(str).str.strip().str.lower() == pos].copy()
 
     if qtype == "reading":
@@ -2087,7 +2087,7 @@ def make_question(row: pd.Series, qtype: str, pool: pd.DataFrame) -> dict:
     }
 
 def build_quiz(qtype: str, pos_group: str) -> list[dict]:
-    # ✅ 안전장치: 제한 그룹에서는 reading 강제 금지
+    # OK 안전장치: 제한 그룹에서는 reading 강제 금지
     pos_group = str(pos_group).strip().lower()
     qtype = str(qtype).strip()
     if pos_group in POS_ONLY_2TYPES and qtype == "reading":
@@ -2104,7 +2104,7 @@ def build_quiz(qtype: str, pos_group: str) -> list[dict]:
     pos_filters = get_pos_filters()
     base_pos = pool[pool["pos"].astype(str).str.strip().str.lower().isin(pos_filters)].copy()
 
-    # ✅ 발음(reading) 문제: jp_word에 한자가 없는(히라가나만 등) 단어는 제외
+    # OK 발음(reading) 문제: jp_word에 한자가 없는(히라가나만 등) 단어는 제외
     if qtype == "reading":
         base_pos = base_pos[base_pos["jp_word"].apply(_has_kanji)].copy()
 
@@ -2120,7 +2120,7 @@ def build_quiz(qtype: str, pos_group: str) -> list[dict]:
 
     blocked = set()
     if seen:
-        blocked |= set(seen)          # ✅ 한 번이라도 출제된 건 전부 제외
+        blocked |= set(seen)          # OK 한 번이라도 출제된 건 전부 제외
     if mastered:
         blocked |= set(mastered)      # (겹쳐도 무관)
     if excluded:
@@ -2144,12 +2144,12 @@ def build_quiz(qtype: str, pos_group: str) -> list[dict]:
 
 
 # ============================================================
-# ✅ Quiz builders for review (TOP10 / wrong retry)
-# ✅ 반드시 Admin/My pages(마이페이지) 보다 위에 있어야 합니다.
+# OK Quiz builders for review (TOP10 / wrong retry)
+# OK 반드시 Admin/My pages(마이페이지) 보다 위에 있어야 합니다.
 # ============================================================
 
 def build_quiz_from_word_keys(word_keys: list[str], qtype: str, pos_group: str) -> list[dict]:
-    # ✅ 안전장치
+    # OK 안전장치
     pos_group = str(pos_group).strip().lower()
     qtype = str(qtype).strip()
     if pos_group in POS_ONLY_2TYPES and qtype == "reading":
@@ -2181,7 +2181,7 @@ def build_quiz_from_word_keys(word_keys: list[str], qtype: str, pos_group: str) 
     return [make_question(df.iloc[i], qtype, pool) for i in range(len(df))]
 
 def build_quiz_from_wrongs(wrong_list: list, qtype: str, pos_group: str) -> list[dict]:
-    # ✅ 안전장치
+    # OK 안전장치
     pos_group = str(pos_group).strip().lower()
     qtype = str(qtype).strip()
     if pos_group in POS_ONLY_2TYPES and qtype == "reading":
@@ -2190,7 +2190,7 @@ def build_quiz_from_wrongs(wrong_list: list, qtype: str, pos_group: str) -> list
     ensure_pool_ready()
     pool = st.session_state["_pool"]
 
-    # ✅ wrong_list에서 jp_word 키 뽑기
+    # OK wrong_list에서 jp_word 키 뽑기
     wrong_words = []
     for w in (wrong_list or []):
         key = str(w.get("단어", "")).strip()
@@ -2202,10 +2202,10 @@ def build_quiz_from_wrongs(wrong_list: list, qtype: str, pos_group: str) -> list
         st.warning("현재 오답 노트가 비어 있어요. 🙂")
         return []
 
-    # ✅ 현재 화면의 pos 필터(기타면 체크된 세부 품사들)
+    # OK 현재 화면의 pos 필터(기타면 체크된 세부 품사들)
     pos_filters = get_pos_filters()
 
-    # ✅ pool에서 오답 단어 + 현재 pos필터로 매칭
+    # OK pool에서 오답 단어 + 현재 pos필터로 매칭
     retry_df = pool[
         (pool["pos"].astype(str).str.strip().str.lower().isin(pos_filters))
         & (pool["jp_word"].astype(str).str.strip().isin(wrong_words))
@@ -2215,7 +2215,7 @@ def build_quiz_from_wrongs(wrong_list: list, qtype: str, pos_group: str) -> list
         st.error("오답 단어를 현재 풀(품사/기타 선택)에서 찾지 못했습니다. (jp_word 매칭/필터 확인)")
         return []
 
-    # ✅ reading이면 ‘한자 포함 jp_word’만
+    # OK reading이면 ‘한자 포함 jp_word’만
     if qtype == "reading":
         retry_df = retry_df[retry_df["jp_word"].apply(_has_kanji)].copy()
         if retry_df.empty:
@@ -2224,14 +2224,14 @@ def build_quiz_from_wrongs(wrong_list: list, qtype: str, pos_group: str) -> list
 
     retry_df = retry_df.sample(frac=1).reset_index(drop=True)
 
-    # ✅ 오답 전체를 문제로 만들되, 최대 N개까지만 (원하면 삭제 가능)
+    # OK 오답 전체를 문제로 만들되, 최대 N개까지만 (원하면 삭제 가능)
     if len(retry_df) > N:
         retry_df = retry_df.head(N).copy()
 
     return [make_question(retry_df.iloc[i], qtype, pool) for i in range(len(retry_df))]
 
 # ============================================================
-# ✅ Admin/My pages
+# OK Admin/My pages
 # ============================================================
 def render_admin_dashboard():
     st.subheader("📊 관리자 대시보드")
@@ -2314,7 +2314,7 @@ def render_my_dashboard():
                 ]:
                     st.session_state.pop(k, None)
 
-                st.success("✅ 전체 학습 기록이 완전 초기화되었습니다.")
+                st.success("OK 전체 학습 기록이 완전 초기화되었습니다.")
                 st.session_state.page = "quiz"
                 st.rerun()
 
@@ -2487,7 +2487,7 @@ def render_my_dashboard():
     for i, (w, cnt) in enumerate(top10, start=1):
         render_wrong_top10_card(i, str(w), int(cnt))
 
-    # ✅ TOP10 시험보기 버튼
+    # OK TOP10 시험보기 버튼
     top10_words = [str(w) for (w, _) in top10]
 
     st.markdown("<div style='height:6px'></div>", unsafe_allow_html=True)
@@ -2506,7 +2506,7 @@ def render_my_dashboard():
         st.rerun()
 
 # ============================================================
-# ✅ Home
+# OK Home
 # ============================================================
 def reset_quiz_state_only():
     clear_question_widget_keys()
@@ -2518,7 +2518,7 @@ def reset_quiz_state_only():
 def go_quiz_from_home():
     reset_quiz_state_only()
 
-    # ✅ 콤보 알림 단계 리셋(오늘 최고 기록은 유지)
+    # OK 콤보 알림 단계 리셋(오늘 최고 기록은 유지)
     st.session_state["combo_last_notice"] = 0
     
     st.session_state.page = "quiz"
@@ -2538,7 +2538,7 @@ def render_home():
     u = st.session_state.get("user")
     email = (getattr(u, "email", None) if u else None) or st.session_state.get("login_email", "")
 
-    # ✅ (1) 타이틀/환영
+    # OK (1) 타이틀/환영
     st.markdown(
         f"""
 <div class="jp headbar">
@@ -2548,7 +2548,7 @@ def render_home():
         unsafe_allow_html=True,
     )
 
-    # ✅ (2) 오늘의 학습 리포트: 홈에서만 / 타이틀 다음, 오늘의 말 위
+    # OK (2) 오늘의 학습 리포트: 홈에서만 / 타이틀 다음, 오늘의 말 위
     try:
         sb_authed = get_authed_sb()
         user_id = getattr(u, "id", None) if u else None
@@ -2558,7 +2558,7 @@ def render_home():
         # 리포트 실패해도 홈 화면은 멈추지 않게
         pass
 
-    # ✅ (3) 오늘의 말
+    # OK (3) 오늘의 말
     quotes = [
         "오늘 10문항이면 충분해요.",
         "루틴은 작게, 지속은 길게.",
@@ -2601,7 +2601,7 @@ def render_home():
 
 
 # ============================================================
-# ✅ 오늘의 학습 리포트 (DB only / quiz_attempts 기반)
+# OK 오늘의 학습 리포트 (DB only / quiz_attempts 기반)
 #   - 로그인 유저만 표시
 #   - 오늘 푼 문항 / 정답률 / 오늘 오답 / 연속 학습(streak)
 #   - 가장 많이 틀린 모드(pos_mode)
@@ -2654,7 +2654,7 @@ def _kst_day_key(dt_utc: datetime) -> str:
     return k.strftime("%Y-%m-%d")
 
 def build_today_report_from_rows(today_rows: list[dict], recent_rows: list[dict]) -> dict:
-    # ✅ 오늘 집계
+    # OK 오늘 집계
     today_total = 0
     today_correct = 0
     today_wrong = 0
@@ -2687,7 +2687,7 @@ def build_today_report_from_rows(today_rows: list[dict], recent_rows: list[dict]
     if wrong_mode_counter:
         top_wrong_mode = wrong_mode_counter.most_common(1)[0][0]
 
-    # ✅ 연속 학습(streak)
+    # OK 연속 학습(streak)
     day_has = set()
     for r in (recent_rows or []):
         dt = _parse_dt_any(r.get("created_at"))
@@ -2750,7 +2750,7 @@ def render_today_report_db_only(sb_authed, user_id: str):
         streak = rep["streak"]
         top_mode = mode_label(rep["top_wrong_mode"])
 
-        # ✅ 표시용 (PRO 아니면 blur 처리)
+        # OK 표시용 (PRO 아니면 blur 처리)
         total_display = mask_value(total)
         acc_display = mask_value(acc, "%")
         wrong_display = mask_value(wrong)
@@ -2802,7 +2802,7 @@ def render_today_report_db_only(sb_authed, user_id: str):
         # 리포트가 실패해도 앱이 멈추면 안 됨
         st.caption("오늘 리포트를 불러오지 못했어요.")
 # ============================================================
-# ✅ App Start: refresh → login → routing
+# OK App Start: refresh → login → routing
 # ============================================================
 ok = refresh_session_from_cookie_if_needed(force=False)
 if not ok and (cookies.get("refresh_token") or cookies.get("access_token")):
@@ -2828,17 +2828,17 @@ user_email = user_email or st.session_state.get("login_email")
 
 sb_authed = get_authed_sb()
 
-# ✅ PRO 캐시가 다른 유저에게 넘어가는 것 방지 (먼저!)
+# OK PRO 캐시가 다른 유저에게 넘어가는 것 방지 (먼저!)
 cached_uid = st.session_state.get("plan_cached_user_id")
 if cached_uid != user_id:
     st.session_state.pop("plan_cached", None)
     st.session_state["plan_cached_user_id"] = user_id
 
-# ✅ 로그인 유저 + authed 클라 둘 다 있을 때만 리포트 표시
+# OK 로그인 유저 + authed 클라 둘 다 있을 때만 리포트 표시
 # if sb_authed and user_id:
 #    render_today_report_db_only(sb_authed, user_id)
 
-# ✅ pos_group 기반 available_types 적용
+# OK pos_group 기반 available_types 적용
 try:
     if sb_authed is not None:
         available_types = get_available_quiz_types_for_pos(st.session_state.get("pos_group", "noun"))
@@ -2850,7 +2850,7 @@ except Exception:
     g_now = str(st.session_state.get("pos_group", "noun")).lower().strip()
     available_types = ["meaning", "kr2jp"] if g_now in POS_ONLY_2TYPES else QUIZ_TYPES_USER
 
-# ✅ 현재 선택된 유형이 pos_group에서 허용되지 않으면 meaning으로 강제
+# OK 현재 선택된 유형이 pos_group에서 허용되지 않으면 meaning으로 강제
 if st.session_state.get("quiz_type") not in available_types:
     st.session_state.quiz_type = "meaning"
 
@@ -2861,7 +2861,7 @@ if sb_authed is not None and not st.session_state.get("progress_restored"):
         pass
     st.session_state.progress_restored = True
 
-# ✅ 복원 후에도 pos_group/available_types 재동기화
+# OK 복원 후에도 pos_group/available_types 재동기화
 try:
     available_types = get_available_quiz_types_for_pos(st.session_state.get("pos_group", "noun")) if sb_authed is not None else available_types
 except Exception:
@@ -2889,7 +2889,7 @@ if sb_authed is not None:
         st.session_state["did_attend_today"] = bool(att.get("did_attend", False))
 
 # ============================================================
-# ✅ Routing
+# OK Routing
 # ============================================================
 if st.session_state.page == "home":
     render_home()
@@ -2912,7 +2912,7 @@ if st.session_state.page == "my":
     st.stop()
 
 # ============================================================
-# ✅ PAYWALL CHECK (render_topcard() 보다 위에서 1번만!)
+# OK PAYWALL CHECK (render_topcard() 보다 위에서 1번만!)
 #   - FREE: 하루 30문항 제한, PRO: 무제한
 # ============================================================
 from datetime import datetime, timedelta, timezone
@@ -2946,7 +2946,7 @@ def get_daily_solved_from_db(sb_authed_local, user_id: str) -> int:
     rows = res.data or []
     return int(sum(int(r.get("quiz_len") or 0) for r in rows))
 
-# ✅ 잠금 판단
+# OK 잠금 판단
 is_locked = False
 daily_solved = 0
 
@@ -2960,7 +2960,7 @@ if is_locked:
     render_paywall(daily_solved)
     st.stop()
 
-# ✅ 오늘 푼 문항 수(total) 정의: 목표 UI/DEBUG에서 공통 사용
+# OK 오늘 푼 문항 수(total) 정의: 목표 UI/DEBUG에서 공통 사용
 total = 0
 try:
     sb_authed_local = get_authed_sb()
@@ -2970,7 +2970,7 @@ except Exception:
     total = 0
 
 # ============================================================
-# ✅ Quiz Page
+# OK Quiz Page
 # ============================================================
 def render_plan_banner():
     # HUB에서는 공통 배지를 home.py에서 렌더링하므로 중복 표시하지 않음
@@ -2987,7 +2987,7 @@ def render_plan_banner():
         st.session_state["_scroll_top_once"] = True
         st.markdown(f"<meta http-equiv='refresh' content='0;url={NAVER_TALK_URL}'>", unsafe_allow_html=True)
 
-# ✅ 호출은 정의 아래에서
+# OK 호출은 정의 아래에서
 render_topcard()
 render_plan_banner()
 render_sound_toggle()
@@ -2997,7 +2997,7 @@ if not st.session_state.get("HUB_MODE", False):
     did_today = st.session_state.get("did_attend_today")
     if streak is not None:
         if did_today:
-            st.success(f"✅ 오늘 출석 완료!  (연속 {streak}일)")
+            st.success(f"OK 오늘 출석 완료!  (연속 {streak}일)")
         else:
             st.caption(f"연속 출석 {streak}일")
         if streak >= 30:
@@ -3013,16 +3013,16 @@ if not st.session_state.get("HUB_MODE", False):
                 st.session_state.today_goal_done = False
         
             # ============================================================
-            # ✅ [PATCH] 🎯 오늘 목표 자동 연동 + 진행률 도표(프로그레스 바)
+            # OK [PATCH] 🎯 오늘 목표 자동 연동 + 진행률 도표(프로그레스 바)
             # - 목표 1회=10문항, 2회=20문항...
-            # - today_total(= total) 기준으로 자동 ✅달성/⏳진행중
-            # - ✅ “오늘 목표” 박스 안에 진행률 도표 + % 표시
-            # - ✅ 세그먼트 카드/목표 카드 톤(테두리/라운드/그림자) 통일
+            # - today_total(= total) 기준으로 자동 OK달성/⏳진행중
+            # - OK “오늘 목표” 박스 안에 진행률 도표 + % 표시
+            # - OK 세그먼트 카드/목표 카드 톤(테두리/라운드/그림자) 통일
             # ============================================================
         
             st.markdown("""
             <style>
-            /* ✅ goal 세그먼트 전용 앵커 */
+            /* OK goal 세그먼트 전용 앵커 */
             #goal_seg_anchor + div[data-testid="stSegmentedControl"]{
               padding: 10px 12px;
               border: 1px solid rgba(49,51,63,.12);
@@ -3052,11 +3052,11 @@ if not st.session_state.get("HUB_MODE", False):
             </style>
             """, unsafe_allow_html=True)
         
-            # ✅ 앵커는 segmented_control "바로 직전"에 둬야 함
+            # OK 앵커는 segmented_control "바로 직전"에 둬야 함
             st.markdown('<div id="goal_seg_anchor"></div>', unsafe_allow_html=True)
         
         
-            # ✅ 1) 목표(세션) 설정값
+            # OK 1) 목표(세션) 설정값
             if "goal_sessions" not in st.session_state:
                 st.session_state.goal_sessions = 1  # 기본 1회(=10문항)
         
@@ -3068,7 +3068,7 @@ if not st.session_state.get("HUB_MODE", False):
             st.session_state["target_questions"] = target_questions
         
         
-            # ✅ 2) 오늘 푼 문항수(기존 total 변수 재사용)
+            # OK 2) 오늘 푼 문항수(기존 total 변수 재사용)
             today_total = int(total)  # ← 기존 코드에서 total이 "오늘 푼 문항"이면 그대로 OK
         
             goal_done = today_total >= target_questions
@@ -3078,7 +3078,7 @@ if not st.session_state.get("HUB_MODE", False):
             goal_msg = "오늘 목표 달성! 내일도 루틴 이어가요 🔥" if goal_done else f"남은 문항: {remain}"
         
         
-            # ✅ 3) 자동 목표 UI (진행률 도표 포함)
+            # OK 3) 자동 목표 UI (진행률 도표 포함)
             import streamlit.components.v1 as components
         
             card_html = f"""
@@ -3094,7 +3094,7 @@ if not st.session_state.get("HUB_MODE", False):
               <div style="display:flex; justify-content:space-between; align-items:center;">
                 <div style="font-weight:900; font-size:14px; opacity:.80;">🎯 오늘 목표</div>
                 <div style="font-size:12px; font-weight:900; opacity:.85;">
-                  {"✅ 달성" if goal_done else "⏳ 진행중"}
+                  {"OK 달성" if goal_done else "⏳ 진행중"}
                 </div>
               </div>
         
@@ -3129,7 +3129,7 @@ if not st.session_state.get("HUB_MODE", False):
             st.divider()
 
 # ============================================================
-# ✅ 이하: 기존 세션 상태 초기화/shape ensure (그대로 유지)
+# OK 이하: 기존 세션 상태 초기화/shape ensure (그대로 유지)
 # ============================================================
 
 if "quiz_version" not in st.session_state:
@@ -3159,7 +3159,7 @@ ensure_mastery_banner_shape()
 
 
 # ============================================================
-# ✅ 상단 UI: 품사 버튼 → (기타 expander + 적용 버튼) → 유형 버튼 → 캡션 → divider
+# OK 상단 UI: 품사 버튼 → (기타 expander + 적용 버튼) → 유형 버튼 → 캡션 → divider
 # ============================================================
 def on_pick_pos_group(ps: str):
     ps = str(ps).strip().lower()
@@ -3167,7 +3167,7 @@ def on_pick_pos_group(ps: str):
         return
     st.session_state.pos_group = ps
 
-    # ✅ 제한 그룹이면 reading 선택 상태를 자동 해제
+    # OK 제한 그룹이면 reading 선택 상태를 자동 해제
     if ps in POS_ONLY_2TYPES and st.session_state.quiz_type == "reading":
         st.session_state.quiz_type = "meaning"
 
@@ -3189,7 +3189,7 @@ def on_pick_qtype(qt: str):
     start_quiz_state(new_quiz, st.session_state.quiz_type, clear_wrongs=True)
     st.session_state["_scroll_top_once"] = True
 
-# ✅ 현재 pos_group 기준으로 유형 리스트 재계산(표시 직전에!)
+# OK 현재 pos_group 기준으로 유형 리스트 재계산(표시 직전에!)
 try:
     if sb_authed is not None:
         available_types = get_available_quiz_types_for_pos(st.session_state.get("pos_group", "noun"))
@@ -3200,7 +3200,7 @@ except Exception:
     g_now = str(st.session_state.get("pos_group", "noun")).lower().strip()
     available_types = ["meaning", "kr2jp"] if g_now in POS_ONLY_2TYPES else QUIZ_TYPES_USER
 
-# ✅ 선택된 유형이 현재 pos_group에서 허용되지 않으면 meaning으로 강제
+# OK 선택된 유형이 현재 pos_group에서 허용되지 않으면 meaning으로 강제
 if st.session_state.get("quiz_type") not in available_types:
     st.session_state.quiz_type = "meaning"
 
@@ -3208,13 +3208,13 @@ st.markdown('<div class="qtypewrap">', unsafe_allow_html=True)
 
 st.markdown('<div class="qtype_hint jp">✨품사를 선택하세요</div>', unsafe_allow_html=True)
 
-# ✅ 품사 그룹 버튼(5개)
+# OK 품사 그룹 버튼(5개)
 pos_cols = st.columns(5, gap="small")
 for i, ps in enumerate(POS_GROUP_OPTIONS):
     with pos_cols[i]:
         is_sel = (ps == st.session_state.pos_group)
         st.button(
-            ("✅ " if is_sel else "") + POS_LABEL_MAP.get(ps, ps),
+            ("OK " if is_sel else "") + POS_LABEL_MAP.get(ps, ps),
             use_container_width=True,
             type=("primary" if is_sel else "secondary"),
             key=f"btn_posg_{ps}",
@@ -3222,7 +3222,7 @@ for i, ps in enumerate(POS_GROUP_OPTIONS):
             args=(ps,),
         )
 
-# ✅ B안: 기타 선택 시에만 세부 선택 expander + 적용 버튼
+# OK B안: 기타 선택 시에만 세부 선택 expander + 적용 버튼
 if st.session_state.pos_group == "other":
     with st.expander("기타 세부 선택 (부사/조사/접속사/감탄사)", expanded=True):
         cols = st.columns(2)
@@ -3236,7 +3236,7 @@ if st.session_state.pos_group == "other":
                     st.session_state.other_pos_selected.discard(p)
 
         if st.button("🔄 기타 선택 적용(새 문제)", use_container_width=True, key="btn_apply_other"):
-            # ✅ 기타는 reading 불가
+            # OK 기타는 reading 불가
             if st.session_state.quiz_type == "reading":
                 st.session_state.quiz_type = "meaning"
 
@@ -3248,13 +3248,13 @@ if st.session_state.pos_group == "other":
 
 st.markdown('<div class="qtype_hint jp">✨유형을 선택하세요</div>', unsafe_allow_html=True)
 
-# ✅ 유형 버튼
+# OK 유형 버튼
 type_cols = st.columns(len(available_types), gap="small")
 for i, qt in enumerate(available_types):
     with type_cols[i]:
         is_sel = (qt == st.session_state.quiz_type)
         st.button(
-            ("✅ " if is_sel else "") + quiz_label_map.get(qt, qt),
+            ("OK " if is_sel else "") + quiz_label_map.get(qt, qt),
             use_container_width=True,
             type=("primary" if is_sel else "secondary"),
             key=f"btn_qtype_{qt}",
@@ -3264,7 +3264,7 @@ for i, qt in enumerate(available_types):
 
 st.markdown("</div>", unsafe_allow_html=True)
 
-# ✅ 필수패턴(카드)
+# OK 필수패턴(카드)
 with st.expander("📌 필수패턴 (카드로 빠르게 익히기)", expanded=False):
     if is_pro():
         render_pattern_cards()
@@ -3278,14 +3278,14 @@ st.divider()
 st.markdown("</div>", unsafe_allow_html=True)
 
 # ============================================================
-# ✅ FREE 사용량 기록 (현재는 제한 OFF라 no-op)
+# OK FREE 사용량 기록 (현재는 제한 OFF라 no-op)
 # ============================================================
 def add_free_used(n: int):
     """FREE 제한을 다시 켤 때를 대비해 남겨둠. 현재는 아무 것도 하지 않음."""
     return
 
 # ============================================================
-# ✅ 버튼: 새 문제(랜덤10) / 맞힌 단어 제외 초기화  (복붙 버전)
+# OK 버튼: 새 문제(랜덤10) / 맞힌 단어 제외 초기화  (복붙 버전)
 #   - 기존 "쓸데없는 새 문제" 버튼 제거
 #   - "🔄 새 문제(랜덤 10문항)"을 왼쪽(원래 자리)로 이동
 # ============================================================
@@ -3308,10 +3308,10 @@ with cbtn1:
     ):
         clear_question_widget_keys()
     
-        # ✅ 새 퀴즈 시작 = 제출 카운트 플래그 리셋
+        # OK 새 퀴즈 시작 = 제출 카운트 플래그 리셋
         st.session_state["_counted_today"] = False
 
-        # ✅ 콤보 알림 단계 리셋(오늘 최고 콤보 기록은 유지)
+        # OK 콤보 알림 단계 리셋(오늘 최고 콤보 기록은 유지)
         st.session_state["combo_last_notice"] = 0
     
         new_quiz = build_quiz(st.session_state.quiz_type, st.session_state.pos_group)
@@ -3351,10 +3351,10 @@ if st.session_state.get("mastery_done", {}).get(k_now, False):
 
     
 # ============================================================
-# ✅ 퀴즈 생성(없으면 1회 자동 생성)
+# OK 퀴즈 생성(없으면 1회 자동 생성)
 # ============================================================
 
-k_now = mastery_key()  # ✅ 먼저!
+k_now = mastery_key()  # OK 먼저!
 
 if "quiz" not in st.session_state or not isinstance(st.session_state.quiz, list):
     st.session_state.quiz = []
@@ -3373,7 +3373,7 @@ if (not is_mastered_done) and len(st.session_state.quiz) == 0:
 
 if len(st.session_state.quiz) == 0:
     if bool(st.session_state.get("mastery_done", {}).get(k_now, False)):
-        st.success("✅ 이 설정에서 새로 출제할 문제가 더 이상 없습니다.")
+        st.success("OK 이 설정에서 새로 출제할 문제가 더 이상 없습니다.")
         st.caption("👉 ‘출제 이력 초기화(다시 시작)’를 누르거나, 다른 품사·유형을 선택해 주세요.")
         st.caption("👉 틀린 문제는 마이페이지에서 ‘틀린 문제만 다시 풀기’로 복습하세요~")
         st.stop()
@@ -3399,12 +3399,12 @@ def _esc_html(x) -> str:
 
 
 # ============================================================
-# ✅ 오늘 목표(Progress) - 세션 기반 (DB 없이)
+# OK 오늘 목표(Progress) - 세션 기반 (DB 없이)
 #   - 상단(1곳)만 사용
 #   - 하단은 SHOW_BOTTOM_GOAL=False면 절대 렌더링 안 됨
 # ============================================================
 
-SHOW_BOTTOM_GOAL = False  # ✅ 하단을 완전히 숨기려면 False 유지
+SHOW_BOTTOM_GOAL = False  # OK 하단을 완전히 숨기려면 False 유지
 
 def get_today_done_count() -> int:
     return int(st.session_state.get("today_done", 0))
@@ -3418,7 +3418,7 @@ def reset_today_done():
 def get_today_goal_default() -> int:
     return 10
 
-# ✅ 누적용 상태(필요하면 유지)
+# OK 누적용 상태(필요하면 유지)
 if "counted_qids" not in st.session_state:
     st.session_state["counted_qids"] = set()
 if "is_graded" not in st.session_state:
@@ -3445,7 +3445,7 @@ def render_today_goal_progress():
     st.divider()
 
 # ============================================================
-# ✅ 하단 렌더링(숨김)
+# OK 하단 렌더링(숨김)
 #   - 아래 조건부 블록만 남기고, "직접 호출"은 절대 하지 마세요.
 # ============================================================
 
@@ -3454,7 +3454,7 @@ if SHOW_BOTTOM_GOAL:
 
 
 # ============================================================
-# ✅ 문제 표시 (동그란 배지: ① ② ③ ... + 같은 줄)
+# OK 문제 표시 (동그란 배지: ① ② ③ ... + 같은 줄)
 # ============================================================
 circled_nums = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳㉑㉒㉓㉔㉕㉖㉗㉘㉙㉚㉛㉜㉝㉞㉟㊱㊲㊳㊴㊵㊶㊷㊸㊹㊺㊻㊼㊽㊾㊿"
 
@@ -3486,7 +3486,7 @@ for idx, q in enumerate(st.session_state.quiz):
     if st.session_state.get("quiz_type") == "meaning":
         tts_text = (q.get("reading") or q.get("jp_word") or "").strip()
 
-        # ✅ PRO만 버튼 렌더링 (무료는 루프 안에서 아무것도 안 찍음)
+        # OK PRO만 버튼 렌더링 (무료는 루프 안에서 아무것도 안 찍음)
         if is_pro():
             render_pronounce_button(
                 tts_text,
@@ -3515,11 +3515,11 @@ sync_answers_from_widgets()
 
 
 # ============================================================
-# ✅ 제출/채점
+# OK 제출/채점
 # ============================================================
 quiz_len = len(st.session_state.quiz)
 
-# ✅ "지금 선택된 값"을 세션에서 읽어서 all_answered 판단
+# OK "지금 선택된 값"을 세션에서 읽어서 all_answered 판단
 selected_now = []
 for idx, q in enumerate(st.session_state.quiz):
     widget_key = f"q_{st.session_state.quiz_version}_{idx}"
@@ -3528,7 +3528,7 @@ for idx, q in enumerate(st.session_state.quiz):
 all_answered = (quiz_len > 0) and all(a is not None for a in selected_now)
 
 if st.button(
-    "✅ 제출하고 채점하기",
+    "OK 제출하고 채점하기",
     disabled=not all_answered,
     type="primary",
     use_container_width=True,
@@ -3537,10 +3537,10 @@ if st.button(
     st.session_state.submitted = True
     st.session_state.session_stats_applied_this_attempt = False
 
-    # ✅ 제출 시점에만 answers에 확정 반영
+    # OK 제출 시점에만 answers에 확정 반영
     st.session_state.answers = selected_now
 
-    # ✅ 중복 카운트 방지
+    # OK 중복 카운트 방지
     if not st.session_state.get("_counted_today", False):
         add_done_count(int(st.session_state.get("quiz_len", 10)))
         st.session_state["_counted_today"] = True
@@ -3550,7 +3550,7 @@ if not all_answered:
 
 
 # ============================================================
-# ✅ 제출 후 화면
+# OK 제출 후 화면
 # ============================================================
 if st.session_state.submitted:
     show_post_ui = (SHOW_POST_SUBMIT_UI == "Y") or is_admin()
@@ -3583,14 +3583,14 @@ if st.session_state.submitted:
                 "단어": str(q.get("jp_word", "")).strip(),
                 "읽기": str(q.get("reading", "")).strip(),
                 "뜻": str(q.get("meaning", "")).strip(),
-                "품사": current_pos_group,   # ✅ 그룹 저장
+                "품사": current_pos_group,   # OK 그룹 저장
                 "유형": current_type,
             })
 
     st.session_state.wrong_list = wrong_list
 
     # ============================================================
-    # ✅ 오답 상세 저장 (wrong_notes) — 3회 이상 반복오답/Top10 복습용
+    # OK 오답 상세 저장 (wrong_notes) — 3회 이상 반복오답/Top10 복습용
     # - 홈/마이페이지에서 '단어/정답/내답' 카드 복원을 위해 필요
     rows = []
     sb_authed = get_authed_sb()
@@ -3603,7 +3603,7 @@ if st.session_state.submitted:
         except Exception:
             u_id = None
 
-    # ✅ wrong_notes는 "가능하면 저장" (실패해도 채점/진행은 계속)
+    # OK wrong_notes는 "가능하면 저장" (실패해도 채점/진행은 계속)
     try:
         if sb_authed is None:
             _wn_warn("오답 저장 실패: authed client 없음(access_token).")
@@ -3625,11 +3625,11 @@ if st.session_state.submitted:
         _wn_warn(f"오답 저장 실패: {e}")
 
     # ============================================================
-    # ✅ 결과/효과/UI (✅ 항상 실행)
+    # OK 결과/효과/UI (OK 항상 실행)
     # ============================================================
     st.success(f"점수: {score} / {quiz_len}")
 
-    # ✅ FREE 제한 카운트 누적 (제출 1회 = quiz_len 소비)
+    # OK FREE 제한 카운트 누적 (제출 1회 = quiz_len 소비)
     #    같은 제출 화면에서 rerun이 여러 번 나도 중복 누적되지 않도록 1회만 적용
     if "free_limit_applied_this_attempt" not in st.session_state:
         st.session_state.free_limit_applied_this_attempt = False
@@ -3665,7 +3665,7 @@ if st.session_state.submitted:
                     sb_authed=sb_authed_local,
                     user_id=user_id,
                     user_email=user_email,
-                    pos=current_pos_group,   # ✅ 그룹 저장
+                    pos=current_pos_group,   # OK 그룹 저장
                     quiz_type=current_type,
                     quiz_len=quiz_len,
                     score=score,
@@ -3684,7 +3684,7 @@ if st.session_state.submitted:
                     quiz=st.session_state.quiz,
                     answers=st.session_state.answers,
                     quiz_type=current_type,
-                    pos=current_pos_group,  # ✅ 그룹 기준
+                    pos=current_pos_group,  # OK 그룹 기준
                 )
                 if items:
                     run_db(lambda: sb_authed_local.rpc("record_word_results_bulk", {"p_items": items}).execute())
@@ -3700,7 +3700,7 @@ if st.session_state.submitted:
             pass
 
     # ============================================================
-    # ✅ 콤보 계산 (⚠️ 반드시 제출 후에만)
+    # OK 콤보 계산 (⚠️ 반드시 제출 후에만)
     # ============================================================
     correct_flags = []
     for idx, q in enumerate(st.session_state.quiz):
@@ -3713,7 +3713,7 @@ if st.session_state.submitted:
     render_combo_small_badge()
 
     # ============================================================
-    # ✅ 제출 후 화면 내부 "오답노트" 블록
+    # OK 제출 후 화면 내부 "오답노트" 블록
     # ============================================================
     if st.session_state.wrong_list:
         st.subheader("❌ 오답 노트")
@@ -3840,7 +3840,7 @@ if st.session_state.submitted:
             
 
 # ============================================================
-# ✅ 제출 후 하단 액션 버튼 (오답 유무와 무관하게 항상 표시)
+# OK 제출 후 하단 액션 버튼 (오답 유무와 무관하게 항상 표시)
 # ============================================================
 if st.session_state.get("submitted", False):
     st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
@@ -3853,7 +3853,7 @@ if st.session_state.get("submitted", False):
             st.caption("🔒 오늘 무료 한도(30문항)를 모두 사용했어요.")
 
         if st.button(
-            "✅ 다음 10문항 시작하기",
+            "OK 다음 10문항 시작하기",
             type="primary",
             use_container_width=True,
             key="btn_next_10",
