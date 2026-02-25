@@ -1322,82 +1322,105 @@ if submitted:
                 )
 
         st.caption("정답을 보고 2~3번 따라 말한 뒤, 아래 버튼을 눌러 다음으로 넘어가세요.")
+
         with st.expander("🤖 내용이 어려우면 하테나쌤에게 물어보세요", expanded=False):
             st.markdown("### 💬 하테나쌤 스마트 코치")
 
             q_default = st.session_state.get("talk_ai_last_q") or ""
             user_q = st.text_input(
-                "궁금한 점을 입력해 보세요.",
-                value=q_default,
-                key="talk_ai_input",
+                "질문",
+                value=str(q_default),
+                key=f"talk_ai_q_{qid}",
+                placeholder="예) 더 자연스러운 표현도 있어요? / 회화에 도움이 되는 패키지는 뭐예요?",
+                label_visibility="collapsed",
             )
 
-        q_default = st.session_state.get("talk_ai_last_q") or ""
-        user_q = st.text_input(
-            "질문",
-            value=str(q_default),
-            key=f"talk_ai_q_{qid}",
-            placeholder="예) 더 자연스러운 표현도 있어요? / 회화에 도움이 되는 패키지는 뭐예요?",
-            label_visibility="collapsed",
-        )
+            hint = str(row.get("hint_kr", "")).strip()
 
-        # auto context (cheap)
-        ctx_parts = []
-        s = str(row.get("situation_kr", "")).strip()
-        p = str(row.get("partner_jp", "")).strip()
-        a = str(row.get("answer_jp", "")).strip()
-        me = str(selected or "").strip()
-        ctx_parts.append(f"현재상황: {s}")
-        ctx_parts.append(f"상대발화: {p}")
-        ctx_parts.append(f"정답표현: {a}")
-        if me:
-            ctx_parts.append(f"내선택: {me}")
-        # ✅ ok 안전화(스코프/들여쓰기 흔들림 방지)
-        try:
-            ok_flag = bool(ok)
-        except Exception:
+            if explain_kr:
+                st.markdown("<div style='margin-top:-14px'></div>", unsafe_allow_html=True)
+                st.info("💡 하테나쌤 원포인트 일본어
+
+" + explain_kr)
+            elif hint:
+                st.markdown("<div style='margin-top:-14px'></div>", unsafe_allow_html=True)
+                st.info("💡 하테나쌤 원포인트 일본어
+
+" + hint)
+            else:
+                st.markdown("<div style='margin-top:-14px'></div>", unsafe_allow_html=True)
+                st.info("💡 하테나쌤 원포인트 일본어
+
+포인트: 상황에서 ‘요청/사과/확인/거절’ 중 무엇인지 먼저 잡고, 그에 맞는 톤(정중/캐주얼)을 고르면 실수가 줄어듭니다.")
+
+            # ✅ AI 코칭용 컨텍스트
+            ctx_parts = []
+            s0 = str(row.get("situation_jp", "")).strip()
+            p0 = str(row.get("partner_jp", "")).strip()
+            a0 = str(row.get("answer_jp", "")).strip()
+            me0 = str(selected or "").strip()
+
+            if s0:
+                ctx_parts.append(f"현재상황: {s0}")
+            if p0:
+                ctx_parts.append(f"상대발화: {p0}")
+            if a0:
+                ctx_parts.append(f"정답표현: {a0}")
+            if me0:
+                ctx_parts.append(f"내선택: {me0}")
+
+            # ✅ ok 안전화(스코프/들여쓰기 흔들림 방지)
             try:
-                ok_flag = bool((answers or {}).get(qid, {}).get("ok"))
+                ok_flag = bool(ok)
             except Exception:
-                ok_flag = False
-        ctx_parts.append(f"정오답: {'정답' if ok_flag else '오답'}")
+                try:
+                    ok_flag = bool((answers or {}).get(qid, {}).get("ok"))
+                except Exception:
+                    ok_flag = False
+            ctx_parts.append(f"정오답: {'정답' if ok_flag else '오답'}")
 
-        try:
-            recent = _recent_turns_summary()
-            if recent:
-                ctx_parts.append("최근2턴:\n" + recent)
-        except Exception:
-            pass
+            try:
+                recent = _recent_turns_summary()
+                if recent:
+                    ctx_parts.append("최근2턴:\n" + recent)
+            except Exception:
+                pass
 
-        ctx = "\n".join([x for x in ctx_parts if x]).strip()
+            ctx = "\n".join([x for x in ctx_parts if x]).strip()
 
-        st.caption("핵심을 짚어 질문할수록 더 정밀한 코칭을 받을 수 있어요.")
+            st.caption("핵심을 짚어 질문할수록 더 정밀한 코칭을 받을 수 있어요.")
 
-        ask = st.button("AI 코칭 받기 시작", use_container_width=True, key=f"talk_ai_ask_{qid}")
+            col_ai1, col_ai2 = st.columns([5, 2])
+            with col_ai1:
+                ask = st.button("AI 코칭 받기 시작", use_container_width=True, key=f"talk_ai_ask_{qid}")
+            with col_ai2:
+                # (선택) 질문 초기화
+                if st.button("초기화", use_container_width=True, key=f"talk_ai_reset_{qid}"):
+                    st.session_state["talk_ai_last_q"] = ""
+                    st.session_state[f"talk_ai_q_{qid}"] = ""
 
-        if ask and str(user_q).strip():
-            st.session_state["talk_ai_last_q"] = str(user_q).strip()
-            with st.spinner("하테나쌤 답변 중…"):
-                ans = ai_tutor.ask_hatena(
-                    mode="talk",
-                    user_input=str(user_q).strip(),
-                    context=ctx,
-                    meta={
-                        "page": "talk",
-                        "qid": str(qid),
-                        "tag": str(tag),
-                        "sub": str(sub) if 'sub' in locals() else "",
-                        "submitted": True,
-                        "ok": bool(ok),
-                    },
-                )
-            st.info(ans)
+            if ask and str(user_q).strip():
+                st.session_state["talk_ai_last_q"] = str(user_q).strip()
+                with st.spinner("하테나쌤 답변 중…"):
+                    ans = ai_tutor.ask_hatena(
+                        mode="talk",
+                        user_input=str(user_q).strip(),
+                        context=ctx,
+                        meta={
+                            "page": "talk",
+                            "qid": str(qid),
+                            "tag": str(tag),
+                            "sub": str(sub) if 'sub' in locals() else "",
+                            "submitted": True,
+                            "ok": bool(ok_flag),
+                        },
+                    )
+                st.info(ans)
 
-reward_key = f"{NS}_reward_ready_{qid}"
+        reward_key = f"{NS}_reward_ready_{qid}"
         if st.button("✅ 다 했어요 (보상 받기)", use_container_width=True, key=f"{NS}_next_after"):
             # ✅ 1단계: 보상만 보여주고, 다음 이동은 사용자가 명확히 누르도록 분리
             st.session_state[reward_key] = True
-
         if st.session_state.get(reward_key):
             st.success("+2 XP 🎤 (말하기 완료 보상)")
             st.caption("👇 아래 버튼을 누르면 다음 문제로 넘어갑니다.")
