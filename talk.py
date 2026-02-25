@@ -1403,60 +1403,78 @@ if submitted:
         )
 
 
-        
-        # ✅ 정답 발음 확인 버튼 (발음체크 영역)
-        # - PRO: 클릭 시 mp3(있으면) 재생, 없으면 TTS
-        # - FREE: 하루 TTS 3회 쿼터 내에서만 재생
-        ans_jp = str(row.get("answer_jp", "") or "").strip()
-        ans_audio = (
-            row.get("answer_mp3", "")
-            or row.get("answer_audio", "")
-            or row.get("answer_audio_url", "")
-            or ""
-        )
-        if ans_jp:
+        # ✅ 정답 발음 확인 버튼 (플레이어 없이, 브라우저 TTS)
+        _ans_text = (str(row.get("answer_jp", "")) or "").strip()
+        if _ans_text:
             if IS_PRO:
-                if st.button("🔊 정답 발음 확인", key=f"{qid}_ans_pron_btn", use_container_width=True):
-                    au = resolve_audio_url(str(ans_audio))
-                    if au:
-                        st.audio(au)
-                    else:
-                        # 브라우저 TTS fallback
-                        components.html(
-                            f"""<script>(function(){{try{{const synth=window.speechSynthesis;
-function pickJaVoice(){{const voices=synth.getVoices()||[];const ja=voices.filter(v=>String(v.lang||'').toLowerCase().startsWith('ja'));
-if(!ja.length) return null; return ja.find(v=>/google/i.test(v.name||''))||ja[0]||null;}}
-const u=new SpeechSynthesisUtterance({ans_jp.replace(chr(10),' ')!r}); u.lang='ja-JP'; const v=pickJaVoice(); if(v) u.voice=v;
-synth.cancel(); synth.speak(u);}}catch(e){{}}}})();</script>""",
-                            height=0,
-                        )
+                if st.button("🔊 정답 발음 확인", use_container_width=True, key=f"{qid}_answer_pron_btn"):
+                    components.html(
+                        f"""<script>
+(function(){{
+  try{{
+    const synth = window.speechSynthesis;
+    function pickJaVoice(){{
+      const voices = synth.getVoices() || [];
+      const ja = voices.filter(v => String(v.lang||"").toLowerCase().startsWith("ja"));
+      if (!ja.length) return null;
+      return ja.find(v => /google/i.test(v.name||""))
+          || ja.find(v => /日本|japanese/i.test(v.name||""))
+          || ja[0] || null;
+    }}
+    const u = new SpeechSynthesisUtterance({(_ans_text).replace(chr(10),' ')!r});
+    u.lang = "ja-JP";
+    const v = pickJaVoice();
+    if (v) u.voice = v;
+    synth.cancel();
+    synth.speak(u);
+  }}catch(e){{}}
+}})();
+</script>""",
+                        height=0,
+                    )
             else:
-                rem_t = _free_tts_remaining()
-                if rem_t > 0:
+                _rem_pron = _free_tts_remaining()
+                if _rem_pron > 0:
                     if st.button(
-                        f"🔊 정답 발음 확인 (무료 {FREE_TTS_QUOTA-rem_t+1}/{FREE_TTS_QUOTA})",
-                        key=f"{qid}_ans_pron_btn_free",
+                        f"🔊 정답 발음 확인 (무료 {FREE_TTS_QUOTA-_rem_pron+1}/{FREE_TTS_QUOTA})",
                         use_container_width=True,
+                        key=f"{qid}_answer_pron_btn_free",
                     ):
                         _use_free_tts_once()
                         components.html(
-                            f"""<script>(function(){{try{{const synth=window.speechSynthesis;
-function pickJaVoice(){{const voices=synth.getVoices()||[];const ja=voices.filter(v=>String(v.lang||'').toLowerCase().startsWith('ja'));
-if(!ja.length) return null; return ja.find(v=>/google/i.test(v.name||''))||ja[0]||null;}}
-const u=new SpeechSynthesisUtterance({ans_jp.replace(chr(10),' ')!r}); u.lang='ja-JP'; const v=pickJaVoice(); if(v) u.voice=v;
-synth.cancel(); synth.speak(u);}}catch(e){{}}}})();</script>""",
+                            f"""<script>
+(function(){{
+  try{{
+    const synth = window.speechSynthesis;
+    function pickJaVoice(){{
+      const voices = synth.getVoices() || [];
+      const ja = voices.filter(v => String(v.lang||"").toLowerCase().startsWith("ja"));
+      if (!ja.length) return null;
+      return ja.find(v => /google/i.test(v.name||""))
+          || ja.find(v => /日本|japanese/i.test(v.name||""))
+          || ja[0] || null;
+    }}
+    const u = new SpeechSynthesisUtterance({(_ans_text).replace(chr(10),' ')!r});
+    u.lang = "ja-JP";
+    const v = pickJaVoice();
+    if (v) u.voice = v;
+    synth.cancel();
+    synth.speak(u);
+  }}catch(e){{}}
+}})();
+</script>""",
                             height=0,
                         )
                 else:
-                    st.markdown(
-                        '<div style="margin-top:6px;display:flex;align-items:center;gap:8px;">'
-                        '<span style="font-size:12px;background:#FFD54F;color:#000;padding:2px 6px;border-radius:8px;font-weight:800;">PRO</span>'
-                        '<span style="font-size:0.92rem;opacity:0.85;">정답 발음 확인은 PRO 전용 (무료 3회 소진)</span>'
-                        "</div>",
-                        unsafe_allow_html=True,
+                    st.button(
+                        "🔒 정답 발음 확인 (PRO)",
+                        disabled=True,
+                        use_container_width=True,
+                        key=f"{qid}_answer_pron_btn_lock",
                     )
 
-# ✅ 말하기 녹음(선택)
+
+        # ✅ 말하기 녹음(선택)
         # - PRO: 녹음 가능
         # - FREE: PRO 안내 카드 노출
         if IS_PRO:
