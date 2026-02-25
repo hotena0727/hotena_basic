@@ -133,10 +133,23 @@ def get_cfg(key: str) -> str:
         return ""
 
 
+@st.cache_resource(show_spinner=False)
+def _make_sb(url: str, key: str):
+    return create_client(url, key)
+
 def get_sb():
+    """Supabase client (lazy init + cached)."""
     sb = st.session_state.get("sb")
     if sb is not None:
         return sb
+    url = get_cfg("SUPABASE_URL")
+    key = get_cfg("SUPABASE_ANON_KEY")
+    if not url or not key:
+        st.error("Supabase 설정이 없습니다. (SUPABASE_URL / SUPABASE_ANON_KEY)")
+        st.stop()
+    sb = _make_sb(url, key)
+    st.session_state["sb"] = sb
+    return sb
 
 
 def get_authed_sb():
@@ -161,14 +174,6 @@ def get_authed_sb():
     st.session_state["_sb_authed_talk"] = sb2
     st.session_state["_sb_authed_talk_token"] = token
     return sb2
-    url = get_cfg("SUPABASE_URL")
-    key = get_cfg("SUPABASE_ANON_KEY")
-    if not url or not key:
-        st.error("Supabase 설정이 없습니다. (SUPABASE_URL / SUPABASE_ANON_KEY)")
-        st.stop()
-    sb = create_client(url, key)
-    st.session_state["sb"] = sb
-    return sb
 
 
 sb = get_sb()
@@ -277,13 +282,16 @@ def _ensure_recent_turns():
 
     st.session_state["talk_recent_turns"] = lst
 
-    # persist (best effort)
+    # persist (best effort) — 매 rerun마다 DB 업데이트하지 않도록 변경
     try:
-        prog = load_progress()
-        talk_prog = prog.get("talk") or {}
-        talk_prog["recent_turns"] = lst
-        prog["talk"] = talk_prog
-        save_progress(prog)
+        h = hashlib.md5(str(lst).encode("utf-8")).hexdigest()
+        if st.session_state.get("_talk_recent_turns_hash") != h:
+            prog = load_progress()
+            talk_prog = prog.get("talk") or {}
+            talk_prog["recent_turns"] = lst
+            prog["talk"] = talk_prog
+            save_progress(prog)
+            st.session_state["_talk_recent_turns_hash"] = h
     except Exception:
         pass
 
@@ -302,13 +310,16 @@ def _push_recent_turn(turn: dict):
 
     st.session_state["talk_recent_turns"] = lst
 
-    # persist (best effort)
+    # persist (best effort) — 매 rerun마다 DB 업데이트하지 않도록 변경
     try:
-        prog = load_progress()
-        talk_prog = prog.get("talk") or {}
-        talk_prog["recent_turns"] = lst
-        prog["talk"] = talk_prog
-        save_progress(prog)
+        h = hashlib.md5(str(lst).encode("utf-8")).hexdigest()
+        if st.session_state.get("_talk_recent_turns_hash") != h:
+            prog = load_progress()
+            talk_prog = prog.get("talk") or {}
+            talk_prog["recent_turns"] = lst
+            prog["talk"] = talk_prog
+            save_progress(prog)
+            st.session_state["_talk_recent_turns_hash"] = h
     except Exception:
         pass
 
@@ -856,7 +867,7 @@ with p1:
 with p2:
     if st.button("🔄 새 세트", use_container_width=True, type="secondary", key=f"{NS}_new_set"):
         reset_set()
-        st.rerun()
+        # st.rerun()  # Streamlit은 버튼 클릭 시 자동 rerun됩니다.
 
 # ============================================================
 # ✅ Current question
@@ -1259,7 +1270,7 @@ if submitted:
             st.session_state.pop(sel_key, None)
             st.session_state.pop(f"{NS}_radio_{qid}", None)
             st.session_state.pop(f"{NS}_speak_done_{qid}", None)
-            st.rerun()
+            # st.rerun()  # Streamlit은 버튼 클릭 시 자동 rerun됩니다.
 
 
 # ============================================================# ✅ Set completion (10문제 모두 제출되면 자동 집계)
