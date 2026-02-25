@@ -1443,11 +1443,38 @@ if submitted:
         audio_obj = locals().get("_audio", None)
         has_audio = audio_obj is not None
 
+        # ✅ 자동 점수 계산 (녹음이 새로 들어왔을 때 1회만)
+        # - 보기 선택 단계/리런에 영향 없도록, 오디오 해시가 바뀐 경우에만 실행합니다.
+        if has_audio:
+            try:
+                _b = b""
+                _mime = "audio/wav"
+                _mime = getattr(audio_obj, "type", None) or "audio/wav"
+                if hasattr(audio_obj, "getvalue"):
+                    _b = audio_obj.getvalue()
+                elif hasattr(audio_obj, "read"):
+                    _b = audio_obj.read()
+                _h = hashlib.sha1(_b).hexdigest() if _b else ""
+            except Exception:
+                _b, _mime, _h = b"", "audio/wav", ""
+
+            _last_hash_key = f"talk_pron_lasthash_{qid}"
+            if _h and st.session_state.get(_last_hash_key) != _h:
+                st.session_state[_last_hash_key] = _h
+                st.session_state.pop(err_key, None)
+                with st.spinner("말하기 점수 계산 중..."):
+                    try:
+                        _txt = _openai_transcribe_bytes(_b, mime=_mime)
+                        st.session_state[text_key] = _txt
+                        st.session_state[score_key] = _similarity_score(_txt, str(row.get("answer_jp", "")))
+                    except Exception as _e:
+                        st.session_state[err_key] = str(_e)
+
         c_sc1, c_sc2 = st.columns([0.72, 0.28], vertical_alignment="center")
         with c_sc1:
             st.markdown("### 📊 말하기 점수")
         with c_sc2:
-            do_calc = st.button("점수 계산", use_container_width=True, disabled=not has_audio, key=f"{qid}_pron_calc")
+            do_calc = st.button("다시 계산", use_container_width=True, disabled=not has_audio, key=f"{qid}_pron_calc")
 
         if do_calc:
             try:
@@ -1477,7 +1504,7 @@ if submitted:
         if st.session_state.get(score_key) is not None:
             st.metric("점수", int(st.session_state.get(score_key) or 0))
 
-        st.caption("정답을 보고 2~3번 따라 말한 뒤, 아래 버튼을 눌러 다음으로 넘어가세요.")
+        st.caption("정답을 보고 2~3번 따라 말해 보세요. 녹음이 끝나면 점수가 자동으로 계산됩니다.")
         reward_key = f"{NS}_reward_ready_{qid}"
         if st.button("✅ 다 했어요 (보상 받기)", use_container_width=True, key=f"{NS}_next_after"):
             # ✅ 1단계: 보상만 보여주고, 다음 이동은 사용자가 명확히 누르도록 분리
