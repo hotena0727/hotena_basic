@@ -63,26 +63,7 @@ header[data-testid="stHeader"]{
     margin-top: 0rem !important;
   }
 }
-</style>""", unsafe_allow_html=True)
-
-# ✅ HN_RADIO_STABLE_V6
-st.markdown(r"""
-<style>
-/* HN_RADIO_STABLE_V6: keep Streamlit radio spacing stable (no font changes) */
-div[data-testid="stRadio"] label{
-  margin: 0 0 6px 0 !important;
-  padding: 4px 8px !important;
-  line-height: 1.45 !important;
-}
-div[data-testid="stRadio"] label > div{
-  margin: 0 !important;
-  padding: 0 !important;
-}
-div[data-testid="stRadio"] > div{
-  gap: 0.35rem !important;
-}
-</style>
-""", unsafe_allow_html=True)
+    </style>\"\"\", unsafe_allow_html=True)
     st.session_state["_top_compact_css_applied"] = True
 
 st.session_state["_page_config_set"] = True
