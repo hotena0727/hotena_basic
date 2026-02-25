@@ -740,9 +740,9 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
 </div>
 <style>
   .ttspair{{display:flex;flex-direction:column;gap:8px;}}
-  .ttspair .row{display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap;}}
+  .ttspair .row{{display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap;}}
   .ttspair .lab{{min-width:52px;font-weight:700;opacity:.85;}}
-  .ttspair .txt{font-size:1.05rem;flex:1 1 auto;min-width:0;white-space:normal;overflow-wrap:anywhere;word-break:break-word;line-height:1.45;}}
+  .ttspair .txt{{font-size:1.05rem;flex:1 1 auto;min-width:0;white-space:normal;overflow-wrap:anywhere;word-break:break-word;line-height:1.45;}}
   .ttspair .btn{{border:0;background:transparent;padding:0;margin-left:2px;font-size:1.05rem;cursor:pointer;opacity:.95;}}
   .ttspair .btn[disabled]{{cursor:not-allowed;opacity:.35;}}
   .ttspair .pro{{font-size:.75rem;letter-spacing:.02em;border:1px solid rgba(0,0,0,.18);border-radius:999px;padding:1px 6px;opacity:.45;}}
