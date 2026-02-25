@@ -118,8 +118,40 @@ _inject_talk_ui_css()
 # ✅ TTS 플레이어(1개) 렌더 — 요청이 있을 때만 재생
 # (moved) _render_talk_tts_player() call is placed near the end to avoid NameError on import.
 
-st.title("일본어회화")
-st.caption("1문제씩: 상황 → 상대 발화(🔊/PRO) → 보기 선택 → 제출 → 정답/설명 → (선택)말하기 완료 체크")
+st.markdown(
+    """
+<style>
+/* 헤더 자리 고정: rerun 시에도 레이아웃 흔들림 최소화 */
+.talk-fixed-header{
+  padding: 6px 0 10px 0;
+  min-height: 64px;     /* ✅ PC에서 타이틀+캡션 높이 자리 확보 */
+}
+.talk-fixed-title{
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1.15;
+  margin: 0;
+}
+.talk-fixed-caption{
+  margin-top: 6px;
+  font-size: 0.95rem;
+  opacity: 0.75;
+}
+@media (max-width: 768px){
+  .talk-fixed-header{ min-height: 52px; } /* 모바일은 조금 줄임 */
+  .talk-fixed-title{ font-size: 1.6rem; }
+}
+</style>
+
+<div class="talk-fixed-header">
+  <div class="talk-fixed-title">일본어회화</div>
+  <div class="talk-fixed-caption">
+    1문제씩: 상황 → 상대 발화(🔊/PRO) → 보기 선택 → 제출 → 정답/설명 → (선택)말하기 완료 체크
+  </div>
+</div>
+""",
+    unsafe_allow_html=True,
+)
 
 # ============================================================
 # ✅ Supabase client (hub reuse)
