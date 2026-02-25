@@ -1081,10 +1081,12 @@ with st.container(border=True):
         # - st.radio 1개 위젯으로 선택만 바꾸면 훨씬 가볍고, 보기 순서도 고정됨
         radio_key = f"{NS}_radio_{qid}"
         # 기존 selected가 있으면 라디오 기본값으로 반영
+        # ✅ 초기에는 선택이 비어있어야 하므로, 선택값이 없으면 index=None로 둡니다.
+        # (Streamlit이 지원하는 경우 라디오가 미선택 상태로 시작합니다.)
         if selected and selected in choices:
             default_idx = choices.index(selected)
         else:
-            default_idx = 0
+            default_idx = None
 
         form_key = f"{NS}_form_{qid}"
         with st.form(key=form_key, clear_on_submit=False):
