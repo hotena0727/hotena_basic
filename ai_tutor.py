@@ -133,10 +133,10 @@ def quota_wait_message() -> str:
     # Keep it short, friendly, and not revealing numbers.
     return "\n".join(
         [
-            "💬 지금은 질문이 잠깐 몰려 있어요.",
+            "💬 잠깐만요. 지금은 질문이 몰려서요.",
             "조금 있다가 다시 물어봐 주세요 🙂",
-            "질문을 한 문장으로 짧게 적으면 더 빨리 도와드릴게요.",
-        ]
+            "例: 少し待ってね。",
+        ] 
     )
 
 
