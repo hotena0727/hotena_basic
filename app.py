@@ -121,7 +121,7 @@ def render_sound_toggle():
         st.session_state.sound_enabled = st.toggle("🔊", value=st.session_state.sound_enabled, label_visibility="collapsed")
 
     with c2:
-        st.caption("소리 " + ("ON OK" if st.session_state.sound_enabled else "OFF"))
+        st.caption("소리 " + ("ON" if st.session_state.sound_enabled else "OFF"))
 
     with c3:
         # OK 사용자 클릭으로 한 번 재생(권한/허용 트리거)
@@ -1769,7 +1769,7 @@ def render_my_dashboard():
                 ]:
                     st.session_state.pop(k, None)
 
-                st.success("OK 전체 학습 기록이 완전 초기화되었습니다.")
+                st.success("전체 학습 기록이 완전 초기화되었습니다.")
                 st.session_state.page = "quiz"
                 st.rerun()
 
@@ -2121,7 +2121,7 @@ did_today = st.session_state.get("did_attend_today")
 
 if streak is not None:
     if did_today:
-        st.success(f"OK 오늘 출석 완료!  (연속 {streak}일)")
+        st.success(f"오늘 출석 완료!  (연속 {streak}일)")
     else:
         st.caption(f"연속 출석 {streak}일")
 
@@ -2206,7 +2206,7 @@ def render_kanji_hub(HUB_MODE: bool = False):
     for i, lv in enumerate(LEVEL_OPTIONS):
         is_selected_lv = (lv == st.session_state.level)
         btn_lv_type = "primary" if is_selected_lv else "secondary"
-        icon_lv = "OK " if is_selected_lv else ""
+        icon_lv = "" if is_selected_lv else ""
         label_lv = LEVEL_LABEL_MAP.get(lv, lv)
 
         with level_cols[i]:
@@ -2229,7 +2229,7 @@ def render_kanji_hub(HUB_MODE: bool = False):
     for i, qt in enumerate(available_types):
         is_selected = (qt == st.session_state.quiz_type)
         btn_type = "primary" if is_selected else "secondary"
-        icon = "OK " if is_selected else ""
+        icon = "" if is_selected else ""
         label = quiz_label_map.get(qt, qt)
 
         with type_cols[i]:
@@ -2268,7 +2268,7 @@ def render_kanji_hub(HUB_MODE: bool = False):
             st.rerun()
 
     with cbtn2:
-        if st.button("OK 맞힌 단어 제외 초기화", use_container_width=True, key="btn_reset_mastered_current_type"):
+        if st.button("맞힌 단어 제외 초기화", use_container_width=True, key="btn_reset_mastered_current_type"):
             ensure_mastered_words_shape()
             k_now = mastery_key()
             st.session_state.mastered_words[k_now] = set()
@@ -2382,7 +2382,7 @@ def render_kanji_hub(HUB_MODE: bool = False):
     quiz_len = len(st.session_state.quiz)
     all_answered = (quiz_len > 0) and all(a is not None for a in st.session_state.answers)
 
-    if st.button("OK 제출하고 채점하기", disabled=not all_answered, type="primary", use_container_width=True, key="btn_submit"):
+    if st.button("제출하고 채점하기", disabled=not all_answered, type="primary", use_container_width=True, key="btn_submit"):
         st.session_state.submitted = True
         st.session_state.session_stats_applied_this_attempt = False
 
@@ -2490,7 +2490,7 @@ def render_kanji_hub(HUB_MODE: bool = False):
                     run_db(_save_stats_bulk)
                     st.session_state.stats_saved_this_attempt = True
                     if show_post_ui:
-                        st.success("OK 단어 통계(bulk) 저장 성공")
+                        st.success("단어 통계(bulk) 저장 성공")
                 except Exception as e:
                     if show_post_ui:
                         st.error("❌ 단어 통계(bulk) 저장 실패")
@@ -2690,7 +2690,7 @@ def render_kanji_hub(HUB_MODE: bool = False):
 
     # 다음 10문항
     if st.session_state.submitted:
-        if st.button("OK 다음 10문항 시작하기", type="primary", use_container_width=True, key="btn_next_10"):
+        if st.button("다음 10문항 시작하기", type="primary", use_container_width=True, key="btn_next_10"):
             clear_question_widget_keys()
             new_quiz = build_quiz(st.session_state.quiz_type, st.session_state.level)
             start_quiz_state(new_quiz, st.session_state.quiz_type, clear_wrongs=True)
