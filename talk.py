@@ -1142,7 +1142,7 @@ if submitted:
         else:
             st.info("💡 하테나쌤 원포인트 일본어\n\n포인트: 상황에서 ‘요청/사과/확인/거절’ 중 무엇인지 먼저 잡고, 그에 맞는 톤(정중/캐주얼)을 고르면 실수가 줄어듭니다.")
 
-        with st.expander("🤖 내용이 어려우면 하테나쌤 스마트 코치에게 질문하기", expanded=False):
+        with st.expander("🤖 내용이 어려우면 하테나쌤에게 물어보세요", expanded=False):
             st.markdown("### 💬 하테나쌤 스마트 코치")
 
             q_default = st.session_state.get("talk_ai_last_q") or ""
@@ -1150,7 +1150,7 @@ if submitted:
                 "질문",
                 value=str(q_default),
                 key=f"talk_ai_q_{qid}",
-                placeholder="예) 왜 이 표현이 정답이에요? / 더 자연스러운 말도 있어요?",
+                placeholder="예) 더 자연스러운 표현도 있어요? / 회화에 도움이 되는 패키지는 뭐예요?",
                 label_visibility="collapsed",
             )
 
