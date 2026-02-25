@@ -1593,7 +1593,8 @@ def build_quiz(qtype: str, level: str) -> list[dict]:
         st.session_state.mastery_done[k] = True
         return []
 
-    sampled = base.sample(n=N, replace=False).reset_index(drop=True)
+    seed = int(st.session_state.get("quiz_version", 0) or 0)
+    sampled = base.sample(n=N, replace=False, random_state=seed).reset_index(drop=True)
     return [make_question(sampled.iloc[i], qtype, pool) for i in range(N)]
 
 
@@ -1617,7 +1618,8 @@ def build_quiz_from_wrongs(wrong_list: list, qtype: str) -> list:
         st.error("오답 단어를 풀에서 찾지 못했습니다. (jp_word/reading 매칭 확인)")
         st.stop()
 
-    retry_df = retry_df.sample(frac=1).reset_index(drop=True)
+    seed = int(st.session_state.get("quiz_version", 0) or 0)
+    retry_df = retry_df.sample(frac=1, random_state=seed + 999).reset_index(drop=True)
     return [make_question(retry_df.iloc[i], qtype, pool) for i in range(len(retry_df))]
 
 
@@ -1662,7 +1664,8 @@ def build_quiz(qtype: str, level: str) -> list[dict]:
         st.session_state.mastery_done[k] = True
         return []
 
-    sampled = base.sample(n=N, replace=False).reset_index(drop=True)
+    seed = int(st.session_state.get("quiz_version", 0) or 0)
+    sampled = base.sample(n=N, replace=False, random_state=seed).reset_index(drop=True)
     return [make_question(sampled.iloc[i], qtype, pool) for i in range(N)]
 
 def build_quiz_from_wrongs(wrong_list: list, qtype: str) -> list:
@@ -1685,7 +1688,8 @@ def build_quiz_from_wrongs(wrong_list: list, qtype: str) -> list:
         st.error("오답 단어를 풀에서 찾지 못했습니다. (jp_word/reading 매칭 확인)")
         st.stop()
 
-    retry_df = retry_df.sample(frac=1).reset_index(drop=True)
+    seed = int(st.session_state.get("quiz_version", 0) or 0)
+    retry_df = retry_df.sample(frac=1, random_state=seed + 999).reset_index(drop=True)
     return [make_question(retry_df.iloc[i], qtype, pool) for i in range(len(retry_df))]
 
 # ============================================================
