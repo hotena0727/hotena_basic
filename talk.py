@@ -108,6 +108,17 @@ def _inject_talk_ui_css():
 .talk-bubble.me{background:rgba(33,150,243,.08);}
 .talk-bubble-sub{font-size:.86rem;opacity:.70;margin-top:2px;}
 .talk-tts-col{display:flex;justify-content:flex-end;align-items:center;}
+
+/* 🔥 발음(스피커) 영역 아래 여백 제거 */
+.ttspair {
+  margin-bottom: 4px !important;
+}
+
+/* st.info(파란박스) 기본 top 여백 줄이기 */
+div[data-testid="stAlert"] {
+  margin-top: 4px !important;
+}
+
 </style>
 """,
         unsafe_allow_html=True,
@@ -1136,7 +1147,6 @@ if submitted:
         hint = str(row.get("hint_kr", "")).strip()
 
         if explain_kr:
-            st.markdown("<div style='margin-top:-50px'></div>", unsafe_allow_html=True)
             st.info("💡 하테나쌤 원포인트 일본어\n\n" + explain_kr)
         elif hint:
             st.info("💡 하테나쌤 원포인트 일본어\n\n" + hint)
