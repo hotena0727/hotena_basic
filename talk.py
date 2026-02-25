@@ -665,16 +665,9 @@ def tts_inline_row(role_label: str, text: str, key: str, show_text: bool = True,
   {'<span class="ttsline-pro">PRO</span>' if (not IS_PRO) else ''}
 </div>
 <style>
-  .ttsline-wrap{display:flex;align-items:flex-start;gap:8px;line-height:1.45; flex-wrap:wrap;}
-  .ttsline-role{min-width:52px;font-weight:700;opacity:.85;}
-  .ttsline-text{
-      font-size:1.05rem;
-      flex: 1 1 auto;
-      min-width: 0;
-      white-space: normal;
-      overflow-wrap: anywhere;
-      word-break: break-word;
-  }
+  .ttsline-wrap{{display:flex;align-items:center;gap:8px;line-height:1.45;}}
+  .ttsline-role{{min-width:52px;font-weight:700;opacity:.85;}}
+  .ttsline-text{{font-size:1.05rem;}}
   .ttsline-btn{{border:0;background:transparent;padding:0;margin-left:2px;font-size:1.05rem;cursor:pointer;opacity:.95;}}
   .ttsline-btn[disabled]{{cursor:not-allowed;opacity:.35;}}
   .ttsline-pro{{font-size:.75rem;letter-spacing:.02em;border:1px solid rgba(0,0,0,.18);border-radius:999px;padding:1px 6px;opacity:.45;}}
@@ -758,18 +751,9 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
 </div>
 <style>
   .ttspair{{display:flex;flex-direction:column;gap:8px;}}
-    /* 핵심: flex에서 줄바꿈되게 + 텍스트가 줄어들 수 있게 */
-  .ttspair .row{{display:flex;align-items:flex-start;gap:8px; flex-wrap:wrap;}}
+  .ttspair .row{{display:flex;align-items:center;gap:8px;}}
   .ttspair .lab{{min-width:52px;font-weight:700;opacity:.85;}}
-  .ttspair .txt{{
-      font-size:1.05rem;
-      flex: 1 1 auto;     /* 텍스트가 남은 공간 사용 */
-      min-width: 0;       /* ✅ 이게 없으면 모바일에서 잘리는 경우 많음 */
-      white-space: normal;
-      overflow-wrap: anywhere;
-      word-break: break-word;
-      line-height: 1.45;
-  }}
+  .ttspair .txt{{font-size:1.05rem;}}
   .ttspair .btn{{border:0;background:transparent;padding:0;margin-left:2px;font-size:1.05rem;cursor:pointer;opacity:.95;}}
   .ttspair .btn[disabled]{{cursor:not-allowed;opacity:.35;}}
   .ttspair .pro{{font-size:.75rem;letter-spacing:.02em;border:1px solid rgba(0,0,0,.18);border-radius:999px;padding:1px 6px;opacity:.45;}}
