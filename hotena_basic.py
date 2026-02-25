@@ -3591,37 +3591,42 @@ if st.session_state.submitted:
 
     # ============================================================
     # ✅ 오답 상세 저장 (wrong_notes) — 3회 이상 반복오답/Top10 복습용
-# - 홈/마이페이지에서 '단어/정답/내답' 카드 복원을 위해 필요
-rows = []
-sb_authed = get_authed_sb()
-u_id = getattr(st.session_state.get("user"), "id", None)
-if not u_id and st.session_state.get("access_token"):
-    try:
-        u = sb.auth.get_user(st.session_state.get("access_token"))
-        u_id = getattr(getattr(u, "user", None), "id", None) or getattr(u, "id", None)
-    except Exception:
-        u_id = None
+    # - 홈/마이페이지에서 '단어/정답/내답' 카드 복원을 위해 필요
+    rows = []
+    sb_authed = get_authed_sb()
+    u_id = getattr(st.session_state.get("user"), "id", None)
 
-if sb_authed is None:
-    _wn_warn("오답 저장 실패: authed client 없음(access_token).")
-elif not u_id:
-    _wn_warn("오답 저장 실패: user_id(uid) 없음. 로그인 세션을 확인하세요.")
-else:
-    for w in (st.session_state.get("wrong_list") or []):
-        rows.append({
-            "user_id": str(u_id),
-            "quiz_type": "word",
-            "question": str(w.get("단어") or w.get("question") or ""),
-            "correct_answer": str(w.get("정답") or w.get("correct") or ""),
-            "user_answer": str(w.get("내 답") or w.get("user") or ""),
-            "level": str(st.session_state.get("level", "") or ""),
-        })
-    if rows:
+    if (not u_id) and st.session_state.get("access_token"):
         try:
-            sb_authed.table("wrong_notes").insert(rows).execute()
-        except Exception as e:
-            _wn_warn(f"오답 저장 실패: {e}")
+            u = sb.auth.get_user(st.session_state.get("access_token"))
+            u_id = getattr(getattr(u, "user", None), "id", None) or getattr(u, "id", None)
+        except Exception:
+            u_id = None
 
+    # ✅ wrong_notes는 "가능하면 저장" (실패해도 채점/진행은 계속)
+    try:
+        if sb_authed is None:
+            _wn_warn("오답 저장 실패: authed client 없음(access_token).")
+        elif not u_id:
+            _wn_warn("오답 저장 실패: user_id(uid) 없음. 로그인 세션을 확인하세요.")
+        else:
+            for w in (st.session_state.get("wrong_list") or []):
+                rows.append({
+                    "user_id": str(u_id),
+                    "quiz_type": "word",
+                    "question": str(w.get("단어") or w.get("question") or ""),
+                    "correct_answer": str(w.get("정답") or w.get("correct") or ""),
+                    "user_answer": str(w.get("내 답") or w.get("user") or ""),
+                    "level": str(st.session_state.get("level", "") or ""),
+                })
+            if rows:
+                sb_authed.table("wrong_notes").insert(rows).execute()
+    except Exception as e:
+        _wn_warn(f"오답 저장 실패: {e}")
+
+    # ============================================================
+    # ✅ 결과/효과/UI (✅ 항상 실행)
+    # ============================================================
     st.success(f"점수: {score} / {quiz_len}")
 
     # ✅ FREE 제한 카운트 누적 (제출 1회 = quiz_len 소비)
@@ -3633,12 +3638,12 @@ else:
         add_free_used(quiz_len)  # 보통 10
         st.session_state.free_limit_applied_this_attempt = True
 
-    ratio = score / quiz_len if quiz_len else 0
+    ratio = score / quiz_len if quiz_len else 0.0
 
     if ratio == 1:
         sfx("perfect")
     elif ratio >= 0.7:
-        sfx("wrong")
+        sfx("correct")
     else:
         sfx("wrong")
 
@@ -3649,7 +3654,6 @@ else:
         st.info("👍 잘하고 있어요! 조금만 더 다듬으면 완벽해질 거예요.")
     else:
         st.warning("💪 괜찮아요! 틀린 문제는 성장의 재료예요. 다시 한 번 도전해봐요.")
-
     sb_authed_local = get_authed_sb()
     if sb_authed_local is None:
         if show_post_ui:
