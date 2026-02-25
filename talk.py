@@ -1322,7 +1322,15 @@ if submitted:
                 )
 
         st.caption("정답을 보고 2~3번 따라 말한 뒤, 아래 버튼을 눌러 다음으로 넘어가세요.")
-                with st.expander("🤖 내용이 어려우면 하테나쌤에게 물어보세요", expanded=False):
+        with st.expander("🤖 내용이 어려우면 하테나쌤에게 물어보세요", expanded=False):
+            st.markdown("### 💬 하테나쌤 스마트 코치")
+
+            q_default = st.session_state.get("talk_ai_last_q") or ""
+            user_q = st.text_input(
+                "궁금한 점을 입력해 보세요.",
+                value=q_default,
+                key="talk_ai_input",
+            )
         st.markdown("### 💬 하테나쌤 스마트 코치")
 
         q_default = st.session_state.get("talk_ai_last_q") or ""
