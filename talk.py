@@ -1011,6 +1011,14 @@ idx: int = int(st.session_state.get(f"{NS}_idx") or 0)
 idx = max(0, min(idx, len(qids) - 1))
 answers = st.session_state.get(f"{NS}_answers") or {}
 
+# ============================================================
+# ✅ Progress header (1/10)
+#   - '새 세트' 버튼을 진행 영역 오른쪽으로 이동(필터와 분리)
+# ============================================================
+progress = (idx + 1) / max(1, len(qids))
+
+p1, p2 = st.columns([1.6, 0.6], vertical_alignment="center")
+
 with p1:
     st.progress(progress)
     st.caption(f"진행: {idx+1}/{len(qids)}")
