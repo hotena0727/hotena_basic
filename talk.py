@@ -14,6 +14,16 @@ import ai_tutor
 
 
 # ============================================================
+# ✅ Audio base URL (mp3 파일명만 있을 때 결합용)
+# - 환경변수 BASE_AUDIO_URL 또는 secrets['BASE_AUDIO_URL']를 사용
+# ============================================================
+try:
+    _secret_base = st.secrets.get('BASE_AUDIO_URL', '')
+except Exception:
+    _secret_base = ''
+BASE_AUDIO_URL = (_secret_base or os.getenv('BASE_AUDIO_URL', '') or '').strip()
+
+# ============================================================
 # ✅ wrong_notes debug helper
 # ============================================================
 _WN_DEBUG = bool(st.session_state.get("is_admin", False)) or bool(st.session_state.get("is_admin_cached", False))
