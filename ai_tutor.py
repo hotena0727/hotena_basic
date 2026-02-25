@@ -287,9 +287,11 @@ def ask_hatena(
     mode: str = "explain",
     user_input: str,
     context: str = "",
+    meta: dict | None = None,
     min_lines: int = MIN_LINES_DEFAULT,
     max_lines: int = MAX_LINES_DEFAULT,
 ) -> str:
+    _meta = meta or {}
     """
     Main entry:
     - Cache hit -> return cached answer (no quota consumption)
