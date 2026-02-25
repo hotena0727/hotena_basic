@@ -94,6 +94,10 @@ def run_module(module_name: str):
 # ✅ LocalStorage / QueryParam persistence helpers
 # ============================================================
 def _js_bridge_localstorage_to_queryparam(ls_key: str, qp_key: str):
+    """Read localStorage[ls_key] in the browser and mirror it into URL queryparam qp_key.
+
+    ✅ We use history.replaceState (NOT location.replace) to avoid full reload / new-tab behavior.
+    """
     try:
         components.html(
             f"""<script>
@@ -106,8 +110,7 @@ def _js_bridge_localstorage_to_queryparam(ls_key: str, qp_key: str):
       const v = localStorage.getItem(lsKey);
       if (v) {{
         url.searchParams.set(qpKey, v);
-        // ✅ 리로드 없이 URL만 교체
-        window.history.replaceState(null, "", url.toString());
+        window.history.replaceState({{}}, document.title, url.toString());
       }}
     }}
   }} catch(e) {{}}
@@ -117,6 +120,7 @@ def _js_bridge_localstorage_to_queryparam(ls_key: str, qp_key: str):
         )
     except Exception:
         pass
+
 
 def _js_set_localstorage(key: str, value: str):
     try:
@@ -1094,43 +1098,25 @@ def render_home_dashboard(sb_authed, user):
 
         st.markdown('<div class="h-guide-wrap">', unsafe_allow_html=True)
         if _collapsed:
+            base = _hub_build_base_qs()
+            open_href = "?" + base + "flow=open"
+            hide_href = "?" + base + "flow=hide"
+            start_href = "?" + base + "p=word"
+
             st.markdown(
-                '''
-<div class="h-guidebox">
-  <div class="h-guide-mini">
-    <p class="h-guide-mini-t">📘 하테나일본어 앱 사용 흐름</p>
-    <div class="h-guide-mini-actions">
-        <a class="h-guide-btn ghost" href="?flow=open" target="_self">사용 흐름 보기 ▼</a>
-        <a class="h-guide-btn primary" href="?p=word" target="_self">단어부터 시작하기</a>
-    </div>
-  </div>
-</div>
-''',
+                f'''<div class="h-guidebox">
+              <div class="h-guide-mini">
+                <p class="h-guide-mini-t">📘 하테나일본어 앱 사용 흐름</p>
+                <div class="h-guide-mini-actions">
+                    <a class="h-guide-btn ghost" href="{open_href}" target="_self">사용 흐름 보기 ▼</a>
+                    <a class="h-guide-btn primary" href="{start_href}" target="_self">바로 시작하기</a>
+                    <a class="h-guide-btn ghost" href="{hide_href}" target="_self">이 안내 접기</a>
+                </div>
+              </div>
+            </div>''',
                 unsafe_allow_html=True,
             )
-        else:
-            st.markdown(
-                '''
-<div class="h-guidebox">
-  <div class="h-guide-top">
-    <div>
-      <p class="h-guide-title">📘 하테나일본어 앱 사용 흐름</p>
-      <p class="h-guide-sub">처음 오신 분은 아래 순서로 가볍게 시작해 보세요.</p>
-    </div>
-  </div>
-  <ul class="h-guide-steps">
-    <li class="h-step"><span class="h-step-badge">1</span><span class="h-step-t"><b>단어</b> 또는 <b>한자</b>로 한 세트(10문제)</span></li>
-    <li class="h-step"><span class="h-step-badge">2</span><span class="h-step-t">틀린 문제는 <b>오답</b>에서 한 번 더</span></li>
-    <li class="h-step"><span class="h-step-badge">3</span><span class="h-step-t">익숙해지면 <b>회화</b>까지 확장 (매일 조금씩)</span></li>
-  </ul>
-  <div class="h-guide-actions">
-    <a class="h-guide-btn primary" href="?p=word" target="_self">단어부터 시작하기</a>
-    <a class="h-guide-btn ghost" href="?flow=hide" target="_self">이 안내 접기</a>
-  </div>
-</div>
-''',
-                unsafe_allow_html=True,
-            )
+
         st.markdown("</div>", unsafe_allow_html=True)
     except Exception:
         pass
