@@ -116,7 +116,7 @@ def _inject_talk_ui_css():
 _inject_talk_ui_css()
 
 # ✅ TTS 플레이어(1개) 렌더 — 요청이 있을 때만 재생
-_render_talk_tts_player()
+# (moved) _render_talk_tts_player() call is placed near the end to avoid NameError on import.
 
 st.title("일본어회화")
 st.caption("1문제씩: 상황 → 상대 발화(🔊/PRO) → 보기 선택 → 제출 → 정답/설명 → (선택)말하기 완료 체크")
@@ -1250,5 +1250,13 @@ def finalize_set_if_ready():
     st.balloons()
     st.success(f"🎉 10문제 완주! 점수: {score}/{len(qids)}  ·  오답: {wrong_count}")
 
+
+
+# ============================================================
+# ✅ TTS single-player renderer (hidden)
+# - Render once per rerun, placed here to ensure definition exists (prevents NameError).
+# - Plays audio/TTS only when st.session_state['_talk_tts_req'] nonce changes.
+# ============================================================
+_render_talk_tts_player()
 
 finalize_set_if_ready()
