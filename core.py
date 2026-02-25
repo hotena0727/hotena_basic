@@ -70,7 +70,6 @@ div[data-testid="stIFrame"]:has(iframe[title^="streamlit.components.v1."]) ifram
   height:0 !important;
   min-height:0 !important;
 }
-  .block-container{padding-top:72px !important;}
 </style>""",
         unsafe_allow_html=True,
     )
@@ -758,7 +757,6 @@ def render_top_nav(active: str = "home") -> None:
         .hn-nav a{ font-size: 13.5px; padding: 10px 0; }
         .hn-nav a.active::after{ left: 30%; width: 40%; }
       }
-      .block-container{padding-top:72px !important;}
 </style>
     """)
 
