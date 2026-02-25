@@ -108,17 +108,6 @@ def _inject_talk_ui_css():
 .talk-bubble.me{background:rgba(33,150,243,.08);}
 .talk-bubble-sub{font-size:.86rem;opacity:.70;margin-top:2px;}
 .talk-tts-col{display:flex;justify-content:flex-end;align-items:center;}
-
-/* 🔥 발음(스피커) 영역 아래 여백 제거 */
-.ttspair {
-  margin-bottom: -7px !important;
-}
-
-/* st.info(파란박스) 기본 top 여백 줄이기 */
-div[data-testid="stAlert"] {
-  margin-top: 0px !important;
-}
-
 </style>
 """,
         unsafe_allow_html=True,
@@ -665,9 +654,9 @@ def tts_inline_row(role_label: str, text: str, key: str, show_text: bool = True,
   {'<span class="ttsline-pro">PRO</span>' if (not IS_PRO) else ''}
 </div>
 <style>
-  .ttsline-wrap{{display:flex;align-items:center;gap:8px;line-height:1.45;}}
+  .ttsline-wrap{display:flex;align-items:flex-start;gap:8px;line-height:1.45;flex-wrap:wrap;}}
   .ttsline-role{{min-width:52px;font-weight:700;opacity:.85;}}
-  .ttsline-text{{font-size:1.05rem;}}
+  .ttsline-text{font-size:1.05rem;flex:1 1 auto;min-width:0;white-space:normal;overflow-wrap:anywhere;word-break:break-word;}}
   .ttsline-btn{{border:0;background:transparent;padding:0;margin-left:2px;font-size:1.05rem;cursor:pointer;opacity:.95;}}
   .ttsline-btn[disabled]{{cursor:not-allowed;opacity:.35;}}
   .ttsline-pro{{font-size:.75rem;letter-spacing:.02em;border:1px solid rgba(0,0,0,.18);border-radius:999px;padding:1px 6px;opacity:.45;}}
@@ -751,9 +740,9 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
 </div>
 <style>
   .ttspair{{display:flex;flex-direction:column;gap:8px;}}
-  .ttspair .row{{display:flex;align-items:center;gap:8px;}}
+  .ttspair .row{display:flex;align-items:flex-start;gap:8px;flex-wrap:wrap;}}
   .ttspair .lab{{min-width:52px;font-weight:700;opacity:.85;}}
-  .ttspair .txt{{font-size:1.05rem;}}
+  .ttspair .txt{font-size:1.05rem;flex:1 1 auto;min-width:0;white-space:normal;overflow-wrap:anywhere;word-break:break-word;line-height:1.45;}}
   .ttspair .btn{{border:0;background:transparent;padding:0;margin-left:2px;font-size:1.05rem;cursor:pointer;opacity:.95;}}
   .ttspair .btn[disabled]{{cursor:not-allowed;opacity:.35;}}
   .ttspair .pro{{font-size:.75rem;letter-spacing:.02em;border:1px solid rgba(0,0,0,.18);border-radius:999px;padding:1px 6px;opacity:.45;}}
@@ -1153,8 +1142,6 @@ if submitted:
         else:
             st.info("💡 하테나쌤 원포인트 일본어\n\n포인트: 상황에서 ‘요청/사과/확인/거절’ 중 무엇인지 먼저 잡고, 그에 맞는 톤(정중/캐주얼)을 고르면 실수가 줄어듭니다.")
 
-        st.markdown("<div style='margin-top:-18px'></div>", unsafe_allow_html=True)
-        
         with st.expander("🤖 내용이 어려우면 하테나쌤에게 물어보세요", expanded=False):
             st.markdown("### 💬 하테나쌤 스마트 코치")
 
