@@ -33,6 +33,23 @@ import pandas as pd
 import streamlit as st
 
 
+
+# ============================================================
+# ✅ TTL cache helper (session_state 기반) - DB 호출/무거운 계산 최소화
+# ============================================================
+import time as _time
+def _hotena_ttl_cache(key: str, ttl_sec: int, fn):
+    try:
+        now = _time.time()
+        box = st.session_state.get(key)
+        if isinstance(box, dict) and ("t" in box) and ("v" in box):
+            if now - float(box["t"]) < float(ttl_sec):
+                return box["v"]
+        v = fn()
+        st.session_state[key] = {"t": now, "v": v}
+        return v
+    except Exception:
+        return fn()
 # ============================================================
 # ✅ wrong_notes debug helper
 # ============================================================
@@ -109,6 +126,22 @@ header[data-testid="stHeader"]{
     margin-top: 0rem !important;
   }
 }
+
+/* === Hotena: radio(보기) font/spacing 고정 === */
+label[data-baseweb="radio"],
+label[data-baseweb="radio"] *{
+  font-family: var(--jp-rounded) !important;
+  font-weight: 800 !important;
+  font-size: 15px !important;
+  letter-spacing: .1px !important;
+}
+label[data-baseweb="radio"]{
+  margin: 0 0 6px 0 !important;
+  padding: 8px 10px !important;
+  border-radius: 12px !important;
+}
+div[role="radiogroup"]{ gap: 0px !important; }
+
 </style>""", unsafe_allow_html=True)
     st.session_state["_top_compact_css_applied"] = True
 
@@ -117,10 +150,9 @@ st.session_state['_page_config_set'] = True
 # ✅ [HOTFIX] Disable onboarding ("60초 이용안내") block entirely
 # - In case any legacy UI is still rendered, forcibly hide/remove it.
 # ============================================================
-if not st.session_state.get("_intro_kill_injected", False):
-    try:
-        components.html(
-            """
+try:
+    components.html(
+        """
 <script>
 (function(){
   const kill = () => {
@@ -144,46 +176,53 @@ if not st.session_state.get("_intro_kill_injected", False):
 })();
 </script>
 """,
-            height=0,
-        )
-    except Exception:
-        pass
-    st.session_state["_intro_kill_injected"] = True
+        height=0,
+    )
+except Exception:
+    pass
 
 
 # ============================================================
 # ✅ PWA/아이콘 - set_page_config 바로 아래
 # ============================================================
 
-if not st.session_state.get("_pwa_injected", False):
-    components.html("""
+components.html("""
 <script>
 window.addEventListener("load", async () => {
+  // ✅ 부모 문서(=진짜 페이지)로 주입
   const doc = (window.parent && window.parent.document) ? window.parent.document : document;
 
-  // ✅ 이미 head에 주입되어 있으면 종료(추가 안전장치)
-  if (doc.querySelector("link[rel='manifest'][href='/manifest.json']")) return;
+  // ✅ 작은 로그 박스(디버그용) - 가능하면 부모 body에
+  const pre = doc.createElement("pre");
+  pre.id = "pwa_debug";
+  pre.style.cssText = "white-space:pre-wrap;font-size:12px;opacity:0.75;margin:6px 0 0;";
+  pre.textContent = "";
+  (doc.body || doc.documentElement).prepend(pre);
 
-  // 로그는 기본 no-op (디버그 필요 시만 열기)
-  const log = (msg) => {};
+  const log = (msg) => { pre.textContent += msg + "\\n"; };
 
   // ✅ manifest
   let m = doc.querySelector("link[rel='manifest']");
   if (!m) { m = doc.createElement("link"); m.rel = "manifest"; doc.head.appendChild(m); }
   m.href = "/manifest.json";
+  log("manifest: /manifest.json");
 
   // ✅ icons
   let a = doc.querySelector("link[rel='apple-touch-icon']");
   if (!a) { a = doc.createElement("link"); a.rel = "apple-touch-icon"; doc.head.appendChild(a); }
   a.setAttribute("sizes", "180x180");
   a.href = "/apple-touch-icon.png";
+  log("apple-touch-icon: /apple-touch-icon.png");
 
+  // ✅ Android/Chrome icon
   let i = doc.querySelector("link[rel='icon']");
   if (!i) { i = doc.createElement("link"); i.rel = "icon"; doc.head.appendChild(i); }
   i.setAttribute("type", "image/png");
   i.setAttribute("sizes", "192x192");
   i.href = "/icon-192.png";
+  log("icon: /icon-192.png");
 
+  // ✅ meta (iOS + theme)
   const meta = (name, content) => {
     let el = doc.querySelector(`meta[name='${name}']`);
     if (!el) { el = doc.createElement("meta"); el.name = name; doc.head.appendChild(el); }
@@ -193,16 +232,32 @@ window.addEventListener("load", async () => {
   meta("apple-mobile-web-app-capable", "yes");
   meta("apple-mobile-web-app-status-bar-style", "black-translucent");
 
+  // ✅ SW 등록은 “부모 navigator”로 시도(환경에 따라 더 안정적)
   const nav = (window.parent && window.parent.navigator) ? window.parent.navigator : navigator;
-  if ("serviceWorker" in nav) {
-    try { await nav.serviceWorker.register("/sw.js"); } catch(e) { log(e); }
+
+  // ✅ 먼저 sw.js가 실제로 200으로 오는지 확인
+  try {
+    const r = await fetch("/sw.js", { cache: "no-store" });
+    log("fetch /sw.js status: " + r.status);
+  } catch (e) {
+    log("fetch /sw.js FAILED: " + e);
   }
+
+  if ("serviceWorker" in nav) {
+    try {
+      const reg = await nav.serviceWorker.register("/sw.js");
+      log("SW registered scope: " + reg.scope);
+    } catch (e) {
+      log("SW register FAILED: " + e);
+    }
+  } else {
+    log("serviceWorker not supported");
+  }
+
+  log("UA: " + nav.userAgent);
 });
 </script>
 """, height=0)
-    st.session_state["_pwa_injected"] = True
-
-
 
 
 
@@ -516,8 +571,7 @@ def scroll_to_top(nonce: int = 0):
         </script>
         <!-- nonce:{nonce} -->
         """,
-        height=0,
-        scrolling=False,
+        height=1,
     )
 
 def render_floating_scroll_top():
@@ -627,8 +681,7 @@ def render_floating_scroll_top():
 })();
 </script>
         """,
-        height=0,
-        scrolling=False,
+        height=1,
     )
 if not st.session_state.get("HUB_MODE", False):
     if not st.session_state.get("_fab_top_injected", False):
@@ -2910,6 +2963,11 @@ def render_paywall(daily_solved: int):
 
 def get_daily_solved_from_db(sb_authed_local, user_id: str) -> int:
     """오늘(KST) 푼 문항 수 합계 (quiz_attempts.quiz_len 합산)"""
+    cache_key = f"_cache_daily_solved_{user_id}"
+    return int(_hotena_ttl_cache(cache_key, 60, lambda: _get_daily_solved_from_db_uncached(sb_authed_local, user_id)))
+
+
+def _get_daily_solved_from_db_uncached(sb_authed_local, user_id: str) -> int:
     now = datetime.now(KST)
     start = now.replace(hour=0, minute=0, second=0, microsecond=0)
 
@@ -2952,6 +3010,7 @@ except Exception:
 # ============================================================
 # ✅ Quiz Page
 # ============================================================
+
 def render_plan_banner():
     # HUB에서는 공통 배지를 home.py에서 렌더링하므로 중복 표시하지 않음
     if st.session_state.get("HUB_MODE", False):
