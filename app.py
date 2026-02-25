@@ -6,23 +6,6 @@ import random
 import pandas as pd
 import streamlit as st
 
-
-# ============================================================
-# ✅ TTL cache helper (session_state 기반) - DB 호출/무거운 계산 최소화
-# ============================================================
-import time as _time
-def _hotena_ttl_cache(key: str, ttl_sec: int, fn):
-    try:
-        now = _time.time()
-        box = st.session_state.get(key)
-        if isinstance(box, dict) and ("t" in box) and ("v" in box):
-            if now - float(box["t"]) < float(ttl_sec):
-                return box["v"]
-        v = fn()
-        st.session_state[key] = {"t": now, "v": v}
-        return v
-    except Exception:
-        return fn()
 # -------------------------------
 # ✅ 한자 헤더 중복 방지 플래그
 # -------------------------------
@@ -50,7 +33,8 @@ if not st.session_state.get("_page_config_set"):
 # - Remove Streamlit's default top padding/space
 # - Applied once per session
 # ============================================================
-st.markdown("""<style>
+if not st.session_state.get("_top_compact_css_applied"):
+    st.markdown("""<style>
 /* === Hotena: ultra-compact top spacing (mobile + desktop) === */
 /* 핵심: block-container의 기본 top padding 제거 + 첫 요소 여백 제거 */
 section.main > div.block-container,
@@ -80,15 +64,10 @@ header[data-testid="stHeader"]{
   }
 }
 
-/* === Hotena: keep radio text consistent on reruns/selection === */
-label[data-baseweb="radio"],
-label[data-baseweb="radio"] *{
-  font-weight: 500 !important;
-  font-synthesis: none !important;
-}
-
+.hn-choice-wrap .stButton>button{font-weight:400 !important; line-height:1.35 !important; padding:0.64rem 0.85rem !important; border-radius:14px !important; border:1px solid rgba(0,0,0,.14) !important; margin-bottom:0.45rem !important; text-align:left !important; background:rgba(0,0,0,.01) !important;}
+.hn-choice-wrap .stButton>button:hover{background:rgba(0,0,0,.03) !important;}
 </style>""", unsafe_allow_html=True)
-st.session_state["_top_compact_css_applied"] = True
+    st.session_state["_top_compact_css_applied"] = True
 
 st.session_state["_page_config_set"] = True
 # ============================================================
@@ -579,6 +558,47 @@ def sync_answers_from_widgets():
         widget_key = f"q_{qv}_{idx}"
         if widget_key in st.session_state:
             st.session_state.answers[idx] = st.session_state[widget_key]
+
+
+# ============================================================
+# ✅ UI 안정화: 보기(선택지) 커스텀 버튼 렌더링
+# - st.radio 선택 시 발생하는 폰트/간격 흔들림을 근본 차단
+# - session_state[widget_key]에 선택값을 저장해 기존 채점/저장 로직과 호환
+# ============================================================
+def _hn_set_choice(widget_key: str, value: str, idx: int):
+    st.session_state[widget_key] = value
+    try:
+        st.session_state.answers[idx] = value
+    except Exception:
+        pass
+    try:
+        mark_progress_dirty()
+    except Exception:
+        pass
+
+def _hn_render_choice_buttons(choices: list[str], widget_key: str, idx: int):
+    # 초기값 동기화(기존 answers -> widget_key)
+    prev = None
+    try:
+        prev = st.session_state.answers[idx]
+    except Exception:
+        prev = st.session_state.get(widget_key)
+    if prev is not None and widget_key not in st.session_state:
+        st.session_state[widget_key] = prev
+
+    st.markdown('<div class="hn-choice-wrap">', unsafe_allow_html=True)
+    for j, opt in enumerate(choices):
+        selected = (st.session_state.get(widget_key) == opt)
+        label = ("✅ " + str(opt)) if selected else str(opt)
+        st.button(
+            label,
+            key=f"{widget_key}__btn_{j}",
+            use_container_width=True,
+            disabled=bool(should_lock_quiz()),
+            on_click=_hn_set_choice,
+            args=(widget_key, str(opt), idx),
+        )
+    st.markdown("</div>", unsafe_allow_html=True)
 
 def mark_progress_dirty():
     st.session_state.progress_dirty = True
@@ -2388,15 +2408,8 @@ def render_kanji_hub(HUB_MODE: bool = False):
         if prev is not None and prev in q["choices"]:
             default_index = q["choices"].index(prev)
 
-        choice = st.radio(
-            label="보기",
-            options=q["choices"],
-            index=default_index,
-            key=widget_key,
-            label_visibility="collapsed",
-            on_change=mark_progress_dirty,
-        )
-        st.session_state.answers[idx] = choice
+        _hn_render_choice_buttons(q["choices"], widget_key, idx)
+        st.session_state.answers[idx] = st.session_state.get(widget_key)
 
     sync_answers_from_widgets()
 
