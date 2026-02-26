@@ -2292,13 +2292,11 @@ def render_kanji_hub(HUB_MODE: bool = False):
             k_now = mastery_key()
             if st.session_state.get("mastery_done", {}).get(k_now, False):
                 st.session_state["_scroll_top_once"] = True
-                st.rerun()
 
             clear_question_widget_keys()
             new_quiz = build_quiz(st.session_state.quiz_type, st.session_state.level)
             start_quiz_state(new_quiz, st.session_state.quiz_type, clear_wrongs=True)
             st.session_state["_scroll_top_once"] = True
-            st.rerun()
 
     with cbtn2:
         if st.button("맞힌 단어 제외 초기화", use_container_width=True, key="btn_reset_mastered_current_type"):
@@ -2314,7 +2312,6 @@ def render_kanji_hub(HUB_MODE: bool = False):
 
             st.success(f"초기화 완료 (유형: {quiz_label_map[st.session_state.quiz_type]})")
             st.session_state["_scroll_top_once"] = True
-            st.rerun()
 
     # 정복 안내
     k_now = mastery_key()
@@ -2741,7 +2738,6 @@ def render_kanji_hub(HUB_MODE: bool = False):
             retry_quiz = build_quiz_from_wrongs(st.session_state.wrong_list, st.session_state.quiz_type)
             start_quiz_state(retry_quiz, st.session_state.quiz_type, clear_wrongs=True)
             st.session_state["_scroll_top_once"] = True
-            st.rerun()
 
     # 다음 10문항
     if st.session_state.submitted:
@@ -2750,7 +2746,6 @@ def render_kanji_hub(HUB_MODE: bool = False):
             new_quiz = build_quiz(st.session_state.quiz_type, st.session_state.level)
             start_quiz_state(new_quiz, st.session_state.quiz_type, clear_wrongs=True)
             st.session_state["_scroll_top_once"] = True
-            st.rerun()
 
         show_naver_talk = (SHOW_NAVER_TALK == "N") or is_admin()
         if show_naver_talk:

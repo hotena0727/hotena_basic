@@ -210,8 +210,18 @@ def dec(token: str) -> Optional[str]:
 # ----------------------------
 # JS helpers (query params <-> localStorage)
 # ----------------------------
+
+def _core_once_key(prefix: str, key: str) -> bool:
+    k = f"_core_once__{prefix}__{key}"
+    if st.session_state.get(k):
+        return False
+    st.session_state[k] = True
+    return True
+
 def _js_bridge_localstorage_to_queryparam(ls_key: str, qp_key: str) -> None:
     """If localStorage has a value and query param doesn't, set it once."""
+    if not _core_once_key('ls2qp', f"{ls_key}->{qp_key}"):
+        return
     components.html(
         f"""
 <script>
@@ -232,6 +242,8 @@ def _js_bridge_localstorage_to_queryparam(ls_key: str, qp_key: str) -> None:
 
 
 def _js_set_localstorage(ls_key: str, value: str) -> None:
+    if not _core_once_key('ls_set', ls_key):
+        return
     components.html(
         f"""
 <script>
@@ -247,6 +259,8 @@ def _js_set_localstorage(ls_key: str, value: str) -> None:
 
 
 def _js_clear_localstorage(ls_key: str) -> None:
+    if not _core_once_key('ls_rm', ls_key):
+        return
     components.html(
         f"""
 <script>
@@ -465,13 +479,13 @@ def scroll_to_top(nonce: int = 0) -> None:
           requestAnimationFrame(go);
           setTimeout(go, 50);
           setTimeout(go, 150);
-          setTimeout(go, 350);
-          setTimeout(go, 800);
+          setTimeout(go, 200);
+          
         }})();
         </script>
         <!-- nonce:{nonce} -->
         """,
-        height=1,
+        height=0,
     )
 
 
@@ -775,96 +789,3 @@ def render_top_nav(active: str = "home") -> None:
 
     st.markdown(css, unsafe_allow_html=True)
     st.markdown(html, unsafe_allow_html=True)
-# ============================================================
-# 💬 NAVER Talk (Floating Action Button) — injected once per session
-# - Enabled by profiles.progress_all["naver_talk_fab_enabled"] (default False)
-# ============================================================
-def render_naver_talk_fab(url: str = "https://talk.naver.com/W45141", enabled: bool = False) -> None:
-    """Render a floating NAVER Talk button (bottom-right). No-op when disabled."""
-    try:
-        if not enabled:
-            return
-        if st.session_state.get("_naver_talk_fab_injected", False):
-            return
-        st.session_state["_naver_talk_fab_injected"] = True
-
-        safe_url = (url or "").strip() or "https://talk.naver.com/W45141"
-        components.html(
-            f"""
-<style>
-@keyframes ht_floaty {{
-  0% {{ transform: translateY(0); }}
-  50% {{ transform: translateY(-6px); }}
-  100% {{ transform: translateY(0); }}
-}}
-@keyframes ht_ping {{
-  0% {{ transform: scale(1); opacity: 0.9; }}
-  70% {{ transform: scale(2.2); opacity: 0; }}
-  100% {{ transform: scale(2.2); opacity: 0; }}
-}}
-a.ht-naver-talk, a.ht-naver-talk:visited, a.ht-naver-talk:hover, a.ht-naver-talk:active {{
-  position: fixed;
-  right: 18px;
-  bottom: 90px;
-  z-index: 2147483647;
-  text-decoration: none !important;
-  color: inherit !important;
-}}
-.ht-nt-wrap {{
-  position: relative;
-  animation: ht_floaty 2.2s ease-in-out infinite;
-}}
-.ht-nt-btn {{
-  background: #03C75A;
-  color: #fff;
-  border: 0;
-  border-radius: 999px;
-  padding: 14px 18px;
-  font-size: 15px;
-  font-weight: 800;
-  box-shadow: 0 12px 28px rgba(0,0,0,0.22);
-  cursor: pointer;
-}}
-.ht-nt-sub {{
-  display:block;
-  margin-top: 4px;
-  font-size: 12px;
-  opacity: .92;
-  font-weight: 700;
-}}
-.ht-nt-dot {{
-  position:absolute;
-  right: -2px;
-  top: -2px;
-  width: 12px;
-  height: 12px;
-  background: #fff;
-  border-radius: 999px;
-}}
-.ht-nt-dot:before {{
-  content:'';
-  position:absolute;
-  left: 50%;
-  top: 50%;
-  width: 12px;
-  height: 12px;
-  transform: translate(-50%,-50%);
-  border-radius: 999px;
-  background: rgba(3,199,90,0.35);
-  animation: ht_ping 1.6s ease-out infinite;
-}}
-</style>
-<a class="ht-naver-talk" href="{safe_url}" target="_blank" rel="noopener noreferrer">
-  <div class="ht-nt-wrap">
-    <div class="ht-nt-dot"></div>
-    <div class="ht-nt-btn">
-      💬 NAVER Talk
-      <span class="ht-nt-sub">한 번만 눌러서 대화하기</span>
-    </div>
-  </div>
-</a>
-""",
-            height=0,
-        )
-    except Exception:
-        return
