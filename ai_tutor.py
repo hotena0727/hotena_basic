@@ -2,13 +2,17 @@
 # ============================================================
 # ✅ Hatena Teacher (하테나쌤) — Request-only AI helper for talk/explain
 #
-# 핵심 목표
-# - 기본 모델: gpt-4o-mini (환경변수 OPENAI_MODEL_LOW로 변경 가능)
-# - 한국어 중심 + 일본어 1줄 정도
-# - 짧게 3~4줄
-# - (중요) 추가 질문/질문 유도 금지: "다음 질문은?" 같은 문장 금지
-# - 일일 쿼터: free=1, pro=5 (DB RPC: public.ai_check_and_inc_kst)
-# - (요청 반영) 관리자(admin)는 무제한: 쿼터 RPC를 타지 않음
+# Goals
+# - Cheap model by default (OPENAI_MODEL_LOW, fallback: gpt-4o-mini)
+# - Korean-first explanations + small Japanese mix
+# - Short answers: 3–4 lines, 1 emoji at most (soft rule)
+# - Daily quota (DB/Supabase): free=1, pro=5  (plan == "pro")
+# - Cache identical questions for a few minutes (cache hits do NOT consume quota)
+#
+# Dependencies
+# - Uses your existing core.py for auth + Supabase authed client
+# - Calls Supabase RPC: public.ai_check_and_inc_kst(max_uses int)
+# - Calls OpenAI Chat Completions API via HTTPS (requests)
 # ============================================================
 
 from __future__ import annotations
@@ -18,40 +22,67 @@ import time
 from typing import Any, Dict, Optional, Tuple
 
 import streamlit as st
+
+# Local imports from your project
 import core
+
+try:
+    import requests  # type: ignore
+except Exception:  # pragma: no cover
+    requests = None  # type: ignore
+
+
+
+# ----------------------------
+# Debug (admin only)
+# ----------------------------
+def _is_admin_debug() -> bool:
+    return bool(st.session_state.get("is_admin", False)) or bool(st.session_state.get("is_admin_cached", False))
 
 # ----------------------------
 # Config
 # ----------------------------
-OPENAI_URL = "https://api.openai.com/v1/chat/completions"
-DEFAULT_MODEL = "gpt-4o-mini"
-CACHE_TTL_SECONDS = 180  # 3 minutes
-MIN_LINES_DEFAULT = 3
+DEFAULT_MODEL_LOW = "gpt-4o-mini"
+CACHE_TTL_SECONDS = 180  # 3 minutes (tweak: 60~300)
 MAX_LINES_DEFAULT = 4
+MIN_LINES_DEFAULT = 3
+
+
+def _cfg(key: str) -> str:
+    return core.get_cfg(key)
 
 
 def _now() -> float:
     return time.time()
 
 
-def _is_admin_debug() -> bool:
-    # UI/로그에 디버그를 노출할지 여부(관리자만)
-    return bool(st.session_state.get("is_admin", False)) or bool(st.session_state.get("is_admin_cached", False))
-
-
+# ----------------------------
+# User / Plan
+# ----------------------------
 def get_user_id() -> Optional[str]:
+    """Return Supabase user id from session_state (robust to dict/object)."""
     u = st.session_state.get("user")
-    uid = getattr(u, "id", None) if u else None
+    if not u:
+        return None
+    # supabase-py user object usually has .id
+    uid = getattr(u, "id", None)
     if uid:
         return str(uid)
-    # fallback: token 기반(환경에 따라 core가 처리)
-    return str(st.session_state.get("user_id") or "") or None
+    # sometimes dict-like
+    if isinstance(u, dict) and u.get("id"):
+        return str(u["id"])
+    return None
 
 
 def get_user_plan(*, force_refresh: bool = False) -> str:
-    """Return plan string ('free'|'pro'|...). Cached in session_state['user_plan']."""
+    """
+    Read plan from profiles.plan via core.load_profile.
+    Cached in st.session_state["user_plan"] for performance.
+    """
+    # cache with timestamp
     cache_key = "_ai_user_plan_cached_at"
     if not force_refresh and st.session_state.get("user_plan") and st.session_state.get(cache_key):
+        # 10 minutes cache
         if _now() - float(st.session_state.get(cache_key, 0.0)) < 600:
             return str(st.session_state.get("user_plan") or "")
 
@@ -69,61 +100,6 @@ def get_user_plan(*, force_refresh: bool = False) -> str:
     return plan
 
 
-def get_is_admin(*, force_refresh: bool = False) -> bool:
-    """Return whether current user is admin.
-
-    Priority:
-    1) Fast path: session_state flags (set by hub/admin pages)
-    2) Cached result (10 min)
-    3) DB read: profiles.is_admin (direct select)
-    4) Fallback: core.load_profile(...).get('is_admin')
-
-    Notes:
-    - We update st.session_state['is_admin_cached'] for compatibility with existing code.
-    """
-    # 1) Fast path: other pages may already set these
-    if bool(st.session_state.get("is_admin", False)) or bool(st.session_state.get("is_admin_cached", False)):
-        return True
-
-    cache_key = "_ai_is_admin_cached_at"
-    val_key = "_ai_is_admin_cached_val"
-    if not force_refresh and cache_key in st.session_state:
-        if _now() - float(st.session_state.get(cache_key, 0.0)) < 600:
-            return bool(st.session_state.get(val_key, False))
-
-    sb = core.get_authed_sb(force_refresh=True)
-    uid = get_user_id()
-    if not sb or not uid:
-        st.session_state[cache_key] = _now()
-        st.session_state[val_key] = False
-        st.session_state["is_admin_cached"] = False
-        return False
-
-    is_admin = False
-    # 3) Direct select first (core.load_profile may not include is_admin depending on your implementation)
-    try:
-        resp = sb.table("profiles").select("is_admin").eq("id", uid).single().execute()
-        data = getattr(resp, "data", None) or {}
-        if isinstance(data, dict):
-            is_admin = bool(data.get("is_admin", False))
-    except Exception:
-        is_admin = False
-
-    # 4) Fallback to core.load_profile (best effort)
-    if not is_admin:
-        try:
-            prof = core.load_profile(sb, uid) or {}
-            is_admin = bool(prof.get("is_admin", False))
-        except Exception:
-            is_admin = False
-
-    st.session_state[cache_key] = _now()
-    st.session_state[val_key] = is_admin
-    st.session_state["is_admin_cached"] = is_admin
-    return is_admin
-
-
-
 def _max_uses_for_plan(plan: str) -> int:
     return 5 if (plan or "").lower() == "pro" else 1
 
@@ -131,20 +107,16 @@ def _max_uses_for_plan(plan: str) -> int:
 # ----------------------------
 # Quota (DB via Supabase RPC)
 # ----------------------------
-def check_and_consume_quota() -> Tuple[bool, Optional[int], Optional[int], str]:
+def check_and_consume_quota() -> Tuple[bool, Optional[int], Optional[int]]:
     """
-    Returns (allowed, used, remaining, last_error).
-    - Admin: unlimited (skip RPC)
-    - Others: consumes 1 quota when allowed=True via RPC
+    Returns (allowed, used, remaining).
+    - Requires authenticated user (Supabase auth.uid()).
+    - Consumes 1 quota when allowed=True.
     """
-    # ✅ Admin unlimited
-    if get_is_admin(force_refresh=False):
-        return True, None, None, ""
-
     sb = core.get_authed_sb(force_refresh=True)
     uid = get_user_id()
     if not sb or not uid:
-        return False, None, None, "NO_SB_OR_UID"
+        return False, None, None
 
     plan = get_user_plan(force_refresh=False)
     max_uses = _max_uses_for_plan(plan)
@@ -157,20 +129,21 @@ def check_and_consume_quota() -> Tuple[bool, Optional[int], Optional[int], str]:
             allowed = bool(row.get("allowed"))
             used = int(row.get("used")) if row.get("used") is not None else None
             remaining = int(row.get("remaining")) if row.get("remaining") is not None else None
-            return allowed, used, remaining, ""
-        return False, None, None, "EMPTY_RPC_DATA"
-    except Exception as e:
-        return False, None, None, f"RPC_EXCEPTION: {e}"
+            return allowed, used, remaining
+    except Exception:
+        pass
 
+    return False, None, None
 
 
 def quota_wait_message() -> str:
+    # Keep it short, friendly, and not revealing numbers.
     return "\n".join(
         [
             "🙂 잠깐만요. 지금은 질문이 몰려서요.",
             "조금 있다가 다시 물어봐 주세요.",
             "例: 少し待ってね。",
-        ]
+        ] 
     )
 
 
@@ -179,6 +152,7 @@ def need_login_message() -> str:
         [
             "💬 하테나쌤은 로그인 후 사용할 수 있어요.",
             "먼저 로그인하고 다시 물어봐 주세요 🙂",
+            "필요하면 ‘MY’에서 로그인 상태를 확인해 주세요.",
         ]
     )
 
@@ -193,108 +167,154 @@ def _cache_bucket() -> Dict[str, Any]:
 
 
 def _cache_key(mode: str, user_input: str, context: str) -> str:
+    # Keep it simple; include mode + normalized input + small context
     m = (mode or "").strip().lower()
-    u = (user_input or "").strip()
-    cx = (context or "").strip()
-    # 캐시 충돌 줄이기: 짧게 해시(필요시)
-    return f"{m}::{u}::{cx}"
+    ui = " ".join((user_input or "").strip().split())
+    cx = " ".join((context or "").strip().split())
+    return f"{m}||{ui}||{cx}"[:800]
 
 
-def _cache_get(mode: str, user_input: str, context: str) -> Optional[str]:
+def get_cached_answer(mode: str, user_input: str, context: str) -> Optional[str]:
     bucket = _cache_bucket()
     k = _cache_key(mode, user_input, context)
-    it = bucket.get(k)
-    if not it:
+    item = bucket.get(k)
+    if not item or not isinstance(item, dict):
         return None
+    ts = float(item.get("ts", 0.0))
+    if _now() - ts > CACHE_TTL_SECONDS:
+        bucket.pop(k, None)
+        return None
+    ans = item.get("answer")
+    return str(ans) if isinstance(ans, str) and ans else None
+
+
+def set_cached_answer(mode: str, user_input: str, context: str, answer: str) -> None:
+    bucket = _cache_bucket()
+    k = _cache_key(mode, user_input, context)
+    bucket[k] = {"ts": _now(), "answer": answer}
+
+
+# ----------------------------
+# OpenAI call (Chat Completions)
+# ----------------------------
+
+def _openai_chat(model: str, messages: list[dict[str, str]], *, max_output_tokens: int = 220) -> str:
+    """
+    Calls OpenAI Chat Completions API.
+    - 관리자(is_admin)에게만 실패 원인(HTTP/예외)을 노출
+    - API KEY 읽기 경로를 통합(core cfg -> st.secrets -> env)
+    """
+    if requests is None:
+        msg = "(관리자: requests 설치 확인)"
+        return msg if _is_admin_debug() else "💬 서버 설정 문제로 잠시 답변이 어려워요.\n조금 있다가 다시 물어봐 주세요 🙂\n(관리자: requests 설치 확인)"
+
+    import os
+
+    api_key = (
+        _cfg("OPENAI_API_KEY")
+        or st.secrets.get("OPENAI_API_KEY")
+        or os.getenv("OPENAI_API_KEY")
+    )
+
+    if not api_key:
+        msg = "(관리자: OPENAI_API_KEY 설정 없음: core.get_cfg / st.secrets / env 모두 비어있음)"
+        return msg if _is_admin_debug() else "💬 하테나쌤 설정이 아직 준비되지 않았어요.\n조금 있다가 다시 물어봐 주세요 🙂\n(관리자: OPENAI_API_KEY 설정)"
+
+    url = "https://api.openai.com/v1/chat/completions"
+    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
+    payload = {
+        "model": model,
+        "messages": messages,
+        "temperature": 0.4,
+        "max_tokens": max_output_tokens,
+    }
+
     try:
-        ts = float(it.get("ts", 0.0))
-        if _now() - ts > CACHE_TTL_SECONDS:
-            bucket.pop(k, None)
-            return None
-        return str(it.get("v") or "")
-    except Exception:
-        return None
+        r = requests.post(url, headers=headers, data=json.dumps(payload), timeout=18)
 
+        if r.status_code >= 400:
+            # ✅ 관리자에게만 원문 일부 노출
+            if _is_admin_debug():
+                body = (r.text or "")[:1200]
+                return f"(OpenAI HTTP {r.status_code}) {body}"
+            return "💬 지금은 답변이 조금 어려워요.\n조금 있다가 다시 물어봐 주세요 🙂\n(잠시 후 재시도)"
 
-def _cache_set(mode: str, user_input: str, context: str, value: str) -> None:
-    bucket = _cache_bucket()
-    k = _cache_key(mode, user_input, context)
-    bucket[k] = {"ts": _now(), "v": value}
+        data = r.json()
+        choices = data.get("choices") or []
+        if choices and choices[0].get("message") and choices[0]["message"].get("content"):
+            return str(choices[0]["message"]["content"]).strip()
 
+        # JSON 구조가 예상과 다를 때(관리자만)
+        if _is_admin_debug():
+            return f"(OpenAI 응답 파싱 실패) {str(data)[:800]}"
+
+    except Exception as e:
+        if _is_admin_debug():
+            return f"(OpenAI 예외) {repr(e)}"
+        return "💬 지금은 답변이 조금 어려워요.\n조금 있다가 다시 물어봐 주세요 🙂\n(잠시 후 재시도)"
+
+    return "💬 지금은 답변이 조금 어려워요.\n조금 있다가 다시 물어봐 주세요 🙂\n(잠시 후 재시도)"
 
 # ----------------------------
-# Prompt
+# Formatting helpers
 # ----------------------------
+def _normalize_lines(text: str, *, min_lines: int = MIN_LINES_DEFAULT, max_lines: int = MAX_LINES_DEFAULT) -> str:
+    # split, trim blanks
+    lines = [ln.strip() for ln in (text or "").splitlines()]
+    lines = [ln for ln in lines if ln]
+    if not lines:
+        return quota_wait_message()
+    # hard cap
+    if len(lines) > max_lines:
+        lines = lines[:max_lines]
+    # if too short, keep as-is (we don't want to force verbosity)
+    # but we can attempt to merge if it's too many short fragments
+    if len(lines) < min_lines:
+        # allow 1-2 lines if model answered short; still okay
+        return "\n".join(lines)
+    return "\n".join(lines)
+
+
 def _system_prompt(mode: str) -> str:
-    # 질문 유도 금지, 물음표로 끝내지 않기
+    # Keep consistent tone: teacher but kind, KR-first, small JP mix
     base = [
         "너는 일본어 학습 앱 '하테나'의 AI 튜터 '하테나쌤'이다.",
-        "친절한 코치 톤으로 핵심만 짚어 짧게 답한다.",
-        "답변은 한국어 중심으로 하되, 일본어 설명을 1줄 정도 섞는다.",
-        "전체 답변은 줄바꿈 기준 3~4줄로 제한한다.",
-        "이모지는 최대 1개만 사용한다.",
-        "절대 추가 질문을 하지 않는다. 대화를 이어가려 하지 않는다.",
-        "사용자에게 다음 행동/질문을 요구하지 않는다.",
-        "답변 마지막에 물음표(?)를 쓰지 않는다. '다음 질문은?' 같은 문장을 금지한다.",
-        "반드시 피드백 문장으로 끝낸다.",
+        "친절한 선생님 톤으로, 핵심만 짚어서 짧게 답한다.",
+        "답변은 기본 한국어 중심으로 하되, 일본어 설명을 1줄 정도 섞는다.",
+        "전체 답변은 3~4줄로 제한한다. (줄바꿈으로 3~4줄)",
+        "이모지는 최대 1개만 사용한다. (가능하면 📘 또는 💬)",
+        "긴 강의처럼 말하지 말고, 학습자가 바로 이해/말하기를 이어가게 한다.
+추가 질문을 하지 않는다. 사용자의 다음 행동을 요구하지 않는다.
+반드시 피드백 문장으로 끝낸다.",
     ]
     m = (mode or "").lower().strip()
     if m == "talk":
         base += [
-            "모드: 회화 코칭. 틀림을 단정하기보다 자연스럽게 교정한다.",
-            "필요하면 더 자연스러운 표현을 1개만 제시한다.",
+            "모드: 회화 자신감. 문장을 크게 '틀렸어요'라고 단정하지 않는다.",
+            "필요하면 아주 가볍게 더 자연스러운 표현을 1개 제시한다.
+추가 질문을 하지 않는다. ("다음 질문은?" 같은 유도 금지)
+대화를 이어가려 하지 말고, 피드백으로만 끝낸다.",
         ]
     else:
         base += [
-            "모드: 이해력 보조. 요점 1줄 → 일본어 1줄 → 예문(최대 1개) 순서를 선호한다.",
+            "모드: 이해력 보조. 한 줄 요점 → 한 줄 일본어 설명 → 예문(최대 1개) 순서를 선호한다.",
         ]
     return " ".join(base)
 
 
 def _build_messages(mode: str, user_input: str, context: str) -> list[dict[str, str]]:
     sys = _system_prompt(mode)
-    u = (user_input or "").strip()
+    # Keep user message compact to save tokens
+    u = user_input.strip()
     cx = (context or "").strip()
     if cx:
-        user = f"질문/상황: {u}\n문맥: {cx}\n(3~4줄로)"
+        user = f"질문: {u}\n상황/문맥: {cx}\n(3~4줄로 짧게)"
     else:
-        user = f"질문/상황: {u}\n(3~4줄로)"
-    return [{"role": "system", "content": sys}, {"role": "user", "content": user}]
-
-
-# ----------------------------
-# OpenAI call
-# ----------------------------
-def _openai_chat(*, model: str, messages: list[dict[str, str]], temperature: float = 0.55, max_tokens: int = 220) -> str:
-    # Import lazily
-    try:
-        import requests
-    except Exception as e:
-        if _is_admin_debug():
-            return f"(AI) requests import error: {e}"
-        return "💬 서버 설정 문제로 잠시 답변이 어려워요.\n조금 있다가 다시 물어봐 주세요 🙂"
-
-    api_key = (st.secrets.get("OPENAI_API_KEY") if hasattr(st, "secrets") else None) or st.session_state.get("OPENAI_API_KEY")
-    if not api_key:
-        if _is_admin_debug():
-            return "(AI) missing OPENAI_API_KEY"
-        return "💬 하테나쌤 설정이 아직 준비되지 않았어요.\n조금 있다가 다시 물어봐 주세요 🙂"
-
-    payload = {"model": model, "messages": messages, "temperature": float(temperature), "max_tokens": int(max_tokens)}
-    headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
-
-    try:
-        r = requests.post(OPENAI_URL, headers=headers, data=json.dumps(payload), timeout=30)
-        if r.status_code >= 400:
-            if _is_admin_debug():
-                return f"(AI HTTP {r.status_code}) {r.text[:400]}"
-            return "💬 잠시 답변이 어려워요.\n조금 있다가 다시 시도해 주세요 🙂"
-        data = r.json()
-        return (data.get("choices", [{}])[0].get("message", {}) or {}).get("content", "") or ""
-    except Exception as e:
-        if _is_admin_debug():
-            return f"(AI EXC) {e}"
-        return "💬 잠시 답변이 어려워요.\n조금 있다가 다시 시도해 주세요 🙂"
+        user = f"질문: {u}\n(3~4줄로 짧게)"
+    return [
+        {"role": "system", "content": sys},
+        {"role": "user", "content": user},
+    ]
 
 
 # ----------------------------
@@ -309,46 +329,43 @@ def ask_hatena(
     min_lines: int = MIN_LINES_DEFAULT,
     max_lines: int = MAX_LINES_DEFAULT,
 ) -> str:
+    _meta = meta or {}
     """
     Main entry:
     - Cache hit -> return cached answer (no quota consumption)
     - If not logged in -> friendly login message
-    - Check quota via DB RPC (consumes 1) before OpenAI call (admin unlimited)
+    - Check quota via DB RPC (consumes 1) before OpenAI call
     - Return short 3–4 line answer
     """
-    _ = meta or {}
+    # Ensure core exists & session is refreshed
+    core.ensure_core()
+    core.refresh_session_from_cookie_if_needed(force=False)
 
-    # Cache first
-    cached = _cache_get(mode, user_input, context)
+    # Cache check first (free)
+    cached = get_cached_answer(mode, user_input, context)
     if cached:
         return cached
 
-    # Ensure session/auth ready
-    core.ensure_session_user()
-
-    uid = get_user_id()
-    if not uid:
+    # Must be logged in (DB quota uses auth.uid())
+    if not get_user_id():
         return need_login_message()
 
-    allowed, used, remaining, last_error = check_and_consume_quota()
-    if not allowed:
-        if _is_admin_debug():
-            return f"(Quota denied) uid={uid} plan={get_user_plan()} used={used} remaining={remaining} last_error={last_error}"
-        return quota_wait_message()
+    # Admin bypass (unlimited)
+    admin_override = bool(_meta.get("is_admin")) or _is_admin_debug()
+    if not admin_override:
+        # Quota check (consumes 1 when allowed)
+        allowed, _, _ = check_and_consume_quota()
+        if not allowed:
+            return quota_wait_message()
 
-    model = str(st.session_state.get("OPENAI_MODEL_LOW") or st.secrets.get("OPENAI_MODEL_LOW") if hasattr(st, "secrets") else "") or DEFAULT_MODEL
+    # Model selection (low-cost)
+    model = _cfg("OPENAI_MODEL_LOW") or DEFAULT_MODEL_LOW
+
+    # Build messages and call
     messages = _build_messages(mode, user_input, context)
-    ans = _openai_chat(model=model, messages=messages, temperature=0.6, max_tokens=240).strip()
+    raw = _openai_chat(model, messages, max_output_tokens=220)
 
-    # Hard trim to 3~4 lines
-    lines = [ln.strip() for ln in ans.splitlines() if ln.strip()]
-    if len(lines) > max_lines:
-        lines = lines[:max_lines]
-    if len(lines) < min_lines and lines:
-        # pad softly without 질문 유도
-        while len(lines) < min_lines:
-            lines.append("한 줄만 더 자연스럽게 다듬어도 좋아요.")
-    ans2 = "\n".join(lines) if lines else quota_wait_message()
-
-    _cache_set(mode, user_input, context, ans2)
-    return ans2
+    # Normalize + cache
+    ans = _normalize_lines(raw, min_lines=min_lines, max_lines=max_lines)
+    set_cached_answer(mode, user_input, context, ans)
+    return ans
