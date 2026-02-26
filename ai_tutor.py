@@ -378,12 +378,12 @@ if not allowed:
         err_dbg = st.session_state.get("_ai_quota_last_error", "")
         raw_dbg = st.session_state.get("_ai_quota_last_raw", None)
         return (
-            f"(Quota denied) uid={uid_dbg} plan={plan_dbg} max_uses={max_dbg} "
-            f"used={used} remaining={remaining}
+    f"(Quota denied) uid={uid_dbg} plan={plan_dbg} max_uses={max_dbg} used={used} remaining={remaining}
 "
-            f"last_error={err_dbg}
+    f"last_error={err_dbg}
 "
-            f"last_raw={str(raw_dbg)[:800]}"
+    f"last_raw={str(raw_dbg)[:800]}"
+)[:800]}"
         )
     return quota_wait_message()
 
