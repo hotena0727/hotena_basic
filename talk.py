@@ -1390,7 +1390,7 @@ if submitted:
 
                 st.link_button(
                     "💬 네이버톡 바로가기",
-                    "https://talk.naver.com/YOUR_LINK_HERE",
+                    "https://talk.naver.com/http://talk.naver.com/W45141",
                     use_container_width=True
                 )
 
