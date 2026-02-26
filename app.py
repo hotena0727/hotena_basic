@@ -972,12 +972,25 @@ def mark_progress_dirty_light():
     st.session_state.progress_dirty = True
 
 def mark_progress_dirty():
-    """⚡ 선택(on_change)에서 DB 저장을 하지 않고, '변경됨' 플래그만 남깁니다.
-    - 보기 선택 시 체감 로딩(간헐적 딜레이) 원인: 선택 이벤트 때 save_progress_to_db가 실행될 수 있음
-    - 실제 DB 저장은 '제출' 시점(기존 코드)에서만 수행
-    """
     st.session_state.progress_dirty = True
-    st.session_state._progress_dirty_ts = time.time()
+
+    sb_authed_local = get_authed_sb()
+    u = st.session_state.get("user")
+    if (sb_authed_local is None) or (u is None):
+        return
+
+    now = time.time()
+    last = st.session_state.get("_last_progress_save_ts", 0.0)
+    if now - last < 60.0:
+        return
+
+    try:
+        save_progress_to_db(sb_authed_local, u.id)
+        st.session_state._last_progress_save_ts = now
+        st.session_state.progress_dirty = False
+    except Exception:
+        pass
+
 def mark_quiz_as_seen(quiz_list: list[dict], qtype: str, pos_group: str):
     ensure_seen_words_shape()
     k = mastery_key(qtype=qtype, pos=pos_group)
@@ -3482,6 +3495,16 @@ if SHOW_BOTTOM_GOAL:
 # OK 문제 표시 (동그란 배지: ① ② ③ ... + 같은 줄)
 # ============================================================
 circled_nums = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳㉑㉒㉓㉔㉕㉖㉗㉘㉙㉚㉛㉜㉝㉞㉟㊱㊲㊳㊴㊵㊶㊷㊸㊹㊺㊻㊼㊽㊾㊿"
+# ✅ 보기 자동선택 방지(라디오): 숨김 sentinel 1개를 추가하고 첫 항목을 CSS로 숨김
+if not st.session_state.get("_hn_quiz_radio_unselect_css", False):
+    st.markdown("""
+<style>
+/* quiz 보기 라디오에서 숨김 sentinel(첫 번째 항목) 감추기 */
+.hn-quiz-radio div[data-baseweb="radio"] > div:first-child { display:none !important; }
+</style>
+""", unsafe_allow_html=True)
+    st.session_state["_hn_quiz_radio_unselect_css"] = True
+
 
 for idx, q in enumerate(st.session_state.quiz):
     badge = circled_nums[idx] if idx < len(circled_nums) else f"({idx+1})"
@@ -3521,19 +3544,28 @@ for idx, q in enumerate(st.session_state.quiz):
 
     widget_key = f"q_{st.session_state.quiz_version}_{idx}"
 
-    prev = st.session_state.answers[idx]
-    default_index = None
-    if prev is not None and prev in q["choices"]:
-        default_index = q["choices"].index(prev)
+    # ✅ 라디오 자동선택 방지: 숨김 sentinel을 첫 항목으로 추가하고, CSS로 첫 항목을 감춤
+    _SENTINEL = "__HN_NONE__"
+    opts = [_SENTINEL] + list(q["choices"])
 
-    choice = st.radio(
+    prev = st.session_state.answers[idx]
+    default_index = 0  # sentinel(미선택)
+    if prev is not None and prev in q["choices"]:
+        default_index = q["choices"].index(prev) + 1
+
+    st.markdown('<div class="hn-quiz-radio">', unsafe_allow_html=True)
+    picked = st.radio(
         label="보기",
-        options=q["choices"],
+        options=opts,
         index=default_index,
         key=widget_key,
         label_visibility="collapsed",
+        format_func=lambda x: "" if x == _SENTINEL else x,
         on_change=mark_progress_dirty_light,
     )
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    choice = None if picked == _SENTINEL else picked
     st.session_state.answers[idx] = choice
 
 sync_answers_from_widgets()
@@ -3548,7 +3580,10 @@ quiz_len = len(st.session_state.quiz)
 selected_now = []
 for idx, q in enumerate(st.session_state.quiz):
     widget_key = f"q_{st.session_state.quiz_version}_{idx}"
-    selected_now.append(st.session_state.get(widget_key, None))
+    _v = st.session_state.get(widget_key, None)
+    if _v == "__HN_NONE__":
+        _v = None
+    selected_now.append(_v)
 
 all_answered = (quiz_len > 0) and all(a is not None for a in selected_now)
 
