@@ -1372,7 +1372,11 @@ if submitted:
 
             # ✅ 파란 박스 자리 고정
             coach_slot = st.empty()
+
             
+            # 버튼-박스 간격을 더 줄이고 싶을 때만
+            st.markdown("<div style='margin-top:-18px'></div>", unsafe_allow_html=True)
+
             if ask and str(user_q).strip():
                 st.session_state["talk_ai_last_q"] = str(user_q).strip()
                 with st.spinner("하테나쌤 답변 중…"):
