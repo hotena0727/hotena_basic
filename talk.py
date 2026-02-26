@@ -1429,7 +1429,7 @@ if submitted:
         st.markdown(
             f"""
         <div style="display:flex; align-items:baseline; justify-content:space-between; gap:12px;">
-          <div style="font-size:1.35rem; font-weight:800;">🎙️ 발음 체크</div>
+          <div style="font-size:1.6rem; font-weight:700;">🎙️ 발음 체크</div>
           <div style="font-size:1rem; opacity:0.85;">📘 진행: {current_no} / {total_cnt}</div>
         </div>
         """,
