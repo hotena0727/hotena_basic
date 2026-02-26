@@ -3833,5 +3833,3 @@ if st.session_state.get("submitted", False):
             start_quiz_state(retry_quiz, st.session_state.quiz_type, clear_wrongs=True)
             st.session_state["_scroll_top_once"] = True
             st.rerun()
-
-    if show_naver_talk:
