@@ -1429,7 +1429,7 @@ if submitted:
         st.markdown(
             f"""
         <div style="display:flex; align-items:baseline; justify-content:space-between; gap:12px;">
-          <div style="font-size:1.05rem; font-weight:700;">🎙️ 발음 체크</div>
+          <div style="font-size:1.05rem; font-weight:800;">🎙️ 발음 체크</div>
           <div style="font-size:1rem; opacity:0.85;">📘 진행: {current_no} / {total_cnt}</div>
         </div>
         """,
@@ -1540,7 +1540,7 @@ if submitted:
 
         c_sc1, c_sc2 = st.columns([0.72, 0.28], vertical_alignment="center")
         with c_sc1:
-            st.markdown("## 📊 말하기 점수")
+            st.markdown('<div style="font-size:1.25rem; font-weight:700;">📊 말하기 점수</div>', unsafe_allow_html=True)
         with c_sc2:
             do_calc = st.button("다시 계산", use_container_width=True, disabled=not has_audio, key=f"{qid}_pron_calc")
 
