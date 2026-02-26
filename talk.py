@@ -10,6 +10,27 @@ import os
 import difflib
 import re
 
+# ============================================================
+# ✅ (선택) 한자/가나 표기 차이를 줄이기 위한 히라가나 정규화
+# - pykakasi가 설치되어 있으면: 한자/카타카나 → 히라가나로 통일
+# - 설치되어 있지 않으면: 원문 그대로(표기 차이에 따른 감점 가능)
+# ============================================================
+try:
+    from pykakasi import kakasi as _kakasi  # type: ignore
+    _KKS = _kakasi()
+    _KKS.setMode("J", "H")  # Kanji to Hiragana
+    _KKS.setMode("K", "H")  # Katakana to Hiragana
+    _KKS.setMode("H", "H")  # Hiragana keep
+    _KKS_CONV = _KKS.getConverter()
+    def _to_hira(s: str) -> str:
+        try:
+            return _KKS_CONV.do(s or "")
+        except Exception:
+            return s or ""
+except Exception:
+    _KKS_CONV = None
+    def _to_hira(s: str) -> str:
+        return s or ""
 import pandas as pd
 import streamlit as st
 
@@ -463,17 +484,61 @@ def _use_free_record_once():
 def _norm_jp(s: str) -> str:
     s = (s or "").strip()
     # 공백/전각공백 제거
-    s = s.replace(" ", "").replace("\u3000", "")
+    s = s.replace(" ", "").replace("\\u3000", "")
     # 흔한 문장부호 제거
     s = re.sub(r"[、。．，!！?？…]+", "", s)
+    # ✅ 표기 차이를 줄이기 위해 히라가나로 통일(가능할 때만)
+    s = _to_hira(s)
     return s
 
-def _similarity_score(a: str, b: str) -> int:
+def _bigrams(s: str) -> set[str]:
+    return {s[i:i+2] for i in range(len(s)-1)} if len(s) >= 2 else set()
+
+def _levenshtein(a: str, b: str) -> int:
+    # O(len(a)*len(b)) DP
+    if a == b:
+        return 0
+    if not a:
+        return len(b)
+    if not b:
+        return len(a)
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        cur = [i]
+        for j, cb in enumerate(b, 1):
+            ins = cur[j - 1] + 1
+            dele = prev[j] + 1
+            sub = prev[j - 1] + (0 if ca == cb else 1)
+            cur.append(min(ins, dele, sub))
+        prev = cur
+    return prev[-1]
+
+def _similarity_score(a: str, b: str, gate: float = 0.15, floor_to_zero: int = 15) -> int:
+    """발음 점수(0~100):
+    1) 2글자 bigram 겹침이 너무 적으면(완전 다른 문장) 0점
+    2) 편집거리(순서 포함) 기반 점수
+    3) 너무 낮은 점수는 0으로 정리(선택)
+    """
     a2, b2 = _norm_jp(a), _norm_jp(b)
     if not a2 or not b2:
         return 0
-    r = difflib.SequenceMatcher(None, a2, b2).ratio()
-    return int(round(r * 100))
+
+    # 1) 완전 다른 문장 차단
+    ba = _bigrams(b2)
+    if ba:
+        overlap = len(_bigrams(a2) & ba) / max(1, len(ba))
+        if overlap < gate:
+            return 0
+
+    # 2) 순서 기반 점수(편집거리)
+    dist = _levenshtein(a2, b2)
+    max_len = max(len(a2), len(b2))
+    score = int(round(100 * (1 - dist / max_len)))
+
+    # 3) 바닥값 정리
+    if score < int(floor_to_zero):
+        return 0
+    return max(0, min(100, score))
 
 def _openai_transcribe_bytes(audio_bytes: bytes, mime: str = "audio/wav") -> str:
     # OpenAI Python SDK (new) 사용. 없으면 예외로 안내.
