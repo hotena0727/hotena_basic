@@ -71,9 +71,17 @@ def get_user_plan(*, force_refresh: bool = False) -> str:
 
 def get_is_admin(*, force_refresh: bool = False) -> bool:
     """Return whether current user is admin.
-    - Fast path: st.session_state['is_admin'] or ['is_admin_cached']
-    - Slow path: profiles.is_admin via core.load_profile (cached 10 min)
+
+    Priority:
+    1) Fast path: session_state flags (set by hub/admin pages)
+    2) Cached result (10 min)
+    3) DB read: profiles.is_admin (direct select)
+    4) Fallback: core.load_profile(...).get('is_admin')
+
+    Notes:
+    - We update st.session_state['is_admin_cached'] for compatibility with existing code.
     """
+    # 1) Fast path: other pages may already set these
     if bool(st.session_state.get("is_admin", False)) or bool(st.session_state.get("is_admin_cached", False)):
         return True
 
@@ -88,15 +96,32 @@ def get_is_admin(*, force_refresh: bool = False) -> bool:
     if not sb or not uid:
         st.session_state[cache_key] = _now()
         st.session_state[val_key] = False
+        st.session_state["is_admin_cached"] = False
         return False
 
-    prof = core.load_profile(sb, uid) or {}
-    is_admin = bool(prof.get("is_admin", False))
+    is_admin = False
+    # 3) Direct select first (core.load_profile may not include is_admin depending on your implementation)
+    try:
+        resp = sb.table("profiles").select("is_admin").eq("id", uid).single().execute()
+        data = getattr(resp, "data", None) or {}
+        if isinstance(data, dict):
+            is_admin = bool(data.get("is_admin", False))
+    except Exception:
+        is_admin = False
+
+    # 4) Fallback to core.load_profile (best effort)
+    if not is_admin:
+        try:
+            prof = core.load_profile(sb, uid) or {}
+            is_admin = bool(prof.get("is_admin", False))
+        except Exception:
+            is_admin = False
+
     st.session_state[cache_key] = _now()
     st.session_state[val_key] = is_admin
-    # 홈/허브에서 쓰는 캐시 키가 있다면 같이 갱신(호환)
     st.session_state["is_admin_cached"] = is_admin
     return is_admin
+
 
 
 def _max_uses_for_plan(plan: str) -> int:
