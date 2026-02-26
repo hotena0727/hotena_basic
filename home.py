@@ -16,23 +16,6 @@ import core
 import streamlit.components.v1 as components
 
 # ============================================================
-# ✅ One-time helpers (reduce flicker from repeated JS injection)
-# ============================================================
-def _home_once(flag: str) -> bool:
-    k = f"_home_once__{flag}"
-    if st.session_state.get(k):
-        return False
-    st.session_state[k] = True
-    return True
-
-def _home_once_key(prefix: str, key: str) -> bool:
-    k = f"_home_once__{prefix}__{key}"
-    if st.session_state.get(k):
-        return False
-    st.session_state[k] = True
-    return True
-
-# ============================================================
 # ✅ Font: 일본식 한자(글리프) 우선 적용
 # ============================================================
 def _inject_jp_font_once():
@@ -111,19 +94,15 @@ def run_module(module_name: str):
 # ✅ LocalStorage / QueryParam persistence helpers
 # ============================================================
 def _js_bridge_localstorage_to_queryparam(ls_key: str, qp_key: str):
-    if not _home_once_key('ls2qp', f"{ls_key}->{qp_key}"):
-        return
-    """Read localStorage[ls_key] in the browser and mirror it into URL queryparam qp_key.
-
-    ✅ We use history.replaceState (NOT location.replace) to avoid full reload / new-tab behavior.
-    """
+    # (Helper) Mirror localStorage value into a URL queryparam without a full page reload.
+    # Uses history.replaceState (NOT location.replace) to avoid full reload/new-tab behavior.
     try:
         components.html(
             f"""<script>
 (function(){{
   try {{
-    const lsKey = {json.dumps("LS_KEY")};
-    const qpKey = {json.dumps("QP_KEY")};
+    const lsKey = {json.dumps(ls_key)};
+    const qpKey = {json.dumps(qp_key)};
     const url = new URL(window.location.href);
     if (!url.searchParams.get(qpKey)) {{
       const v = localStorage.getItem(lsKey);
@@ -142,8 +121,6 @@ def _js_bridge_localstorage_to_queryparam(ls_key: str, qp_key: str):
 
 
 def _js_set_localstorage(key: str, value: str):
-    if not _home_once_key('ls_set', key):
-        return
     try:
         components.html(
             f"""<script>
@@ -157,8 +134,6 @@ try {{
         pass
 
 def _js_remove_localstorage(key: str):
-    if not _home_once_key('ls_rm', key):
-        return
     try:
         components.html(
             f"""<script>
@@ -1567,12 +1542,6 @@ def fire_in_app_reminder_if_enabled(user):
         delay_ms = 0
 
     msg = json.dumps(daily_message(str(user.id)))
-
-    _reminder_scheduled_key = f"{target.strftime('%Y-%m-%d')}@{time_str}"
-    if st.session_state.get('_reminder_scheduled_key') == _reminder_scheduled_key:
-        return
-    st.session_state['_reminder_scheduled_key'] = _reminder_scheduled_key
-
     components.html(
         f"""
 <script>
