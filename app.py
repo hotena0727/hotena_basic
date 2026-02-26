@@ -3420,6 +3420,12 @@ if len(st.session_state.quiz) == 0:
     st.stop()
 
 quiz_len = len(st.session_state.quiz)
+if st.session_state.pop('_reset_choice_on_enter_kanji', False):
+    # ✅ 페이지 진입 시: 보기 선택 상태를 '미선택'으로 초기화(1회)
+    clear_question_widget_keys()
+    st.session_state.answers = [None] * quiz_len
+    st.session_state.submitted = False
+
 if "answers" not in st.session_state or not isinstance(st.session_state.answers, list) or len(st.session_state.answers) != quiz_len:
     st.session_state.answers = [None] * quiz_len
 

@@ -979,12 +979,25 @@ def start_quiz_state(quiz_list: list, qtype: str, clear_wrongs: bool = True):
         st.session_state.wrong_list = []
 
 def mark_progress_dirty():
-    """⚡ 선택(on_change)에서 DB 저장을 하지 않고, '변경됨' 플래그만 남깁니다.
-    - 보기 선택 시 체감 로딩(간헐적 딜레이) 원인: 선택 이벤트 때 save_progress_to_db가 실행될 수 있음
-    - 실제 DB 저장은 '제출' 시점(기존 코드)에서만 수행
-    """
     st.session_state.progress_dirty = True
-    st.session_state._progress_dirty_ts = time.time()
+
+    sb_authed_local = get_authed_sb()
+    u = st.session_state.get("user")
+    if (sb_authed_local is None) or (u is None):
+        return
+
+    now = time.time()
+    last = st.session_state.get("_last_progress_save_ts", 0.0)
+    if now - last < 60.0:
+        return
+
+    try:
+        save_progress_to_db(sb_authed_local, u.id)
+        st.session_state._last_progress_save_ts = now
+        st.session_state.progress_dirty = False
+    except Exception:
+        pass
+
 def mark_quiz_as_seen(quiz_list: list[dict], qtype: str, pos_group: str):
     ensure_seen_words_shape()
     k = mastery_key(qtype=qtype, pos=pos_group)
@@ -3414,6 +3427,12 @@ if len(st.session_state.quiz) == 0:
     st.stop()
 
 quiz_len = len(st.session_state.quiz)
+if st.session_state.pop('_reset_choice_on_enter_word', False):
+    # ✅ 페이지 진입 시: 보기 선택 상태를 '미선택'으로 초기화(1회)
+    clear_question_widget_keys()
+    st.session_state.answers = [None] * quiz_len
+    st.session_state.submitted = False
+
 if "answers" not in st.session_state or not isinstance(st.session_state.answers, list) or len(st.session_state.answers) != quiz_len:
     st.session_state.answers = [None] * quiz_len
 
@@ -3529,12 +3548,9 @@ for idx, q in enumerate(st.session_state.quiz):
     widget_key = f"q_{st.session_state.quiz_version}_{idx}"
 
     prev = st.session_state.answers[idx]
-    # ✅ 단어 훈련: '처음부터 보기 미선택' 유지
-    # - 진행 복원/answers 값이 있어도, 제출 전에는 라디오 기본 선택을 주지 않음
     default_index = None
-    if bool(st.session_state.get("submitted", False)):
-        if prev is not None and prev in q["choices"]:
-            default_index = q["choices"].index(prev)
+    if prev is not None and prev in q["choices"]:
+        default_index = q["choices"].index(prev)
 
     choice = st.radio(
         label="보기",
