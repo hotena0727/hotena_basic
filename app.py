@@ -966,6 +966,11 @@ def start_quiz_state(quiz_list: list, qtype: str, clear_wrongs: bool = True):
     if clear_wrongs:
         st.session_state.wrong_list = []
 
+
+def mark_progress_dirty_light():
+    """선택(보기 클릭) 시: DB 저장/네트워크 호출 없이 플래그만 세팅(체감 로딩 감소)."""
+    st.session_state.progress_dirty = True
+
 def mark_progress_dirty():
     st.session_state.progress_dirty = True
 
@@ -3534,26 +3539,15 @@ for idx, q in enumerate(st.session_state.quiz):
     if prev is not None and prev in q["choices"]:
         default_index = q["choices"].index(prev)
 
-    # ✅ 보기: 초기 자동선택 방지(빈 선택) + 선택 시 과도한 on_change 작업 제거
-    _SENTINEL = "__UNSELECTED__"
-    _opts = q["choices"]
-    # prev가 있으면 그 항목을 기본으로(제출 전 재진입 등), 없으면 빈 선택
-    if prev is not None and prev in _opts:
-        default_index = _opts.index(prev) + 1  # sentinel(0) 이후
-    else:
-        default_index = 0  # sentinel
-
     choice = st.radio(
         label="보기",
-        options=[_SENTINEL] + _opts,
+        options=q["choices"],
         index=default_index,
         key=widget_key,
         label_visibility="collapsed",
-        format_func=lambda x: "" if x == _SENTINEL else x,
+        on_change=mark_progress_dirty_light,
     )
-
-    # sentinel이면 아직 선택 전(None)으로 취급
-    st.session_state.answers[idx] = (None if choice == _SENTINEL else choice)
+    st.session_state.answers[idx] = choice
 
 sync_answers_from_widgets()
 
@@ -3567,11 +3561,7 @@ quiz_len = len(st.session_state.quiz)
 selected_now = []
 for idx, q in enumerate(st.session_state.quiz):
     widget_key = f"q_{st.session_state.quiz_version}_{idx}"
-    v = st.session_state.get(widget_key, None)
-    # ✅ radio sentinel은 '미선택'으로 처리
-    if v == "__UNSELECTED__":
-        v = None
-    selected_now.append(v)
+    selected_now.append(st.session_state.get(widget_key, None))
 
 all_answered = (quiz_len > 0) and all(a is not None for a in selected_now)
 
