@@ -3546,7 +3546,6 @@ with st.form(key=f"quiz_form_kanji_{st.session_state.quiz_version}"):
             index=default_index,
             key=widget_key,
             label_visibility="collapsed",
-            on_change=mark_progress_dirty_light,
         )
         st.session_state.answers[idx] = choice
 
@@ -3936,4 +3935,3 @@ if st.session_state.get("submitted", False):
     show_naver_talk = (SHOW_NAVER_TALK == "N") or is_admin()
     if show_naver_talk:
         render_naver_talk()
-
