@@ -277,10 +277,11 @@ def _normalize_lines(text: str, *, min_lines: int = MIN_LINES_DEFAULT, max_lines
 
 
 def _normalize_paragraphs(text: str, *, max_paras: int = 3) -> str:
-    """Normalize talk-mode output while preserving paragraph breaks."""
+    """Normalize talk-mode output while preserving paragraph breaks and limiting verbosity."""
     raw = (text or "").strip()
     if not raw:
         return quota_wait_message()
+
     # split by blank lines into paragraphs
     parts = re.split(r"\n\s*\n+", raw)
     paras = []
@@ -288,10 +289,37 @@ def _normalize_paragraphs(text: str, *, max_paras: int = 3) -> str:
         p = " ".join([ln.strip() for ln in p.splitlines() if ln.strip()])
         if p:
             paras.append(p)
+
     if not paras:
         return quota_wait_message()
+
+    # keep only first N paragraphs
     paras = paras[:max_paras]
-    return "\n\n".join(paras)
+
+    # sentence capping per paragraph (Japanese/English punctuation)
+    def _split_sentences(s: str) -> list[str]:
+        s = s.strip()
+        if not s:
+            return []
+        # split after 。！？!?.
+        chunks = re.split(r"(?<=[。！？!?\.])\s+", s)
+        out = [c.strip() for c in chunks if c.strip()]
+        return out if out else [s]
+
+    caps = [1, 2, 2]  # p1,p2,p3
+    capped = []
+    for i, p in enumerate(paras):
+        sents = _split_sentences(p)
+        cap = caps[i] if i < len(caps) else 2
+        p2 = " ".join(sents[:cap]).strip()
+        capped.append(p2)
+
+    # hard safety cap (characters) to prevent accidental long rambles
+    joined = "\n\n".join(capped).strip()
+    if len(joined) > 520:
+        joined = joined[:520].rstrip()
+
+    return joined
 
 
 def _system_prompt(mode: str) -> str:
@@ -315,6 +343,7 @@ def _system_prompt(mode: str) -> str:
             "1문단: 질문에 대한 직접 해결(1~2문장).",
             "2문단: 추가 정보/뉘앙스 + 더 자연스러운 대안 1개(1~2문장).",
             "3문단: 짧은 연습 1문장(일본어) + 격려(1~2문장).",
+            "문단별 문장 수를 제한한다: 1문단 1문장, 2문단 최대 2문장, 3문단 최대 2문장. 장황한 서론/캐릭터 설정은 1문장 이상 쓰지 않는다.",
             "말투는 따뜻하고 부드럽게, 과하게 딱딱한 표현은 피한다.",
             "중요: 사용자의 질문이 제공된 상황/문맥과 무관해 보이면, 문맥을 억지로 끼워 맞추지 말고 질문을 우선으로 답한다. 필요하면 문맥은 간단히 무시한다.",
             "추가 질문은 하지 않는다. (다만 상황에 따라 선택지 형태로 짧게 덧붙이는 건 허용)",
@@ -334,7 +363,7 @@ def _build_messages(mode: str, user_input: str, context: str) -> list[dict[str, 
 
     m = (mode or "").lower().strip()
     if m == "talk":
-        hint = "(번호/라벨 없이 3문단: 해결 / 추가정보+대안 / 연습+격려. 문단 사이 빈 줄 1줄)"
+        hint = "(3문단: 해결(1문장) / 추가정보+대안(최대2문장) / 연습+격려(최대2문장). 문단 사이 빈 줄 1줄)"
     else:
         hint = "(3~4줄로 짧게)"
 
@@ -393,7 +422,7 @@ def ask_hatena(
 
     # Build messages and call
     messages = _build_messages(mode, user_input, context)
-    max_toks = 420 if (mode or "").lower().strip() == "talk" else 220
+    max_toks = 240 if (mode or "").lower().strip() == "talk" else 220
     raw = _openai_chat(model, messages, max_output_tokens=max_toks)
 
     # Normalize + cache
