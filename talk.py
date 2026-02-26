@@ -1461,25 +1461,49 @@ if submitted:
 
                     else:
                         # 회화 질문일 때만 AI 호출
-                        ctx_parts = []
+                        def _is_ctx_relevant(q: str, row_: dict) -> bool:
+                            q = (q or "").strip().lower()
+                            if not q:
+                                return False
+                            # If question explicitly refers to correctness/nuance/why, treat as relevant
+                            key_hits = ["정답", "오답", "왜", "뉘앙스", "자연", "어색", "차이", "문법", "표현", "대안", "바꿔", "맞아", "틀려"]
+                            if any(k in q for k in key_hits):
+                                return True
+                            # If includes Japanese chars, likely about the expression
+                            if re.search(r"[\u3040-\u30ff\u4e00-\u9fff]", q):
+                                return True
+                            # If includes a snippet from this item's fields, it's relevant
+                            s = str(row_.get("situation_kr", "") or "").strip().lower()
+                            p = str(row_.get("partner_jp", "") or "").strip().lower()
+                            a = str(row_.get("answer_jp", "") or "").strip().lower()
+                            for ref in (p, a):
+                                if ref and ref[:8] in q:
+                                    return True
+                            # Default: treat as general question → do NOT bind to current quiz context
+                            return False
+
+
+                        use_ctx = _is_ctx_relevant(question, row)
+                        ctx_parts = [] if use_ctx else None
 
                         s = str(row.get("situation_kr", "")).strip()
                         p = str(row.get("partner_jp", "")).strip()
                         a = str(row.get("answer_jp", "")).strip()
                         me = str(selected or "").strip()
 
-                        if s:
+                        if ctx_parts is not None and s:
                             ctx_parts.append(f"현재상황: {s}")
-                        if p:
+                        if ctx_parts is not None and p:
                             ctx_parts.append(f"상대발화: {p}")
-                        if a:
+                        if ctx_parts is not None and a:
                             ctx_parts.append(f"정답표현: {a}")
-                        if me:
+                        if ctx_parts is not None and me:
                             ctx_parts.append(f"내선택: {me}")
 
-                        ctx_parts.append(f"정오답: {'정답' if ok else '오답'}")
+                        if ctx_parts is not None:
+                            ctx_parts.append(f"정오답: {'정답' if ok else '오답'}")
 
-                        ctx = "\n".join(ctx_parts)
+                        ctx = "\n".join(ctx_parts) if isinstance(ctx_parts, list) else ""
 
                         with st.spinner("하테나쌤 답변 중…"):
                             ans = ai_tutor.ask_hatena(
@@ -1490,6 +1514,7 @@ if submitted:
                                     "page": "talk",
                                     "qid": str(qid),
                                     "submitted": True,
+                                    "ctx_used": bool(ctx),
                                     "ok": bool(ok),
                                     "is_admin": bool(
                                         st.session_state.get("is_admin", False)
