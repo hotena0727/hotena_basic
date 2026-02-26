@@ -1250,6 +1250,8 @@ if submitted:
                 "selected": str(selected or "").strip(),
                 "correct": str(correct or "").strip(),
                 "ok": bool(ok),
+                             "level": str(level),
+                             "tone": str(st.session_state.get(f"talk_ai_tone_{qid}") or "정중"),
             })
             st.session_state[snap_key] = True
     except Exception:
@@ -1426,6 +1428,16 @@ if submitted:
 
         st.caption("회화 표현·뉘앙스·자연스러움 위주 질문에 최적화되어 있어요.")
 
+        # ✅ AI 코칭 톤(정중/캐주얼) — 코칭 품질 향상용(컨텍스트에 포함)
+        tone_opt = st.selectbox(
+            "답변 톤",
+            options=["정중", "보통", "캐주얼"],
+            index=0,
+            key=f"talk_ai_tone_{qid}",
+            help="정중(です/ます) / 보통 / 캐주얼(だ/よ/ね) 중 선택할 수 있어요.",
+        )
+
+
         ask = st.button(
             "AI 코칭 받기 시작",
             use_container_width=True,
@@ -1463,6 +1475,10 @@ if submitted:
                 # 회화 질문일 때만 AI 호출
                 ctx_parts = []
 
+
+                # 학습자 레벨/톤도 함께 전달(코칭 품질 향상)
+                lvl = (str(level) if level is not None else "").upper().strip()
+                tone = str(st.session_state.get(f"talk_ai_tone_{qid}") or "정중").strip()
                 s = str(row.get("situation_kr", "")).strip()
                 p = str(row.get("partner_jp", "")).strip()
                 a = str(row.get("answer_jp", "")).strip()
@@ -1476,6 +1492,11 @@ if submitted:
                     ctx_parts.append(f"정답표현: {a}")
                 if me:
                     ctx_parts.append(f"내선택: {me}")
+
+                if lvl:
+                    ctx_parts.append(f"학습자레벨: {lvl}")
+                if tone:
+                    ctx_parts.append(f"원하는톤: {tone}")
 
                 ctx_parts.append(f"정오답: {'정답' if ok else '오답'}")
 
@@ -1491,6 +1512,8 @@ if submitted:
                             "qid": str(qid),
                             "submitted": True,
                             "ok": bool(ok),
+                             "level": str(level),
+                             "tone": str(st.session_state.get(f"talk_ai_tone_{qid}") or "정중"),
                             "is_admin": bool(
                                 st.session_state.get("is_admin", False)
                                 or st.session_state.get("is_admin_cached", False)
