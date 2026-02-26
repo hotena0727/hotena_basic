@@ -286,7 +286,7 @@ div[data-testid="stMetric"]{
   padding: 12px 14px;
   border: 1px solid rgba(0,0,0,0.06);
   border-radius: 14px;
-  background: rgba(245,247,251,0.85);
+  background: var(--hotena-card);
 }
 .goal-settings-head{
   display:flex;
@@ -330,6 +330,67 @@ div[data-testid="stMetric"]{
     unsafe_allow_html=True,
 )
 st.session_state["_page_config_set"] = True  # children should not call set_page_config
+
+
+# ============================================================
+# 🎨 Hotena Skin (Hub) — warm minimal baseline
+# - Background: #FBF8F4
+# - Cards: #F6F2EE
+# - Max width: 960px
+# ============================================================
+def _inject_hotena_skin_once():
+    if st.session_state.get("_hotena_skin_injected", False):
+        return
+    st.session_state["_hotena_skin_injected"] = True
+    st.markdown(
+        """<style>
+/* ===== Hotena warm skin ===== */
+:root{
+  --hotena-bg: #FBF8F4;
+  --hotena-card: #F6F2EE;
+  --hotena-border: rgba(15, 23, 42, 0.10);
+  --hotena-text: rgba(15, 23, 42, 0.95);
+  --hotena-muted: rgba(15, 23, 42, 0.62);
+  --hotena-accent: rgba(150, 100, 60, 0.92);
+}
+
+/* App background */
+div[data-testid="stAppViewContainer"]{
+  background: var(--hotena-bg) !important;
+}
+
+/* Content width */
+section.main > div.block-container,
+div[data-testid="stAppViewContainer"] > div.block-container{
+  max-width: 960px !important;
+}
+
+/* Default containers feel like cards */
+div[data-testid="stVerticalBlockBorderWrapper"]{
+  border-radius: 18px !important;
+}
+
+/* Button baseline (keeps existing functionality; only shape/feel) */
+div[data-testid="stAppViewContainer"] .stButton > button,
+div[data-testid="stAppViewContainer"] button[kind]{
+  border-radius: 16px !important;
+  border: 1px solid rgba(15, 23, 42, 0.12) !important;
+  background: rgba(255,255,255,0.65) !important;
+}
+
+/* Tabs */
+div[data-testid="stTabs"] [data-baseweb="tab"]{
+  border-radius: 12px !important;
+}
+
+/* Reduce random top gaps inside markdown blocks */
+div[data-testid="stMarkdownContainer"] > p:first-child{margin-top:0.0rem !important;}
+</style>""",
+        unsafe_allow_html=True,
+    )
+
+_inject_hotena_skin_once()
+
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -810,7 +871,7 @@ def render_home_dashboard(sb_authed, user):
 <style>
   .h-wrap{margin-top:.10rem;}
   .h-top{display:flex;align-items:flex-end;justify-content:space-between;gap:.75rem;margin:.15rem 0 .45rem;}
-  .h-title{font-size:1.28rem;font-weight:850;line-height:1.15;margin:0;}
+  .h-title{font-size:1.28rem;font-weight:800;line-height:1.15;margin:0;}
   .h-sub{opacity:.70;font-size:.92rem;margin:.18rem 0 0;}
   .h-pill{display:inline-flex;align-items:center;gap:.35rem;padding:.20rem .55rem;border-radius:999px;border:1px solid rgba(0,0,0,.10);background:rgba(0,0,0,.02);font-size:.92rem;white-space:nowrap;}
 
@@ -827,7 +888,7 @@ def render_home_dashboard(sb_authed, user):
     background:
       conic-gradient(
         from -90deg,
-        rgba(46,124,246,0.95) calc(var(--p) * 1%),
+        rgba(150, 100, 60, 0.92) calc(var(--p) * 1%),
         rgba(0,0,0,.08) 0
       );
     display:flex;align-items:center;justify-content:center;
@@ -847,7 +908,7 @@ def render_home_dashboard(sb_authed, user):
   .donut::before{
     content:"";
     width: 110px; height: 110px; border-radius: 50%;
-    background: rgba(255,255,255,0.98);
+    background: #FFFDFB;
     border: 1px solid rgba(0,0,0,.06);
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.7);
     position:relative;
@@ -879,9 +940,9 @@ def render_home_dashboard(sb_authed, user):
     font-size:.80rem;
     opacity:.92;
   }
-  .hm-on{background: rgba(46,124,246,0.16); border-color: rgba(46,124,246,0.20);}
-  .hm-mid{background: rgba(46,124,246,0.26); border-color: rgba(46,124,246,0.24);}
-  .hm-hi{background: rgba(46,124,246,0.36); border-color: rgba(46,124,246,0.28);}
+  .hm-on{background: rgba(150, 100, 60, 0.14); border-color: rgba(150, 100, 60, 0.16);}
+  .hm-mid{background: rgba(150, 100, 60, 0.22); border-color: rgba(150, 100, 60, 0.18);}
+  .hm-hi{background: rgba(150, 100, 60, 0.30); border-color: rgba(150, 100, 60, 0.20);}
   .hm-lab{font-size:.78rem; opacity:.68; margin-top:.16rem;}
 
   /* level bars */
@@ -890,7 +951,7 @@ def render_home_dashboard(sb_authed, user):
     padding:.58rem .70rem;
     border-radius:16px;
     border:1px solid rgba(49,51,63,0.14);
-    background: rgba(255,255,255,0.06);
+    background: var(--hotena-card);
     box-shadow: 0 9px 24px rgba(0,0,0,0.06);
   }
   .lv-title{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:.42rem;}
@@ -899,7 +960,7 @@ def render_home_dashboard(sb_authed, user):
   .lv-row{display:grid;grid-template-columns:38px 1fr 30px;gap:.45rem;align-items:center;margin:.22rem 0;}
   .lv-lab{font-size:.86rem;font-weight:800;opacity:.78;}
   .lv-track{height:10px;border-radius:999px;background:rgba(0,0,0,0.07);overflow:hidden;border:1px solid rgba(0,0,0,0.05);}
-  .lv-fill{height:100%;border-radius:999px;background:rgba(46,124,246,0.55);}
+  .lv-fill{height:100%;border-radius:999px;background:rgba(150, 100, 60, 0.42);}
   .lv-val{font-size:.82rem;opacity:.70;text-align:right;}
 
   /* rows */
@@ -909,7 +970,7 @@ def render_home_dashboard(sb_authed, user):
     padding: .62rem .72rem;
     border-radius: 16px;
     border: 1px solid rgba(49,51,63,0.14);
-    background: rgba(255,255,255,0.02);
+    background: var(--hotena-card);
     box-shadow: 0 9px 24px rgba(0,0,0,0.07);
     transition: transform 120ms ease, box-shadow 120ms ease;
   }
@@ -1098,7 +1159,7 @@ def render_home_dashboard(sb_authed, user):
             st.markdown(
                 f'''<div class="h-guidebox">
               <div class="h-guide-mini">
-                <p class="h-guide-mini-t">📘 하테나일본어 앱 사용 흐름</p>
+                <p class="h-guide-mini-t">하테나일본어 앱 사용 흐름</p>
                 <div class="h-guide-mini-actions">
                     <a class="h-guide-btn ghost" href="{open_href}" target="_self">사용 흐름 보기 ▼</a>
                     <a class="h-guide-btn primary" href="{start_href}" target="_self">바로 시작하기</a>
@@ -1123,7 +1184,7 @@ def render_home_dashboard(sb_authed, user):
       <div class="h-quote-card"><span class="h-quote-dot"></span><span class="h-quote-t">{today_quote}</span></div>
       <p class="h-sub" style="opacity:.58;font-size:.86rem;margin:.10rem 0 0;">오늘의 성취율을 확인하고, 바로 이어가세요.</p>
     </div>
-    <div class="h-pill">🔥 <b>{streak}</b>일</div>
+    <div class="h-pill"><b>{streak}</b>일 연속</div>
   </div>
 </div>
 """,
@@ -1224,7 +1285,7 @@ def render_home_dashboard(sb_authed, user):
     st.markdown(
         f"""
 <div class="lv-wrap">
-  <div class="lv-title"><b>📊 레벨 진행</b><span>최근 30일 · 세트 수</span></div>
+  <div class="lv-title"><b>레벨 진행</b><span>최근 30일 · 세트 수</span></div>
   {level_rows}
 </div>
 """,
