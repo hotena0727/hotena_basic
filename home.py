@@ -98,7 +98,7 @@ def run_module(module_name: str):
             mod = importlib.reload(sys.modules[module_name]) if reload_enabled else sys.modules[module_name]
         else:
             mod = importlib.import_module(module_name)
-if hasattr(mod, "render") and callable(getattr(mod, "render")):
+        if hasattr(mod, "render") and callable(getattr(mod, "render")):
             mod.render()
 
     except Exception as e:
