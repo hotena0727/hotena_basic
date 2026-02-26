@@ -142,7 +142,6 @@ def check_and_consume_quota() -> Tuple[bool, Optional[int], Optional[int]]:
             remaining = int(row.get("remaining")) if row.get("remaining") is not None else None
             return allowed, used, remaining
 
-        # data가 비어있으면(권한/RPC/세션 문제 등) 차단 처리
         if _is_admin_debug():
             st.session_state["_ai_quota_last_error"] = "EMPTY_RPC_DATA"
         return False, None, None
@@ -154,8 +153,6 @@ def check_and_consume_quota() -> Tuple[bool, Optional[int], Optional[int]]:
             st.session_state["_ai_quota_last_plan"] = plan
             st.session_state["_ai_quota_last_max_uses"] = max_uses
         return False, None, None
-
-
 
 def quota_wait_message() -> str:
     # Keep it short, friendly, and not revealing numbers.
@@ -368,24 +365,16 @@ def ask_hatena(
         return need_login_message()
 
     # Quota check (consumes 1 when allowed)
-    
-allowed, used, remaining = check_and_consume_quota()
-if not allowed:
-    if _is_admin_debug():
-        uid_dbg = get_user_id()
-        plan_dbg = st.session_state.get("_ai_quota_last_plan", get_user_plan(force_refresh=False))
-        max_dbg = st.session_state.get("_ai_quota_last_max_uses", _max_uses_for_plan(str(plan_dbg or "")))
-        err_dbg = st.session_state.get("_ai_quota_last_error", "")
-        raw_dbg = st.session_state.get("_ai_quota_last_raw", None)
-        return (
-    f"(Quota denied) uid={uid_dbg} plan={plan_dbg} max_uses={max_dbg} used={used} remaining={remaining}
-"
-    f"last_error={err_dbg}
-"
-    f"last_raw={str(raw_dbg)[:800]}"
-)[:800]}"
-        )
-    return quota_wait_message()
+    allowed, used, remaining = check_and_consume_quota()
+    if not allowed:
+        if _is_admin_debug():
+            uid_dbg = get_user_id()
+            plan_dbg = st.session_state.get('_ai_quota_last_plan', get_user_plan(force_refresh=False))
+            max_dbg = st.session_state.get('_ai_quota_last_max_uses', _max_uses_for_plan(str(plan_dbg or '')))
+            err_dbg = st.session_state.get('_ai_quota_last_error', '')
+            raw_dbg = st.session_state.get('_ai_quota_last_raw', None)
+            return f"(Quota denied) uid={uid_dbg} plan={plan_dbg} max_uses={max_dbg} used={used} remaining={remaining}\nlast_error={err_dbg}\nlast_raw={str(raw_dbg)[:800]}"
+        return quota_wait_message()
 
     # Model selection (low-cost)
     model = _cfg("OPENAI_MODEL_LOW") or DEFAULT_MODEL_LOW
