@@ -1378,7 +1378,7 @@ if submitted:
             general_keywords = [
                 "패키지", "요금", "가격", "결제",
                 "환불", "기능", "프로", "무료",
-                "상담", "문의", "톡", "네이버"
+                "상담", "문의", "톡", "네이버", "교재"
             ]
 
             if any(k in question for k in general_keywords):
