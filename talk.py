@@ -1391,9 +1391,10 @@ if submitted:
                             "sub": str(sub) if 'sub' in locals() else "",
                             "submitted": True,
                             "ok": bool(ok),
+                            "is_admin": bool(st.session_state.get("is_admin", False)) or bool(st.session_state.get("is_admin_cached", False)),
                         },
                     )
-                st.info(ans)
+                coach_slot.info(ans)
 # ============================================================
 # ✅ (추가) 정답 발음 확인 버튼용: 플레이어 없이 즉시 재생(JS Audio / TTS)
 # - 브라우저에 플레이어 UI가 뜨지 않게, new Audio().play()로만 재생
