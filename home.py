@@ -252,12 +252,6 @@ div[data-testid="stAppViewContainer"] div[role="combobox"]{
   min-height: 44px !important;
 }
 
-/* Radio/checkbox label spacing: thumb friendly */
-div[data-testid="stAppViewContainer"] div[role="radiogroup"] label,
-div[data-testid="stAppViewContainer"] label[data-baseweb="checkbox"]{
-  padding: 0.35rem 0.25rem !important;
-}
-
 /* Expander: make summary easier to tap */
 div[data-testid="stExpander"] summary{
   padding-top: 0.35rem !important;
