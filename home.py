@@ -1,7 +1,7 @@
 # home.py
 from __future__ import annotations
 
-BUILD_STAMP = 'home-optimized-no-reload-default 2026-02-26 KST (+09:00)'
+BUILD_STAMP = 'home-clean-no-spacer-v3 (fix run_module reload) 2026-02-22 KST (+09:00)'
 from pathlib import Path
 import os
 import runpy
@@ -36,20 +36,6 @@ html, body, [class*="css"]  {
 
 _inject_jp_font_once()
 
-
-
-# ============================================================
-# ✅ Dev-only module reload toggle
-# - In production, reloading modules on every widget interaction causes heavy reruns and flicker.
-# - Enable only when you are actively editing code locally.
-#   * env HOTENA_DEV_RELOAD=1  (recommended for dev)
-#   * or st.session_state["_DEV_RELOAD"]=True (advanced / debugging)
-# ============================================================
-def _dev_reload_enabled() -> bool:
-    v = os.environ.get("HOTENA_DEV_RELOAD", "").strip().lower()
-    if v in ("1", "true", "yes", "y", "on"):
-        return True
-    return bool(st.session_state.get("_DEV_RELOAD", False))
 
 # ============================================================
 # ✅ Module runner (NO runpy/run_path)
@@ -89,15 +75,14 @@ def run_module(module_name: str):
                     st.code(ctx, language="python")
                 except Exception:
                     pass
-                st.stop()        # --- Import / reload ---
-        reload_enabled = _dev_reload_enabled()
+                st.stop()
+
+        # --- Import / reload ---
         if module_name in sys.modules:
-            # ✅ Production default: do NOT reload.
-            # Reloading a module on every Streamlit rerun (e.g., when a user clicks an option)
-            # re-executes top-level code and feels like "loading/flicker".
-            mod = importlib.reload(sys.modules[module_name]) if reload_enabled else sys.modules[module_name]
+            mod = importlib.reload(sys.modules[module_name])
         else:
             mod = importlib.import_module(module_name)
+
         if hasattr(mod, "render") and callable(getattr(mod, "render")):
             mod.render()
 
@@ -3071,14 +3056,14 @@ if isinstance(p, str) and p:
 
 page = st.session_state.get("hub_page", "home")
 
-# ✅ Enter-page reset flags (run ONLY when user ENTERS a page, not on widget reruns)
-_prev_page = st.session_state.get("_last_hub_page")
-if page != _prev_page:
-    if page == "word":
-        st.session_state["_reset_choice_on_enter_word"] = True
-    elif page == "kanji":
-        st.session_state["_reset_choice_on_enter_kanji"] = True
-    st.session_state["_last_hub_page"] = page
+# ✅ Enter-detect: reset choice state only when user ENTERS a page (not on every rerun)
+_prev_page = st.session_state.get('_hub_prev_page')
+_entered = (_prev_page != page)
+st.session_state['_hub_prev_page'] = page
+if _entered and page == 'word':
+    st.session_state['_reset_choice_on_enter_word'] = True
+if _entered and page == 'kanji':
+    st.session_state['_reset_choice_on_enter_kanji'] = True
 
 core.render_top_nav(active=page)
 
