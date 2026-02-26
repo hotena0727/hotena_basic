@@ -776,67 +776,95 @@ def render_top_nav(active: str = "home") -> None:
     st.markdown(css, unsafe_allow_html=True)
     st.markdown(html, unsafe_allow_html=True)
 # ============================================================
-# ✅ NAVER Talk floating button (global UI)
-# - Rendered once per session (safe to call every run)
-# - Controlled via profiles.progress.naver_talk.enabled (bool)
+# 💬 NAVER Talk (Floating Action Button) — injected once per session
+# - Enabled by profiles.progress_all["naver_talk_fab_enabled"] (default False)
 # ============================================================
-def render_naver_talk_fab(
-    *,
-    enabled: bool,
-    url: str = "",
-    label: str = "NAVER Talk",
-) -> None:
-    """Render a small floating button that opens NAVER Talk in a new tab."""
-    if not enabled:
-        return
+def render_naver_talk_fab(url: str = "https://talk.naver.com/W45141", enabled: bool = False) -> None:
+    """Render a floating NAVER Talk button (bottom-right). No-op when disabled."""
+    try:
+        if not enabled:
+            return
+        if st.session_state.get("_naver_talk_fab_injected", False):
+            return
+        st.session_state["_naver_talk_fab_injected"] = True
 
-    if st.session_state.get("_naver_talk_fab_injected"):
-        return
-    st.session_state["_naver_talk_fab_injected"] = True
-
-    talk_url = url or get_cfg("HOTENA_NAVER_TALK_URL") or "https://talk.naver.com/W45141"
-
-    # Keep it lightweight: pure HTML/CSS (no JS)
-    html = f"""
+        safe_url = (url or "").strip() or "https://talk.naver.com/W45141"
+        components.html(
+            f"""
 <style>
-.hotena-nt-fab {{
+@keyframes ht_floaty {{
+  0% {{ transform: translateY(0); }}
+  50% {{ transform: translateY(-6px); }}
+  100% {{ transform: translateY(0); }}
+}}
+@keyframes ht_ping {{
+  0% {{ transform: scale(1); opacity: 0.9; }}
+  70% {{ transform: scale(2.2); opacity: 0; }}
+  100% {{ transform: scale(2.2); opacity: 0; }}
+}}
+a.ht-naver-talk, a.ht-naver-talk:visited, a.ht-naver-talk:hover, a.ht-naver-talk:active {{
   position: fixed;
-  right: 14px;
-  bottom: 78px; /* leave room for scroll-top FAB */
-  z-index: 99999;
-}}
-.hotena-nt-fab a {{
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
-  border-radius: 999px;
-  background: rgba(255,255,255,.92);
-  border: 1px solid rgba(0,0,0,.12);
-  box-shadow: 0 6px 18px rgba(0,0,0,.12);
-  font-size: 13px;
-  font-weight: 700;
+  right: 18px;
+  bottom: 90px;
+  z-index: 2147483647;
   text-decoration: none !important;
-  color: rgba(0,0,0,.86);
+  color: inherit !important;
 }}
-.hotena-nt-fab a:hover {{
-  background: rgba(255,255,255,.98);
+.ht-nt-wrap {{
+  position: relative;
+  animation: ht_floaty 2.2s ease-in-out infinite;
 }}
-.hotena-nt-fab .dot {{
-  width: 10px;
-  height: 10px;
+.ht-nt-btn {{
+  background: #03C75A;
+  color: #fff;
+  border: 0;
   border-radius: 999px;
-  background: #03C75A; /* NAVER green */
-  box-shadow: 0 0 0 3px rgba(3,199,90,.18);
+  padding: 14px 18px;
+  font-size: 15px;
+  font-weight: 800;
+  box-shadow: 0 12px 28px rgba(0,0,0,0.22);
+  cursor: pointer;
+}}
+.ht-nt-sub {{
+  display:block;
+  margin-top: 4px;
+  font-size: 12px;
+  opacity: .92;
+  font-weight: 700;
+}}
+.ht-nt-dot {{
+  position:absolute;
+  right: -2px;
+  top: -2px;
+  width: 12px;
+  height: 12px;
+  background: #fff;
+  border-radius: 999px;
+}}
+.ht-nt-dot:before {{
+  content:'';
+  position:absolute;
+  left: 50%;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  transform: translate(-50%,-50%);
+  border-radius: 999px;
+  background: rgba(3,199,90,0.35);
+  animation: ht_ping 1.6s ease-out infinite;
 }}
 </style>
-<div class="hotena-nt-fab">
-  <a href="{talk_url}" target="_blank" rel="noopener noreferrer">
-    <span class="dot"></span>
-    <span>{label}</span>
-  </a>
-</div>
-"""
-    # height=0 keeps it invisible in layout
-    components.html(html, height=0, scrolling=False)
-
+<a class="ht-naver-talk" href="{safe_url}" target="_blank" rel="noopener noreferrer">
+  <div class="ht-nt-wrap">
+    <div class="ht-nt-dot"></div>
+    <div class="ht-nt-btn">
+      💬 NAVER Talk
+      <span class="ht-nt-sub">한 번만 눌러서 대화하기</span>
+    </div>
+  </div>
+</a>
+""",
+            height=0,
+        )
+    except Exception:
+        return

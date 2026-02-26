@@ -1663,10 +1663,6 @@ def require_login():
         st.stop()
 
 # ============================================================
-# ============================================================
-# ============================================================
-# OK Top Card (마이페이지/관리자/로그아웃)
-# ============================================================
 
 def nav_to(page: str, scroll_top: bool = True):
     st.session_state.page = page
@@ -3833,3 +3829,4 @@ if st.session_state.get("submitted", False):
             start_quiz_state(retry_quiz, st.session_state.quiz_type, clear_wrongs=True)
             st.session_state["_scroll_top_once"] = True
             st.rerun()
+
