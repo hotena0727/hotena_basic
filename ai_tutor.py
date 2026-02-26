@@ -32,6 +32,13 @@ except Exception:  # pragma: no cover
     requests = None  # type: ignore
 
 
+
+# ----------------------------
+# Debug (admin only)
+# ----------------------------
+def _is_admin_debug() -> bool:
+    return bool(st.session_state.get("is_admin", False)) or bool(st.session_state.get("is_admin_cached", False))
+
 # ----------------------------
 # Config
 # ----------------------------
@@ -190,16 +197,29 @@ def set_cached_answer(mode: str, user_input: str, context: str, answer: str) -> 
 # ----------------------------
 # OpenAI call (Chat Completions)
 # ----------------------------
+
 def _openai_chat(model: str, messages: list[dict[str, str]], *, max_output_tokens: int = 220) -> str:
     """
     Calls OpenAI Chat Completions API.
-    Requires OPENAI_API_KEY in env or st.secrets.
+    - 관리자(is_admin)에게만 실패 원인(HTTP/예외)을 노출
+    - API KEY 읽기 경로를 통합(core cfg -> st.secrets -> env)
     """
     if requests is None:
-        return "💬 서버 설정 문제로 잠시 답변이 어려워요.\n조금 있다가 다시 물어봐 주세요 🙂\n(관리자: requests 설치 확인)"
-    api_key = _cfg("OPENAI_API_KEY")
+        msg = "(관리자: requests 설치 확인)"
+        return msg if _is_admin_debug() else "💬 서버 설정 문제로 잠시 답변이 어려워요.\n조금 있다가 다시 물어봐 주세요 🙂\n(관리자: requests 설치 확인)"
+
+    import os
+
+    api_key = (
+        _cfg("OPENAI_API_KEY")
+        or st.secrets.get("OPENAI_API_KEY")
+        or os.getenv("OPENAI_API_KEY")
+    )
+
     if not api_key:
-        return "💬 하테나쌤 설정이 아직 준비되지 않았어요.\n조금 있다가 다시 물어봐 주세요 🙂\n(관리자: OPENAI_API_KEY 설정)"
+        msg = "(관리자: OPENAI_API_KEY 설정 없음: core.get_cfg / st.secrets / env 모두 비어있음)"
+        return msg if _is_admin_debug() else "💬 하테나쌤 설정이 아직 준비되지 않았어요.\n조금 있다가 다시 물어봐 주세요 🙂\n(관리자: OPENAI_API_KEY 설정)"
+
     url = "https://api.openai.com/v1/chat/completions"
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     payload = {
@@ -208,18 +228,32 @@ def _openai_chat(model: str, messages: list[dict[str, str]], *, max_output_token
         "temperature": 0.4,
         "max_tokens": max_output_tokens,
     }
+
     try:
         r = requests.post(url, headers=headers, data=json.dumps(payload), timeout=18)
+
         if r.status_code >= 400:
+            # ✅ 관리자에게만 원문 일부 노출
+            if _is_admin_debug():
+                body = (r.text or "")[:1200]
+                return f"(OpenAI HTTP {r.status_code}) {body}"
             return "💬 지금은 답변이 조금 어려워요.\n조금 있다가 다시 물어봐 주세요 🙂\n(잠시 후 재시도)"
+
         data = r.json()
         choices = data.get("choices") or []
         if choices and choices[0].get("message") and choices[0]["message"].get("content"):
             return str(choices[0]["message"]["content"]).strip()
-    except Exception:
-        pass
-    return "💬 지금은 답변이 조금 어려워요.\n조금 있다가 다시 물어봐 주세요 🙂\n(잠시 후 재시도)"
 
+        # JSON 구조가 예상과 다를 때(관리자만)
+        if _is_admin_debug():
+            return f"(OpenAI 응답 파싱 실패) {str(data)[:800]}"
+
+    except Exception as e:
+        if _is_admin_debug():
+            return f"(OpenAI 예외) {repr(e)}"
+        return "💬 지금은 답변이 조금 어려워요.\n조금 있다가 다시 물어봐 주세요 🙂\n(잠시 후 재시도)"
+
+    return "💬 지금은 답변이 조금 어려워요.\n조금 있다가 다시 물어봐 주세요 🙂\n(잠시 후 재시도)"
 
 # ----------------------------
 # Formatting helpers
