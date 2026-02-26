@@ -775,3 +775,68 @@ def render_top_nav(active: str = "home") -> None:
 
     st.markdown(css, unsafe_allow_html=True)
     st.markdown(html, unsafe_allow_html=True)
+# ============================================================
+# ✅ NAVER Talk floating button (global UI)
+# - Rendered once per session (safe to call every run)
+# - Controlled via profiles.progress.naver_talk.enabled (bool)
+# ============================================================
+def render_naver_talk_fab(
+    *,
+    enabled: bool,
+    url: str = "",
+    label: str = "NAVER Talk",
+) -> None:
+    """Render a small floating button that opens NAVER Talk in a new tab."""
+    if not enabled:
+        return
+
+    if st.session_state.get("_naver_talk_fab_injected"):
+        return
+    st.session_state["_naver_talk_fab_injected"] = True
+
+    talk_url = url or get_cfg("HOTENA_NAVER_TALK_URL") or "https://talk.naver.com/W45141"
+
+    # Keep it lightweight: pure HTML/CSS (no JS)
+    html = f"""
+<style>
+.hotena-nt-fab {{
+  position: fixed;
+  right: 14px;
+  bottom: 78px; /* leave room for scroll-top FAB */
+  z-index: 99999;
+}}
+.hotena-nt-fab a {{
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.92);
+  border: 1px solid rgba(0,0,0,.12);
+  box-shadow: 0 6px 18px rgba(0,0,0,.12);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none !important;
+  color: rgba(0,0,0,.86);
+}}
+.hotena-nt-fab a:hover {{
+  background: rgba(255,255,255,.98);
+}}
+.hotena-nt-fab .dot {{
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #03C75A; /* NAVER green */
+  box-shadow: 0 0 0 3px rgba(3,199,90,.18);
+}}
+</style>
+<div class="hotena-nt-fab">
+  <a href="{talk_url}" target="_blank" rel="noopener noreferrer">
+    <span class="dot"></span>
+    <span>{label}</span>
+  </a>
+</div>
+"""
+    # height=0 keeps it invisible in layout
+    components.html(html, height=0, scrolling=False)
+

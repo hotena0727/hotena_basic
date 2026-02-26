@@ -1491,8 +1491,12 @@ def render_daily_goal_home(sb_authed, user_id: str):
             st.success("저장했습니다.")
 
 def render_reminder_settings(sb_authed, user):
-    """Render reminder settings UI (toggle + time) and persist to profiles.progress.reminder."""
+    """Render settings UI (reminder + NAVER Talk) and persist to profiles.progress.*"""
     progress_all = st.session_state.get("progress_all", {}) or {}
+
+    # ----------------------------
+    # Reminder
+    # ----------------------------
     rem = progress_all.get("reminder") or {}
     enabled_default = bool(rem.get("enabled", True))
     time_default = rem.get("time", "09:00")
@@ -1504,7 +1508,7 @@ def render_reminder_settings(sb_authed, user):
     with c2:
         time_str = st.text_input("알림 시간(HH:MM)", value=time_default, key="hub_rem_time")
 
-    if st.button("저장", use_container_width=True, key="hub_rem_save"):
+    if st.button("알림 저장", use_container_width=True, key="hub_rem_save"):
         try:
             hh, mm = [int(x) for x in time_str.split(":")]
             assert 0 <= hh <= 23 and 0 <= mm <= 59
@@ -1515,7 +1519,31 @@ def render_reminder_settings(sb_authed, user):
         progress_all["reminder"] = {"enabled": bool(enabled), "time": f"{hh:02d}:{mm:02d}"}
         st.session_state["progress_all"] = progress_all
         save_progress(sb_authed, user.id, progress_all)
-        st.success("저장했습니다.")
+        st.success("알림 설정을 저장했습니다.")
+
+    st.divider()
+
+    # ----------------------------
+    # NAVER Talk floating button
+    # ----------------------------
+    nt = progress_all.get("naver_talk") or {}
+    nt_enabled_default = bool(nt.get("enabled", False))  # ✅ default OFF for lightweight app
+
+    st.markdown("## 💬 NAVER Talk 버튼")
+    yn = st.radio(
+        "표시 여부",
+        options=["N", "Y"],
+        index=1 if nt_enabled_default else 0,
+        horizontal=True,
+        key="hub_naver_talk_yn",
+        help="Y로 설정하면 훈련 페이지 우측 하단에 NAVER Talk 버튼이 항상 떠있습니다.",
+    )
+
+    if st.button("NAVER Talk 저장", use_container_width=True, key="hub_naver_talk_save"):
+        progress_all["naver_talk"] = {"enabled": (yn == "Y")}
+        st.session_state["progress_all"] = progress_all
+        save_progress(sb_authed, user.id, progress_all)
+        st.success("NAVER Talk 설정을 저장했습니다.")
 
 
 def fire_in_app_reminder_if_enabled(user):
@@ -3055,16 +3083,6 @@ if isinstance(p, str) and p:
         st.session_state["hub_page"] = p
 
 page = st.session_state.get("hub_page", "home")
-
-# ✅ Enter-detect: reset choice state only when user ENTERS a page (not on every rerun)
-_prev_page = st.session_state.get('_hub_prev_page')
-_entered = (_prev_page != page)
-st.session_state['_hub_prev_page'] = page
-if _entered and page == 'word':
-    st.session_state['_reset_choice_on_enter_word'] = True
-if _entered and page == 'kanji':
-    st.session_state['_reset_choice_on_enter_kanji'] = True
-
 core.render_top_nav(active=page)
 
 # ✅ Plan pill should sit right under the top nav (reduces top whitespace)
@@ -3106,6 +3124,17 @@ else:
     # ✅ Fallback: unknown page -> go home
     st.session_state["hub_page"] = "home"
     render_home_dashboard(sb_authed, user)
+
+
+# ✅ NAVER Talk floating button (global; controlled by settings)
+try:
+    _pa = st.session_state.get("progress_all", {}) or {}
+    _nt = _pa.get("naver_talk") or {}
+    _nt_enabled = bool(_nt.get("enabled", False))
+    if page in ("word", "kanji", "talk"):
+        core.render_naver_talk_fab(enabled=_nt_enabled)
+except Exception:
+    pass
 
 
 # ✅ Always render bottom-right '맨 위로' shortcut

@@ -283,8 +283,6 @@ APP_URL = "https://hotena-basic-925102605904.asia-northeast3.run.app/"      # OK
 # OK App Settings
 # ============================================================
 SHOW_POST_SUBMIT_UI = "N"  # 제출 후 '내 최근 기록' 등을 퀴즈 페이지에 바로 보여줄지
-SHOW_NAVER_TALK = "Y"
-NAVER_TALK_URL = "https://talk.naver.com/W45141"
 
 KST_TZ = "Asia/Seoul"
 N = 10  # 한 번에 10문항
@@ -1665,107 +1663,7 @@ def require_login():
         st.stop()
 
 # ============================================================
-# OK 네이버톡 배너 (제출 후만)
 # ============================================================
-def render_naver_talk():
-    st.divider()
-    st.markdown(
-        f"""
-<style>
-@keyframes floaty {{
-  0% {{ transform: translateY(0); }}
-  50% {{ transform: translateY(-6px); }}
-  100% {{ transform: translateY(0); }}
-}}
-@keyframes ping {{
-  0% {{ transform: scale(1); opacity: 0.9; }}
-  70% {{ transform: scale(2.2); opacity: 0; }}
-  100% {{ transform: scale(2.2); opacity: 0; }}
-}}
-.floating-naver-talk,
-.floating-naver-talk:visited,
-.floating-naver-talk:hover,
-.floating-naver-talk:active {{
-  position: fixed;
-  right: 18px;
-  bottom: 90px;
-  z-index: 99999;
-  text-decoration: none !important;
-  color: inherit !important;
-}}
-.floating-wrap {{
-  position: relative;
-  animation: floaty 2.2s ease-in-out infinite;
-}}
-.talk-btn {{
-  background: #03C75A;
-  color: #fff;
-  border: 0;
-  border-radius: 999px;
-  padding: 14px 18px;
-  font-size: 15px;
-  font-weight: 700;
-  box-shadow: 0 12px 28px rgba(0,0,0,0.22);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  line-height: 1.1;
-  text-decoration: none !important;
-}}
-.talk-btn:hover {{ filter: brightness(0.95); }}
-.talk-text small {{
-  display: block;
-  font-size: 12px;
-  font-weight: 600;
-  opacity: 0.95;
-  margin-top: 2px;
-}}
-.badge {{
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  width: 12px;
-  height: 12px;
-  background: #ff3b30;
-  border-radius: 999px;
-  box-shadow: 0 6px 14px rgba(0,0,0,0.25);
-}}
-.badge::after {{
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 12px;
-  height: 12px;
-  transform: translate(-50%, -50%);
-  border-radius: 999px;
-  background: rgba(255,59,48,0.55);
-  animation: ping 1.2s ease-out infinite;
-}}
-@media (max-width: 600px) {{
-  .floating-naver-talk {{ bottom: 110px; right: 14px; }}
-  .talk-btn {{ padding: 13px 16px; font-size: 14px; }}
-  .talk-text small {{ font-size: 11px; }}
-}}
-</style>
-
-<a class="floating-naver-talk" href="{NAVER_TALK_URL}" target="_blank" rel="noopener noreferrer">
-  <div class="floating-wrap">
-    <span class="badge"></span>
-    <button class="talk-btn" type="button">
-      <span>💬</span>
-      <span class="talk-text">
-        1:1 하테나쌤 상담
-        <small>수강신청 문의하기</small>
-      </span>
-    </button>
-  </div>
-</a>
-""",
-        unsafe_allow_html=True,
-    )
-
 # ============================================================
 # OK Top Card (마이페이지/관리자/로그아웃)
 # ============================================================
@@ -2971,7 +2869,6 @@ def render_paywall(daily_solved: int):
     st.info("PRO로 업그레이드하면 오늘도 계속 풀 수 있어요.")
     if st.button("💎 PRO 신청/문의", use_container_width=True, key="btn_paywall_go_pro"):
         st.session_state["_scroll_top_once"] = True
-        st.markdown(f"<meta http-equiv='refresh' content='0;url={NAVER_TALK_URL}'>", unsafe_allow_html=True)
 
 def get_daily_solved_from_db(sb_authed_local, user_id: str) -> int:
     """오늘(KST) 푼 문항 수 합계 (quiz_attempts.quiz_len 합산)"""
@@ -3030,7 +2927,6 @@ def render_plan_banner():
     st.info("🔒 일부 기능은 PRO에서 열립니다. (예: 오답만 다시풀기, 발음 버튼, 패턴카드 확장 등)")
     if st.button("💎 PRO 신청/문의", use_container_width=True, key="btn_go_pro"):
         st.session_state["_scroll_top_once"] = True
-        st.markdown(f"<meta http-equiv='refresh' content='0;url={NAVER_TALK_URL}'>", unsafe_allow_html=True)
 
 # OK 호출은 정의 아래에서
 render_topcard()
@@ -3427,12 +3323,6 @@ if len(st.session_state.quiz) == 0:
     st.stop()
 
 quiz_len = len(st.session_state.quiz)
-if st.session_state.pop('_reset_choice_on_enter_word', False):
-    # ✅ 페이지 진입 시: 보기 선택 상태를 '미선택'으로 초기화(1회)
-    clear_question_widget_keys()
-    st.session_state.answers = [None] * quiz_len
-    st.session_state.submitted = False
-
 if "answers" not in st.session_state or not isinstance(st.session_state.answers, list) or len(st.session_state.answers) != quiz_len:
     st.session_state.answers = [None] * quiz_len
 
@@ -3944,7 +3834,4 @@ if st.session_state.get("submitted", False):
             st.session_state["_scroll_top_once"] = True
             st.rerun()
 
-    show_naver_talk = (SHOW_NAVER_TALK == "N") or is_admin()
     if show_naver_talk:
-        render_naver_talk()
-
