@@ -110,54 +110,6 @@ header[data-testid="stHeader"]{
   }
 }
 </style>""", unsafe_allow_html=True)
-    
-# HN_RADIO_COMPACT_V4
-try:
-    _hn_css = "/* ===========================\n   HN RADIO COMPACT (v4)\n   \ubaa9\ud45c: \"\uc120\ud0dd \ud6c4\"\uc758 \ucd18\ucd18\ud55c \ub290\ub08c\uc744 \uae30\ubcf8\uac12\uc73c\ub85c \uace0\uc815\n   - Streamlit \uae30\ubcf8 \ud3f0\ud2b8/\uc0c9\uc0c1 \uc720\uc9c0\n   - \uc120\ud0dd \uc804/\ud6c4 \uac04\uaca9 \ub3d9\uc77c\n   =========================== */\ndiv[data-testid=\"stRadio\"] div[role=\"radiogroup\"]{\n  gap: 0px !important;\n}\n\n/* \uac01 \ubcf4\uae30(\ub77c\ub514\uc624 1\uac1c)\uc758 \uae30\ubcf8 \uac04\uaca9\uc744 '\ucd18\ucd18\ud558\uac8c' */\ndiv[data-testid=\"stRadio\"] div[data-baseweb=\"radio\"]{\n  margin: 0 0 0.28rem 0 !important;   /* \u2705 \uae30\ubcf8 \uac04\uaca9\uc744 \uc120\ud0dd \ud6c4 \ub290\ub08c\uc73c\ub85c */\n  padding: 0 !important;\n}\n\n/* \ub0b4\ubd80 \ub798\ud37c \uc5ec\ubc31 \uc81c\uac70(\ube0c\ub77c\uc6b0\uc800/\uc120\ud0dd\uc0c1\ud0dc\uc5d0 \ub530\ub978 \ud754\ub4e4\ub9bc \ubc29\uc9c0) */\ndiv[data-testid=\"stRadio\"] div[data-baseweb=\"radio\"] > div{\n  padding: 0 !important;\n}\n\n/* \uae00\uc904 \ub192\uc774\ub3c4 \uc0b4\uc9dd \ucef4\ud329\ud2b8\ud558\uac8c(\uc120\ud0dd \uc804/\ud6c4 \ub3d9\uc77c) */\ndiv[data-testid=\"stRadio\"] label,\ndiv[data-testid=\"stRadio\"] span{\n  font-weight: inherit !important;\n  line-height: 1.32 !important;\n}"
-    _hn_html = (
-        "<script>(function(){try{"
-        "var doc=(window.parent&&window.parent.document)?window.parent.document:document;"
-        "var ID='hn_radio_compact_v4';"
-        "var style=doc.getElementById(ID);"
-        "if(!style){style=doc.createElement('style');style.id=ID;doc.head.appendChild(style);}"
-        "style.textContent=" + JSON.stringify(_hn_css) + ";"
-        "}catch(e){}})();</script>"
-    )
-    components.html(_hn_html, height=0)
-except Exception:
-    # fallback (iframe 내부)
-    st.markdown("""<style>
-/* ===========================
-   HN RADIO COMPACT (v4)
-   목표: "선택 후"의 촘촘한 느낌을 기본값으로 고정
-   - Streamlit 기본 폰트/색상 유지
-   - 선택 전/후 간격 동일
-   =========================== */
-div[data-testid="stRadio"] div[role="radiogroup"]{
-  gap: 0px !important;
-}
-
-/* 각 보기(라디오 1개)의 기본 간격을 '촘촘하게' */
-div[data-testid="stRadio"] div[data-baseweb="radio"]{
-  margin: 0 0 0.28rem 0 !important;   /* ✅ 기본 간격을 선택 후 느낌으로 */
-  padding: 0 !important;
-}
-
-/* 내부 래퍼 여백 제거(브라우저/선택상태에 따른 흔들림 방지) */
-div[data-testid="stRadio"] div[data-baseweb="radio"] > div{
-  padding: 0 !important;
-}
-
-/* 글줄 높이도 살짝 컴팩트하게(선택 전/후 동일) */
-div[data-testid="stRadio"] label,
-div[data-testid="stRadio"] span{
-  font-weight: inherit !important;
-  line-height: 1.32 !important;
-}
-    </style>""", unsafe_allow_html=True)
-st.session_state["_top_compact_css_applied"] = True
-
-st.session_state['_page_config_set'] = True
 # ============================================================
 # OK [HOTFIX] Disable onboarding ("60초 이용안내") block entirely
 # - In case any legacy UI is still rendered, forcibly hide/remove it.
@@ -273,7 +225,6 @@ window.addEventListener("load", async () => {
 
 
 
-
 BASE_DIR = Path(__file__).resolve().parent
 CSV_PATH = BASE_DIR / "data" / "beginner.csv"   # OK 왕초보 단어 CSV
 PATTERN_CSV_PATH = BASE_DIR / "data" / "patterns_beginner.csv"
@@ -283,6 +234,8 @@ APP_URL = "https://hotena-basic-925102605904.asia-northeast3.run.app/"      # OK
 # OK App Settings
 # ============================================================
 SHOW_POST_SUBMIT_UI = "N"  # 제출 후 '내 최근 기록' 등을 퀴즈 페이지에 바로 보여줄지
+SHOW_NAVER_TALK = "Y"
+NAVER_TALK_URL = "https://talk.naver.com/W45141"
 
 KST_TZ = "Asia/Seoul"
 N = 10  # 한 번에 10문항
@@ -1663,6 +1616,110 @@ def require_login():
         st.stop()
 
 # ============================================================
+# OK 네이버톡 배너 (제출 후만)
+# ============================================================
+def render_naver_talk():
+    st.divider()
+    st.markdown(
+        f"""
+<style>
+@keyframes floaty {{
+  0% {{ transform: translateY(0); }}
+  50% {{ transform: translateY(-6px); }}
+  100% {{ transform: translateY(0); }}
+}}
+@keyframes ping {{
+  0% {{ transform: scale(1); opacity: 0.9; }}
+  70% {{ transform: scale(2.2); opacity: 0; }}
+  100% {{ transform: scale(2.2); opacity: 0; }}
+}}
+.floating-naver-talk,
+.floating-naver-talk:visited,
+.floating-naver-talk:hover,
+.floating-naver-talk:active {{
+  position: fixed;
+  right: 18px;
+  bottom: 90px;
+  z-index: 99999;
+  text-decoration: none !important;
+  color: inherit !important;
+}}
+.floating-wrap {{
+  position: relative;
+  animation: floaty 2.2s ease-in-out infinite;
+}}
+.talk-btn {{
+  background: #03C75A;
+  color: #fff;
+  border: 0;
+  border-radius: 999px;
+  padding: 14px 18px;
+  font-size: 15px;
+  font-weight: 700;
+  box-shadow: 0 12px 28px rgba(0,0,0,0.22);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  line-height: 1.1;
+  text-decoration: none !important;
+}}
+.talk-btn:hover {{ filter: brightness(0.95); }}
+.talk-text small {{
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.95;
+  margin-top: 2px;
+}}
+.badge {{
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 12px;
+  height: 12px;
+  background: #ff3b30;
+  border-radius: 999px;
+  box-shadow: 0 6px 14px rgba(0,0,0,0.25);
+}}
+.badge::after {{
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  transform: translate(-50%, -50%);
+  border-radius: 999px;
+  background: rgba(255,59,48,0.55);
+  animation: ping 1.2s ease-out infinite;
+}}
+@media (max-width: 600px) {{
+  .floating-naver-talk {{ bottom: 110px; right: 14px; }}
+  .talk-btn {{ padding: 13px 16px; font-size: 14px; }}
+  .talk-text small {{ font-size: 11px; }}
+}}
+</style>
+
+<a class="floating-naver-talk" href="{NAVER_TALK_URL}" target="_blank" rel="noopener noreferrer">
+  <div class="floating-wrap">
+    <span class="badge"></span>
+    <button class="talk-btn" type="button">
+      <span>💬</span>
+      <span class="talk-text">
+        1:1 하테나쌤 상담
+        <small>수강신청 문의하기</small>
+      </span>
+    </button>
+  </div>
+</a>
+""",
+        unsafe_allow_html=True,
+    )
+
+# ============================================================
+# OK Top Card (마이페이지/관리자/로그아웃)
+# ============================================================
 
 def nav_to(page: str, scroll_top: bool = True):
     st.session_state.page = page
@@ -2865,6 +2922,7 @@ def render_paywall(daily_solved: int):
     st.info("PRO로 업그레이드하면 오늘도 계속 풀 수 있어요.")
     if st.button("💎 PRO 신청/문의", use_container_width=True, key="btn_paywall_go_pro"):
         st.session_state["_scroll_top_once"] = True
+        st.markdown(f"<meta http-equiv='refresh' content='0;url={NAVER_TALK_URL}'>", unsafe_allow_html=True)
 
 def get_daily_solved_from_db(sb_authed_local, user_id: str) -> int:
     """오늘(KST) 푼 문항 수 합계 (quiz_attempts.quiz_len 합산)"""
@@ -2923,6 +2981,7 @@ def render_plan_banner():
     st.info("🔒 일부 기능은 PRO에서 열립니다. (예: 오답만 다시풀기, 발음 버튼, 패턴카드 확장 등)")
     if st.button("💎 PRO 신청/문의", use_container_width=True, key="btn_go_pro"):
         st.session_state["_scroll_top_once"] = True
+        st.markdown(f"<meta http-equiv='refresh' content='0;url={NAVER_TALK_URL}'>", unsafe_allow_html=True)
 
 # OK 호출은 정의 아래에서
 render_topcard()
@@ -3830,3 +3889,6 @@ if st.session_state.get("submitted", False):
             st.session_state["_scroll_top_once"] = True
             st.rerun()
 
+    show_naver_talk = (SHOW_NAVER_TALK == "N") or is_admin()
+    if show_naver_talk:
+        render_naver_talk()

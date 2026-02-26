@@ -64,42 +64,6 @@ margin-top: 0rem !important;
   }
 }
 </style>""", unsafe_allow_html=True)
-
-# HN_RADIO_COMPACT_V4
-st.markdown("""<style>
-
-/* ===========================
-   HN RADIO COMPACT (v4)
-   목표: "선택 후"의 촘촘한 느낌을 기본값으로 고정
-   - Streamlit 기본 폰트/색상 유지
-   - 선택 전/후 간격 동일
-   =========================== */
-div[data-testid="stRadio"] div[role="radiogroup"]{
-  gap: 0px !important;
-}
-
-/* 각 보기(라디오 1개)의 기본 간격을 '촘촘하게' */
-div[data-testid="stRadio"] div[data-baseweb="radio"]{
-  margin: 0 0 0.28rem 0 !important;   /* ✅ 기본 간격을 선택 후 느낌으로 */
-  padding: 0 !important;
-}
-
-/* 내부 래퍼 여백 제거(브라우저/선택상태에 따른 흔들림 방지) */
-div[data-testid="stRadio"] div[data-baseweb="radio"] > div{
-  padding: 0 !important;
-}
-
-/* 글줄 높이도 살짝 컴팩트하게(선택 전/후 동일) */
-div[data-testid="stRadio"] label,
-div[data-testid="stRadio"] span{
-  font-weight: inherit !important;
-  line-height: 1.32 !important;
-}
-
-</style>""", unsafe_allow_html=True)
-st.session_state["_top_compact_css_applied"] = True
-
-st.session_state["_page_config_set"] = True
 # ============================================================
 # OK [SOUND] 사운드 유틸 (모바일 자동재생 정책 대응)
 # ============================================================
