@@ -110,6 +110,54 @@ header[data-testid="stHeader"]{
   }
 }
 </style>""", unsafe_allow_html=True)
+    
+# HN_RADIO_COMPACT_V4
+try:
+    _hn_css = "/* ===========================\n   HN RADIO COMPACT (v4)\n   \ubaa9\ud45c: \"\uc120\ud0dd \ud6c4\"\uc758 \ucd18\ucd18\ud55c \ub290\ub08c\uc744 \uae30\ubcf8\uac12\uc73c\ub85c \uace0\uc815\n   - Streamlit \uae30\ubcf8 \ud3f0\ud2b8/\uc0c9\uc0c1 \uc720\uc9c0\n   - \uc120\ud0dd \uc804/\ud6c4 \uac04\uaca9 \ub3d9\uc77c\n   =========================== */\ndiv[data-testid=\"stRadio\"] div[role=\"radiogroup\"]{\n  gap: 0px !important;\n}\n\n/* \uac01 \ubcf4\uae30(\ub77c\ub514\uc624 1\uac1c)\uc758 \uae30\ubcf8 \uac04\uaca9\uc744 '\ucd18\ucd18\ud558\uac8c' */\ndiv[data-testid=\"stRadio\"] div[data-baseweb=\"radio\"]{\n  margin: 0 0 0.28rem 0 !important;   /* \u2705 \uae30\ubcf8 \uac04\uaca9\uc744 \uc120\ud0dd \ud6c4 \ub290\ub08c\uc73c\ub85c */\n  padding: 0 !important;\n}\n\n/* \ub0b4\ubd80 \ub798\ud37c \uc5ec\ubc31 \uc81c\uac70(\ube0c\ub77c\uc6b0\uc800/\uc120\ud0dd\uc0c1\ud0dc\uc5d0 \ub530\ub978 \ud754\ub4e4\ub9bc \ubc29\uc9c0) */\ndiv[data-testid=\"stRadio\"] div[data-baseweb=\"radio\"] > div{\n  padding: 0 !important;\n}\n\n/* \uae00\uc904 \ub192\uc774\ub3c4 \uc0b4\uc9dd \ucef4\ud329\ud2b8\ud558\uac8c(\uc120\ud0dd \uc804/\ud6c4 \ub3d9\uc77c) */\ndiv[data-testid=\"stRadio\"] label,\ndiv[data-testid=\"stRadio\"] span{\n  font-weight: inherit !important;\n  line-height: 1.32 !important;\n}"
+    _hn_html = (
+        "<script>(function(){try{"
+        "var doc=(window.parent&&window.parent.document)?window.parent.document:document;"
+        "var ID='hn_radio_compact_v4';"
+        "var style=doc.getElementById(ID);"
+        "if(!style){style=doc.createElement('style');style.id=ID;doc.head.appendChild(style);}"
+        "style.textContent=" + JSON.stringify(_hn_css) + ";"
+        "}catch(e){}})();</script>"
+    )
+    components.html(_hn_html, height=0)
+except Exception:
+    # fallback (iframe 내부)
+    st.markdown("""<style>
+/* ===========================
+   HN RADIO COMPACT (v4)
+   목표: "선택 후"의 촘촘한 느낌을 기본값으로 고정
+   - Streamlit 기본 폰트/색상 유지
+   - 선택 전/후 간격 동일
+   =========================== */
+div[data-testid="stRadio"] div[role="radiogroup"]{
+  gap: 0px !important;
+}
+
+/* 각 보기(라디오 1개)의 기본 간격을 '촘촘하게' */
+div[data-testid="stRadio"] div[data-baseweb="radio"]{
+  margin: 0 0 0.28rem 0 !important;   /* ✅ 기본 간격을 선택 후 느낌으로 */
+  padding: 0 !important;
+}
+
+/* 내부 래퍼 여백 제거(브라우저/선택상태에 따른 흔들림 방지) */
+div[data-testid="stRadio"] div[data-baseweb="radio"] > div{
+  padding: 0 !important;
+}
+
+/* 글줄 높이도 살짝 컴팩트하게(선택 전/후 동일) */
+div[data-testid="stRadio"] label,
+div[data-testid="stRadio"] span{
+  font-weight: inherit !important;
+  line-height: 1.32 !important;
+}
+    </style>""", unsafe_allow_html=True)
+st.session_state["_top_compact_css_applied"] = True
+
+st.session_state['_page_config_set'] = True
 # ============================================================
 # OK [HOTFIX] Disable onboarding ("60초 이용안내") block entirely
 # - In case any legacy UI is still rendered, forcibly hide/remove it.
@@ -222,6 +270,7 @@ window.addEventListener("load", async () => {
 });
 </script>
 """, height=0)
+
 
 
 
@@ -3454,96 +3503,97 @@ if SHOW_BOTTOM_GOAL:
 # ============================================================
 circled_nums = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳㉑㉒㉓㉔㉕㉖㉗㉘㉙㉚㉛㉜㉝㉞㉟㊱㊲㊳㊴㊵㊶㊷㊸㊹㊺㊻㊼㊽㊾㊿"
 
-for idx, q in enumerate(st.session_state.quiz):
-    badge = circled_nums[idx] if idx < len(circled_nums) else f"({idx+1})"
+with st.form(key=f"quiz_form_word_{st.session_state.quiz_version}"):
+    for idx, q in enumerate(st.session_state.quiz):
+        badge = circled_nums[idx] if idx < len(circled_nums) else f"({idx+1})"
 
-    st.markdown(
-        f"""
-<div class="jp" style="display:flex; align-items:baseline; gap:5px; margin: 10px 0 8px 0;">
-  <div style="
-    flex:0 0 auto;
-    font-size:20px;
-    line-height:1;
-    font-weight:900;
-    transform: translateY(1px);
-  ">{badge}</div>
+        st.markdown(
+            f"""
+    <div class="jp" style="display:flex; align-items:baseline; gap:5px; margin: 10px 0 8px 0;">
+      <div style="
+        flex:0 0 auto;
+        font-size:20px;
+        line-height:1;
+        font-weight:900;
+        transform: translateY(1px);
+      ">{badge}</div>
 
-  <div style="
-    flex:1 1 auto;
-    font-size:18px;
-    font-weight:500;
-    line-height:1.35;
-  ">{q["prompt"]}</div>
-</div>
-""",
-        unsafe_allow_html=True
+      <div style="
+        flex:1 1 auto;
+        font-size:18px;
+        font-weight:500;
+        line-height:1.35;
+      ">{q["prompt"]}</div>
+    </div>
+    """,
+            unsafe_allow_html=True
+        )
+
+        if st.session_state.get("quiz_type") == "meaning":
+            tts_text = (q.get("reading") or q.get("jp_word") or "").strip()
+
+            # OK PRO만 버튼 렌더링 (무료는 루프 안에서 아무것도 안 찍음)
+            if is_pro():
+                render_pronounce_button(
+                    tts_text,
+                    uid=f"{st.session_state.quiz_version}_{idx}",
+                    label="🔊 발음"
+                )
+
+        widget_key = f"q_{st.session_state.quiz_version}_{idx}"
+
+        prev = st.session_state.answers[idx]
+        default_index = None
+        if prev is not None and prev in q["choices"]:
+            default_index = q["choices"].index(prev)
+
+        choice = st.radio(
+            label="보기",
+            options=q["choices"],
+            index=default_index,
+            key=widget_key,
+            label_visibility="collapsed",
+        )
+        st.session_state.answers[idx] = choice
+
+    sync_answers_from_widgets()
+
+    submitted_clicked = st.form_submit_button(
+        "제출하고 채점하기",
+        type="primary",
+        use_container_width=True,
+        key="btn_submit_form",
     )
-
-    if st.session_state.get("quiz_type") == "meaning":
-        tts_text = (q.get("reading") or q.get("jp_word") or "").strip()
-
-        # OK PRO만 버튼 렌더링 (무료는 루프 안에서 아무것도 안 찍음)
-        if is_pro():
-            render_pronounce_button(
-                tts_text,
-                uid=f"{st.session_state.quiz_version}_{idx}",
-                label="🔊 발음"
-            )
-
-    widget_key = f"q_{st.session_state.quiz_version}_{idx}"
-
-    prev = st.session_state.answers[idx]
-    default_index = None
-    if prev is not None and prev in q["choices"]:
-        default_index = q["choices"].index(prev)
-
-    choice = st.radio(
-        label="보기",
-        options=q["choices"],
-        index=default_index,
-        key=widget_key,
-        label_visibility="collapsed",
-        on_change=mark_progress_dirty,
-    )
-    st.session_state.answers[idx] = choice
-
-sync_answers_from_widgets()
-
 
 # ============================================================
-# OK 제출/채점
+# OK 제출/채점 (FORM)
+# - 보기 선택만으로는 rerun이 일어나지 않도록 st.form으로 감쌌습니다.
+# - 제출 버튼을 눌렀을 때만 채점/DB 저장을 진행합니다.
 # ============================================================
 quiz_len = len(st.session_state.quiz)
 
-# OK "지금 선택된 값"을 세션에서 읽어서 all_answered 판단
-selected_now = []
-for idx, q in enumerate(st.session_state.quiz):
-    widget_key = f"q_{st.session_state.quiz_version}_{idx}"
-    selected_now.append(st.session_state.get(widget_key, None))
+if submitted_clicked:
+    selected_now = []
+    for idx, q in enumerate(st.session_state.quiz):
+        widget_key = f"q_{st.session_state.quiz_version}_{idx}"
+        selected_now.append(st.session_state.get(widget_key, None))
 
-all_answered = (quiz_len > 0) and all(a is not None for a in selected_now)
+    all_answered = (quiz_len > 0) and all(a is not None for a in selected_now)
 
-if st.button(
-    "제출하고 채점하기",
-    disabled=not all_answered,
-    type="primary",
-    use_container_width=True,
-    key="btn_submit",
-):
-    st.session_state.submitted = True
-    st.session_state.session_stats_applied_this_attempt = False
+    if not all_answered:
+        st.warning("아직 선택하지 않은 문제가 있어요. 모든 문제에 답을 선택해 주세요 🙂")
+        st.session_state.submitted = False
+    else:
+        st.session_state.submitted = True
+        st.session_state.session_stats_applied_this_attempt = False
 
-    # OK 제출 시점에만 answers에 확정 반영
-    st.session_state.answers = selected_now
+        # OK 제출 시점에만 answers에 확정 반영
+        st.session_state.answers = selected_now
 
-    # OK 중복 카운트 방지
-    if not st.session_state.get("_counted_today", False):
-        add_done_count(int(st.session_state.get("quiz_len", 10)))
-        st.session_state["_counted_today"] = True
-
-if not all_answered:
-    st.info("모든 문제에 답을 선택하면 제출 버튼이 활성화됩니다.")
-
+        # OK 중복 카운트 방지
+        if not st.session_state.get("_counted_today", False):
+            add_done_count(int(st.session_state.get("quiz_len", 10)))
+            st.session_state["_counted_today"] = True
 
 # ============================================================
 # OK 제출 후 화면
@@ -3892,3 +3942,4 @@ if st.session_state.get("submitted", False):
     show_naver_talk = (SHOW_NAVER_TALK == "N") or is_admin()
     if show_naver_talk:
         render_naver_talk()
+
