@@ -2548,6 +2548,7 @@ def render_my_dashboard():
         start_quiz_state(quiz, st.session_state.get("quiz_type", "meaning"), clear_wrongs=True)
         st.session_state.page = "quiz"
         st.session_state["_scroll_top_once"] = True
+        st.rerun()
 
 # ============================================================
 # OK Home
@@ -3288,6 +3289,7 @@ if st.session_state.pos_group == "other":
             new_quiz = build_quiz(st.session_state.quiz_type, st.session_state.pos_group)
             start_quiz_state(new_quiz, st.session_state.quiz_type, clear_wrongs=True)
             st.session_state["_scroll_top_once"] = True
+            st.rerun()
 
 st.markdown('<div class="qtype_hint jp">✨유형을 선택하세요</div>', unsafe_allow_html=True)
 
@@ -3361,6 +3363,7 @@ with cbtn1:
         mark_quiz_as_seen(new_quiz, st.session_state.quiz_type, st.session_state.pos_group)
         start_quiz_state(new_quiz, st.session_state.quiz_type, clear_wrongs=True)
         st.session_state["_scroll_top_once"] = True
+        st.rerun()
         
 
 def reset_mastery_current():
@@ -3376,6 +3379,7 @@ def reset_mastery_current():
     mark_quiz_as_seen(new_quiz, st.session_state.quiz_type, st.session_state.pos_group)
     start_quiz_state(new_quiz, st.session_state.quiz_type, clear_wrongs=True)
     st.session_state["_scroll_top_once"] = True
+    st.rerun()
 
 with cbtn2:
     if st.button("맞힌 단어 제외 초기화", disabled=locked, use_container_width=True, key="btn_reset_mastery"):
@@ -3932,8 +3936,8 @@ if st.session_state.get("submitted", False):
             )
             start_quiz_state(retry_quiz, st.session_state.quiz_type, clear_wrongs=True)
             st.session_state["_scroll_top_once"] = True
+            st.rerun()
 
     show_naver_talk = (SHOW_NAVER_TALK == "N") or is_admin()
     if show_naver_talk:
         render_naver_talk()
-
