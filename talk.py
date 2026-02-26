@@ -1532,8 +1532,8 @@ import json as _json
 
 def _is_ios() -> bool:
     try:
-        ua = (st.context.headers.get("user-agent") or "").lower()
-        return ("iphone" in ua) or ("ipad" in ua) or ("ipod" in ua)
+        ua = (st.context.headers.get('user-agent') or '').lower()
+        return ('iphone' in ua) or ('ipad' in ua) or ('ipod' in ua)
     except Exception:
         return False
 
@@ -1542,16 +1542,36 @@ def _play_audio_no_player(url: str) -> None:
     url = (url or "").strip()
     if not url:
         return
-
-    # iOS Safari fallback
-    if _is_ios():
-        st.audio(url)
-        return
-
     try:
         components.html(
             "<script>(function(){try{new Audio(%s).play();}catch(e){}})();</script>" % _json.dumps(url),
             height=0,
+        )
+    except Exception:
+        pass
+
+
+
+def _play_audio_ios_oneclick(url: str, uid: str, label: str = "🔊 정답 발음 확인") -> None:
+    """iOS Safari: play audio inside real click handler (no player UI).
+    Note: This does NOT notify Python on click, so use for PRO only (no quota).
+    """
+    url = (url or "").strip()
+    if not url:
+        return
+    try:
+        components.html(
+            """
+            <div style='margin:6px 0 2px 0;'>
+              <audio id='aud_%(uid)s' preload='none' src=%(src)s></audio>
+              <button type='button'
+                onclick="(function(){try{var a=document.getElementById('aud_%(uid)s');if(!a)return;a.currentTime=0;a.play();}catch(e){}})()"
+                style='width:100%%;padding:10px 12px;border-radius:12px;border:1px solid rgba(0,0,0,.15);background:#fff;font-size:16px;font-weight:700;cursor:pointer;'>
+                %(label)s
+              </button>
+            </div>
+            """ %% {"uid": uid, "src": _json.dumps(url), "label": label},
+            height=68,
         )
     except Exception:
         pass
@@ -1601,11 +1621,16 @@ if submitted:
         _ans_txt = str(row.get("answer_jp", "") or "").strip()
 
         if IS_PRO:
-            if st.button("🔊 정답 발음 확인", key=f"{qid}_ans_pron", use_container_width=True):
-                if _ans_audio:
-                    _play_audio_no_player(_ans_audio)
-                else:
-                    _speak_no_player(_ans_txt)
+            # iOS Safari: use one-click HTML button to avoid autoplay restrictions (no player UI)
+            if _is_ios() and bool(_ans_audio):
+                _play_audio_ios_oneclick(_ans_audio, uid=f"{qid}_ans_pron_ios", label="🔊 정답 발음 확인")
+            else:
+                if st.button("🔊 정답 발음 확인", key=f"{qid}_ans_pron", use_container_width=True):
+                    if _ans_audio:
+                        _play_audio_no_player(_ans_audio)
+                    else:
+                        _speak_no_player(_ans_txt)
+
         else:
             _rem_tts = _free_tts_remaining()
             if _rem_tts > 0:
