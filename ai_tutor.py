@@ -107,7 +107,6 @@ def _max_uses_for_plan(plan: str) -> int:
 # ----------------------------
 # Quota (DB via Supabase RPC)
 # ----------------------------
-
 def check_and_consume_quota() -> Tuple[bool, Optional[int], Optional[int]]:
     """
     Returns (allowed, used, remaining).
@@ -117,9 +116,6 @@ def check_and_consume_quota() -> Tuple[bool, Optional[int], Optional[int]]:
     sb = core.get_authed_sb(force_refresh=True)
     uid = get_user_id()
     if not sb or not uid:
-        if _is_admin_debug():
-            st.session_state["_ai_quota_last_error"] = "NO_SB_OR_UID"
-            st.session_state["_ai_quota_last_raw"] = None
         return False, None, None
 
     plan = get_user_plan(force_refresh=False)
@@ -128,31 +124,17 @@ def check_and_consume_quota() -> Tuple[bool, Optional[int], Optional[int]]:
     try:
         res = sb.rpc("ai_check_and_inc_kst", {"max_uses": max_uses}).execute()
         data = getattr(res, "data", None)
-
-        if _is_admin_debug():
-            st.session_state["_ai_quota_last_error"] = ""
-            st.session_state["_ai_quota_last_raw"] = data
-            st.session_state["_ai_quota_last_plan"] = plan
-            st.session_state["_ai_quota_last_max_uses"] = max_uses
-
         if isinstance(data, list) and data:
             row = data[0] or {}
             allowed = bool(row.get("allowed"))
             used = int(row.get("used")) if row.get("used") is not None else None
             remaining = int(row.get("remaining")) if row.get("remaining") is not None else None
             return allowed, used, remaining
+    except Exception:
+        pass
 
-        if _is_admin_debug():
-            st.session_state["_ai_quota_last_error"] = "EMPTY_RPC_DATA"
-        return False, None, None
+    return False, None, None
 
-    except Exception as e:
-        if _is_admin_debug():
-            st.session_state["_ai_quota_last_error"] = f"RPC_EXCEPTION: {repr(e)}"
-            st.session_state["_ai_quota_last_raw"] = None
-            st.session_state["_ai_quota_last_plan"] = plan
-            st.session_state["_ai_quota_last_max_uses"] = max_uses
-        return False, None, None
 
 def quota_wait_message() -> str:
     # Keep it short, friendly, and not revealing numbers.
@@ -301,13 +283,17 @@ def _system_prompt(mode: str) -> str:
         "답변은 기본 한국어 중심으로 하되, 일본어 설명을 1줄 정도 섞는다.",
         "전체 답변은 3~4줄로 제한한다. (줄바꿈으로 3~4줄)",
         "이모지는 최대 1개만 사용한다. (가능하면 📘 또는 💬)",
-        "긴 강의처럼 말하지 말고, 학습자가 바로 이해/말하기를 이어가게 한다.",
+        "긴 강의처럼 말하지 말고, 학습자가 바로 이해/말하기를 이어가게 한다.
+추가 질문을 하지 않는다. 사용자의 다음 행동을 요구하지 않는다.
+반드시 피드백 문장으로 끝낸다.",
     ]
     m = (mode or "").lower().strip()
     if m == "talk":
         base += [
             "모드: 회화 자신감. 문장을 크게 '틀렸어요'라고 단정하지 않는다.",
-            "필요하면 아주 가볍게 더 자연스러운 표현을 1개 제시하고, 마지막 줄은 다음 질문 1개로 끝낸다.",
+            "필요하면 아주 가볍게 더 자연스러운 표현을 1개 제시한다.
+추가 질문을 하지 않는다. ("다음 질문은?" 같은 유도 금지)
+대화를 이어가려 하지 말고, 피드백으로만 끝낸다.",
         ]
     else:
         base += [
@@ -365,15 +351,8 @@ def ask_hatena(
         return need_login_message()
 
     # Quota check (consumes 1 when allowed)
-    allowed, used, remaining = check_and_consume_quota()
+    allowed, _, _ = check_and_consume_quota()
     if not allowed:
-        if _is_admin_debug():
-            uid_dbg = get_user_id()
-            plan_dbg = st.session_state.get('_ai_quota_last_plan', get_user_plan(force_refresh=False))
-            max_dbg = st.session_state.get('_ai_quota_last_max_uses', _max_uses_for_plan(str(plan_dbg or '')))
-            err_dbg = st.session_state.get('_ai_quota_last_error', '')
-            raw_dbg = st.session_state.get('_ai_quota_last_raw', None)
-            return f"(Quota denied) uid={uid_dbg} plan={plan_dbg} max_uses={max_dbg} used={used} remaining={remaining}\nlast_error={err_dbg}\nlast_raw={str(raw_dbg)[:800]}"
         return quota_wait_message()
 
     # Model selection (low-cost)
