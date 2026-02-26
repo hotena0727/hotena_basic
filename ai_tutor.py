@@ -276,61 +276,54 @@ def _normalize_lines(text: str, *, min_lines: int = MIN_LINES_DEFAULT, max_lines
 
 
 def _system_prompt(mode: str) -> str:
-    """Return system prompt by mode.
-
-    - explain: short 3–4 line helper
-    - talk: structured coaching (5 lines)
-    """
-    m = (mode or "").lower().strip()
-
-    # Common tone: kind teacher, KR-first, small JP mix
-    common = [
+    # Keep consistent tone: teacher but kind, KR-first, small JP mix
+    base = [
         "너는 일본어 학습 앱 '하테나'의 AI 튜터 '하테나쌤'이다.",
-        "친절한 선생님 톤으로 답한다. 기본은 한국어로, 필요한 경우 일본어를 1줄 정도만 섞는다.",
-        "이모지는 최대 1개만 사용한다. (가능하면 📘 또는 💬)",
+        "친절한 선생님 톤으로, 핵심만 짚어서 짧게 답한다.",
+        "답변은 기본 한국어 중심으로 하되, 일본어 설명을 1줄 정도 섞는다.",
+        "(explain 모드) 전체 답변은 3~4줄로 제한한다. (줄바꿈으로 3~4줄) — talk 모드에는 적용하지 않는다.",
+        "이모지는 최대 1개만 사용한다. (가능하면 📘 또는 💬) — 필요 없으면 쓰지 않는다.",
+        "긴 강의처럼 말하지 말고, 학습자가 바로 이해/말하기를 이어가게 한다.",
         "추가 질문을 하지 않는다. 사용자의 다음 행동을 요구하지 않는다.",
-        "반드시 피드백으로 끝낸다.",
+        "반드시 피드백 문장으로 끝낸다.",
     ]
-
+    m = (mode or "").lower().strip()
     if m == "talk":
-        # Coaching mode: enforce a compact but high-quality structure.
-        # Keep it readable for mobile: one line per section.
-        talk_rules = [
-            "모드: 회화 코칭. '틀렸어요'라고 단정하지 말고, 개선 포인트를 부드럽게 제시한다.",
-            "답변은 반드시 아래 5줄 형식을 지킨다(각 항목 1줄, 총 5줄).",
-            "① 해결: 질문에 대한 결론/정답을 한 줄로.",
-            "② 추가 정보: 왜 그런지(뉘앙스/상황 적합성/주의점) 한 줄로.",
-            "③ 대안: 더 자연스러운 표현 1~2개를 한 줄로(필요하면 정중/캐주얼 2안).",
-            "④ 연습: 바로 따라 말할 수 있는 훈련 문장 1개를 한 줄로.",
-            "⑤ 격려: 짧게 응원 한 줄로.",
-            "군더더기 없이 간결하게, 그러나 빈약하지 않게 쓴다.",
+        base += [
+            "모드: 회화 코칭. 정답/오답을 단정적으로 몰아붙이지 말고, 학생이 바로 말로 이어가게 돕는다.",
+            "답변은 번호(1.,2.,3.)나 [해결] 같은 라벨 없이 자연스럽게 작성한다.",
+            "줄바꿈으로 3~5줄 정도로 구성한다: (1) 질문 해결 → (2) 추가 정보/뉘앙스 → (3) 더 자연스러운 대안 1개 + 짧은 연습 1문장 → (4) 짧은 격려.",
+            "말투는 따뜻하고 부드럽게, 과하게 딱딱한 표현은 피한다.",
+            "추가 질문은 하지 않는다. (다만 상황에 따라 선택지 형태로 짧게 덧붙이는 건 허용)",
         ]
-        return " ".join(common + talk_rules)
+    else:
+        base += [
+            "모드: 이해력 보조. 한 줄 요점 → 한 줄 일본어 설명 → 예문(최대 1개) 순서를 선호한다.",
+        ]
+    return " ".join(base)
 
-    # explain / others: short helper
-    explain_rules = [
-        "모드: 이해력 보조. 핵심만 짚어서 짧게 답한다.",
-        "전체 답변은 3~4줄로 제한한다. (줄바꿈으로 3~4줄)",
-        "권장 순서: 요점 1줄 → (필요시) 일본어 설명 1줄 → 예문 0~1개 → 피드백 1줄.",
-        "긴 강의처럼 말하지 않는다.",
-    ]
-    return " ".join(common + explain_rules)
 
 def _build_messages(mode: str, user_input: str, context: str) -> list[dict[str, str]]:
     sys = _system_prompt(mode)
     # Keep user message compact to save tokens
     u = user_input.strip()
     cx = (context or "").strip()
-    if cx:
-        user = f"질문: {u}\n상황/문맥: {cx}\n(3~4줄로 짧게)"
+
+    m = (mode or "").lower().strip()
+    if m == "talk":
+        hint = "(번호/라벨 없이 3~5줄: 해결→추가정보→대안/연습→격려)"
     else:
-        user = f"질문: {u}\n(3~4줄로 짧게)"
+        hint = "(3~4줄로 짧게)"
+
+    if cx:
+        user = f"질문: {u}\n상황/문맥: {cx}\n{hint}"
+    else:
+        user = f"질문: {u}\n{hint}"
+
     return [
         {"role": "system", "content": sys},
         {"role": "user", "content": user},
     ]
-
-
 # ----------------------------
 # Public API
 # ----------------------------
@@ -377,18 +370,15 @@ def ask_hatena(
 
     # Build messages and call
     messages = _build_messages(mode, user_input, context)
-    # talk 코칭은 출력 토큰을 조금 더 줘서(구조 5줄) 빈약함을 줄입니다.
-    m = (mode or "").lower().strip()
-    max_out = 420 if m == "talk" else 220
-    raw = _openai_chat(model, messages, max_output_tokens=max_out)
+    max_toks = 420 if (mode or "").lower().strip() == "talk" else 220
+    raw = _openai_chat(model, messages, max_output_tokens=max_toks)
 
     # Normalize + cache
-    m2 = (mode or "").lower().strip()
-    _min = min_lines
-    _max = max_lines
-    # talk 모드 기본값(3~4줄)이면 5줄 형식에 맞게 완화
-    if m2 == "talk" and min_lines == MIN_LINES_DEFAULT and max_lines == MAX_LINES_DEFAULT:
-        _min, _max = 5, 6
-    ans = _normalize_lines(raw, min_lines=_min, max_lines=_max)
+    if (mode or "").lower().strip() == "talk":
+        if min_lines == MIN_LINES_DEFAULT:
+            min_lines = 3
+        if max_lines == MAX_LINES_DEFAULT:
+            max_lines = 6
+    ans = _normalize_lines(raw, min_lines=min_lines, max_lines=max_lines)
     set_cached_answer(mode, user_input, context, ans)
     return ans
