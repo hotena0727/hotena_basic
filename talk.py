@@ -1542,7 +1542,11 @@ if submitted:
         with c_sc1:
             st.markdown('<div style="font-size:1.25rem; font-weight:700;">📊 말하기 점수</div>', unsafe_allow_html=True)
         with c_sc2:
-            do_calc = st.button("다시 계산", use_container_width=True, disabled=not has_audio, key=f"{qid}_pron_calc")
+            # ✅ '다시 계산'은 네트워크/브라우저 상태 등으로 자동 계산이 실패했을 때만 노출
+            show_recalc = bool(st.session_state.get(err_key))
+            do_calc = False
+            if show_recalc:
+                do_calc = st.button("다시 계산", use_container_width=True, disabled=not has_audio, key=f"{qid}_pron_calc")
 
         if do_calc:
             try:
