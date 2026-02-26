@@ -26,45 +26,6 @@ import textwrap
 # NOTE: page config is handled by home.py
 if not st.session_state.get("_page_config_set"):
     st.set_page_config(page_title="Hotena", layout="centered")
-    
-
-# ============================================================
-# OK TOP SPACING FIX (PC + Mobile)
-# - Remove Streamlit's default top padding/space
-# - Applied once per session
-# ============================================================
-
-st.markdown("""<style>
-/* === Hotena: ultra-compact top spacing (mobile + desktop) === */
-/* 핵심: block-container의 기본 top padding 제거 + 첫 요소 여백 제거 */
-section.main > div.block-container,
-div[data-testid="stAppViewContainer"] > div.block-container {
-  padding-top: 0rem !important;
-  margin-top: 0rem !important;
-}
-
-/* 첫 요소(메뉴/버튼 래퍼) 상단 여백 제거 */
-div.block-container > div:first-child {
-  margin-top: 0rem !important;
-  padding-top: 0rem !important;
-}
-
-/* Streamlit 헤더가 만드는 공간 최소화 */
-header[data-testid="stHeader"]{
-  height: 0px !important;
-  min-height: 0px !important;
-}
-
-/* 모바일에서 더 강하게 */
-@media (max-width: 768px){
-  section.main > div.block-container,
-  div[data-testid="stAppViewContainer"] > div.block-container {
-padding-top: 0rem !important;
-margin-top: 0rem !important;
-  }
-}
-</style>""", unsafe_allow_html=True)
-
 # HN_RADIO_COMPACT_V4
 st.markdown("""<style>
 
@@ -2298,6 +2259,7 @@ def render_kanji_hub(HUB_MODE: bool = False):
             new_quiz = build_quiz(st.session_state.quiz_type, st.session_state.level)
             start_quiz_state(new_quiz, st.session_state.quiz_type, clear_wrongs=True)
             st.session_state["_scroll_top_once"] = True
+            st.rerun()
 
     with cbtn2:
         if st.button("맞힌 단어 제외 초기화", use_container_width=True, key="btn_reset_mastered_current_type"):
@@ -2740,6 +2702,7 @@ def render_kanji_hub(HUB_MODE: bool = False):
             retry_quiz = build_quiz_from_wrongs(st.session_state.wrong_list, st.session_state.quiz_type)
             start_quiz_state(retry_quiz, st.session_state.quiz_type, clear_wrongs=True)
             st.session_state["_scroll_top_once"] = True
+            st.rerun()
 
     # 다음 10문항
     if st.session_state.submitted:

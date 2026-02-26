@@ -68,49 +68,6 @@ if not st.session_state.get('_page_config_set'):
     page_icon="static/icon-192.png",   # 또는 "🟦"
     layout="centered",
 )
-    
-
-# ============================================================
-# OK TOP SPACING FIX (PC + Mobile)
-# - Remove Streamlit's default top padding/space
-# - Applied once per session
-# ============================================================
-if not st.session_state.get("_top_compact_css_applied"):
-    st.markdown("""<style>
-/* OK A안: Streamlit 기본 헤더/푸터 숨김 + 상단 여백 최소화 */
-header{visibility:hidden;height:0px;}
-footer{visibility:hidden;height:0px;}
-
-/* === Hotena: ultra-compact top spacing (mobile + desktop) === */
-/* 핵심: block-container의 기본 top padding 제거 + 첫 요소 여백 제거 */
-section.main > div.block-container,
-div[data-testid="stAppViewContainer"] > div.block-container {
-  padding-top: 0rem !important;
-  margin-top: 0rem !important;
-}
-
-/* 첫 요소(메뉴/버튼 래퍼) 상단 여백 제거 */
-div.block-container > div:first-child {
-  margin-top: 0rem !important;
-  padding-top: 0rem !important;
-}
-
-/* Streamlit 헤더가 만드는 공간 최소화 */
-header[data-testid="stHeader"]{
-  height: 0px !important;
-  min-height: 0px !important;
-}
-
-/* 모바일에서 더 강하게 */
-@media (max-width: 768px){
-  section.main > div.block-container,
-  div[data-testid="stAppViewContainer"] > div.block-container {
-    padding-top: 0rem !important;
-    margin-top: 0rem !important;
-  }
-}
-</style>""", unsafe_allow_html=True)
-    
 # HN_RADIO_COMPACT_V4
 try:
     _hn_css = "/* ===========================\n   HN RADIO COMPACT (v4)\n   \ubaa9\ud45c: \"\uc120\ud0dd \ud6c4\"\uc758 \ucd18\ucd18\ud55c \ub290\ub08c\uc744 \uae30\ubcf8\uac12\uc73c\ub85c \uace0\uc815\n   - Streamlit \uae30\ubcf8 \ud3f0\ud2b8/\uc0c9\uc0c1 \uc720\uc9c0\n   - \uc120\ud0dd \uc804/\ud6c4 \uac04\uaca9 \ub3d9\uc77c\n   =========================== */\ndiv[data-testid=\"stRadio\"] div[role=\"radiogroup\"]{\n  gap: 0px !important;\n}\n\n/* \uac01 \ubcf4\uae30(\ub77c\ub514\uc624 1\uac1c)\uc758 \uae30\ubcf8 \uac04\uaca9\uc744 '\ucd18\ucd18\ud558\uac8c' */\ndiv[data-testid=\"stRadio\"] div[data-baseweb=\"radio\"]{\n  margin: 0 0 0.28rem 0 !important;   /* \u2705 \uae30\ubcf8 \uac04\uaca9\uc744 \uc120\ud0dd \ud6c4 \ub290\ub08c\uc73c\ub85c */\n  padding: 0 !important;\n}\n\n/* \ub0b4\ubd80 \ub798\ud37c \uc5ec\ubc31 \uc81c\uac70(\ube0c\ub77c\uc6b0\uc800/\uc120\ud0dd\uc0c1\ud0dc\uc5d0 \ub530\ub978 \ud754\ub4e4\ub9bc \ubc29\uc9c0) */\ndiv[data-testid=\"stRadio\"] div[data-baseweb=\"radio\"] > div{\n  padding: 0 !important;\n}\n\n/* \uae00\uc904 \ub192\uc774\ub3c4 \uc0b4\uc9dd \ucef4\ud329\ud2b8\ud558\uac8c(\uc120\ud0dd \uc804/\ud6c4 \ub3d9\uc77c) */\ndiv[data-testid=\"stRadio\"] label,\ndiv[data-testid=\"stRadio\"] span{\n  font-weight: inherit !important;\n  line-height: 1.32 !important;\n}"
@@ -273,7 +230,6 @@ window.addEventListener("load", async () => {
 
 
 
-
 BASE_DIR = Path(__file__).resolve().parent
 CSV_PATH = BASE_DIR / "data" / "beginner.csv"   # OK 왕초보 단어 CSV
 PATTERN_CSV_PATH = BASE_DIR / "data" / "patterns_beginner.csv"
@@ -428,17 +384,6 @@ st.markdown(
   line-height:1.7;
   letter-spacing:.2px;
 }
-
-/* 메인 컨테이너 위쪽 여백 줄이기 */
-div[data-testid="stAppViewContainer"] .block-container{
-  padding-top: 1.0rem !important;   /* 0.5~1.5rem 사이로 취향 조절 */
-}
-
-/* Streamlit 상단 헤더(투명 영역 포함) 자체를 더 얇게 */
-header[data-testid="stHeader"]{
-  height: 3rem !important;
-}
-
 /* (선택) 우측 상단 Streamlit 기본 툴바 영역 숨김 */
 div[data-testid="stToolbar"]{
   visibility: hidden !important;
@@ -3917,6 +3862,7 @@ if st.session_state.get("submitted", False):
             st.session_state.free_limit_applied_this_attempt = False
             mark_quiz_as_seen(new_quiz, st.session_state.quiz_type, st.session_state.pos_group)
             st.session_state["_scroll_top_once"] = True
+            st.rerun()
 
     with cB:
         # 오답이 있을 때만 활성화(없으면 disabled)
