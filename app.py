@@ -3827,4 +3827,3 @@ if st.session_state.get("submitted", False):
             st.session_state["_scroll_top_once"] = True
             st.rerun()
 
-    if show_naver_talk:
