@@ -1250,8 +1250,6 @@ if submitted:
                 "selected": str(selected or "").strip(),
                 "correct": str(correct or "").strip(),
                 "ok": bool(ok),
-                             "level": str(level),
-                             "tone": str(st.session_state.get(f"talk_ai_tone_{qid}") or "정중"),
             })
             st.session_state[snap_key] = True
     except Exception:
@@ -1386,143 +1384,121 @@ if submitted:
                 elif rem3 <= 0:
                     st.button("🔒 내 발음 듣기 (PRO)", key=f"{qid}_free_tts_answer_after_lock", disabled=True, use_container_width=True)
 # ============================================================
-# ✅ 제출 이후에만 원포인트 + 스마트코치 표시
-# ============================================================
-if submitted:
+        # ✅ 제출 이후에만 원포인트 + 스마트코치 표시
+        # ============================================================
+        if submitted:
 
-    # ------------------------------------
-    # 💡 원포인트 일본어
-    # ------------------------------------
-    explain_kr = str(row.get("explain_kr", "")).strip()
-    hint = str(row.get("hint_kr", "")).strip()
+            # ------------------------------------
+            # 💡 원포인트 일본어
+            # ------------------------------------
+            explain_kr = str(row.get("explain_kr", "")).strip()
+            hint = str(row.get("hint_kr", "")).strip()
 
-    if explain_kr:
-        st.markdown("<div style='margin-top:-18px'></div>", unsafe_allow_html=True)
-        st.info("💡 하테나쌤 원포인트 일본어\n\n" + explain_kr)
-    elif hint:
-        st.markdown("<div style='margin-top:-18px'></div>", unsafe_allow_html=True)
-        st.info("💡 하테나쌤 원포인트 일본어\n\n" + hint)
-    else:
-        st.markdown("<div style='margin-top:-18px'></div>", unsafe_allow_html=True)
-        st.info(
-            "💡 하테나쌤 원포인트 일본어\n\n"
-            "포인트: 상황에서 ‘요청/사과/확인/거절’ 중 무엇인지 먼저 잡고, "
-            "그에 맞는 톤(정중/캐주얼)을 고르면 실수가 줄어듭니다."
-        )
-
-    # ------------------------------------
-    # 🤖 스마트 코치
-    # ------------------------------------
-    with st.expander("🤖 원포인트 일본어가 어려우면 하테나쌤에게 물어보세요", expanded=False):
-
-        st.markdown("### 💬 하테나쌤 스마트 코치")
-
-        q_default = st.session_state.get("talk_ai_last_q") or ""
-        user_q = st.text_input(
-            "질문",
-            value=str(q_default),
-            key=f"talk_ai_q_{qid}",
-            placeholder="예) 더 자연스러운 표현도 있어요?",
-            label_visibility="collapsed",
-        )
-
-        st.caption("회화 표현·뉘앙스·자연스러움 위주 질문에 최적화되어 있어요.")
-
-        # ✅ AI 코칭 톤(정중/캐주얼) — 코칭 품질 향상용(컨텍스트에 포함)
-        tone_opt = st.selectbox(
-            "답변 톤",
-            options=["정중", "보통", "캐주얼"],
-            index=0,
-            key=f"talk_ai_tone_{qid}",
-            help="정중(です/ます) / 보통 / 캐주얼(だ/よ/ね) 중 선택할 수 있어요.",
-        )
-
-
-        ask = st.button(
-            "AI 코칭 받기 시작",
-            use_container_width=True,
-            key=f"talk_ai_ask_{qid}",
-        )
-
-        coach_slot = st.empty()
-
-        if ask and str(user_q).strip():
-
-            question = str(user_q).strip()
-            st.session_state["talk_ai_last_q"] = question
-
-            # 👉 일반 문의 분기
-            general_keywords = [
-                "패키지", "요금", "가격", "결제",
-                "환불", "기능", "프로", "무료",
-                "상담", "문의", "톡", "네이버", "교재"
-            ]
-
-            if any(k in question for k in general_keywords):
-
-                coach_slot.info(
-                    "📌 해당 문의는 회화 코칭 범위를 벗어납니다.\n\n"
-                    "👉 정확한 안내는 **하테나쌤 톡**으로 문의해주세요 🙂"
-                )
-
-                st.link_button(
-                    "💬 톡 문의하기",
-                    "http://talk.naver.com/W45141",
-                    use_container_width=True
-                )
-
+            if explain_kr:
+                st.markdown("<div style='margin-top:-18px'></div>", unsafe_allow_html=True)
+                st.info("💡 하테나쌤 원포인트 일본어\n\n" + explain_kr)
+            elif hint:
+                st.markdown("<div style='margin-top:-18px'></div>", unsafe_allow_html=True)
+                st.info("💡 하테나쌤 원포인트 일본어\n\n" + hint)
             else:
-                # 회화 질문일 때만 AI 호출
-                ctx_parts = []
+                st.markdown("<div style='margin-top:-18px'></div>", unsafe_allow_html=True)
+                st.info(
+                    "💡 하테나쌤 원포인트 일본어\n\n"
+                    "포인트: 상황에서 ‘요청/사과/확인/거절’ 중 무엇인지 먼저 잡고, "
+                    "그에 맞는 톤(정중/캐주얼)을 고르면 실수가 줄어듭니다."
+                )
 
+            # ------------------------------------
+            # 🤖 스마트 코치
+            # ------------------------------------
+            with st.expander("🤖 원포인트 일본어가 어려우면 하테나쌤에게 물어보세요", expanded=False):
 
-                # 학습자 레벨/톤도 함께 전달(코칭 품질 향상)
-                lvl = (str(level) if level is not None else "").upper().strip()
-                tone = str(st.session_state.get(f"talk_ai_tone_{qid}") or "정중").strip()
-                s = str(row.get("situation_kr", "")).strip()
-                p = str(row.get("partner_jp", "")).strip()
-                a = str(row.get("answer_jp", "")).strip()
-                me = str(selected or "").strip()
+                st.markdown("### 💬 하테나쌤 스마트 코치")
 
-                if s:
-                    ctx_parts.append(f"현재상황: {s}")
-                if p:
-                    ctx_parts.append(f"상대발화: {p}")
-                if a:
-                    ctx_parts.append(f"정답표현: {a}")
-                if me:
-                    ctx_parts.append(f"내선택: {me}")
+                q_default = st.session_state.get("talk_ai_last_q") or ""
+                user_q = st.text_input(
+                    "질문",
+                    value=str(q_default),
+                    key=f"talk_ai_q_{qid}",
+                    placeholder="예) 더 자연스러운 표현도 있어요?",
+                    label_visibility="collapsed",
+                )
 
-                if lvl:
-                    ctx_parts.append(f"학습자레벨: {lvl}")
-                if tone:
-                    ctx_parts.append(f"원하는톤: {tone}")
+                st.caption("회화 표현·뉘앙스·자연스러움 위주 질문에 최적화되어 있어요.")
 
-                ctx_parts.append(f"정오답: {'정답' if ok else '오답'}")
+                ask = st.button(
+                    "AI 코칭 받기 시작",
+                    use_container_width=True,
+                    key=f"talk_ai_ask_{qid}",
+                )
 
-                ctx = "\n".join(ctx_parts)
+                coach_slot = st.empty()
 
-                with st.spinner("하테나쌤 답변 중…"):
-                    ans = ai_tutor.ask_hatena(
-                        mode="talk",
-                        user_input=question,
-                        context=ctx,
-                        meta={
-                            "page": "talk",
-                            "qid": str(qid),
-                            "submitted": True,
-                            "ok": bool(ok),
-                             "level": str(level),
-                             "tone": str(st.session_state.get(f"talk_ai_tone_{qid}") or "정중"),
-                            "is_admin": bool(
-                                st.session_state.get("is_admin", False)
-                                or st.session_state.get("is_admin_cached", False)
-                            ),
-                        },
-                    )
+                if ask and str(user_q).strip():
 
-                coach_slot.info(ans)
-# ============================================================
+                    question = str(user_q).strip()
+                    st.session_state["talk_ai_last_q"] = question
+
+                    # 👉 일반 문의 분기
+                    general_keywords = [
+                        "패키지", "요금", "가격", "결제",
+                        "환불", "기능", "프로", "무료",
+                        "상담", "문의", "톡", "네이버", "교재"
+                    ]
+
+                    if any(k in question for k in general_keywords):
+
+                        coach_slot.info(
+                            "📌 해당 문의는 회화 코칭 범위를 벗어납니다.\n\n"
+                            "👉 정확한 안내는 **하테나쌤 톡**으로 문의해주세요 🙂"
+                        )
+
+                        st.link_button(
+                            "💬 톡 문의하기",
+                            "http://talk.naver.com/W45141",
+                            use_container_width=True
+                        )
+
+                    else:
+                        # 회화 질문일 때만 AI 호출
+                        ctx_parts = []
+
+                        s = str(row.get("situation_kr", "")).strip()
+                        p = str(row.get("partner_jp", "")).strip()
+                        a = str(row.get("answer_jp", "")).strip()
+                        me = str(selected or "").strip()
+
+                        if s:
+                            ctx_parts.append(f"현재상황: {s}")
+                        if p:
+                            ctx_parts.append(f"상대발화: {p}")
+                        if a:
+                            ctx_parts.append(f"정답표현: {a}")
+                        if me:
+                            ctx_parts.append(f"내선택: {me}")
+
+                        ctx_parts.append(f"정오답: {'정답' if ok else '오답'}")
+
+                        ctx = "\n".join(ctx_parts)
+
+                        with st.spinner("하테나쌤 답변 중…"):
+                            ans = ai_tutor.ask_hatena(
+                                mode="talk",
+                                user_input=question,
+                                context=ctx,
+                                meta={
+                                    "page": "talk",
+                                    "qid": str(qid),
+                                    "submitted": True,
+                                    "ok": bool(ok),
+                                    "is_admin": bool(
+                                        st.session_state.get("is_admin", False)
+                                        or st.session_state.get("is_admin_cached", False)
+                                    ),
+                                },
+                            )
+
+                        coach_slot.info(ans)# ============================================================
 # ✅ (추가) 정답 발음 확인 버튼용: 플레이어 없이 즉시 재생(JS Audio / TTS)
 # - 브라우저에 플레이어 UI가 뜨지 않게, new Audio().play()로만 재생
 # - JS 문자열은 % 포맷을 써서 f-string 중괄호 오류를 방지
