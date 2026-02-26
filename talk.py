@@ -1530,10 +1530,24 @@ if submitted:
 # ============================================================
 import json as _json
 
+def _is_ios() -> bool:
+    try:
+        ua = (st.context.headers.get("user-agent") or "").lower()
+        return ("iphone" in ua) or ("ipad" in ua) or ("ipod" in ua)
+    except Exception:
+        return False
+
+
 def _play_audio_no_player(url: str) -> None:
     url = (url or "").strip()
     if not url:
         return
+
+    # iOS Safari fallback
+    if _is_ios():
+        st.audio(url)
+        return
+
     try:
         components.html(
             "<script>(function(){try{new Audio(%s).play();}catch(e){}})();</script>" % _json.dumps(url),
