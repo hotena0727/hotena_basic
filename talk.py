@@ -1132,20 +1132,20 @@ def _go_next_question():
     st.session_state.pop(f"{NS}_reward_ready_{qid}", None)
     st.rerun()
 
-# ✅ FAB(우측 하단)에서 URL queryparam으로 다음 이동 요청
+# ✅ FAB에서 URL queryparam으로 다음 이동 요청
 try:
     qp = st.query_params
     v = str(qp.get("talk_next", "")).strip()
-    if v.isdigit() and int(v) >= 1:
-        try:
-            del qp["talk_next"]
-        except Exception:
-            pass
-        # 제출된 상태에서만 다음으로 이동(미제출이면 이동하지 않음)
-        if submitted:
-            _go_next_question()
-        else:
-            st.rerun()
+    if v:
+        if st.session_state.get("_talk_next_seen") != v:
+            st.session_state["_talk_next_seen"] = v
+            try:
+                del qp["talk_next"]
+            except Exception:
+                pass
+            if submitted:
+                _go_next_question()
+        # 미제출이면 아무 것도 하지 않음(추가 rerun 금지)
 except Exception:
     pass
 
