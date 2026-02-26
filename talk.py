@@ -6,7 +6,31 @@ from pathlib import Path
 from datetime import datetime, timedelta, date
 import random
 import hashlib
+import os
+import difflib
+import re
 
+# ============================================================
+# ✅ (선택) 한자/가나 표기 차이를 줄이기 위한 히라가나 정규화
+# - pykakasi가 설치되어 있으면: 한자/카타카나 → 히라가나로 통일
+# - 설치되어 있지 않으면: 원문 그대로(표기 차이에 따른 감점 가능)
+# ============================================================
+try:
+    from pykakasi import kakasi as _kakasi  # type: ignore
+    _KKS = _kakasi()
+    _KKS.setMode("J", "H")  # Kanji to Hiragana
+    _KKS.setMode("K", "H")  # Katakana to Hiragana
+    _KKS.setMode("H", "H")  # Hiragana keep
+    _KKS_CONV = _KKS.getConverter()
+    def _to_hira(s: str) -> str:
+        try:
+            return _KKS_CONV.do(s or "")
+        except Exception:
+            return s or ""
+except Exception:
+    _KKS_CONV = None
+    def _to_hira(s: str) -> str:
+        return s or ""
 import pandas as pd
 import streamlit as st
 
@@ -251,6 +275,7 @@ DF = load_csv(CSV_PATH)
 # ✅ Labels
 # ============================================================
 TAG_LABELS = {
+    "basic": "기본",
     "business": "비즈니스",
     "daily": "일상",
     "call": "전화/온라인",
@@ -452,6 +477,104 @@ def _use_free_record_once():
     _set_free_quota(fq)
 
 
+# ============================================================
+# ✅ Pronunciation score (A안: 서버 STT → 텍스트 유사도 점수)
+# - "보기 선택" 단계에는 영향을 주지 않도록, 제출 후/버튼 클릭 시에만 실행
+# ============================================================
+def _norm_jp(s: str) -> str:
+    s = (s or "").strip()
+    # 공백/전각공백 제거
+    s = s.replace(" ", "").replace("\\u3000", "")
+    # 흔한 문장부호 제거
+    s = re.sub(r"[、。．，!！?？…]+", "", s)
+    # ✅ 표기 차이를 줄이기 위해 히라가나로 통일(가능할 때만)
+    s = _to_hira(s)
+    return s
+
+def _bigrams(s: str) -> set[str]:
+    return {s[i:i+2] for i in range(len(s)-1)} if len(s) >= 2 else set()
+
+def _levenshtein(a: str, b: str) -> int:
+    # O(len(a)*len(b)) DP
+    if a == b:
+        return 0
+    if not a:
+        return len(b)
+    if not b:
+        return len(a)
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a, 1):
+        cur = [i]
+        for j, cb in enumerate(b, 1):
+            ins = cur[j - 1] + 1
+            dele = prev[j] + 1
+            sub = prev[j - 1] + (0 if ca == cb else 1)
+            cur.append(min(ins, dele, sub))
+        prev = cur
+    return prev[-1]
+
+def _similarity_score(a: str, b: str, gate: float = 0.15, floor_to_zero: int = 15) -> int:
+    """발음 점수(0~100):
+    1) 2글자 bigram 겹침이 너무 적으면(완전 다른 문장) 0점
+    2) 편집거리(순서 포함) 기반 점수
+    3) 너무 낮은 점수는 0으로 정리(선택)
+    """
+    a2, b2 = _norm_jp(a), _norm_jp(b)
+    if not a2 or not b2:
+        return 0
+
+    # 1) 완전 다른 문장 차단
+    ba = _bigrams(b2)
+    if ba:
+        overlap = len(_bigrams(a2) & ba) / max(1, len(ba))
+        if overlap < gate:
+            return 0
+
+    # 2) 순서 기반 점수(편집거리)
+    dist = _levenshtein(a2, b2)
+    max_len = max(len(a2), len(b2))
+    score = int(round(100 * (1 - dist / max_len)))
+
+    # 3) 바닥값 정리
+    if score < int(floor_to_zero):
+        return 0
+    return max(0, min(100, score))
+
+def _openai_transcribe_bytes(audio_bytes: bytes, mime: str = "audio/wav") -> str:
+    # OpenAI Python SDK (new) 사용. 없으면 예외로 안내.
+    api_key = (st.secrets.get("OPENAI_API_KEY", "") if hasattr(st, "secrets") else "") or os.getenv("OPENAI_API_KEY", "")
+    if not api_key:
+        raise RuntimeError("OPENAI_API_KEY가 설정되어 있지 않습니다.")
+    model = os.getenv("OPENAI_TRANSCRIBE_MODEL", "gpt-4o-mini-transcribe")
+    try:
+        from openai import OpenAI  # type: ignore
+    except Exception as e:
+        raise RuntimeError("openai 패키지가 설치되어 있지 않습니다.") from e
+
+    client = OpenAI(api_key=api_key)
+    # 파일 객체 형태로 전달
+    file_tuple = ("speech.wav", audio_bytes, mime)
+    try:
+        out = client.audio.transcriptions.create(
+            model=model,
+            file=file_tuple,
+        )
+        # SDK 버전에 따라 text 속성/문자열 반환이 다를 수 있어 안전 처리
+        txt = getattr(out, "text", None)
+        if isinstance(txt, str) and txt.strip():
+            return txt.strip()
+        if isinstance(out, str) and out.strip():
+            return out.strip()
+        # dict 형태 fallback
+        if isinstance(out, dict):
+            t = out.get("text")
+            if isinstance(t, str):
+                return t.strip()
+        return ""
+    except Exception as e:
+        raise RuntimeError(f"STT 실패: {e}") from e
+
+
 def log_attempt(level: str, score: int, quiz_len: int, wrong_count: int, wrong_list: list[dict], tag: str):
     try:
         sb.table("quiz_attempts").insert(
@@ -566,7 +689,7 @@ SUB_LABEL = {
     "work": "회사 기본",
     "meeting": "미팅/첫인사",
     "phone": "전화",
-    "basic": "기본/기타",
+    "basic": "기본",
 }
 
 def _sub_label(s: str) -> str:
@@ -928,55 +1051,14 @@ pool_answers = pool_df["answer_jp"].astype(str).tolist()
 # ✅ Initialize set (10 qids) + pointer
 # ============================================================
 if f"{NS}_set_qids" not in st.session_state:
-    # ✅ 2턴 페어 지원: CSV에 pair_id + turn(1/2) 컬럼이 있으면 pair 기준으로 2개씩 묶어 출제
-    has_pair = ("pair_id" in pool_df.columns) and ("turn" in pool_df.columns)
-
-    if has_pair:
-        # FREE는 2턴 원칙을 유지하기 위해 1페어(=2문항)로 고정 (기존 FREE_SET_LEN이 홀수인 경우 대비)
-        desired_q = int(SET_LEN if IS_PRO else 2)
-        desired_pairs = max(1, desired_q // 2)
-
-        tmp = pool_df.copy()
-        tmp["pair_id"] = tmp["pair_id"].astype(str).fillna("").str.strip()
-        tmp["__turn"] = tmp["turn"].astype(str).fillna("").str.strip()
-        tmp["__turn"] = tmp["__turn"].replace({"１": "1", "２": "2"})
-        tmp["__turn"] = tmp["__turn"].map(lambda x: 1 if x == "1" else (2 if x == "2" else None))
-
-        t1 = set(tmp.loc[tmp["__turn"] == 1, "pair_id"].tolist())
-        t2 = set(tmp.loc[tmp["__turn"] == 2, "pair_id"].tolist())
-        valid_pairs = sorted([p for p in (t1 & t2) if p])
-
-        if valid_pairs:
-            k = min(desired_pairs, len(valid_pairs))
-            picked_pairs = pd.Series(valid_pairs).sample(n=k, replace=False).tolist()
-            qids = []
-            for pid in picked_pairs:
-                r1 = tmp[(tmp["pair_id"] == pid) & (tmp["__turn"] == 1)].sort_values("qid").head(1)
-                r2 = tmp[(tmp["pair_id"] == pid) & (tmp["__turn"] == 2)].sort_values("qid").head(1)
-                if (not r1.empty) and (not r2.empty):
-                    qids.append(str(r1.iloc[0].get("qid")))
-                    qids.append(str(r2.iloc[0].get("qid")))
-
-            # 혹시라도 부족하면 폴백(예외 안전)
-            if len(qids) < 2:
-                n = min(desired_q, len(pool_df))
-                sample = pool_df.sample(n=n, replace=False).reset_index(drop=True)
-                qids = sample["qid"].astype(str).tolist()
-        else:
-            # pair_id/turn이 있어도 1/2 페어가 없으면 기존 방식으로 폴백
-            n = min(desired_q, len(pool_df))
-            sample = pool_df.sample(n=n, replace=False).reset_index(drop=True)
-            qids = sample["qid"].astype(str).tolist()
-
-    else:
-        n = min((SET_LEN if IS_PRO else FREE_SET_LEN), len(pool_df))
-        sample = pool_df.sample(n=n, replace=False).reset_index(drop=True)
-        qids = sample["qid"].astype(str).tolist()
-
+    n = min((SET_LEN if IS_PRO else FREE_SET_LEN), len(pool_df))
+    sample = pool_df.sample(n=n, replace=False).reset_index(drop=True)
+    qids = sample["qid"].astype(str).tolist()
     st.session_state[f"{NS}_set_qids"] = qids
     st.session_state[f"{NS}_idx"] = 0
     st.session_state[f"{NS}_answers"] = {qid: {"selected": None, "ok": None, "spoken": False} for qid in qids}
     st.session_state[f"{NS}_submitted"] = False
+
 qids: list[str] = st.session_state[f"{NS}_set_qids"]
 idx: int = int(st.session_state.get(f"{NS}_idx") or 0)
 idx = max(0, min(idx, len(qids) - 1))
@@ -1053,8 +1135,8 @@ def _go_next_question():
 # ✅ FAB(우측 하단)에서 URL queryparam으로 다음 이동 요청
 try:
     qp = st.query_params
-    if str(qp.get("talk_next", "")) == "1":
-        # param 먼저 제거(무한루프 방지)
+    v = str(qp.get("talk_next", "")).strip()
+    if v.isdigit() and int(v) >= 1:
         try:
             del qp["talk_next"]
         except Exception:
@@ -1120,28 +1202,27 @@ with st.container(border=True):
         # - st.button 4개는 클릭할 때마다 전체가 재렌더링되어 체감이 느릴 수 있어
         # - st.radio 1개 위젯으로 선택만 바꾸면 훨씬 가볍고, 보기 순서도 고정됨
         radio_key = f"{NS}_radio_{qid}"
-        # 기존 selected가 있으면 라디오 기본값으로 반영
-        if selected and selected in choices:
-            default_idx = choices.index(selected)
-        else:
-            default_idx = 0
 
-        form_key = f"{NS}_form_{qid}"
-        with st.form(key=form_key, clear_on_submit=False):
-            picked = st.radio(
-                label="보기 선택",
-                options=choices,
-                index=default_idx,
-                key=radio_key,
-                disabled=submitted,
-                label_visibility="collapsed",
-            )
-            can_submit = bool(picked) and (not submitted)
-            submitted_now = st.form_submit_button(
-                "정답 제출",
-                use_container_width=True,
-                disabled=not can_submit,
-            )
+        # ✅ 초기 선택은 비워두기: 기존 선택이 있을 때만 index 지정
+        default_idx = choices.index(selected) if (selected and selected in choices) else None
+
+        picked = st.radio(
+            label="보기 선택",
+            options=choices,
+            index=default_idx,  # None이면 미선택 상태
+            key=radio_key,
+            disabled=submitted,
+            label_visibility="collapsed",
+        )
+
+        # ✅ radio는 선택 시 즉시 rerun되므로, 버튼 활성화가 즉시 반영됨
+        can_submit = bool(picked) and (not submitted)
+        submitted_now = st.button(
+            "정답 제출",
+            use_container_width=True,
+            disabled=not can_submit,
+            key=f"{NS}_submit_{qid}",
+        )
 
         # 제출 시에만 선택/제출 상태를 확정
         if submitted_now and (not submitted):
@@ -1149,6 +1230,7 @@ with st.container(border=True):
             st.session_state[submitted_key] = True
             selected = picked
             submitted = True
+
 
 # ============================================================
 # ✅ After submit
@@ -1301,75 +1383,156 @@ if submitted:
 </script>""", height=0)
                 elif rem3 <= 0:
                     st.button("🔒 내 발음 듣기 (PRO)", key=f"{qid}_free_tts_answer_after_lock", disabled=True, use_container_width=True)
-# ✅ 하테나쌤 코멘트 (explain_kr 우선, 없으면 hint_kr)
-        explain_kr = str(row.get("explain_kr", "")).strip()
-        hint = str(row.get("hint_kr", "")).strip()
+# ============================================================
+# ✅ 제출 이후에만 원포인트 + 스마트코치 표시
+# ============================================================
+if submitted:
 
-        if explain_kr:
-            st.markdown("<div style='margin-top:-18px'></div>", unsafe_allow_html=True)
-            st.info("💡 하테나쌤 원포인트 일본어\n\n" + explain_kr)
-        elif hint:
-            st.markdown("<div style='margin-top:-18px'></div>", unsafe_allow_html=True)
-            st.info("💡 하테나쌤 원포인트 일본어\n\n" + hint)
-        else:
-            st.markdown("<div style='margin-top:-18px'></div>", unsafe_allow_html=True)
-            st.info("💡 하테나쌤 원포인트 일본어\n\n포인트: 상황에서 ‘요청/사과/확인/거절’ 중 무엇인지 먼저 잡고, 그에 맞는 톤(정중/캐주얼)을 고르면 실수가 줄어듭니다.")
+    # ------------------------------------
+    # 💡 원포인트 일본어
+    # ------------------------------------
+    explain_kr = str(row.get("explain_kr", "")).strip()
+    hint = str(row.get("hint_kr", "")).strip()
 
-        with st.expander("🤖 내용이 어려우면 하테나쌤에게 물어보세요", expanded=False):
-            st.markdown("### 💬 하테나쌤 스마트 코치")
+    if explain_kr:
+        st.markdown("<div style='margin-top:-18px'></div>", unsafe_allow_html=True)
+        st.info("💡 하테나쌤 원포인트 일본어\n\n" + explain_kr)
+    elif hint:
+        st.markdown("<div style='margin-top:-18px'></div>", unsafe_allow_html=True)
+        st.info("💡 하테나쌤 원포인트 일본어\n\n" + hint)
+    else:
+        st.markdown("<div style='margin-top:-18px'></div>", unsafe_allow_html=True)
+        st.info(
+            "💡 하테나쌤 원포인트 일본어\n\n"
+            "포인트: 상황에서 ‘요청/사과/확인/거절’ 중 무엇인지 먼저 잡고, "
+            "그에 맞는 톤(정중/캐주얼)을 고르면 실수가 줄어듭니다."
+        )
 
-            q_default = st.session_state.get("talk_ai_last_q") or ""
-            user_q = st.text_input(
-                "질문",
-                value=str(q_default),
-                key=f"talk_ai_q_{qid}",
-                placeholder="예) 더 자연스러운 표현도 있어요? / 회화에 도움이 되는 패키지는 뭐예요?",
-                label_visibility="collapsed",
-            )
+    # ------------------------------------
+    # 🤖 스마트 코치
+    # ------------------------------------
+    with st.expander("🤖 원포인트 일본어가 어려우면 하테나쌤에게 물어보세요", expanded=False):
 
-            # auto context (cheap)
-            ctx_parts = []
-            s = str(row.get("situation_kr", "")).strip()
-            p = str(row.get("partner_jp", "")).strip()
-            a = str(row.get("answer_jp", "")).strip()
-            me = str(selected or "").strip()
-            ctx_parts.append(f"현재상황: {s}")
-            ctx_parts.append(f"상대발화: {p}")
-            ctx_parts.append(f"정답표현: {a}")
-            if me:
-                ctx_parts.append(f"내선택: {me}")
-            ctx_parts.append(f"정오답: {'정답' if ok else '오답'}")
+        st.markdown("### 💬 하테나쌤 스마트 코치")
 
-            try:
-                recent = _recent_turns_summary()
-                if recent:
-                    ctx_parts.append("최근2턴:\n" + recent)
-            except Exception:
-                pass
+        q_default = st.session_state.get("talk_ai_last_q") or ""
+        user_q = st.text_input(
+            "질문",
+            value=str(q_default),
+            key=f"talk_ai_q_{qid}",
+            placeholder="예) 더 자연스러운 표현도 있어요?",
+            label_visibility="collapsed",
+        )
 
-            ctx = "\n".join([x for x in ctx_parts if x]).strip()
+        st.caption("회화 표현·뉘앙스·자연스러움 위주 질문에 최적화되어 있어요.")
 
-            st.caption("핵심을 짚어 질문할수록 더 정밀한 코칭을 받을 수 있어요.")
+        ask = st.button(
+            "AI 코칭 받기 시작",
+            use_container_width=True,
+            key=f"talk_ai_ask_{qid}",
+        )
 
-            ask = st.button("AI 코칭 받기 시작", use_container_width=True, key=f"talk_ai_ask_{qid}")
+        coach_slot = st.empty()
 
-            if ask and str(user_q).strip():
-                st.session_state["talk_ai_last_q"] = str(user_q).strip()
+        if ask and str(user_q).strip():
+
+            question = str(user_q).strip()
+            st.session_state["talk_ai_last_q"] = question
+
+            # 👉 일반 문의 분기
+            general_keywords = [
+                "패키지", "요금", "가격", "결제",
+                "환불", "기능", "프로", "무료",
+                "상담", "문의", "톡", "네이버", "교재"
+            ]
+
+            if any(k in question for k in general_keywords):
+
+                coach_slot.info(
+                    "📌 해당 문의는 회화 코칭 범위를 벗어납니다.\n\n"
+                    "👉 정확한 안내는 **하테나쌤 톡**으로 문의해주세요 🙂"
+                )
+
+                st.link_button(
+                    "💬 톡 문의하기",
+                    "http://talk.naver.com/W45141",
+                    use_container_width=True
+                )
+
+            else:
+                # 회화 질문일 때만 AI 호출
+                ctx_parts = []
+
+                s = str(row.get("situation_kr", "")).strip()
+                p = str(row.get("partner_jp", "")).strip()
+                a = str(row.get("answer_jp", "")).strip()
+                me = str(selected or "").strip()
+
+                if s:
+                    ctx_parts.append(f"현재상황: {s}")
+                if p:
+                    ctx_parts.append(f"상대발화: {p}")
+                if a:
+                    ctx_parts.append(f"정답표현: {a}")
+                if me:
+                    ctx_parts.append(f"내선택: {me}")
+
+                ctx_parts.append(f"정오답: {'정답' if ok else '오답'}")
+
+                ctx = "\n".join(ctx_parts)
+
                 with st.spinner("하테나쌤 답변 중…"):
                     ans = ai_tutor.ask_hatena(
                         mode="talk",
-                        user_input=str(user_q).strip(),
+                        user_input=question,
                         context=ctx,
                         meta={
                             "page": "talk",
                             "qid": str(qid),
-                            "tag": str(tag),
-                            "sub": str(sub) if 'sub' in locals() else "",
                             "submitted": True,
                             "ok": bool(ok),
+                            "is_admin": bool(
+                                st.session_state.get("is_admin", False)
+                                or st.session_state.get("is_admin_cached", False)
+                            ),
                         },
                     )
-                st.info(ans)
+
+                coach_slot.info(ans)
+# ============================================================
+# ✅ (추가) 정답 발음 확인 버튼용: 플레이어 없이 즉시 재생(JS Audio / TTS)
+# - 브라우저에 플레이어 UI가 뜨지 않게, new Audio().play()로만 재생
+# - JS 문자열은 % 포맷을 써서 f-string 중괄호 오류를 방지
+# ============================================================
+import json as _json
+
+def _play_audio_no_player(url: str) -> None:
+    url = (url or "").strip()
+    if not url:
+        return
+    try:
+        components.html(
+            "<script>(function(){try{new Audio(%s).play();}catch(e){}})();</script>" % _json.dumps(url),
+            height=0,
+        )
+    except Exception:
+        pass
+
+def _speak_no_player(text: str) -> None:
+    txt = (text or "").strip()
+    if not txt:
+        return
+    try:
+        components.html(
+            "<script>(function(){try{const synth=window.speechSynthesis;if(!synth)return;"
+            "function pick(){const vs=synth.getVoices()||[];const ja=vs.filter(v=>(String(v.lang||'').toLowerCase().startsWith('ja')));"
+            "return ja.find(v=>/google/i.test(v.name||''))||ja[0]||null;}"
+            "const u=new SpeechSynthesisUtterance(%s);u.lang='ja-JP';const v=pick();if(v)u.voice=v;"
+            "synth.cancel();synth.speak(u);}catch(e){}})();</script>" % _json.dumps(txt),
+            height=0,
+        )
+    except Exception:
+        pass
 
 if submitted:
     with st.container(border=True):
@@ -1378,7 +1541,7 @@ if submitted:
         st.markdown(
             f"""
         <div style="display:flex; align-items:baseline; justify-content:space-between; gap:12px;">
-          <div style="font-size:1.25rem; font-weight:700;">🎙️ 발음 체크</div>
+          <div style="font-size:1.6rem; font-weight:700;">🎙️ 발음 체크</div>
           <div style="font-size:1rem; opacity:0.85;">📘 진행: {current_no} / {total_cnt}</div>
         </div>
         """,
@@ -1386,7 +1549,41 @@ if submitted:
         )
 
 
-        # ✅ 말하기 녹음(선택)
+        
+        # ✅ 정답 발음 확인 (플레이어 없이)
+        # - PRO: 무제한
+        # - FREE: 남은 발음 듣기(무료 3회/일) 내에서 사용
+        _ans_audio = (
+            row.get("answer_mp3", "")
+            or row.get("answer_audio", "")
+            or row.get("answer_audio_url", "")
+            or ""
+        )
+        _ans_audio = resolve_audio_url(str(_ans_audio))
+        _ans_txt = str(row.get("answer_jp", "") or "").strip()
+
+        if IS_PRO:
+            if st.button("🔊 정답 발음 확인", key=f"{qid}_ans_pron", use_container_width=True):
+                if _ans_audio:
+                    _play_audio_no_player(_ans_audio)
+                else:
+                    _speak_no_player(_ans_txt)
+        else:
+            _rem_tts = _free_tts_remaining()
+            if _rem_tts > 0:
+                if st.button(
+                    f"🔊 정답 발음 확인 (무료 {FREE_TTS_QUOTA-_rem_tts+1}/{FREE_TTS_QUOTA})",
+                    key=f"{qid}_ans_pron_free",
+                    use_container_width=True,
+                ):
+                    _use_free_tts_once()
+                    if _ans_audio:
+                        _play_audio_no_player(_ans_audio)
+                    else:
+                        _speak_no_player(_ans_txt)
+            else:
+                st.button("🔒 정답 발음 확인 (PRO)", key=f"{qid}_ans_pron_lock", disabled=True, use_container_width=True)
+# ✅ 말하기 녹음(선택)
         # - PRO: 녹음 가능
         # - FREE: PRO 안내 카드 노출
         if IS_PRO:
@@ -1417,7 +1614,81 @@ if submitted:
                     unsafe_allow_html=True,
                 )
 
-        st.caption("정답을 보고 2~3번 따라 말한 뒤, 아래 버튼을 눌러 다음으로 넘어가세요.")
+        # ✅ 말하기 점수 (A안: 서버 STT 기반) — 제출 후/버튼 클릭 시에만 실행
+        # - 보기 선택 단계에는 영향을 주지 않습니다.
+        score_key = f"talk_pron_score_{qid}"
+        text_key = f"talk_pron_text_{qid}"
+        err_key = f"talk_pron_err_{qid}"
+
+        audio_obj = locals().get("_audio", None)
+        has_audio = audio_obj is not None
+
+        # ✅ 자동 점수 계산 (녹음이 새로 들어왔을 때 1회만)
+        # - 보기 선택 단계/리런에 영향 없도록, 오디오 해시가 바뀐 경우에만 실행합니다.
+        if has_audio:
+            try:
+                _b = b""
+                _mime = "audio/wav"
+                _mime = getattr(audio_obj, "type", None) or "audio/wav"
+                if hasattr(audio_obj, "getvalue"):
+                    _b = audio_obj.getvalue()
+                elif hasattr(audio_obj, "read"):
+                    _b = audio_obj.read()
+                _h = hashlib.sha1(_b).hexdigest() if _b else ""
+            except Exception:
+                _b, _mime, _h = b"", "audio/wav", ""
+
+            _last_hash_key = f"talk_pron_lasthash_{qid}"
+            if _h and st.session_state.get(_last_hash_key) != _h:
+                st.session_state[_last_hash_key] = _h
+                st.session_state.pop(err_key, None)
+                with st.spinner("말하기 점수 계산 중..."):
+                    try:
+                        _txt = _openai_transcribe_bytes(_b, mime=_mime)
+                        st.session_state[text_key] = _txt
+                        st.session_state[score_key] = _similarity_score(_txt, str(row.get("answer_jp", "")))
+                    except Exception as _e:
+                        st.session_state[err_key] = str(_e)
+
+        c_sc1, c_sc2 = st.columns([0.72, 0.28], vertical_alignment="center")
+        with c_sc1:
+            st.markdown('<div style="font-size:1.25rem; font-weight:700;">📊 말하기 점수</div>', unsafe_allow_html=True)
+        with c_sc2:
+            # ✅ '다시 계산'은 네트워크/브라우저 상태 등으로 자동 계산이 실패했을 때만 노출
+            show_recalc = bool(st.session_state.get(err_key))
+            do_calc = False
+            if show_recalc:
+                do_calc = st.button("다시 계산", use_container_width=True, disabled=not has_audio, key=f"{qid}_pron_calc")
+
+        if do_calc:
+            try:
+                b = b""
+                mime = "audio/wav"
+                if audio_obj is not None:
+                    mime = getattr(audio_obj, "type", None) or "audio/wav"
+                    if hasattr(audio_obj, "getvalue"):
+                        b = audio_obj.getvalue()
+                    elif hasattr(audio_obj, "read"):
+                        b = audio_obj.read()
+                txt = _openai_transcribe_bytes(b, mime=mime)
+                st.session_state[text_key] = txt
+                st.session_state[score_key] = _similarity_score(txt, str(row.get("answer_jp", "")))
+                st.session_state.pop(err_key, None)
+            except Exception as e:
+                st.session_state[err_key] = str(e)
+
+        if st.session_state.get(err_key):
+            st.warning("점수 계산 실패: " + str(st.session_state.get(err_key)))
+
+        # 결과 표시(계산된 경우)
+        if st.session_state.get(text_key):
+            st.caption("인식 결과(참고)")
+            st.write(str(st.session_state.get(text_key)))
+
+        if st.session_state.get(score_key) is not None:
+            st.metric("점수", int(st.session_state.get(score_key) or 0))
+
+        st.caption("정답을 보고 2~3번 따라 말해 보세요. 녹음이 끝나면 점수가 자동으로 계산됩니다.")
         reward_key = f"{NS}_reward_ready_{qid}"
         if st.button("✅ 다 했어요 (보상 받기)", use_container_width=True, key=f"{NS}_next_after"):
             # ✅ 1단계: 보상만 보여주고, 다음 이동은 사용자가 명확히 누르도록 분리
