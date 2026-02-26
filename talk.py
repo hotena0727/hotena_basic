@@ -1553,29 +1553,45 @@ def _play_audio_no_player(url: str) -> None:
 
 
 def _play_audio_ios_oneclick(url: str, uid: str, label: str = "🔊 정답 발음 확인") -> None:
-    """iOS Safari: play audio inside real click handler (no player UI).
-    Note: This does NOT notify Python on click, so use for PRO only (no quota).
+    """
+    iOS Safari: 실제 클릭 이벤트 안에서 play() 실행
+    (플레이어 UI 없이 즉시 재생)
+    PRO 전용으로 사용 권장
     """
     url = (url or "").strip()
     if not url:
         return
+
     try:
-        components.html(
-            """
-            <div style='margin:6px 0 2px 0;'>
-              <audio id='aud_%(uid)s' preload='none' src=%(src)s></audio>
-              <button type='button'
-                onclick="(function(){try{var a=document.getElementById('aud_%(uid)s');if(!a)return;a.currentTime=0;a.play();}catch(e){}})()"
-                style='width:100%%;padding:10px 12px;border-radius:12px;border:1px solid rgba(0,0,0,.15);background:#fff;font-size:16px;font-weight:700;cursor:pointer;'>
-                %(label)s
-              </button>
-            </div>
-            """ %% {"uid": uid, "src": _json.dumps(url), "label": label},
-            height=68,
-        )
+        safe_url = _json.dumps(url)
+        html = f"""
+        <div style="margin:6px 0 2px 0;">
+          <audio id="aud_{uid}" preload="none" src={safe_url}></audio>
+          <button type="button"
+            onclick="(function(){{
+              try {{
+                var a = document.getElementById('aud_{uid}');
+                if(!a) return;
+                a.currentTime = 0;
+                a.play();
+              }} catch(e) {{}}
+            }})()"
+            style="
+              width:100%;
+              padding:10px 12px;
+              border-radius:12px;
+              border:1px solid rgba(0,0,0,.15);
+              background:#fff;
+              font-size:16px;
+              font-weight:700;
+              cursor:pointer;">
+            {label}
+          </button>
+        </div>
+        """
+        components.html(html, height=70)
     except Exception:
         pass
-
 def _speak_no_player(text: str) -> None:
     txt = (text or "").strip()
     if not txt:
