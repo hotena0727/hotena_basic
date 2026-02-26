@@ -275,6 +275,24 @@ def _normalize_lines(text: str, *, min_lines: int = MIN_LINES_DEFAULT, max_lines
     return "\n".join(lines)
 
 
+def _normalize_paragraphs(text: str, *, max_paras: int = 3) -> str:
+    """Normalize talk-mode output while preserving paragraph breaks."""
+    raw = (text or "").strip()
+    if not raw:
+        return quota_wait_message()
+    # split by blank lines into paragraphs
+    parts = re.split(r"\n\s*\n+", raw)
+    paras = []
+    for p in parts:
+        p = " ".join([ln.strip() for ln in p.splitlines() if ln.strip()])
+        if p:
+            paras.append(p)
+    if not paras:
+        return quota_wait_message()
+    paras = paras[:max_paras]
+    return "\n\n".join(paras)
+
+
 def _system_prompt(mode: str) -> str:
     # Keep consistent tone: teacher but kind, KR-first, small JP mix
     base = [
@@ -292,8 +310,12 @@ def _system_prompt(mode: str) -> str:
         base += [
             "모드: 회화 코칭. 정답/오답을 단정적으로 몰아붙이지 말고, 학생이 바로 말로 이어가게 돕는다.",
             "답변은 번호(1.,2.,3.)나 [해결] 같은 라벨 없이 자연스럽게 작성한다.",
-            "줄바꿈으로 3~5줄 정도로 구성한다: (1) 질문 해결 → (2) 추가 정보/뉘앙스 → (3) 더 자연스러운 대안 1개 + 짧은 연습 1문장 → (4) 짧은 격려.",
+            "답변은 번호/라벨 없이 3문단으로 쓴다. 문단 사이에는 빈 줄 1줄을 둔다.",
+            "1문단: 질문에 대한 직접 해결(1~2문장).",
+            "2문단: 추가 정보/뉘앙스 + 더 자연스러운 대안 1개(1~2문장).",
+            "3문단: 짧은 연습 1문장(일본어) + 격려(1~2문장).",
             "말투는 따뜻하고 부드럽게, 과하게 딱딱한 표현은 피한다.",
+            "중요: 사용자의 질문이 제공된 상황/문맥과 무관해 보이면, 문맥을 억지로 끼워 맞추지 말고 질문을 우선으로 답한다. 필요하면 문맥은 간단히 무시한다.",
             "추가 질문은 하지 않는다. (다만 상황에 따라 선택지 형태로 짧게 덧붙이는 건 허용)",
         ]
     else:
@@ -311,7 +333,7 @@ def _build_messages(mode: str, user_input: str, context: str) -> list[dict[str, 
 
     m = (mode or "").lower().strip()
     if m == "talk":
-        hint = "(번호/라벨 없이 3~5줄: 해결→추가정보→대안/연습→격려)"
+        hint = "(번호/라벨 없이 3문단: 해결 / 추가정보+대안 / 연습+격려. 문단 사이 빈 줄 1줄)"
     else:
         hint = "(3~4줄로 짧게)"
 
@@ -379,6 +401,9 @@ def ask_hatena(
             min_lines = 3
         if max_lines == MAX_LINES_DEFAULT:
             max_lines = 6
-    ans = _normalize_lines(raw, min_lines=min_lines, max_lines=max_lines)
+    if (mode or "").lower().strip() == "talk":
+        ans = _normalize_paragraphs(raw, max_paras=3)
+    else:
+        ans = _normalize_lines(raw, min_lines=min_lines, max_lines=max_lines)
     set_cached_answer(mode, user_input, context, ans)
     return ans
