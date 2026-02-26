@@ -972,12 +972,25 @@ def mark_progress_dirty_light():
     st.session_state.progress_dirty = True
 
 def mark_progress_dirty():
-    """⚡ 선택(on_change)에서 DB 저장을 하지 않고, '변경됨' 플래그만 남깁니다.
-    - 보기 선택 시 체감 로딩(간헐적 딜레이) 원인: 선택 이벤트 때 save_progress_to_db가 실행될 수 있음
-    - 실제 DB 저장은 '제출' 시점(기존 코드)에서만 수행
-    """
     st.session_state.progress_dirty = True
-    st.session_state._progress_dirty_ts = time.time()
+
+    sb_authed_local = get_authed_sb()
+    u = st.session_state.get("user")
+    if (sb_authed_local is None) or (u is None):
+        return
+
+    now = time.time()
+    last = st.session_state.get("_last_progress_save_ts", 0.0)
+    if now - last < 60.0:
+        return
+
+    try:
+        save_progress_to_db(sb_authed_local, u.id)
+        st.session_state._last_progress_save_ts = now
+        st.session_state.progress_dirty = False
+    except Exception:
+        pass
+
 def mark_quiz_as_seen(quiz_list: list[dict], qtype: str, pos_group: str):
     ensure_seen_words_shape()
     k = mastery_key(qtype=qtype, pos=pos_group)
