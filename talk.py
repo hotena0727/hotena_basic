@@ -8,6 +8,7 @@ import random
 import hashlib
 import os
 import difflib
+import math
 import re
 
 # ============================================================
@@ -659,12 +660,12 @@ if "level" in DF.columns:
 DF_BASE = DF.copy()
 
 # --- 현재는 인사말만(aisatsu) ---
-TAG_LABEL = {"aisatsu": "인사말", "understand": "이해가 안 될 때"}
+TAG_LABEL = {"aisatsu": "인사말"}
 def _tag_label(t: str) -> str:
     return TAG_LABEL.get(str(t), str(t))
 
 # 인사말은 tag=aisatsu 고정
-tag_options = sorted([t for t in DF_BASE["tag"].dropna().unique().tolist() if str(t).strip()])
+tag_options = ["aisatsu"]
 
 if not tag_options:
     st.warning("해당 상황의 회화 문제가 없습니다. (CSV의 tag 확인)")
@@ -679,7 +680,6 @@ tag = st.selectbox(
 
 # ✅ 인사말 유형(sub) 선택 (CSV에 sub 컬럼이 있으면 노출)
 SUB_LABEL = {
-    "mixed": "혼합",
     "__all__": "전체",
     "home": "집/가정",
     "morning": "아침",
@@ -701,9 +701,8 @@ has_sub = ("sub" in DF_BASE.columns) and DF_BASE["sub"].astype(str).str.strip().
 if has_sub:
     subs_in_data = sorted(set([x for x in DF_BASE["sub"].astype(str).tolist() if str(x).strip()]))
     sub_options = ["__all__"] + subs_in_data
-    label_sub = "인사말 유형" if tag == "aisatsu" else "유형"
     sub = st.selectbox(
-        label_sub,
+        "인사말 유형",
         options=sub_options,
         format_func=_sub_label,
         key=f"{NS}_sub",
@@ -951,13 +950,13 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
   </div>
 </div>
 <style>
-  .ttspair{{display:flex;flex-direction:column;gap:8px;}}
-  .ttspair .row{{display:flex;align-items:flex-start;gap:8px;line-height:1.45;}}
-  .ttspair .lab{{min-width:52px;font-weight:700;opacity:.85;}}
-  .ttspair .txt{{font-size:1.05rem;flex:1;min-width:0;white-space:normal;word-break:break-word;}}
-  .ttspair .btn{{border:0;background:transparent;padding:0;margin-left:2px;font-size:1.05rem;cursor:pointer;opacity:.95;}}
-  .ttspair .btn[disabled]{{cursor:not-allowed;opacity:.35;}}
-  .ttspair .pro{{font-size:.75rem;letter-spacing:.02em;border:1px solid rgba(0,0,0,.18);border-radius:999px;padding:1px 6px;opacity:.45;}}
+  .ttspair{display:flex;flex-direction:column;gap:8px;}
+  .ttspair .row{display:flex;align-items:flex-start;gap:8px;line-height:1.55;}
+  .ttspair .lab{min-width:52px;font-weight:700;opacity:.85;}
+  .ttspair .txt{flex:1;min-width:0;font-size:1.05rem;white-space:normal;overflow-wrap:anywhere;word-break:break-word;}
+  .ttspair .btn{flex:0 0 auto;border:0;background:transparent;padding:0;margin-left:2px;font-size:1.05rem;cursor:pointer;opacity:.95;}
+  .ttspair .btn[disabled]{cursor:not-allowed;opacity:.35;}
+  .ttspair .pro{flex:0 0 auto;font-size:.75rem;letter-spacing:.02em;border:1px solid rgba(0,0,0,.18);border-radius:999px;padding:1px 6px;opacity:.45;}
 </style>
 <script>
 (function(){{
@@ -997,11 +996,16 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
 </script>
 """
 
-    # 모바일(특히 Android)에서 줄바꿈 시 iframe 높이가 부족해 글자가 잘리는 문제 방지
-    _max_len = max(len(p), len(a))
-    _extra_lines = max(0, (_max_len - 24) // 18)  # 대략 18자당 1줄 추가(보수적)
-    _h = 120 + min(100, _extra_lines * 24)
-    components.html(html, height=int(_h))
+    # --- iframe height: 모바일에서 줄바꿈(2줄 이상) 시 잘림 방지 ---
+    # 대략적인 텍스트 길이에 따라 높이를 조금 늘립니다(과도한 여백 방지).
+    _len = max(len(p), len(a))
+    _extra = 0
+    # 모바일(특히 Android)에서 줄바꿈이 더 많이 발생할 수 있어 여유 높이를 더 줍니다.
+    if _len > 18:
+        _extra = int(math.ceil((_len - 18) / 12.0)) * 22  # 12자당 22px 가산
+    _h = 140 + _extra
+    _h = max(140, min(_h, 320))
+    components.html(html, height=_h)
 
 def play_audio_or_tts(text: str, audio_url: str, label: str, key: str):
     """PRO: mp3 URL 재생 / FREE: 잠금. URL 없으면 TTS fallback."""
