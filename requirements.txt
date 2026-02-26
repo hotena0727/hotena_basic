@@ -5,3 +5,4 @@ supabase
 python-dotenv
 streamlit-cookies-manager
 openai>=1.30.0
+pykakasi
