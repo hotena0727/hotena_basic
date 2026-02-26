@@ -1385,11 +1385,11 @@ if submitted:
 
                 coach_slot.info(
                     "📌 해당 문의는 회화 코칭 범위를 벗어납니다.\n\n"
-                    "👉 정확한 안내는 **하테나쌤 네이버톡**으로 문의해주세요 🙂"
+                    "👉 정확한 안내는 **하테나쌤 톡**으로 문의해주세요 🙂"
                 )
 
                 st.link_button(
-                    "💬 네이버톡 바로가기",
+                    "💬 톡 문의하기",
                     "http://talk.naver.com/W45141",
                     use_container_width=True
                 )
