@@ -1370,6 +1370,9 @@ if submitted:
 
             ask = st.button("AI 코칭 받기 시작", use_container_width=True, key=f"talk_ai_ask_{qid}")
 
+            # ✅ 파란 박스 자리 고정
+            coach_slot = st.empty()
+            
             if ask and str(user_q).strip():
                 st.session_state["talk_ai_last_q"] = str(user_q).strip()
                 with st.spinner("하테나쌤 답변 중…"):
