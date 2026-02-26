@@ -498,8 +498,6 @@ if sb is None:
 # OK 상수/설정
 # ============================================================
 SHOW_POST_SUBMIT_UI = "N"
-SHOW_NAVER_TALK = "Y"
-NAVER_TALK_URL = "https://talk.naver.com/W45141"
 APP_URL = "https://hotenaquiztestapp-5wiha4zfuvtnq4qgxdhq72.streamlit.app/"
 KST_TZ = "Asia/Seoul"
 
@@ -1107,112 +1105,6 @@ def require_login():
         )
         auth_box()
         st.stop()
-
-# ============================================================
-# OK 네이버톡 배너 (제출 후만)
-# ============================================================
-def render_naver_talk():
-    st.divider()
-    st.markdown(
-        f"""
-<style>
-@keyframes floaty {{
-  0% {{ transform: translateY(0); }}
-  50% {{ transform: translateY(-6px); }}
-  100% {{ transform: translateY(0); }}
-}}
-@keyframes ping {{
-  0% {{ transform: scale(1); opacity: 0.9; }}
-  70% {{ transform: scale(2.2); opacity: 0; }}
-  100% {{ transform: scale(2.2); opacity: 0; }}
-}}
-.floating-naver-talk,
-.floating-naver-talk:visited,
-.floating-naver-talk:hover,
-.floating-naver-talk:active {{
-  position: fixed;
-  right: 18px;
-  bottom: 90px;
-  z-index: 99999;
-  text-decoration: none !important;
-  color: inherit !important;
-}}
-.floating-wrap {{
-  position: relative;
-  animation: floaty 2.2s ease-in-out infinite;
-}}
-.talk-btn {{
-  background: #03C75A;
-  color: #fff;
-  border: 0;
-  border-radius: 999px;
-  padding: 14px 18px;
-  font-size: 15px;
-  font-weight: 700;
-  box-shadow: 0 12px 28px rgba(0,0,0,0.22);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  line-height: 1.1;
-  text-decoration: none !important;
-}}
-.talk-btn:hover {{ filter: brightness(0.95); }}
-.talk-text small {{
-  display: block;
-  font-size: 12px;
-  font-weight: 600;
-  opacity: 0.95;
-  margin-top: 2px;
-}}
-.badge {{
-  position: absolute;
-  top: -6px;
-  right: -6px;
-  width: 12px;
-  height: 12px;
-  background: #ff3b30;
-  border-radius: 999px;
-  box-shadow: 0 6px 14px rgba(0,0,0,0.25);
-}}
-.badge::after {{
-  content: "";
-  position: absolute;
-  left: 50%;
-  top: 50%;
-  width: 12px;
-  height: 12px;
-  transform: translate(-50%, -50%);
-  border-radius: 999px;
-  background: rgba(255,59,48,0.55);
-  animation: ping 1.2s ease-out infinite;
-}}
-@media (max-width: 600px) {{
-  .floating-naver-talk {{ bottom: 110px; right: 14px; }}
-  .talk-btn {{ padding: 13px 16px; font-size: 14px; }}
-  .talk-text small {{ font-size: 11px; }}
-}}
-</style>
-
-<a class="floating-naver-talk" href="{NAVER_TALK_URL}" target="_blank" rel="noopener noreferrer">
-  <div class="floating-wrap">
-    <span class="badge"></span>
-    <button class="talk-btn" type="button">
-      <span>💬</span>
-      <span class="talk-text">
-        1:1 하테나쌤 상담
-        <small>수강신청 문의하기</small>
-      </span>
-    </button>
-  </div>
-</a>
-""",
-        unsafe_allow_html=True,
-    )
-
-# ============================================================
-# OK 상단 카드(관리자/마이페이지/로그아웃)
-# ============================================================
 def nav_to(page: str, scroll_top: bool = True):
     st.session_state.page = page
     if scroll_top:
@@ -2167,7 +2059,6 @@ if streak is not None:
 # OK (HOME HUB에서 '오늘의 목표'를 통합 관리합니다.)
 
 
-
 # ============================================================
 # OK 세션 초기화
 # ============================================================
@@ -2372,7 +2263,6 @@ def render_kanji_hub(HUB_MODE: bool = False):
         st.session_state["_nav_last_p"] = cur_p
 
     _maybe_reset_on_enter_kanji()
-
 
 
     quiz_len = len(st.session_state.quiz)
@@ -2753,10 +2643,6 @@ def render_kanji_hub(HUB_MODE: bool = False):
             start_quiz_state(new_quiz, st.session_state.quiz_type, clear_wrongs=True)
             st.session_state["_scroll_top_once"] = True
             st.rerun()
-
-        show_naver_talk = (SHOW_NAVER_TALK == "N") or is_admin()
-        if show_naver_talk:
-            render_naver_talk()
 
 
 if __name__ == '__main__':
