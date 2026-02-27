@@ -1050,10 +1050,10 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
   /* flex row: allow wrapping without clipping on narrow screens (Android) */
   .ttspair .row{{display:flex;align-items:flex-start;gap:8px;line-height:1.45;}}
   .ttspair .lab{{min-width:52px;font-weight:700;opacity:.85;flex:0 0 auto;}}
-  .ttspair .txtwrap{flex:1 1 auto;min-width:0;white-space:normal;overflow-wrap:anywhere;word-break:break-word;}
-  .ttspair .jp{font-size:1.05rem;font-weight:600;line-height:1.25;}
-  .ttspair .kr{margin-top:2px;font-size:.86rem;opacity:.78;line-height:1.25;}
-  .ttspair .kr.me{font-size:.74rem;opacity:.80;}
+  .ttspair .txtwrap{{flex:1 1 auto;min-width:0;white-space:normal;overflow-wrap:anywhere;word-break:break-word;}}
+  .ttspair .jp{{font-size:1.05rem;font-weight:600;line-height:1.25;}}
+  .ttspair .kr{{margin-top:2px;font-size:.86rem;opacity:.78;line-height:1.25;}}
+  .ttspair .kr.me{{font-size:.74rem;opacity:.80;}}
 
   .ttspair .btn{{border:0;background:transparent;padding:0;margin-left:2px;font-size:1.05rem;cursor:pointer;opacity:.95;}}
   .ttspair .btn[disabled]{{cursor:not-allowed;opacity:.35;}}
