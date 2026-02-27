@@ -632,7 +632,7 @@ except Exception:
     pass
 
 # ============================================================
-# ✅ Filters (상황(tag))  ※ 현재는 '인사말(aisatsu)'만 노출
+# ✅ Filters (상황(tag))
 # ============================================================
 
 # --- normalize (비교 실패/공백 문제 방지) ---
@@ -657,14 +657,36 @@ if "level" in DF.columns:
 
 # --- 실전회화만 사용 ---
 DF_BASE = DF.copy()
+if "mode" in DF_BASE.columns:
+    # 기본값: real(실전회화)만. 다른 모드가 없으면 전체 사용.
+    _real = DF_BASE[DF_BASE["mode"].astype(str).str.lower() == "real"]
+    if not _real.empty:
+        DF_BASE = _real.copy()
 
-# --- 현재는 인사말만(aisatsu) ---
-TAG_LABEL = {"aisatsu": "인사말", "understand": "이해가 안 될 때"}
+# --- tag(상황) 라벨: 기본값 + CSV에 없는 태그는 그대로 노출 ---
+TAG_LABELS = {
+    "aisatsu": "인사말",
+    "understand": "이해",
+    "travel": "여행",
+    "shopping": "쇼핑",
+    "food": "음식/카페",
+    "call": "전화/온라인",
+    "business": "비즈니스",
+    "interview": "면접",
+    "emergency": "긴급/트러블",
+}
+
 def _tag_label(t: str) -> str:
-    return TAG_LABEL.get(str(t), str(t))
+    t = str(t)
+    return TAG_LABELS.get(t, t)
 
-# 인사말은 tag=aisatsu 고정
-tag_options = sorted([t for t in DF_BASE["tag"].dropna().unique().tolist() if str(t).strip()])
+# ✅ CSV에 존재하는 tag 자동 수집
+if "tag" in DF_BASE.columns:
+    tag_options = sorted([x for x in DF_BASE["tag"].astype(str).tolist() if str(x).strip()])
+    # 중복 제거 + 순서 유지(정렬 유지하려면 set 사용)
+    tag_options = sorted(set(tag_options))
+else:
+    tag_options = []
 
 if not tag_options:
     st.warning("해당 상황의 회화 문제가 없습니다. (CSV의 tag 확인)")
@@ -677,10 +699,10 @@ tag = st.selectbox(
     key=f"{NS}_tag",
 )
 
-# ✅ 인사말 유형(sub) 선택 (CSV에 sub 컬럼이 있으면 노출)
+# ✅ 유형(sub) 선택 (CSV에 sub 컬럼이 있으면 노출)
 SUB_LABEL = {
-    "mixed": "혼합",
     "__all__": "전체",
+    # aisatsu 쪽에서 쓰는 값들
     "home": "집/가정",
     "morning": "아침",
     "day": "낮/친구",
@@ -691,34 +713,36 @@ SUB_LABEL = {
     "meeting": "미팅/첫인사",
     "phone": "전화",
     "basic": "기본",
+    "daily": "일상",
+    # understand 등에서 쓰는 값들
+    "mixed": "혼합",
 }
 
 def _sub_label(s: str) -> str:
-    return SUB_LABEL.get(str(s), str(s))
+    s = str(s)
+    return SUB_LABEL.get(s, s)
 
 sub = "__all__"
 has_sub = ("sub" in DF_BASE.columns) and DF_BASE["sub"].astype(str).str.strip().ne("").any()
 if has_sub:
     subs_in_data = sorted(set([x for x in DF_BASE["sub"].astype(str).tolist() if str(x).strip()]))
     sub_options = ["__all__"] + subs_in_data
-    label_sub = "인사말 유형" if tag == "aisatsu" else "유형"
     sub = st.selectbox(
-        label_sub,
+        "유형 선택",
         options=sub_options,
         format_func=_sub_label,
         key=f"{NS}_sub",
     )
 
-# 레벨 선택은 사용하지 않음(인사말에서 N4~N3 혼합)
+# 레벨 선택은 사용하지 않음(현재는 N4~N3 혼합 운영)
 level = "mix"
 
 pool_df = DF_BASE[(DF_BASE["tag"] == tag)].copy().reset_index(drop=True)
 if has_sub and sub != "__all__":
     pool_df = pool_df[pool_df["sub"].astype(str) == str(sub)].copy().reset_index(drop=True)
 
-
 if pool_df.empty:
-    st.warning("해당 상황의 회화 문제가 없습니다. (CSV의 tag 확인)")
+    st.warning("해당 상황의 회화 문제가 없습니다. (CSV의 tag/sub 확인)")
     st.stop()
 
 # ============================================================
@@ -951,13 +975,14 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
   </div>
 </div>
 <style>
-  .ttspair{{display:flex;flex-direction:column;gap:8px;}}
-  .ttspair .row{{display:flex;align-items:flex-start;gap:8px;line-height:1.45;}}
-  .ttspair .lab{{min-width:52px;font-weight:700;opacity:.85;}}
-  .ttspair .txt{{font-size:1.05rem;flex:1;min-width:0;white-space:normal;word-break:break-word;}}
-  .ttspair .btn{{border:0;background:transparent;padding:0;margin-left:2px;font-size:1.05rem;cursor:pointer;opacity:.95;}}
-  .ttspair .btn[disabled]{{cursor:not-allowed;opacity:.35;}}
-  .ttspair .pro{{font-size:.75rem;letter-spacing:.02em;border:1px solid rgba(0,0,0,.18);border-radius:999px;padding:1px 6px;opacity:.45;}}
+  .ttspair{display:flex;flex-direction:column;gap:8px;}
+  /* ✅ wrap fix: Android에서 텍스트가 잘리지 않도록 flex/word-wrap 설정 */
+  .ttspair .row{display:flex;align-items:flex-start;gap:8px;line-height:1.45;}
+  .ttspair .lab{min-width:52px;font-weight:700;opacity:.85;flex:0 0 auto;}
+  .ttspair .txt{font-size:1.05rem;flex:1 1 auto;min-width:0;white-space:normal;overflow-wrap:anywhere;word-break:break-word;}
+  .ttspair .btn{flex:0 0 auto;border:0;background:transparent;padding:0;margin-left:2px;font-size:1.05rem;cursor:pointer;opacity:.95;}
+  .ttspair .btn[disabled]{cursor:not-allowed;opacity:.35;}
+  .ttspair .pro{font-size:.75rem;letter-spacing:.02em;border:1px solid rgba(0,0,0,.18);border-radius:999px;padding:1px 6px;opacity:.45;}
 </style>
 <script>
 (function(){{
@@ -997,11 +1022,7 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
 </script>
 """
 
-    # 모바일(특히 Android)에서 줄바꿈 시 iframe 높이가 부족해 글자가 잘리는 문제 방지
-    _max_len = max(len(p), len(a))
-    _extra_lines = max(0, (_max_len - 24) // 18)  # 대략 18자당 1줄 추가(보수적)
-    _h = 120 + min(100, _extra_lines * 24)
-    components.html(html, height=int(_h))
+    components.html(html, height=170)
 
 def play_audio_or_tts(text: str, audio_url: str, label: str, key: str):
     """PRO: mp3 URL 재생 / FREE: 잠금. URL 없으면 TTS fallback."""
