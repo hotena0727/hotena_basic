@@ -1036,7 +1036,7 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
 <div class="ttspair">
   <div class="row">
     <span class="lab">상대(말)</span>
-    <div class="txtwrap" style="display:{show}">
+    <div class="txtwrap bubble" style="display:{show}">
       <div class="jp">{p_safe}</div>
       <div class="kr" style="display:{("block" if pkr_safe else "none")}">{pkr_safe}</div>
     </div>
@@ -1045,7 +1045,7 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
   </div>
   <div class="row">
     <span class="lab">내(말)</span>
-    <div class="txtwrap" style="display:{show}">
+    <div class="txtwrap bubble" style="display:{show}">
       <div class="jp">{a_safe}</div>
       <div class="kr" style="display:{("block" if akr_safe else "none")}">{akr_safe}</div>
     </div>
@@ -1054,6 +1054,8 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
   </div>
 </div>
 <style>
+  /* 말풍선 각각 아웃라인 (레이아웃 영향 없음) */
+  .ttspair .bubble{box-shadow:0 0 0 1px rgba(0,0,0,.14);border-radius:12px;}
   .ttspair{{display:flex;flex-direction:column;gap:8px;}}
   /* flex row: allow wrapping without clipping on narrow screens (Android) */
   .ttspair .row{{display:flex;align-items:flex-start;gap:10px;line-height:1.35;}}
