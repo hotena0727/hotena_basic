@@ -1349,7 +1349,7 @@ with st.container(border=True):
                 unsafe_allow_html=True,
             )
 
-    st.markdown("---")
+    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
     with st.container(border=True):
         st.markdown("**내가 할 말(선택)**")
 
