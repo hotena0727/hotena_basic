@@ -744,8 +744,12 @@ if len(subs_in_tag) >= 2:
         key=f"{NS}_sub",
     )
 elif len(subs_in_tag) == 1:
-    # 자동 고정(선택 UI 노출 X)
+    # ✅ 1개뿐이면 드롭다운은 숨기되, 사용자에게는 '고정된 유형'을 표시
     sub = subs_in_tag[0]
+    try:
+        st.caption(f"유형: {_sub_label(sub)} (고정)")
+    except Exception:
+        pass
 else:
     # sub 컬럼이 없거나, 해당 tag는 sub가 비어있음
     sub = "__all__"
