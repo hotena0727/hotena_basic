@@ -1537,49 +1537,17 @@ if submitted:
         # ✅ 상대(말) / 내(말) — 스피커 아이콘 버튼은 여기서만 노출
         
         # ✅ 상대(말) / 내(말) — 한 iframe에서 2줄 렌더(간격 촘촘)
-        partner_jp = str(row.get("partner_jp","") or "")
-        answer_jp  = str(row.get("answer_jp","") or "")
+        tts_inline_pair(
+            row.get("partner_jp",""),
+            row.get("answer_jp",""),
+            qid=str(qid),
+            show_text=True,
+            partner_audio_url=(row.get("partner_mp3","") or row.get("partner_audio","") or row.get("partner_audio_url","") or ""),
+            answer_audio_url=(row.get("answer_mp3","") or row.get("answer_audio","") or row.get("answer_audio_url","") or ""),
+            partner_kr=(row.get("partner_kr","") or row.get("partner_ko","") or row.get("partner_kor","") or ""),
+            answer_kr=(row.get("answer_kr","") or row.get("answer_ko","") or row.get("answer_kor","") or ""),
+        )
 
-        partner_kr = str(row.get("partner_kr","") or row.get("partner_ko","") or row.get("partner_kor","") or "")
-        answer_kr  = str(row.get("answer_kr","") or row.get("answer_ko","") or row.get("answer_kor","") or "")
-
-        if IS_PRO:
-            # ✅ PRO에서만: 스피커 아이콘(상대/나 옆) 포함된 iframe 렌더
-            tts_inline_pair(
-                partner_jp,
-                answer_jp,
-                qid=str(qid),
-                show_text=True,
-                partner_audio_url=(row.get("partner_mp3","") or row.get("partner_audio","") or row.get("partner_audio_url","") or ""),
-                answer_audio_url=(row.get("answer_mp3","") or row.get("answer_audio","") or row.get("answer_audio_url","") or ""),
-                partner_kr=partner_kr,
-                answer_kr=answer_kr,
-            )
-        else:
-            # ✅ FREE: 스피커 아이콘 영역 삭제(텍스트만 보여주기)
-            st.markdown(
-                f"""
-                <div class="talk-bubble-row">
-                  <div class="talk-bubble-label">상대</div>
-                  <div class="talk-bubble partner">{partner_jp}</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-            if partner_kr.strip():
-                st.markdown(f"<div class='talk-bubble-sub'>{partner_kr}</div>", unsafe_allow_html=True)
-        
-            st.markdown(
-                f"""
-                <div class="talk-bubble-row">
-                  <div class="talk-bubble-label">나</div>
-                  <div class="talk-bubble me">{answer_jp}</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-            if answer_kr.strip():
-                st.markdown(f"<div class='talk-bubble-sub'>{answer_kr}</div>", unsafe_allow_html=True)
         # FREE: 제출 후에도 발음 듣기 하루 3회만 허용 (상대/내 각각 버튼 제공)
         if not IS_PRO:
             rem2 = _free_tts_remaining()
