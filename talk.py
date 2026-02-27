@@ -1051,7 +1051,7 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
       <div class="kr" style="display:{'block' if has_pkr else 'none'}">{pkr_safe}</div>
     </div>
     <button class="btn" id="pbtn-{qid}" aria-label="listen" {'disabled' if disabled or (not p) else ''}>🔊</button>
-    {('<span class="pro">PRO</span>' if (not IS_PRO) else '')}
+    
   </div>
 
   <div class="row bubble bubble-a">
@@ -1061,7 +1061,7 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
       <div class="kr" style="display:{'block' if has_akr else 'none'}">{akr_safe}</div>
     </div>
     <button class="btn" id="abtn-{qid}" aria-label="listen" {'disabled' if disabled or (not a) else ''}>🔊</button>
-    {('<span class="pro">PRO</span>' if (not IS_PRO) else '')}
+    
   </div>
 </div>
 
@@ -1131,8 +1131,6 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
         document.body ? document.body.scrollHeight : 0,
         document.documentElement ? document.documentElement.scrollHeight : 0
       );
-      // ✅ fallback: some mobile browsers fail to apply setFrameHeight reliably
-      h = Math.max(h, 1);  // allow shrink; no large forced minimum
       if (window.parent){{
         window.parent.postMessage({{isStreamlitMessage:true, type:"streamlit:setFrameHeight", height:h + 12}}, "*");
       }}
@@ -1146,16 +1144,13 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
   }}catch(e){{}}
   window.addEventListener("load", function(){{ setTimeout(send, 30); }});
   setTimeout(send, 80);
-  setTimeout(send, 180);
-  setTimeout(send, 320);
-  setTimeout(send, 520);
 }})();
 </script>
 
 
 """
 
-    components.html(html, height=190, scrolling=True)
+    components.html(html, height=260, scrolling=False)
 
 def play_audio_or_tts(text: str, audio_url: str, label: str, key: str):
     """PRO: mp3 URL 재생 / FREE: 잠금. URL 없으면 TTS fallback."""
@@ -1206,35 +1201,6 @@ def build_choices(row: dict, pool_answers: list[str]) -> list[str]:
 
 
 pool_answers = pool_df["answer_jp"].astype(str).tolist()
-
-
-# ============================================================
-# ✅ Reset set when tag/sub/plan changes
-# - '이해' 등 특정 tag로 바꿨을 때, 이전 tag의 qids가 남아있으면
-#   다음 문제로 넘어가도 idx가 0으로 되돌아가며 "고정"되는 현상이 생깁니다.
-# - 따라서 tag/sub/plan 조합이 바뀌면 set_qids/idx/opts 캐시를 안전하게 초기화합니다.
-# ============================================================
-try:
-    _pool_sig = f"{str(tag)}|{str(sub)}|{'PRO' if IS_PRO else 'FREE'}"
-    _prev_sig = st.session_state.get(f"{NS}_pool_sig")
-    if _prev_sig != _pool_sig:
-        # 기존 세트/진행 초기화
-        st.session_state.pop(f"{NS}_set_qids", None)
-        st.session_state.pop(f"{NS}_idx", None)
-        st.session_state.pop(f"{NS}_answers", None)
-        st.session_state.pop(f"{NS}_submitted", None)
-
-        # qid별 캐시(보기/선택/제출/말하기 체크/보상 상태)도 초기화
-        for _k in list(st.session_state.keys()):
-            if _k.startswith(f"{NS}_opts_") or _k.startswith(f"{NS}_selected_") or _k.startswith(f"{NS}_submitted_") or _k.startswith(f"{NS}_radio_") or _k.startswith(f"{NS}_speak_done_") or _k.startswith(f"{NS}_reward_ready_") or _k.startswith(f"{NS}_turn_saved_"):
-                st.session_state.pop(_k, None)
-
-        # FAB queryparam 중복 방지 키도 초기화
-        st.session_state.pop("_talk_next_seen", None)
-
-        st.session_state[f"{NS}_pool_sig"] = _pool_sig
-except Exception:
-    pass
 
 # ============================================================
 # ✅ Initialize set (10 qids) + pointer
@@ -1383,7 +1349,7 @@ with st.container(border=True):
                 unsafe_allow_html=True,
             )
 
-    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+    st.markdown("---")
     with st.container(border=True):
         st.markdown("**내가 할 말(선택)**")
 
@@ -1529,45 +1495,25 @@ if submitted:
             with c1:
                 if rem2 > 0 and st.button("🔊 상대 발음 듣기", key=f"{qid}_free_tts_partner_after", use_container_width=True):
                     _use_free_tts_once()
-                    p_audio_url = resolve_audio_url((row.get("partner_mp3","") or row.get("partner_audio","") or row.get("partner_audio_url","") or ""))
-                    p_text = (row.get("partner_jp","") or "").replace(chr(10)," ")
                     components.html(f"""<script>
 (function(){{
-  const audioUrl = {p_audio_url!r};
-  const text = {p_text!r};
-  function pickJaVoice(){{
-    try {{
-      const synth = window.speechSynthesis;
-      const voices = synth ? (synth.getVoices() || []) : [];
+  try{{
+    const synth = window.speechSynthesis;
+    function pickJaVoice(){{
+      const voices = synth.getVoices() || [];
       const ja = voices.filter(v => String(v.lang||"").toLowerCase().startsWith("ja"));
       if (!ja.length) return null;
       return ja.find(v => /google/i.test(v.name||""))
           || ja.find(v => /日本|japanese/i.test(v.name||""))
           || ja[0] || null;
-    }} catch(e) {{ return null; }}
-  }}
-  function speak(){{
-    try {{
-      const synth = window.speechSynthesis;
-      if (!synth) return;
-      synth.cancel();
-      const u = new SpeechSynthesisUtterance(text);
-      u.lang = "ja-JP";
-      const v = pickJaVoice();
-      if (v) u.voice = v;
-      synth.speak(u);
-    }} catch(e) {{}}
-  }}
-  if (audioUrl){{
-    try {{
-      const a = new Audio(audioUrl);
-      a.play().catch(()=>speak());
-    }} catch(e) {{
-      speak();
     }}
-  }} else {{
-    speak();
-  }}
+    const u = new SpeechSynthesisUtterance({(row.get('partner_jp','') or '').replace(chr(10),' ')!r});
+    u.lang = "ja-JP";
+    const v = pickJaVoice();
+    if (v) u.voice = v;
+    synth.cancel();
+    synth.speak(u);
+  }}catch(e){{}}
 }})();
 </script>""", height=0)
                 elif rem2 <= 0:
@@ -1576,45 +1522,25 @@ if submitted:
                 rem3 = _free_tts_remaining()
                 if rem3 > 0 and st.button("🔊 내 발음 듣기", key=f"{qid}_free_tts_answer_after", use_container_width=True):
                     _use_free_tts_once()
-                    a_audio_url = resolve_audio_url((row.get("answer_mp3","") or row.get("answer_audio","") or row.get("answer_audio_url","") or ""))
-                    a_text = (row.get("answer_jp","") or "").replace(chr(10)," ")
                     components.html(f"""<script>
 (function(){{
-  const audioUrl = {a_audio_url!r};
-  const text = {a_text!r};
-  function pickJaVoice(){{
-    try {{
-      const synth = window.speechSynthesis;
-      const voices = synth ? (synth.getVoices() || []) : [];
+  try{{
+    const synth = window.speechSynthesis;
+    function pickJaVoice(){{
+      const voices = synth.getVoices() || [];
       const ja = voices.filter(v => String(v.lang||"").toLowerCase().startsWith("ja"));
       if (!ja.length) return null;
       return ja.find(v => /google/i.test(v.name||""))
           || ja.find(v => /日本|japanese/i.test(v.name||""))
           || ja[0] || null;
-    }} catch(e) {{ return null; }}
-  }}
-  function speak(){{
-    try {{
-      const synth = window.speechSynthesis;
-      if (!synth) return;
-      synth.cancel();
-      const u = new SpeechSynthesisUtterance(text);
-      u.lang = "ja-JP";
-      const v = pickJaVoice();
-      if (v) u.voice = v;
-      synth.speak(u);
-    }} catch(e) {{}}
-  }}
-  if (audioUrl){{
-    try {{
-      const a = new Audio(audioUrl);
-      a.play().catch(()=>speak());
-    }} catch(e) {{
-      speak();
     }}
-  }} else {{
-    speak();
-  }}
+    const u = new SpeechSynthesisUtterance({(row.get('answer_jp','') or '').replace(chr(10),' ')!r});
+    u.lang = "ja-JP";
+    const v = pickJaVoice();
+    if (v) u.voice = v;
+    synth.cancel();
+    synth.speak(u);
+  }}catch(e){{}}
 }})();
 </script>""", height=0)
                 elif rem3 <= 0:
