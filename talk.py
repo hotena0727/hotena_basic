@@ -1132,7 +1132,7 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
         document.documentElement ? document.documentElement.scrollHeight : 0
       );
       // ✅ fallback: some mobile browsers fail to apply setFrameHeight reliably
-      h = Math.max(h, 320);
+      h = Math.max(h, 1);  // allow shrink; no large forced minimum
       if (window.parent){{
         window.parent.postMessage({{isStreamlitMessage:true, type:"streamlit:setFrameHeight", height:h + 12}}, "*");
       }}
@@ -1155,7 +1155,7 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
 
 """
 
-    components.html(html, height=520, scrolling=False)
+    components.html(html, height=190, scrolling=True)
 
 def play_audio_or_tts(text: str, audio_url: str, label: str, key: str):
     """PRO: mp3 URL 재생 / FREE: 잠금. URL 없으면 TTS fallback."""
