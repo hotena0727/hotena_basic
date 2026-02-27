@@ -1429,11 +1429,21 @@ if submitted:
         # ✅ 상대(말) / 내(말) — 스피커 아이콘 버튼은 여기서만 노출
         
         # ✅ 상대(말) / 내(말) — 한 iframe에서 2줄 렌더(간격 촘촘)
-        tts_inline_pair(row.get("partner_jp",""), row.get("answer_jp",""), qid=str(qid), show_text=True,
-                   partner_audio_url=row.get("partner_mp3","") or row.get("partner_audio","") or row.get("partner_audio_url","") or "",
-                   answer_audio_url=row.get("answer_mp3","",
-                   partner_kr=(row.get("partner_kr","") or row.get("partner_ko","") or row.get("partner_kor","") or ""),
-                   answer_kr=(row.get("answer_kr","") or row.get("answer_ko","") or row.get("answer_kor","") or "")) or row.get("answer_audio","") or row.get("answer_audio_url","") or "")
+        _pkr = (row.get("partner_kr","") or row.get("partner_ko","") or row.get("partner_kor","") or "")
+        _akr = (row.get("answer_kr","") or row.get("answer_ko","") or row.get("answer_kor","") or "")
+        _paud = (row.get("partner_mp3","") or row.get("partner_audio","") or row.get("partner_audio_url","") or "")
+        _aud = (row.get("answer_mp3","") or row.get("answer_audio","") or row.get("answer_audio_url","") or "")
+        tts_inline_pair(
+            row.get("partner_jp",""),
+            row.get("answer_jp",""),
+            qid=str(qid),
+            show_text=True,
+            partner_audio_url=_paud,
+            answer_audio_url=_aud,
+            partner_kr=_pkr,
+            answer_kr=_akr,
+        )
+
 
         # FREE: 제출 후에도 발음 듣기 하루 3회만 허용 (상대/내 각각 버튼 제공)
         if not IS_PRO:
