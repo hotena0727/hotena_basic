@@ -1051,8 +1051,7 @@ def tts_inline_pair(
         # 박스 크기/여백을 예시처럼 '조금 더 작게'
         bg = "rgba(0,0,0,.018)" if kind == "p" else "rgba(0,0,0,.012)"
 
-        st.markdown(
-            f"""
+        html = f"""
 <div style="width:100%;
             padding:9px 10px;
             border-radius:14px;
@@ -1143,10 +1142,9 @@ def tts_inline_pair(
   }});
 }})();
 </script>
-""",
-            unsafe_allow_html=True,
-        )
-
+"""
+        html = re.sub(r"\n[ \t]+", "\n", html).strip()
+        st.markdown(html, unsafe_allow_html=True)
     _render_row("p", "상대(말)", p_show, pkr_show, p_au, p)
     st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
     _render_row("a", "내(말)", a_show, akr_show, a_au, a)
