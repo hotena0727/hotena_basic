@@ -1534,39 +1534,121 @@ if submitted:
         if situation:
             st.caption(f"상황: {situation}")
 
-
-        # ✅ 상대/나 스크립트(스피커 없음) — 텍스트만 표시
-        partner_jp = str(row.get("partner_jp","") or "")
-        answer_jp  = str(row.get("answer_jp","") or "")
-        partner_kr = str(row.get("partner_kr","") or row.get("partner_ko","") or row.get("partner_kor","") or "")
-        answer_kr  = str(row.get("answer_kr","") or row.get("answer_ko","") or row.get("answer_kor","") or "")
-
-        st.markdown(
-            f"""
-            <div class="talk-bubble-row">
-              <div class="talk-bubble-label">상대</div>
-              <div class="talk-bubble partner">{partner_jp}</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        if partner_kr.strip():
-            st.markdown(f"<div class='talk-bubble-sub'>{partner_kr}</div>", unsafe_allow_html=True)
-
-        st.markdown(
-            f"""
-            <div class="talk-bubble-row">
-              <div class="talk-bubble-label">나</div>
-              <div class="talk-bubble me">{answer_jp}</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        if answer_kr.strip():
-            st.markdown(f"<div class='talk-bubble-sub'>{answer_kr}</div>", unsafe_allow_html=True)
         # ✅ 상대(말) / 내(말) — 스피커 아이콘 버튼은 여기서만 노출
         
+        # ✅ 상대(말) / 내(말) — 한 iframe에서 2줄 렌더(간격 촘촘)
+        tts_inline_pair(
+            row.get("partner_jp",""),
+            row.get("answer_jp",""),
+            qid=str(qid),
+            show_text=True,
+            partner_audio_url=(row.get("partner_mp3","") or row.get("partner_audio","") or row.get("partner_audio_url","") or ""),
+            answer_audio_url=(row.get("answer_mp3","") or row.get("answer_audio","") or row.get("answer_audio_url","") or ""),
+            partner_kr=(row.get("partner_kr","") or row.get("partner_ko","") or row.get("partner_kor","") or ""),
+            answer_kr=(row.get("answer_kr","") or row.get("answer_ko","") or row.get("answer_kor","") or ""),
+        )
 
+        # FREE: 제출 후에도 발음 듣기 하루 3회만 허용 (상대/내 각각 버튼 제공)
+        if not IS_PRO:
+            rem2 = _free_tts_remaining()
+            c1, c2 = st.columns(2)
+            with c1:
+                if rem2 > 0 and st.button("🔊 상대 발음 듣기", key=f"{qid}_free_tts_partner_after", use_container_width=True):
+                    _use_free_tts_once()
+                    p_audio_url = resolve_audio_url((row.get("partner_mp3","") or row.get("partner_audio","") or row.get("partner_audio_url","") or ""))
+                    p_text = (row.get("partner_jp","") or "").replace(chr(10)," ")
+                    components.html(f"""<script>
+(function(){{
+  const audioUrl = {p_audio_url!r};
+  const text = {p_text!r};
+  function pickJaVoice(){{
+    try {{
+      const synth = window.speechSynthesis;
+      const voices = synth ? (synth.getVoices() || []) : [];
+      const ja = voices.filter(v => String(v.lang||"").toLowerCase().startsWith("ja"));
+      if (!ja.length) return null;
+      return ja.find(v => /google/i.test(v.name||""))
+          || ja.find(v => /日本|japanese/i.test(v.name||""))
+          || ja[0] || null;
+    }} catch(e) {{ return null; }}
+  }}
+  function speak(){{
+    try {{
+      const synth = window.speechSynthesis;
+      if (!synth) return;
+      synth.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = "ja-JP";
+      const v = pickJaVoice();
+      if (v) u.voice = v;
+      synth.speak(u);
+    }} catch(e) {{}}
+  }}
+  if (audioUrl){{
+    try {{
+      const a = new Audio(audioUrl);
+      a.play().catch(()=>speak());
+    }} catch(e) {{
+      speak();
+    }}
+  }} else {{
+    speak();
+  }}
+}})();
+</script>""", height=0)
+                elif rem2 <= 0:
+                    st.button("🔒 상대 발음 듣기 (PRO)", key=f"{qid}_free_tts_partner_after_lock", disabled=True, use_container_width=True)
+            with c2:
+                rem3 = _free_tts_remaining()
+                if rem3 > 0 and st.button("🔊 내 발음 듣기", key=f"{qid}_free_tts_answer_after", use_container_width=True):
+                    _use_free_tts_once()
+                    a_audio_url = resolve_audio_url((row.get("answer_mp3","") or row.get("answer_audio","") or row.get("answer_audio_url","") or ""))
+                    a_text = (row.get("answer_jp","") or "").replace(chr(10)," ")
+                    components.html(f"""<script>
+(function(){{
+  const audioUrl = {a_audio_url!r};
+  const text = {a_text!r};
+  function pickJaVoice(){{
+    try {{
+      const synth = window.speechSynthesis;
+      const voices = synth ? (synth.getVoices() || []) : [];
+      const ja = voices.filter(v => String(v.lang||"").toLowerCase().startsWith("ja"));
+      if (!ja.length) return null;
+      return ja.find(v => /google/i.test(v.name||""))
+          || ja.find(v => /日本|japanese/i.test(v.name||""))
+          || ja[0] || null;
+    }} catch(e) {{ return null; }}
+  }}
+  function speak(){{
+    try {{
+      const synth = window.speechSynthesis;
+      if (!synth) return;
+      synth.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = "ja-JP";
+      const v = pickJaVoice();
+      if (v) u.voice = v;
+      synth.speak(u);
+    }} catch(e) {{}}
+  }}
+  if (audioUrl){{
+    try {{
+      const a = new Audio(audioUrl);
+      a.play().catch(()=>speak());
+    }} catch(e) {{
+      speak();
+    }}
+  }} else {{
+    speak();
+  }}
+}})();
+</script>""", height=0)
+                elif rem3 <= 0:
+                    st.button("🔒 내 발음 듣기 (PRO)", key=f"{qid}_free_tts_answer_after_lock", disabled=True, use_container_width=True)
+# ============================================================
+        # ✅ 제출 이후에만 원포인트 + 스마트코치 표시
+        # ============================================================
+        if submitted:
 
             # ------------------------------------
             # 💡 원포인트 일본어
