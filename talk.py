@@ -1009,6 +1009,9 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
     p_au = resolve_audio_url(partner_audio_url)
     a_au = resolve_audio_url(answer_audio_url)
 
+    pkr = (partner_kr or '').strip()
+    akr = (answer_kr or '').strip()
+
     # JS-safe
     def _esc(s: str) -> str:
         return (
@@ -1022,6 +1025,11 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
 
     p_safe = _esc(p)
     a_safe = _esc(a)
+    pkr_safe = _esc(pkr)
+    akr_safe = _esc(akr)
+
+    pkr_block = f'<div class="kr">{pkr_safe}</div>' if pkr else ''
+    akr_block = f'<div class="kr kr-answer">{akr_safe}</div>' if akr else ''
     p_au_safe = _esc(p_au)
     a_au_safe = _esc(a_au)
 
@@ -1029,14 +1037,6 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
 
     # show_text=False면 텍스트는 숨기고(공백), 버튼만 남김
     show = "block" if show_text else "none"
-
-    # ✅ Korean subtitles (optional) — keep layout balance
-    _pkr = (partner_kr or "").strip()
-    _akr = (answer_kr or "").strip()
-    _pkr_safe = _esc(_pkr)
-    _akr_safe = _esc(_akr)
-    pkr_block = f'<div class="kr">{_pkr_safe}</div>' if _pkr else ""
-    akr_block = f'<div class="kr">{_akr_safe}</div>' if _akr else ""
 
     html = f"""
 <div class="ttspair">
@@ -1054,14 +1054,14 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
   </div>
 </div>
 <style>
-  .ttspair{{display:flex;flex-direction:column;gap:8px;}}
-  /* flex row: allow wrapping without clipping on narrow screens (Android) */
-  .ttspair .row{{display:flex;align-items:flex-start;gap:8px;line-height:1.45;}}
-  .ttspair .lab{{min-width:52px;font-weight:700;opacity:.85;flex:0 0 auto;}}
+  /* Hotena Talk – Minimal A */
+  .ttspair{{display:flex;flex-direction:column;gap:10px;margin:6px 0 10px 0;}}
+  .ttspair .row{{display:flex;align-items:flex-start;gap:10px;}}
+  .ttspair .lab{{min-width:52px;font-weight:700;opacity:.82;flex:0 0 auto;}}
   .ttspair .txtwrap{{flex:1 1 auto;min-width:0;}}
-  .ttspair .jp{{font-size:1.02rem;font-weight:620;line-height:1.35;white-space:normal;overflow-wrap:anywhere;word-break:break-word;}}
-  .ttspair .kr{{margin-top:4px;font-size:.78rem;line-height:1.28;opacity:.72;white-space:normal;overflow-wrap:anywhere;word-break:break-word;}}
-
+  .ttspair .jp{{font-size:1.02rem;font-weight:620;line-height:1.38;white-space:normal;overflow-wrap:anywhere;word-break:break-word;}}
+  .ttspair .kr{{margin-top:4px;font-size:.84rem;line-height:1.26;opacity:.72;}}
+  .ttspair .kr-answer{{font-size:.78rem;opacity:.70;}} /* 내(말) 아래는 70% 느낌 */
   .ttspair .btn{{border:0;background:transparent;padding:0;margin-left:2px;font-size:1.05rem;cursor:pointer;opacity:.95;}}
   .ttspair .btn[disabled]{{cursor:not-allowed;opacity:.35;}}
   .ttspair .pro{{font-size:.75rem;letter-spacing:.02em;border:1px solid rgba(0,0,0,.18);border-radius:999px;padding:1px 6px;opacity:.45;}}
@@ -1104,7 +1104,7 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
 </script>
 """
 
-    components.html(html, height=210)
+    components.html(html, height=230)
 
 def play_audio_or_tts(text: str, audio_url: str, label: str, key: str):
     """PRO: mp3 URL 재생 / FREE: 잠금. URL 없으면 TTS fallback."""
@@ -1839,24 +1839,31 @@ if submitted:
             st.metric("점수", int(st.session_state.get(score_key) or 0))
 
         st.caption("정답을 보고 2~3번 따라 말해 보세요. 녹음이 끝나면 점수가 자동으로 계산됩니다.")
-        reward_key = f"{NS}_reward_ready_{qid}"
-        _score_now = st.session_state.get(score_key)
-        if st.button("✅ 다 했어요 (보상 받기)", use_container_width=True, key=f"{NS}_reward_btn_{qid}"):
-            # ✅ 보상 조건: 말하기 점수 계산 완료 + 60점 초과
-            if _score_now is None:
-                st.info("말하기 점수를 먼저 계산해 주세요.")
-            elif float(_score_now) <= 60:
-                st.info("60점 이하는 보상이 없습니다.")
-            else:
-                st.session_state[reward_key] = True
+        
+reward_key = f"{NS}_reward_ready_{qid}"
+awarded_key = f"{NS}_reward_awarded_{qid}"
+_score_val = st.session_state.get(score_key, None)
 
-if st.session_state.get(reward_key):
+# ✅ 버튼은 항상 보이게 (조건 충족 시에만 보상 화면 오픈)
+if st.button("✅ 다 했어요 (보상 받기)", use_container_width=True, key=f"{NS}_next_after"):
+    if _score_val is None:
+        st.info("먼저 마이크로 녹음하고 말하기 점수를 받아 주세요.")
+    else:
+        try:
+            _score_int = int(_score_val or 0)
+        except Exception:
+            _score_int = 0
+
+        if _score_int <= 60:
+            st.info("60점 이하는 보상이 없습니다. (61점 이상부터 보상)")
+        else:
+            st.session_state[reward_key] = True
+            if not st.session_state.get(awarded_key, False):
+                award_xp(2, "talk_speaking_reward")
+                st.session_state[awarded_key] = True
+
+        if st.session_state.get(reward_key):
             hotena_title("assets/hotena_talk/icons_title/icon_reward_title.png", "말하기 완료 보상")
-            _xp_once_key = f"{NS}_xp_given_{qid}"
-            if not st.session_state.get(_xp_once_key, False):
-                award_xp(2, reason="talk_speaking_reward")
-                st.session_state[_xp_once_key] = True
-
             st.success("+2 XP 🎤 (말하기 완료 보상)")
             st.caption("👇 아래 버튼을 누르면 다음 문제로 넘어갑니다.")
 
