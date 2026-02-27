@@ -41,6 +41,7 @@ import streamlit as st
 import base64
 from pathlib import Path
 import streamlit as st
+import ai_tutor
 
 def _img_to_data_uri(path: str) -> str:
     p = Path(path)
@@ -70,10 +71,6 @@ def hotena_title(icon_path: str, title: str, size_px: int = 56, gap_px: int = 6,
     except Exception:
         # 아이콘이 없거나 읽기 실패해도 UI가 깨지지 않게
         st.markdown(f"### {title}")
-
-
-import ai_tutor
-
 
 # ============================================================
 # ✅ wrong_notes debug helper
