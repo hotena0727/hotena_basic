@@ -49,26 +49,40 @@ def _img_to_data_uri(path: str) -> str:
     mime = "png" if ext == "png" else ext
     return f"data:image/{mime};base64," + base64.b64encode(b).decode("utf-8")
 
-def hotena_title(icon_path: str, title: str, size_px: int = 56, gap_px: int = 6, right_text: str | None = None):
+def hotena_title(icon_path: str, title: str, size_px: int = 56, gap_px: int = 6,
+                 right_text: str | None = None, text_nudge_px: int = 0):
     """
-    아이콘 바로 오른쪽에 텍스트가 붙도록 (columns 안 씀)
-    gap_px로 간격을 정확히 제어 가능
+    아이콘 바닥과 텍스트 바닥을 최대한 맞춤.
+    text_nudge_px로 텍스트를 1~4px 정도 아래로 미세 조정 가능.
     """
     try:
         uri = _img_to_data_uri(icon_path)
-        right_html = f'<div style="margin-left:auto;font-size:0.98rem;opacity:0.85;">{right_text}</div>' if right_text else ""
+        right_html = (
+            f'<div style="margin-left:auto;font-size:0.98rem;opacity:0.85;'
+            f'line-height:1; transform:translateY({text_nudge_px}px);">{right_text}</div>'
+            if right_text else ""
+        )
+
         st.markdown(
             f"""
-            <div style="display:flex;align-items:center;gap:{gap_px}px;margin:4px 0 10px 0;">
-              <img src="{uri}" style="width:{size_px}px;height:{size_px}px;object-fit:contain;flex:0 0 auto;" />
-              <div style="font-size:1.18rem;font-weight:900;line-height:1.05;white-space:nowrap;">{title}</div>
+            <div style="display:flex;align-items:flex-end;gap:{gap_px}px;margin:4px 0 10px 0;">
+              <img src="{uri}" style="
+                width:{size_px}px;height:{size_px}px;
+                object-fit:contain;flex:0 0 auto;
+                display:block;   /* ✅ 이미지 아래 베이스라인 갭 제거 */
+              " />
+              <div style="
+                font-size:1.18rem;font-weight:900;
+                line-height:1;   /* ✅ 글 박스 바닥을 더 정확히 */
+                white-space:nowrap;
+                transform:translateY({text_nudge_px}px); /* ✅ 필요시 1~4px */
+              ">{title}</div>
               {right_html}
             </div>
             """,
             unsafe_allow_html=True
         )
     except Exception:
-        # 아이콘이 없거나 읽기 실패해도 UI가 깨지지 않게
         st.markdown(f"### {title}")
 
 import ai_tutor
