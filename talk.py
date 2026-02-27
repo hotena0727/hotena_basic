@@ -1059,7 +1059,6 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
   .ttspair .row{{display:flex;align-items:flex-start;gap:10px;line-height:1.35;}}
   .ttspair .lab{{min-width:52px;font-weight:650;opacity:.82;flex:0 0 auto;}}
   .ttspair .txtwrap{{flex:1 1 auto;min-width:0;white-space:normal;overflow-wrap:anywhere;word-break:break-word;}}
-  .ttspair .txtwrap{{box-shadow:0 0 0 1px rgba(0,0,0,.12);border-radius:12px;}}
   .ttspair .jp{{font-size:1.03rem;font-weight:620;line-height:1.35;letter-spacing:.01em;}}
   .ttspair .kr{{margin-top:3px;font-size:.86rem;line-height:1.25;opacity:.72;}}
   .ttspair .btn{{border:0;background:transparent;padding:0;margin-left:2px;font-size:1.05rem;cursor:pointer;opacity:.95;}}
