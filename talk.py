@@ -1150,7 +1150,7 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
 
 """
 
-    components.html(html, height=10, scrolling=False)
+    components.html(html, height=260, scrolling=False)
 
 def play_audio_or_tts(text: str, audio_url: str, label: str, key: str):
     """PRO: mp3 URL 재생 / FREE: 잠금. URL 없으면 TTS fallback."""
