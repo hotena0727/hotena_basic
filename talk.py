@@ -924,9 +924,9 @@ def tts_inline_row(role_label: str, text: str, key: str, show_text: bool = True,
         st.markdown(f"**{role_label}**")
     with c2:
         if show_text:
-            st.markdown(txt if txt else "")
+    st.markdown(txt if txt else "")
         else:
-            st.markdown("&nbsp;", unsafe_allow_html=True)
+    st.markdown("&nbsp;", unsafe_allow_html=True)
     with c3:
         disabled = (not IS_PRO) or (not txt)
         # JS-safe
@@ -1401,7 +1401,7 @@ with st.container(border=True):
 }})();
 </script>""", height=0)
         else:
-            st.markdown(
+    st.markdown(
                 '<div style="margin-top:6px;display:flex;align-items:center;gap:8px;">'
                 '<span style="font-size:12px;background:#FFD54F;color:#000;padding:2px 6px;border-radius:8px;font-weight:800;">PRO</span>'
                 '<span style="font-size:0.92rem;opacity:0.85;">발음 듣기는 PRO 전용 (무료 3회 소진)</span>'
@@ -1526,11 +1526,11 @@ if submitted:
         st.error("오답 ❌")
 
     # 💡 원포인트 일본어
-            # ------------------------------------
-            explain_kr = str(row.get("explain_kr", "")).strip()
-            hint = str(row.get("hint_kr", "")).strip()
+    # ------------------------------------
+    explain_kr = str(row.get("explain_kr", "")).strip()
+    hint = str(row.get("hint_kr", "")).strip()
 
-            if explain_kr:
+    if explain_kr:
                 st.markdown("<div style='margin-top:-18px'></div>", unsafe_allow_html=True)
                 st.info("💡 하테나쌤 원포인트 일본어\n\n" + explain_kr)
             elif hint:
