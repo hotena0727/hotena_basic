@@ -1054,6 +1054,10 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
   </div>
 </div>
 <style>
+/* 말풍선 각각 아웃라인 (레이아웃 영향 없음) */
+.ttspair .bubble{
+  box-shadow: 0 0 0 1px rgba(0,0,0,.12);
+}
   .ttspair{{display:flex;flex-direction:column;gap:8px;}}
   /* flex row: allow wrapping without clipping on narrow screens (Android) */
   .ttspair .row{{display:flex;align-items:flex-start;gap:10px;line-height:1.35;}}
