@@ -65,7 +65,7 @@ def hotena_title(icon_path: str, title: str, size_px: int = 56, gap_px: int = 6,
 
         st.markdown(
             f"""
-            <div style="display:flex;align-items:flex-end;gap:{gap_px}px;margin:0px 0 10px 0;">
+            <div style="display:flex;align-items:flex-end;gap:{gap_px}px;margin:4px 0 10px 0;">
               <img src="{uri}" style="
                 width:{size_px}px;height:{size_px}px;
                 object-fit:contain;flex:0 0 auto;
@@ -73,7 +73,7 @@ def hotena_title(icon_path: str, title: str, size_px: int = 56, gap_px: int = 6,
               " />
               <div style="
                 font-size:1.18rem;font-weight:900;
-                line-height:1;   /* ✅ 글 박스 바닥을 더 정확히 */
+                line-height:5;   /* ✅ 글 박스 바닥을 더 정확히 */
                 white-space:nowrap;
                 transform:translateY({text_nudge_px}px); /* ✅ 필요시 1~4px */
               ">{title}</div>
