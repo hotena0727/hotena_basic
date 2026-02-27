@@ -41,7 +41,6 @@ import streamlit as st
 import base64
 from pathlib import Path
 import streamlit as st
-import ai_tutor
 
 def _img_to_data_uri(path: str) -> str:
     p = Path(path)
@@ -71,6 +70,8 @@ def hotena_title(icon_path: str, title: str, size_px: int = 56, gap_px: int = 6,
     except Exception:
         # 아이콘이 없거나 읽기 실패해도 UI가 깨지지 않게
         st.markdown(f"### {title}")
+
+import ai_tutor
 
 # ============================================================
 # ✅ wrong_notes debug helper
@@ -1776,7 +1777,7 @@ if submitted:
 
         c_sc1, c_sc2 = st.columns([0.72, 0.28], vertical_alignment="center")
         with c_sc1:
-            hotena_title_in_col("assets/hotena_talk/icons_title/icon_score_title.png", "말하기 점수", size_px=44, gap_px=0)
+            hotena_title("assets/hotena_talk/icons_title/icon_score_title.png", "말하기 점수", size_px=44, gap_px=0)
         with c_sc2:
             # ✅ '다시 계산'은 네트워크/브라우저 상태 등으로 자동 계산이 실패했을 때만 노출
             show_recalc = bool(st.session_state.get(err_key))
