@@ -1966,6 +1966,22 @@ if submitted:
 
         if st.session_state.get(score_key) is not None:
             st.metric("점수", int(st.session_state.get(score_key) or 0))
+            # 🔥 1) 점수 구간 피드백 (너무 길지 않게)
+            try:
+                _sc_now = int(st.session_state.get(score_key) or 0)
+            except Exception:
+                _sc_now = 0
+
+            if _sc_now == 100:
+                st.success("완벽합니다! 🎯 지금 발음/리듬 그대로 다음 문장도 가볼까요?")
+            elif _sc_now >= 90:
+                st.info("아주 좋아요. 👍 마무리로 **억양(イントネーション)**만 조금 더 또렷하게 해보세요.")
+            elif _sc_now >= 70:
+                st.info("좋은 흐름이에요. ✅ **길게 끊지 말고** 한 호흡으로 다시 한 번 말해보세요.")
+            elif _sc_now >= 40:
+                st.info("괜찮아요. 🔁 정답을 보면서 **단어 단위로** 천천히 2번만 따라해보면 금방 올라가요.")
+            else:
+                st.info("지금은 워밍업 단계예요. 🌱 짧게 끊어서 2~3번, 그리고 한 번에 이어 말해보세요.")
 
         st.caption("정답을 보고 2~3번 따라 말해 보세요. 녹음이 끝나면 점수가 자동으로 계산됩니다.")
         reward_key = f"{NS}_reward_ready_{qid}"
@@ -1978,6 +1994,9 @@ if submitted:
                 st.session_state[reward_key] = True
             else:
                 st.warning("보상은 '녹음 + 100점'일 때만 받을 수 있어요. 지금 바로 녹음하고 점수를 확인해 보세요.")
+                # 💎 3) FREE → PRO 자연 전환 (FREE에서만, 과하지 않게)
+                if not IS_PRO:
+                    st.caption("💡 PRO로 전환하면 **녹음/점수/보상**을 제한 없이 이어갈 수 있어요. (지금은 FREE 체험 규칙이 적용 중)")
 
         # ✅ 보상 조건을 못 맞춰도, 다음 문제로는 넘어갈 수 있게(보상만 미지급)
         if st.button("➡️ 다음 문제로 (보상 없이)", use_container_width=True, key=f"{NS}_go_next_no_reward_{qid}"):
