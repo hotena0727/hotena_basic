@@ -924,9 +924,9 @@ def tts_inline_row(role_label: str, text: str, key: str, show_text: bool = True,
         st.markdown(f"**{role_label}**")
     with c2:
         if show_text:
-    st.markdown(txt if txt else "")
+            st.markdown(txt if txt else "")
         else:
-    st.markdown("&nbsp;", unsafe_allow_html=True)
+            st.markdown("&nbsp;", unsafe_allow_html=True)
     with c3:
         disabled = (not IS_PRO) or (not txt)
         # JS-safe
@@ -1401,7 +1401,7 @@ with st.container(border=True):
 }})();
 </script>""", height=0)
         else:
-    st.markdown(
+            st.markdown(
                 '<div style="margin-top:6px;display:flex;align-items:center;gap:8px;">'
                 '<span style="font-size:12px;background:#FFD54F;color:#000;padding:2px 6px;border-radius:8px;font-weight:800;">PRO</span>'
                 '<span style="font-size:0.92rem;opacity:0.85;">발음 듣기는 PRO 전용 (무료 3회 소진)</span>'
@@ -1525,12 +1525,138 @@ if submitted:
     else:
         st.error("오답 ❌")
 
-    # 💡 원포인트 일본어
-    # ------------------------------------
-    explain_kr = str(row.get("explain_kr", "")).strip()
-    hint = str(row.get("hint_kr", "")).strip()
+    # 상대/정답 스크립트 + 해설(제출 후에만)
+    with st.container(border=True):
+        hotena_title("assets/hotena_talk/icons_title/icon_pronounce_title.png", "발음/말하기")
 
-    if explain_kr:
+        # ✅ 상황(제출 전에도 보이지만, 결과 박스에도 다시 한 번 노출)
+        situation = str(row.get("situation_kr", "")).strip()
+        if situation:
+            st.caption(f"상황: {situation}")
+
+        # ✅ 상대(말) / 내(말) — 스피커 아이콘 버튼은 여기서만 노출
+        
+        # ✅ 상대(말) / 내(말) — 한 iframe에서 2줄 렌더(간격 촘촘)
+        tts_inline_pair(
+            row.get("partner_jp",""),
+            row.get("answer_jp",""),
+            qid=str(qid),
+            show_text=True,
+            partner_audio_url=(row.get("partner_mp3","") or row.get("partner_audio","") or row.get("partner_audio_url","") or ""),
+            answer_audio_url=(row.get("answer_mp3","") or row.get("answer_audio","") or row.get("answer_audio_url","") or ""),
+            partner_kr=(row.get("partner_kr","") or row.get("partner_ko","") or row.get("partner_kor","") or ""),
+            answer_kr=(row.get("answer_kr","") or row.get("answer_ko","") or row.get("answer_kor","") or ""),
+        )
+
+        # FREE: 제출 후에도 발음 듣기 하루 3회만 허용 (상대/내 각각 버튼 제공)
+        if not IS_PRO:
+            rem2 = _free_tts_remaining()
+            c1, c2 = st.columns(2)
+            with c1:
+                if rem2 > 0 and st.button("🔊 상대 발음 듣기", key=f"{qid}_free_tts_partner_after", use_container_width=True):
+                    _use_free_tts_once()
+                    p_audio_url = resolve_audio_url((row.get("partner_mp3","") or row.get("partner_audio","") or row.get("partner_audio_url","") or ""))
+                    p_text = (row.get("partner_jp","") or "").replace(chr(10)," ")
+                    components.html(f"""<script>
+(function(){{
+  const audioUrl = {p_audio_url!r};
+  const text = {p_text!r};
+  function pickJaVoice(){{
+    try {{
+      const synth = window.speechSynthesis;
+      const voices = synth ? (synth.getVoices() || []) : [];
+      const ja = voices.filter(v => String(v.lang||"").toLowerCase().startsWith("ja"));
+      if (!ja.length) return null;
+      return ja.find(v => /google/i.test(v.name||""))
+          || ja.find(v => /日本|japanese/i.test(v.name||""))
+          || ja[0] || null;
+    }} catch(e) {{ return null; }}
+  }}
+  function speak(){{
+    try {{
+      const synth = window.speechSynthesis;
+      if (!synth) return;
+      synth.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = "ja-JP";
+      const v = pickJaVoice();
+      if (v) u.voice = v;
+      synth.speak(u);
+    }} catch(e) {{}}
+  }}
+  if (audioUrl){{
+    try {{
+      const a = new Audio(audioUrl);
+      a.play().catch(()=>speak());
+    }} catch(e) {{
+      speak();
+    }}
+  }} else {{
+    speak();
+  }}
+}})();
+</script>""", height=0)
+                elif rem2 <= 0:
+                    st.button("🔒 상대 발음 듣기 (PRO)", key=f"{qid}_free_tts_partner_after_lock", disabled=True, use_container_width=True)
+            with c2:
+                rem3 = _free_tts_remaining()
+                if rem3 > 0 and st.button("🔊 내 발음 듣기", key=f"{qid}_free_tts_answer_after", use_container_width=True):
+                    _use_free_tts_once()
+                    a_audio_url = resolve_audio_url((row.get("answer_mp3","") or row.get("answer_audio","") or row.get("answer_audio_url","") or ""))
+                    a_text = (row.get("answer_jp","") or "").replace(chr(10)," ")
+                    components.html(f"""<script>
+(function(){{
+  const audioUrl = {a_audio_url!r};
+  const text = {a_text!r};
+  function pickJaVoice(){{
+    try {{
+      const synth = window.speechSynthesis;
+      const voices = synth ? (synth.getVoices() || []) : [];
+      const ja = voices.filter(v => String(v.lang||"").toLowerCase().startsWith("ja"));
+      if (!ja.length) return null;
+      return ja.find(v => /google/i.test(v.name||""))
+          || ja.find(v => /日本|japanese/i.test(v.name||""))
+          || ja[0] || null;
+    }} catch(e) {{ return null; }}
+  }}
+  function speak(){{
+    try {{
+      const synth = window.speechSynthesis;
+      if (!synth) return;
+      synth.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = "ja-JP";
+      const v = pickJaVoice();
+      if (v) u.voice = v;
+      synth.speak(u);
+    }} catch(e) {{}}
+  }}
+  if (audioUrl){{
+    try {{
+      const a = new Audio(audioUrl);
+      a.play().catch(()=>speak());
+    }} catch(e) {{
+      speak();
+    }}
+  }} else {{
+    speak();
+  }}
+}})();
+</script>""", height=0)
+                elif rem3 <= 0:
+                    st.button("🔒 내 발음 듣기 (PRO)", key=f"{qid}_free_tts_answer_after_lock", disabled=True, use_container_width=True)
+# ============================================================
+        # ✅ 제출 이후에만 원포인트 + 스마트코치 표시
+        # ============================================================
+        if submitted:
+
+            # ------------------------------------
+            # 💡 원포인트 일본어
+            # ------------------------------------
+            explain_kr = str(row.get("explain_kr", "")).strip()
+            hint = str(row.get("hint_kr", "")).strip()
+
+            if explain_kr:
                 st.markdown("<div style='margin-top:-18px'></div>", unsafe_allow_html=True)
                 st.info("💡 하테나쌤 원포인트 일본어\n\n" + explain_kr)
             elif hint:
