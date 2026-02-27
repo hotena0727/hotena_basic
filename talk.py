@@ -999,11 +999,11 @@ def tts_inline_row(role_label: str, text: str, key: str, show_text: bool = True,
 def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bool = True,
                     partner_audio_url: str = "", answer_audio_url: str = "",
                     partner_kr: str = "", answer_kr: str = ""):
-    """결과 박스: 상대/내 문장을 한 줄씩 + 스피커(문장 오른쪽).
+    '''결과 박스: 상대/내 문장을 한 줄씩 + 스피커(문장 오른쪽).
     ✅ PRO 클릭 시: 브라우저에서 바로 재생(오디오/mp3 우선, 없으면 SpeechSynthesis)
     ✅ FREE: 잠금(비활성)
     - Streamlit 버튼을 쓰지 않아, 클릭 시 페이지 rerun(번쩍임)을 유발하지 않습니다.
-    """
+    '''
     p = (partner_text or "").strip()
     a = (answer_text or "").strip()
     p_au = resolve_audio_url(partner_audio_url)
@@ -1014,7 +1014,7 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
         return (
             (s or "")
             .replace("\\", "\\\\")
-            .replace('"', '\"')
+            .replace('"', '\\"')
             .replace("`", "")
             .replace("\n", " ")
             .replace("\r", " ")
@@ -1032,39 +1032,56 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
     # show_text=False면 텍스트는 숨기고(공백), 버튼만 남김
     show = "block" if show_text else "none"
 
+    # ✅ 컴포넌트 높이(불필요 공백 최소화)
+    has_pkr = bool(pkr_safe)
+    has_akr = bool(akr_safe)
+    height = 154
+    if show_text:
+        if has_pkr:
+            height += 22
+        if has_akr:
+            height += 22
+
     html = f"""
 <div class="ttspair">
-  <div class="row">
+  <div class="row bubble bubble-p">
     <span class="lab">상대(말)</span>
     <div class="txtwrap" style="display:{show}">
       <div class="jp">{p_safe}</div>
-      <div class="kr" style="display:{("block" if pkr_safe else "none")}">{pkr_safe}</div>
+      <div class="kr" style="display:{'block' if has_pkr else 'none'}">{pkr_safe}</div>
     </div>
-    <button class="btn" id="pbtn-{qid}" aria-label="listen" {'disabled' if (not IS_PRO) or (not p) else ''}>🔊</button>
+    <button class="btn" id="pbtn-{qid}" aria-label="listen" {'disabled' if disabled or (not p) else ''}>🔊</button>
     {('<span class="pro">PRO</span>' if (not IS_PRO) else '')}
   </div>
-  <div class="row">
+
+  <div class="row bubble bubble-a">
     <span class="lab">내(말)</span>
     <div class="txtwrap" style="display:{show}">
       <div class="jp">{a_safe}</div>
-      <div class="kr" style="display:{("block" if akr_safe else "none")}">{akr_safe}</div>
+      <div class="kr" style="display:{'block' if has_akr else 'none'}">{akr_safe}</div>
     </div>
-    <button class="btn" id="abtn-{qid}" aria-label="listen" {'disabled' if (not IS_PRO) or (not a) else ''}>🔊</button>
+    <button class="btn" id="abtn-{qid}" aria-label="listen" {'disabled' if disabled or (not a) else ''}>🔊</button>
     {('<span class="pro">PRO</span>' if (not IS_PRO) else '')}
   </div>
 </div>
+
 <style>
+  /* ✅ 무지/미니멀 A안 + 말풍선 각각 아웃라인(레이아웃 영향 없음: box-shadow) */
   .ttspair{{display:flex;flex-direction:column;gap:8px;}}
-  /* flex row: allow wrapping without clipping on narrow screens (Android) */
   .ttspair .row{{display:flex;align-items:flex-start;gap:10px;line-height:1.35;}}
-  .ttspair .lab{{min-width:52px;font-weight:650;opacity:.82;flex:0 0 auto;}}
-  .ttspair .txtwrap{{flex:1 1 auto;min-width:0;white-space:normal;overflow-wrap:anywhere;word-break:break-word;}}
-  .ttspair .jp{{font-size:1.03rem;font-weight:620;line-height:1.35;letter-spacing:.01em;}}
+  .ttspair .bubble{{border-radius:14px; box-shadow:0 0 0 1px rgba(0,0,0,.12);}}
+  .ttspair .bubble-p{{box-shadow:0 0 0 1px rgba(0,0,0,.20);}}
+  .ttspair .bubble-a{{box-shadow:0 0 0 1px rgba(0,0,0,.12);}}
+
+  .ttspair .lab{{min-width:52px;font-weight:650;opacity:.82;flex:0 0 auto;padding:10px 0 10px 10px;}}
+  .ttspair .txtwrap{{flex:1 1 auto;min-width:0;white-space:normal;overflow-wrap:anywhere;word-break:break-word;padding:10px 0;}}
+  .ttspair .jp{{font-size:1.03rem;font-weight:560;line-height:1.35;letter-spacing:.01em;}}
   .ttspair .kr{{margin-top:3px;font-size:.86rem;line-height:1.25;opacity:.72;}}
-  .ttspair .btn{{border:0;background:transparent;padding:0;margin-left:2px;font-size:1.05rem;cursor:pointer;opacity:.95;}}
+  .ttspair .btn{{border:0;background:transparent;padding:10px 10px 10px 0;margin-left:2px;font-size:1.05rem;cursor:pointer;opacity:.95;}}
   .ttspair .btn[disabled]{{cursor:not-allowed;opacity:.35;}}
-  .ttspair .pro{{font-size:.75rem;letter-spacing:.02em;border:1px solid rgba(0,0,0,.18);border-radius:999px;padding:1px 6px;opacity:.45;}}
+  .ttspair .pro{{align-self:flex-start;margin-top:10px;font-size:.75rem;letter-spacing:.02em;border:1px solid rgba(0,0,0,.18);border-radius:999px;padding:1px 6px;opacity:.45;}}
 </style>
+
 <script>
 (function(){{
   function pickJaVoice(){{
@@ -1073,28 +1090,33 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
       const vs = synth ? (synth.getVoices() || []) : [];
       const ja = vs.filter(v => String(v.lang||"").toLowerCase().startsWith("ja"));
       if(!ja.length) return null;
-      return ja.find(v => /google/i.test(v.name||"")) || ja.find(v => /日本|japanese/i.test(v.name||"")) || ja[0] || null;
-    }} catch(e) {{ return null; }}
+      const pref = ja.find(v => /female|woman|kyoko|haruka|nanami|mizuki|yuna/i.test(String(v.name||"")));
+      return pref || ja[0];
+    }} catch(e) {{
+      return null;
+    }}
   }}
+
   function speak(text){{
     try {{
-      if(!window.speechSynthesis) return;
       const synth = window.speechSynthesis;
-      synth.cancel();
-      const u = new SpeechSynthesisUtterance(text);
+      if(!synth) return;
+      const u = new SpeechSynthesisUtterance(text || "");
       u.lang = "ja-JP";
       const v = pickJaVoice();
       if(v) u.voice = v;
-      u.rate = 1.0; u.pitch = 1.0;
+      synth.cancel();
       synth.speak(u);
     }} catch(e) {{}}
   }}
+
   function play(audioUrl, text){{
     if(audioUrl){{
       try{{ const a = new Audio(audioUrl); a.play().catch(()=>{{ speak(text); }}); return; }}catch(e){{}}
     }}
     speak(text);
   }}
+
   const pbtn = document.getElementById('pbtn-{qid}');
   const abtn = document.getElementById('abtn-{qid}');
   if(pbtn) pbtn.addEventListener('click', (e)=>{{ e.preventDefault(); if(pbtn.disabled) return; play("{p_au_safe}", "{p_safe}"); }});
@@ -1103,7 +1125,7 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
 </script>
 """
 
-    components.html(html, height=180)
+    components.html(html, height=height)
 
 def play_audio_or_tts(text: str, audio_url: str, label: str, key: str):
     """PRO: mp3 URL 재생 / FREE: 잠금. URL 없으면 TTS fallback."""
