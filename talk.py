@@ -1782,7 +1782,7 @@ if submitted:
 
         c_sc1, c_sc2 = st.columns([0.72, 0.28], vertical_alignment="center")
         with c_sc1:
-            hotena_title_in_col("assets/hotena_talk/icons_title/icon_score_title.png", "말하기 점수", size_px=44)
+            hotena_title_inline("assets/hotena_talk/icons_title/icon_score_title.png", "말하기 점수", size_px=44, gap_px=0)
         with c_sc2:
             # ✅ '다시 계산'은 네트워크/브라우저 상태 등으로 자동 계산이 실패했을 때만 노출
             show_recalc = bool(st.session_state.get(err_key))
