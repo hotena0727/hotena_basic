@@ -1527,7 +1527,7 @@ if submitted:
 
     # 상대/정답 스크립트 + 해설(제출 후에만)
     with st.container(border=True):
-        hotena_title("assets/hotena_talk/icons_title/icon_pronounce_title.png", "발음/말하기")
+        hotena_title("assets/hotena_talk/icons_title/icon_pronounce_title.png", "대화/해설")
 
         # ✅ 상황(제출 전에도 보이지만, 결과 박스에도 다시 한 번 노출)
         situation = str(row.get("situation_kr", "")).strip()
