@@ -1200,6 +1200,42 @@ def build_choices(row: dict, pool_answers: list[str]) -> list[str]:
 
 
 
+
+
+# ============================================================
+# ✅ Filter 변경(tag/sub/plan) 시 세트/진행 초기화
+# - 특히 tag="understand"(이해)에서 '다음 문제'가 안 넘어가는 현상 방지
+# ============================================================
+_cur_fk = f"{tag}|{sub}|{'pro' if IS_PRO else 'free'}"
+_prev_fk = st.session_state.get(f"{NS}_filter_key")
+if _prev_fk != _cur_fk:
+    # ✅ 세트/진행 관련 키만 제거 (tag/sub 선택 값은 유지)
+    _keep = {f"{NS}_tag", f"{NS}_sub"}
+    _wipe_exact = {
+        f"{NS}_set_qids",
+        f"{NS}_idx",
+        f"{NS}_answers",
+        f"{NS}_submitted",
+        f"{NS}_selected",
+        f"{NS}_opts",
+        f"{NS}_spoken",
+    }
+    _wipe_prefix = (
+        f"{NS}_submitted_",
+        f"{NS}_selected_",
+        f"{NS}_opts_",
+        f"{NS}_radio_",
+        f"{NS}_speak_done_",
+        f"{NS}_reward_ready_",
+        f"{NS}_submit_",
+        f"{NS}_go_next_",
+    )
+    for _k in list(st.session_state.keys()):
+        if str(_k) in _keep:
+            continue
+        if str(_k) in _wipe_exact or any(str(_k).startswith(p) for p in _wipe_prefix):
+            st.session_state.pop(_k, None)
+    st.session_state[f"{NS}_filter_key"] = _cur_fk
 pool_answers = pool_df["answer_jp"].astype(str).tolist()
 
 # ============================================================
@@ -1349,7 +1385,7 @@ with st.container(border=True):
                 unsafe_allow_html=True,
             )
 
-    st.markdown("---")
+    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
     with st.container(border=True):
         st.markdown("**내가 할 말(선택)**")
 
@@ -1495,25 +1531,45 @@ if submitted:
             with c1:
                 if rem2 > 0 and st.button("🔊 상대 발음 듣기", key=f"{qid}_free_tts_partner_after", use_container_width=True):
                     _use_free_tts_once()
+                    p_audio_url = resolve_audio_url((row.get("partner_mp3","") or row.get("partner_audio","") or row.get("partner_audio_url","") or ""))
+                    p_text = (row.get("partner_jp","") or "").replace(chr(10)," ")
                     components.html(f"""<script>
 (function(){{
-  try{{
-    const synth = window.speechSynthesis;
-    function pickJaVoice(){{
-      const voices = synth.getVoices() || [];
+  const audioUrl = {p_audio_url!r};
+  const text = {p_text!r};
+  function pickJaVoice(){{
+    try {{
+      const synth = window.speechSynthesis;
+      const voices = synth ? (synth.getVoices() || []) : [];
       const ja = voices.filter(v => String(v.lang||"").toLowerCase().startsWith("ja"));
       if (!ja.length) return null;
       return ja.find(v => /google/i.test(v.name||""))
           || ja.find(v => /日本|japanese/i.test(v.name||""))
           || ja[0] || null;
+    }} catch(e) {{ return null; }}
+  }}
+  function speak(){{
+    try {{
+      const synth = window.speechSynthesis;
+      if (!synth) return;
+      synth.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = "ja-JP";
+      const v = pickJaVoice();
+      if (v) u.voice = v;
+      synth.speak(u);
+    }} catch(e) {{}}
+  }}
+  if (audioUrl){{
+    try {{
+      const a = new Audio(audioUrl);
+      a.play().catch(()=>speak());
+    }} catch(e) {{
+      speak();
     }}
-    const u = new SpeechSynthesisUtterance({(row.get('partner_jp','') or '').replace(chr(10),' ')!r});
-    u.lang = "ja-JP";
-    const v = pickJaVoice();
-    if (v) u.voice = v;
-    synth.cancel();
-    synth.speak(u);
-  }}catch(e){{}}
+  }} else {{
+    speak();
+  }}
 }})();
 </script>""", height=0)
                 elif rem2 <= 0:
@@ -1522,25 +1578,45 @@ if submitted:
                 rem3 = _free_tts_remaining()
                 if rem3 > 0 and st.button("🔊 내 발음 듣기", key=f"{qid}_free_tts_answer_after", use_container_width=True):
                     _use_free_tts_once()
+                    a_audio_url = resolve_audio_url((row.get("answer_mp3","") or row.get("answer_audio","") or row.get("answer_audio_url","") or ""))
+                    a_text = (row.get("answer_jp","") or "").replace(chr(10)," ")
                     components.html(f"""<script>
 (function(){{
-  try{{
-    const synth = window.speechSynthesis;
-    function pickJaVoice(){{
-      const voices = synth.getVoices() || [];
+  const audioUrl = {a_audio_url!r};
+  const text = {a_text!r};
+  function pickJaVoice(){{
+    try {{
+      const synth = window.speechSynthesis;
+      const voices = synth ? (synth.getVoices() || []) : [];
       const ja = voices.filter(v => String(v.lang||"").toLowerCase().startsWith("ja"));
       if (!ja.length) return null;
       return ja.find(v => /google/i.test(v.name||""))
           || ja.find(v => /日本|japanese/i.test(v.name||""))
           || ja[0] || null;
+    }} catch(e) {{ return null; }}
+  }}
+  function speak(){{
+    try {{
+      const synth = window.speechSynthesis;
+      if (!synth) return;
+      synth.cancel();
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = "ja-JP";
+      const v = pickJaVoice();
+      if (v) u.voice = v;
+      synth.speak(u);
+    }} catch(e) {{}}
+  }}
+  if (audioUrl){{
+    try {{
+      const a = new Audio(audioUrl);
+      a.play().catch(()=>speak());
+    }} catch(e) {{
+      speak();
     }}
-    const u = new SpeechSynthesisUtterance({(row.get('answer_jp','') or '').replace(chr(10),' ')!r});
-    u.lang = "ja-JP";
-    const v = pickJaVoice();
-    if (v) u.voice = v;
-    synth.cancel();
-    synth.speak(u);
-  }}catch(e){{}}
+  }} else {{
+    speak();
+  }}
 }})();
 </script>""", height=0)
                 elif rem3 <= 0:
