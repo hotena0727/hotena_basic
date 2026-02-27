@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from datetime import datetime, timedelta, date
 import random
+import math
 import hashlib
 import os
 import difflib
@@ -1035,15 +1036,48 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
     # ✅ 컴포넌트 높이(불필요 공백 최소화)
     has_pkr = bool(pkr_safe)
     has_akr = bool(akr_safe)
-    height = 154
-    if show_text:
-        if has_pkr:
-            height += 22
-        if has_akr:
-            height += 22
+    # ✅ 컴포넌트 높이: 짧을 땐 컴팩트하게, 길면 자동 확장(너무 길면 내부 스크롤)
+    # - Streamlit components.html은 "자동 높이"가 불가해서, 텍스트 길이로 높이를 추정합니다.
+    # - 너무 긴 문장은 전체 UI가 과도하게 길어지지 않도록, 컴포넌트 높이를 상한으로 두고 내부 스크롤을 켭니다.
+    def _lines(s: str, cpl: int) -> int:
+        s = (s or "").strip()
+        if not s:
+            return 0
+        return max(1, math.ceil(len(s) / max(8, cpl)))
+
+    # ⚠️ 모바일 기준으로 보수적으로(더 많이 줄바꿈되는 쪽) 계산
+    jp_p = _lines(p, 18)
+    jp_a = _lines(a, 18)
+    kr_p = _lines((partner_kr or ""), 22) if (partner_kr or "").strip() else 0
+    kr_a = _lines((answer_kr or ""), 22) if (answer_kr or "").strip() else 0
+
+    # 기본 + 라인 수에 따른 가변
+    lines_total = jp_p + jp_a + kr_p + kr_a
+    est = 92 + lines_total * 20
+    if kr_p:
+        est += 6
+    if kr_a:
+        est += 6
+
+    # 최소/최대 높이
+    min_h = 154
+    max_h = 360
+    height = int(max(min_h, est))
+    scroll_mode = False
+    if height > max_h:
+        height = max_h
+        scroll_mode = True
+
+    # 내부 스크롤이 켜질 때만 txtwrap에 max-height를 부여
+    # (각 말풍선에 동일하게 적용)
+    txtmax = ""
+    if scroll_mode:
+        # 라벨/버튼/패딩을 제외한 영역을 대략 절반으로 배분
+        each = max(72, int((height - 56) / 2))
+        txtmax = f"{each}px"
 
     html = f"""
-<div class="ttspair">
+<div class="ttspair{ " scroll" if scroll_mode else "" }" style="{ ("--txtmax:"+txtmax+";") if txtmax else "" }">
   <div class="row bubble bubble-p">
     <span class="lab">상대(말)</span>
     <div class="txtwrap" style="display:{show}">
@@ -1075,6 +1109,7 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
 
   .ttspair .lab{{min-width:52px;font-weight:650;opacity:.82;flex:0 0 auto;padding:10px 0 10px 10px;}}
   .ttspair .txtwrap{{flex:1 1 auto;min-width:0;white-space:normal;overflow-wrap:anywhere;word-break:break-word;padding:10px 0;}}
+  .ttspair.scroll .txtwrap{{max-height:var(--txtmax);overflow:auto;padding-right:6px;}}
   .ttspair .jp{{font-size:1.03rem;font-weight:560;line-height:1.35;letter-spacing:.01em;}}
   .ttspair .kr{{margin-top:3px;font-size:.86rem;line-height:1.25;opacity:.72;}}
   .ttspair .btn{{border:0;background:transparent;padding:10px 10px 10px 0;margin-left:2px;font-size:1.05rem;cursor:pointer;opacity:.95;}}
@@ -1150,7 +1185,7 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
 
 """
 
-    components.html(html, height=260, scrolling=False)
+    components.html(html, height=height, scrolling=False)
 
 def play_audio_or_tts(text: str, audio_url: str, label: str, key: str):
     """PRO: mp3 URL 재생 / FREE: 잠금. URL 없으면 TTS fallback."""
@@ -1503,7 +1538,7 @@ if submitted:
 
     # 상대/정답 스크립트 + 해설(제출 후에만)
     with st.container(border=True):
-        hotena_title("assets/hotena_talk/icons_title/icon_pronounce_title.png", "대화/해설")
+        hotena_title("assets/hotena_talk/icons_title/icon_pronounce_title.png", "발음/말하기")
 
         # ✅ 상황(제출 전에도 보이지만, 결과 박스에도 다시 한 번 노출)
         situation = str(row.get("situation_kr", "")).strip()
@@ -1651,10 +1686,7 @@ if submitted:
             # ------------------------------------
             with st.expander("🤖 원포인트 일본어가 어려우면 하테나쌤에게 물어보세요", expanded=False):
 
-                hotena_title("assets/hotena_talk/icons_title/icon_coach_title.png", "스마트코치")
-
-                st.markdown("### 💬 하테나쌤 스마트 코치")
-
+                hotena_title("assets/hotena_talk/icons_title/icon_coach_title.png", "하테나쌤 스마트 코치")
                 q_default = st.session_state.get("talk_ai_last_q") or ""
                 user_q = st.text_input(
                     "질문",
@@ -1966,22 +1998,6 @@ if submitted:
 
         if st.session_state.get(score_key) is not None:
             st.metric("점수", int(st.session_state.get(score_key) or 0))
-            # 🔥 1) 점수 구간 피드백 (너무 길지 않게)
-            try:
-                _sc_now = int(st.session_state.get(score_key) or 0)
-            except Exception:
-                _sc_now = 0
-
-            if _sc_now == 100:
-                st.success("완벽합니다! 🎯 지금 발음/리듬 그대로 다음 문장도 가볼까요?")
-            elif _sc_now >= 90:
-                st.info("아주 좋아요. 👍 마무리로 **억양(イントネーション)**만 조금 더 또렷하게 해보세요.")
-            elif _sc_now >= 70:
-                st.info("좋은 흐름이에요. ✅ **길게 끊지 말고** 한 호흡으로 다시 한 번 말해보세요.")
-            elif _sc_now >= 40:
-                st.info("괜찮아요. 🔁 정답을 보면서 **단어 단위로** 천천히 2번만 따라해보면 금방 올라가요.")
-            else:
-                st.info("지금은 워밍업 단계예요. 🌱 짧게 끊어서 2~3번, 그리고 한 번에 이어 말해보세요.")
 
         st.caption("정답을 보고 2~3번 따라 말해 보세요. 녹음이 끝나면 점수가 자동으로 계산됩니다.")
         reward_key = f"{NS}_reward_ready_{qid}"
@@ -1993,10 +2009,7 @@ if submitted:
                 # ✅ 1단계: 보상만 보여주고, 다음 이동은 사용자가 명확히 누르도록 분리
                 st.session_state[reward_key] = True
             else:
-                st.warning("보상은 '녹음 + 100점'일 때만 받을 수 있어요. 지금 바로 녹음하고 점수를 확인해 보세요.")
-                # 💎 3) FREE → PRO 자연 전환 (FREE에서만, 과하지 않게)
-                if not IS_PRO:
-                    st.caption("💡 PRO로 전환하면 **녹음/점수/보상**을 제한 없이 이어갈 수 있어요. (지금은 FREE 체험 규칙이 적용 중)")
+                st.warning("보상은 '녹음 + 100점'일 때만 받을 수 있어요. 먼저 녹음하고 100점을 만들어 주세요.")
 
         # ✅ 보상 조건을 못 맞춰도, 다음 문제로는 넘어갈 수 있게(보상만 미지급)
         if st.button("➡️ 다음 문제로 (보상 없이)", use_container_width=True, key=f"{NS}_go_next_no_reward_{qid}"):
