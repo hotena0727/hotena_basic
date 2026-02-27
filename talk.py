@@ -1074,9 +1074,9 @@ def tts_inline_pair(
   .ttspair .bubble{{border-radius:16px;padding:10px 12px;border:1px solid rgba(0,0,0,.08);background:rgba(0,0,0,.015);box-shadow:0 1px 0 rgba(0,0,0,.03);}}
   .ttspair .bubble.answer{{background:#fff;border:1px solid rgba(0,0,0,.10);}}
   .ttspair .top{{display:flex;align-items:flex-end;gap:8px;}}
-  .ttspair .lab{{min-width:56px;font-weight:650;opacity:.80;flex:0 0 auto;}}
+  .ttspair .lab{{width:var(--labw);min-width:var(--labw);font-weight:650;opacity:.80;flex:0 0 var(--labw);}}
   .ttspair .jp{{font-size:1.02rem;font-weight:620;line-height:1.35;letter-spacing:.01em;flex:1 1 auto;min-width:0;white-space:normal;overflow-wrap:anywhere;word-break:break-word;margin:0;}}
-  .ttspair .kr{{margin-top:4px;font-size:.86rem;line-height:1.28;opacity:.72;}}
+  .ttspair .kr{{margin-top:4px;margin-left:calc(var(--labw) + 8px);font-size:.86rem;line-height:1.28;opacity:.72;}}
   .ttspair .kr-ans{{font-size:.82rem;}} /* 내(말) 해석은 일본어 폰트 대비 약 70% 느낌 */
   .ttspair .btn{{border:0;background:transparent;padding:0;margin-left:2px;font-size:1.05rem;cursor:pointer;opacity:.95;flex:0 0 auto;}}
   .ttspair .btn[disabled]{{cursor:not-allowed;opacity:.35;}}
@@ -1883,7 +1883,7 @@ if submitted:
         except Exception:
             score_val_int = None
 
-        eligible_reward = bool(has_audio) and (score_val_int is not None) and (score_val_int > 60)
+        eligible_reward = (score_val_int is not None) and (score_val_int > 60)
 
         reward_key = f"{NS}_reward_ready_{qid}"
         reward_given_key = f"{NS}_reward_given_{qid}"
@@ -1897,13 +1897,22 @@ if submitted:
             else:
                 st.caption(f"현재 점수 {score_val_int}점 → 60점 이하는 보상이 없습니다.")
         else:
-            # 조건 충족 시에만 보상 받기 버튼 노출
+            # ✅ 보상 버튼은 항상 노출(사용자가 흐름을 인지하도록)
+            # - 조건 미충족 시 클릭하면 안내만 표시하고 XP는 지급하지 않음
             if st.button("✅ 다 했어요 (보상 받기)", use_container_width=True, key=f"{NS}_reward_btn_{qid}"):
-                # ✅ XP는 1문제당 1회만 지급
-                if not st.session_state.get(reward_given_key, False):
-                    award_xp(2, reason="talk_speaking_reward")
-                    st.session_state[reward_given_key] = True
-                st.session_state[reward_key] = True
+                if not eligible_reward:
+                    if score_val_int is None:
+                        st.info("말하기 점수가 아직 계산되지 않았습니다. 녹음을 완료한 뒤 점수 계산을 진행해 주세요.")
+                    elif score_val_int <= 60:
+                        st.info(f"현재 점수 {score_val_int}점 → 60점 이하는 보상이 없습니다.")
+                    else:
+                        st.info("녹음/점수 계산 후 보상을 받을 수 있어요.")
+                else:
+                    # ✅ XP는 1문제당 1회만 지급
+                    if not st.session_state.get(reward_given_key, False):
+                        award_xp(2, reason="talk_speaking_reward")
+                        st.session_state[reward_given_key] = True
+                    st.session_state[reward_key] = True
 
         if st.session_state.get(reward_key):
             hotena_title("assets/hotena_talk/icons_title/icon_reward_title.png", "말하기 완료 보상")
