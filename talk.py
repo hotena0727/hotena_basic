@@ -39,27 +39,30 @@ import streamlit as st
 # ✅ Hotena UI: 타이틀 왼쪽 캐릭터 아이콘(최소 버전)
 # ============================================================
 def hotena_title(icon_path: str, title: str, size_px: int = 56, right_text: str | None = None):
-    """Left icon + title, optional right text."""
-    c1, c2, c3 = st.columns([0.14, 0.61, 0.25], vertical_alignment="center")
-    with c1:
-        try:
+    """Left icon + title, optional right text (no extra blank column when right_text is None)."""
+    if right_text:
+        c1, c2, c3 = st.columns([0.12, 0.63, 0.25], vertical_alignment="center")
+        with c1:
             st.image(icon_path, width=size_px)
-        except Exception:
-            st.markdown(" ")
-    with c2:
-        st.markdown(
-            f"""<div style="font-size:1.20rem;font-weight:900;line-height:1.05;margin:0;">{title}</div>""",
-            unsafe_allow_html=True,
-        )
-    with c3:
-        if right_text:
+        with c2:
+            st.markdown(
+                f"""<div style="font-size:1.18rem;font-weight:900;line-height:1.05;margin:0;">{title}</div>""",
+                unsafe_allow_html=True,
+            )
+        with c3:
             st.markdown(
                 f"""<div style="text-align:right;font-size:0.98rem;opacity:0.85;line-height:1.05;margin:0;">{right_text}</div>""",
                 unsafe_allow_html=True,
             )
-        else:
-            st.markdown(" ")
-
+    else:
+        c1, c2 = st.columns([0.12, 0.88], vertical_alignment="center")
+        with c1:
+            st.image(icon_path, width=size_px)
+        with c2:
+            st.markdown(
+                f"""<div style="font-size:1.18rem;font-weight:900;line-height:1.05;margin:0;">{title}</div>""",
+                unsafe_allow_html=True,
+            )
 def hotena_title_in_col(icon_path: str, title: str, size_px: int = 44):
     """Use inside an existing column."""
     ic, tc = st.columns([0.20, 0.80], vertical_alignment="center")
