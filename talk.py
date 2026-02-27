@@ -1116,7 +1116,7 @@ def tts_inline_pair(
     with c2:
         st.markdown(
             f"""
-<div class="talk-bubble partner">
+<div class="talk-bubble partner" style="display:inline-block;max-width:100%;padding:10px 12px;border-radius:16px;border:1px solid rgba(49,51,63,.14);box-shadow:0 1px 0 rgba(0,0,0,.02);line-height:1.25;word-break:break-word;background:rgba(0,0,0,.02);">
   <div style="font-size:1.03rem;font-weight:560;line-height:1.35;letter-spacing:.01em;">{p_show}</div>
   {f'<div class="talk-bubble-sub">{pkr_show}</div>' if pkr_show else ''}
 </div>
@@ -1127,6 +1127,14 @@ def tts_inline_pair(
         disabled = (not IS_PRO) or (not p)
         _speaker_button(f"p_{qid}", p, p_au, disabled)
 
+
+    # ✅ PRO 모드에서는 상대/내 말 사이를 더 또렷하게 구분(얇은 라인)
+    if IS_PRO:
+        st.markdown(
+            "<div style='height:1px;background:rgba(0,0,0,.14);margin:6px 0 10px 0;'></div>",
+            unsafe_allow_html=True,
+        )
+
     # --- Row: Me/Answer ---
     c1, c2, c3 = st.columns([0.18, 0.72, 0.10], vertical_alignment="center")
     with c1:
@@ -1134,7 +1142,7 @@ def tts_inline_pair(
     with c2:
         st.markdown(
             f"""
-<div class="talk-bubble me">
+<div class="talk-bubble me" style="display:inline-block;max-width:100%;padding:10px 12px;border-radius:16px;border:1px solid rgba(49,51,63,.14);box-shadow:0 1px 0 rgba(0,0,0,.02);line-height:1.25;word-break:break-word;background:rgba(33,150,243,.08);">
   <div style="font-size:1.03rem;font-weight:560;line-height:1.35;letter-spacing:.01em;">{a_show}</div>
   {f'<div class="talk-bubble-sub">{akr_show}</div>' if akr_show else ''}
 </div>
