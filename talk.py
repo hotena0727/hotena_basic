@@ -34,44 +34,6 @@ except Exception:
 import pandas as pd
 import streamlit as st
 
-
-# ============================================================
-# ✅ Hotena UI: 타이틀 왼쪽 캐릭터 아이콘(최소 버전)
-# ============================================================
-import base64
-from pathlib import Path
-import streamlit as st
-
-def _img_to_data_uri(path: str) -> str:
-    p = Path(path)
-    b = p.read_bytes()
-    ext = p.suffix.lower().lstrip(".")
-    mime = "png" if ext == "png" else ext
-    return f"data:image/{mime};base64," + base64.b64encode(b).decode("utf-8")
-
-def hotena_title(icon_path: str, title: str, size_px: int = 56, gap_px: int = 6, right_text: str | None = None):
-    """
-    아이콘 바로 오른쪽에 텍스트가 붙도록 (columns 안 씀)
-    gap_px로 간격을 정확히 제어 가능
-    """
-    try:
-        uri = _img_to_data_uri(icon_path)
-        right_html = f'<div style="margin-left:auto;font-size:0.98rem;opacity:0.85;">{right_text}</div>' if right_text else ""
-        st.markdown(
-            f"""
-            <div style="display:flex;align-items:center;gap:{gap_px}px;margin:4px 0 10px 0;">
-              <img src="{uri}" style="width:{size_px}px;height:{size_px}px;object-fit:contain;flex:0 0 auto;" />
-              <div style="font-size:1.18rem;font-weight:900;line-height:1.05;white-space:nowrap;">{title}</div>
-              {right_html}
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-    except Exception:
-        # 아이콘이 없거나 읽기 실패해도 UI가 깨지지 않게
-        st.markdown(f"### {title}")
-
-
 import ai_tutor
 
 
@@ -761,42 +723,22 @@ def _sub_label(s: str) -> str:
     return SUB_LABEL.get(s, s)
 
 sub = "__all__"
-
-# ✅ 유형(sub)은 '선택된 tag' 안에서만 보여주기(다른 tag의 sub가 섞여 나오면 혼란)
-has_sub_col = "sub" in DF_BASE.columns
-
-subs_in_tag = []
-if has_sub_col:
-    _df_tag = DF_BASE[DF_BASE["tag"].astype(str) == str(tag)].copy()
-    subs_in_tag = [x for x in _df_tag["sub"].astype(str).tolist() if str(x).strip()]
-
-# tag 안에 sub 값이 2개 이상 있을 때만 노출(1개면 자동 선택)
-subs_in_tag = sorted(set([str(x).strip() for x in subs_in_tag if str(x).strip()]))
-
-if len(subs_in_tag) >= 2:
-    sub_options = ["__all__"] + subs_in_tag
+has_sub = ("sub" in DF_BASE.columns) and DF_BASE["sub"].astype(str).str.strip().ne("").any()
+if has_sub:
+    subs_in_data = sorted(set([x for x in DF_BASE["sub"].astype(str).tolist() if str(x).strip()]))
+    sub_options = ["__all__"] + subs_in_data
     sub = st.selectbox(
         "유형 선택",
         options=sub_options,
         format_func=_sub_label,
         key=f"{NS}_sub",
     )
-elif len(subs_in_tag) == 1:
-    # ✅ 1개뿐이면 드롭다운은 숨기되, 사용자에게는 '고정된 유형'을 표시
-    sub = subs_in_tag[0]
-    try:
-        st.caption(f"유형: {_sub_label(sub)} (고정)")
-    except Exception:
-        pass
-else:
-    # sub 컬럼이 없거나, 해당 tag는 sub가 비어있음
-    sub = "__all__"
 
 # 레벨 선택은 사용하지 않음(현재는 N4~N3 혼합 운영)
 level = "mix"
 
 pool_df = DF_BASE[(DF_BASE["tag"] == tag)].copy().reset_index(drop=True)
-if ("sub" in DF_BASE.columns) and sub != "__all__":
+if has_sub and sub != "__all__":
     pool_df = pool_df[pool_df["sub"].astype(str) == str(sub)].copy().reset_index(drop=True)
 
 if pool_df.empty:
@@ -1033,15 +975,14 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
   </div>
 </div>
 <style>
-  .ttspair{{display:flex;flex-direction:column;gap:8px;}}
-  /* flex row: allow wrapping without clipping on narrow screens (Android) */
-  .ttspair .row{{display:flex;align-items:flex-start;gap:8px;line-height:1.45;}}
-  .ttspair .lab{{min-width:52px;font-weight:700;opacity:.85;flex:0 0 auto;}}
-  .ttspair .txt{{font-size:1.05rem;flex:1 1 auto;min-width:0;white-space:normal;overflow-wrap:anywhere;word-break:break-word;}}
-
-  .ttspair .btn{{border:0;background:transparent;padding:0;margin-left:2px;font-size:1.05rem;cursor:pointer;opacity:.95;}}
-  .ttspair .btn[disabled]{{cursor:not-allowed;opacity:.35;}}
-  .ttspair .pro{{font-size:.75rem;letter-spacing:.02em;border:1px solid rgba(0,0,0,.18);border-radius:999px;padding:1px 6px;opacity:.45;}}
+  .ttspair{display:flex;flex-direction:column;gap:8px;}
+  /* ✅ wrap fix: Android에서 텍스트가 잘리지 않도록 flex/word-wrap 설정 */
+  .ttspair .row{display:flex;align-items:flex-start;gap:8px;line-height:1.45;}
+  .ttspair .lab{min-width:52px;font-weight:700;opacity:.85;flex:0 0 auto;}
+  .ttspair .txt{font-size:1.05rem;flex:1 1 auto;min-width:0;white-space:normal;overflow-wrap:anywhere;word-break:break-word;}
+  .ttspair .btn{flex:0 0 auto;border:0;background:transparent;padding:0;margin-left:2px;font-size:1.05rem;cursor:pointer;opacity:.95;}
+  .ttspair .btn[disabled]{cursor:not-allowed;opacity:.35;}
+  .ttspair .pro{font-size:.75rem;letter-spacing:.02em;border:1px solid rgba(0,0,0,.18);border-radius:999px;padding:1px 6px;opacity:.45;}
 </style>
 <script>
 (function(){{
@@ -1081,7 +1022,7 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
 </script>
 """
 
-    components.html(html, height=180)
+    components.html(html, height=170)
 
 def play_audio_or_tts(text: str, audio_url: str, label: str, key: str):
     """PRO: mp3 URL 재생 / FREE: 잠금. URL 없으면 TTS fallback."""
@@ -1398,7 +1339,7 @@ if submitted:
 
     # 상대/정답 스크립트 + 해설(제출 후에만)
     with st.container(border=True):
-        hotena_title("assets/hotena_talk/icons_title/icon_pronounce_title.png", "발음/말하기")
+        st.markdown("### 🧑‍🏫 발음/말하기")
 
         # ✅ 상황(제출 전에도 보이지만, 결과 박스에도 다시 한 번 노출)
         situation = str(row.get("situation_kr", "")).strip()
@@ -1498,8 +1439,6 @@ if submitted:
             # 🤖 스마트 코치
             # ------------------------------------
             with st.expander("🤖 원포인트 일본어가 어려우면 하테나쌤에게 물어보세요", expanded=False):
-
-                hotena_title("assets/hotena_talk/icons_title/icon_coach_title.png", "스마트코치")
 
                 st.markdown("### 💬 하테나쌤 스마트 코치")
 
@@ -1672,7 +1611,15 @@ if submitted:
     with st.container(border=True):
         total_cnt = len(qids)
         current_no = idx + 1
-        hotena_title("assets/hotena_talk/icons_title/icon_check_title.png", "발음 체크", size_px=56, right_text=f"📘 진행: {current_no} / {total_cnt}")
+        st.markdown(
+            f"""
+        <div style="display:flex; align-items:baseline; justify-content:space-between; gap:12px;">
+          <div style="font-size:1.6rem; font-weight:700;">🎙️ 발음 체크</div>
+          <div style="font-size:1rem; opacity:0.85;">📘 진행: {current_no} / {total_cnt}</div>
+        </div>
+        """,
+            unsafe_allow_html=True,
+        )
 
 
         
@@ -1779,7 +1726,7 @@ if submitted:
 
         c_sc1, c_sc2 = st.columns([0.72, 0.28], vertical_alignment="center")
         with c_sc1:
-            hotena_title_in_col("assets/hotena_talk/icons_title/icon_score_title.png", "말하기 점수", size_px=44)
+            st.markdown('<div style="font-size:1.25rem; font-weight:700;">📊 말하기 점수</div>', unsafe_allow_html=True)
         with c_sc2:
             # ✅ '다시 계산'은 네트워크/브라우저 상태 등으로 자동 계산이 실패했을 때만 노출
             show_recalc = bool(st.session_state.get(err_key))
@@ -1822,7 +1769,6 @@ if submitted:
             st.session_state[reward_key] = True
 
         if st.session_state.get(reward_key):
-            hotena_title("assets/hotena_talk/icons_title/icon_reward_title.png", "말하기 완료 보상")
             st.success("+2 XP 🎤 (말하기 완료 보상)")
             st.caption("👇 아래 버튼을 누르면 다음 문제로 넘어갑니다.")
 
