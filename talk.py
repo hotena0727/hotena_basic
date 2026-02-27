@@ -996,7 +996,6 @@ def tts_inline_row(role_label: str, text: str, key: str, show_text: bool = True,
             height=44,
         )
 
-
 def tts_inline_pair(
     partner_text: str,
     answer_text: str,
@@ -1008,13 +1007,12 @@ def tts_inline_pair(
     answer_kr: str = "",
 ):
     """
-    ✅ 발음/말하기 결과 박스(상대/내 말) — 모바일에서도 '잘림 없이' 반응형으로 렌더합니다.
-
-    - 한 iframe(components.html) 안에서 2줄(상대/내)을 렌더하고,
-      내용 높이를 JS로 측정해 streamlit:setFrameHeight 로 자동 확장/축소합니다.
-      → 문장이 길면 늘어나고, 짧으면 불필요한 여백이 생기지 않습니다.
-    - 🔊 클릭: mp3 우선 재생 → 실패/없으면 브라우저 TTS fallback
-    - FREE: 🔊 비활성(잠금) 유지
+    ✅ 결과 박스: 상대/내 문장을 두 줄로 표시 + 우측 스피커.
+    IMPORTANT:
+    - 기존 구현은 components.html(큰 iframe) 안에 긴 텍스트를 넣어 '높이 자동조절 실패' 시 모바일에서 잘림이 발생했습니다.
+    - 이 버전은 '텍스트(말풍선)'는 Streamlit(HTML)로 직접 렌더링하고,
+      '스피커 버튼'만 작은 components.html로 렌더링하여 잘림을 원천 차단합니다.
+    - 디자인/기능(오디오 우선, 실패 시 TTS fallback)은 유지합니다.
     """
     p = (partner_text or "").strip()
     a = (answer_text or "").strip()
@@ -1024,145 +1022,35 @@ def tts_inline_pair(
     p_au = resolve_audio_url(partner_audio_url)
     a_au = resolve_audio_url(answer_audio_url)
 
-    # show_text=False면 텍스트 숨김(버튼만 자리 유지)
-    if not show_text:
-        p_show, a_show, pkr_show, akr_show = "", "", "", ""
-    else:
-        p_show, a_show, pkr_show, akr_show = p, a, pkr, akr
-
+    # JS-safe
     def _esc(s: str) -> str:
         return (
             (s or "")
             .replace("\\", "\\\\")
-            .replace('"', '\"')
+            .replace('"', '\\"')
             .replace("`", "")
             .replace("\n", " ")
             .replace("\r", " ")
         )
 
-    # JS-safe strings
-    p_safe = _esc(p_show)
-    a_safe = _esc(a_show)
-    pkr_safe = _esc(pkr_show)
-    akr_safe = _esc(akr_show)
-    p_au_safe = _esc(p_au)
-    a_au_safe = _esc(a_au)
-
-    # 버튼 disable
-    disabled_p = (not IS_PRO) or (not p)
-    disabled_a = (not IS_PRO) or (not a)
-
-    # KR 존재 여부
-    has_pkr = bool(pkr_safe.strip())
-    has_akr = bool(akr_safe.strip())
-
-    # PRO 뱃지(Free에서만)
-    pro_badge = "" if IS_PRO else '<span class="pro">PRO</span>'
-
-    html = f"""
-<div class="ttspair">
-  <div class="row bubble bubble-p">
-    <div class="lab">상대(말)</div>
-    <div class="txtwrap" style="display:{'block' if show_text else 'none'}">
-      <div class="jp">{p_safe}</div>
-      <div class="kr" style="display:{'block' if has_pkr else 'none'}">{pkr_safe}</div>
-    </div>
-    <button class="btn" id="pbtn-{qid}" {'disabled' if disabled_p else ''} aria-label="listen">🔊</button>
-    {pro_badge}
-  </div>
-
-  <div class="row bubble bubble-a">
-    <div class="lab">내(말)</div>
-    <div class="txtwrap" style="display:{'block' if show_text else 'none'}">
-      <div class="jp">{a_safe}</div>
-      <div class="kr" style="display:{'block' if has_akr else 'none'}">{akr_safe}</div>
-    </div>
-    <button class="btn" id="abtn-{qid}" {'disabled' if disabled_a else ''} aria-label="listen">🔊</button>
-    {pro_badge}
-  </div>
+    def _speaker_button(key: str, text_: str, audio_url_: str, disabled_: bool):
+        txt_js = _esc(text_)
+        au_js = _esc(audio_url_)
+        components.html(
+            f"""
+<div style="width:100%;display:flex;justify-content:flex-end;align-items:center;gap:6px;">
+  <button id="btn-{key}" {'disabled' if disabled_ else ''} style="border:0;background:transparent;padding:0;margin:0;
+          font-size:1.05rem;cursor:{'not-allowed' if disabled_ else 'pointer'};opacity:{'0.35' if disabled_ else '0.95'};">🔊</button>
+  {('<span style="font-size:.75rem;letter-spacing:.02em;border:1px solid rgba(0,0,0,.18);border-radius:999px;padding:1px 6px;opacity:.45;">PRO</span>' if (not IS_PRO) else '')}
 </div>
-
-<style>
-/* iframe 내부: 여백/높이 최소화 + 줄바꿈 안전 */
-html, body {{ margin:0; padding:0; }}
-.ttspair {{ width:100%; display:flex; flex-direction:column; gap:8px; }}
-.row {{
-  width:100%;
-  display:flex;
-  align-items:flex-start;
-  gap:10px;
-}}
-.bubble {{
-  padding:9px 10px;
-  border-radius:14px;
-  border:1px solid rgba(49,51,63,.14);
-  box-shadow:0 1px 0 rgba(0,0,0,.015);
-}}
-.bubble-p {{ background: rgba(0,0,0,.018); }}
-.bubble-a {{ background: rgba(0,0,0,.012); }}
-
-.lab {{
-  flex:0 0 auto;
-  min-width:64px;
-  font-weight:800;
-  font-size:.88rem;
-  opacity:.82;
-  line-height:1.2;
-  padding-top:2px;
-}}
-
-.txtwrap {{ flex:1 1 auto; min-width:0; }}
-.jp {{
-  font-size:1.03rem;
-  font-weight:560;
-  line-height:1.35;
-  word-break:break-word;
-  overflow-wrap:anywhere;
-  white-space:normal;
-}}
-.kr {{
-  margin-top:4px;
-  font-size:.90rem;
-  opacity:.82;
-  line-height:1.35;
-  word-break:break-word;
-  overflow-wrap:anywhere;
-  white-space:normal;
-}}
-
-.btn {{
-  flex:0 0 auto;
-  border:0;
-  background:transparent;
-  padding:2px 2px;
-  margin:0;
-  font-size:1.08rem;
-  cursor:pointer;
-  opacity:.95;
-}}
-.btn:disabled {{
-  cursor:not-allowed;
-  opacity:.35;
-}}
-
-.pro {{
-  flex:0 0 auto;
-  font-size:.72rem;
-  letter-spacing:.02em;
-  border:1px solid rgba(0,0,0,.18);
-  border-radius:999px;
-  padding:1px 6px;
-  opacity:.45;
-  margin-top:2px;
-}}
-</style>
-
 <script>
 (function(){{
-  const pText = "{_esc(p)}";
-  const aText = "{_esc(a)}";
-  const pAudio = "{p_au_safe}";
-  const aAudio = "{a_au_safe}";
+  const btn = document.getElementById("btn-{key}");
+  if(!btn) return;
+  if(btn.dataset.bound === "1") return;
+  btn.dataset.bound = "1";
+  const text = "{txt_js}";
+  const audioUrl = "{au_js}";
 
   function pickJaVoice(){{
     try {{
@@ -1170,85 +1058,91 @@ html, body {{ margin:0; padding:0; }}
       const vs = synth ? (synth.getVoices() || []) : [];
       const ja = vs.filter(v => String(v.lang||"").toLowerCase().startsWith("ja"));
       if(!ja.length) return null;
-      return ja.find(v => /google/i.test(v.name||"")) ||
-             ja.find(v => /日本|japanese/i.test(v.name||"")) ||
-             ja[0] || null;
+      return ja.find(v => /google/i.test(v.name||"")) || ja.find(v => /日本|japanese/i.test(v.name||"")) || ja[0] || null;
     }} catch(e) {{ return null; }}
   }}
 
-  function speak(text){{
+  function speak(){{
     try {{
+      if (!window.speechSynthesis) return;
       const synth = window.speechSynthesis;
-      if(!synth) return;
       synth.cancel();
       const u = new SpeechSynthesisUtterance(text);
       u.lang = "ja-JP";
       const v = pickJaVoice();
-      if(v) u.voice = v;
+      if (v) u.voice = v;
       u.rate = 1.0; u.pitch = 1.0;
       synth.speak(u);
     }} catch(e) {{}}
   }}
 
-  function play(audioUrl, text){{
-    if(!audioUrl) {{
-      speak(text);
-      return;
-    }}
+  function playAudio(){{
     try {{
-      const au = new Audio(audioUrl);
-      au.play().catch(()=>{{ speak(text); }});
+      const a = new Audio(audioUrl);
+      a.play().catch(()=>{{ speak(); }});
     }} catch(e) {{
-      speak(text);
+      speak();
     }}
   }}
 
-  function bind(btnId, audioUrl, text){{
-    const btn = document.getElementById(btnId);
-    if(!btn) return;
-    if(btn.dataset.bound === "1") return;
-    btn.dataset.bound = "1";
-    btn.addEventListener("click", (e)=>{{
-      e.preventDefault();
-      if(btn.disabled) return;
-      play(audioUrl, text);
-    }});
-  }}
-
-  bind("pbtn-{qid}", pAudio, pText);
-  bind("abtn-{qid}", aAudio, aText);
-
-  // ✅ 반응형 높이: 내용에 맞춰 iframe 높이 자동 조절
-  function setH(){{
-    try {{
-      const root = document.body;
-      if(!root) return;
-      const h = Math.ceil(root.scrollHeight);
-      window.parent.postMessage({{
-        isStreamlitMessage: true,
-        type: "streamlit:setFrameHeight",
-        height: h
-      }}, "*");
-    }} catch(e) {{}}
-  }}
-
-  // DOM/폰트/리사이즈에 대응
-  const schedule = ()=>{{ setTimeout(setH, 0); setTimeout(setH, 80); setTimeout(setH, 220); }};
-  schedule();
-  window.addEventListener("resize", schedule);
-  // 텍스트가 길어서 줄바꿈이 바뀌는 경우 대비(orientation change 등)
-  if (document.fonts && document.fonts.ready) {{
-    document.fonts.ready.then(()=>{{ schedule(); }}).catch(()=>{{}});
-  }}
+  btn.addEventListener("click", (e)=>{{
+    e.preventDefault();
+    if (btn.disabled) return;
+    if (audioUrl) playAudio();
+    else speak();
+  }});
 }})();
 </script>
-"""
-    # 최소 높이로 렌더 후 JS가 setFrameHeight로 맞춥니다.
-    try:
-        components.html(html, height=220, scrolling=False)
-    except Exception:
-        # fallback: script 실행이 막힌 환경에서도 최소한 텍스트는 보이게
-        st.markdown(html.replace("<script>", "<!--").replace("</script>", "-->"), unsafe_allow_html=True)
+""",
+            height=44,
+        )
+
+    # 텍스트를 숨기는 모드(show_text=False)도 유지
+    if not show_text:
+        p_show = ""
+        a_show = ""
+        pkr_show = ""
+        akr_show = ""
+    else:
+        p_show = p
+        a_show = a
+        pkr_show = pkr
+        akr_show = akr
+
+
+    # ✅ PRO 느낌의 심플한 "곡선 박스" 2개로 구분 (상대/내 말)
+    # - 텍스트는 Streamlit(HTML)로 직접 렌더링하여 모바일에서 잘림 방지
+    # - 스피커 버튼은 작은 components.html로 렌더(재생: mp3 우선 → 실패 시 TTS)
+    def _bubble(label: str, jp: str, kr: str, kind: str):
+        bg = "rgba(0,0,0,.02)" if kind == "partner" else "rgba(33,150,243,.08)"
+        st.markdown(
+            f'''
+<div style="width:100%;padding:12px 12px;border-radius:16px;border:1px solid rgba(49,51,63,.14);
+            background:{bg};box-shadow:0 1px 0 rgba(0,0,0,.02);">
+  <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+    <div style="font-weight:800;font-size:.92rem;opacity:.85;">{label}</div>
+    <div style="flex:1;"></div>
+  </div>
+  <div style="margin-top:6px;font-size:1.03rem;font-weight:560;line-height:1.35;word-break:break-word;">{jp}</div>
+  {f'<div style="margin-top:6px;font-size:.92rem;opacity:.82;line-height:1.35;word-break:break-word;">{kr}</div>' if kr else ''}
+</div>
+''',
+            unsafe_allow_html=True,
+        )
+
+    # --- Partner bubble ---
+    _bubble("상대(말)", p_show, pkr_show, "partner")
+    st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
+    _speaker_button(f"p_{qid}", p, p_au, (not IS_PRO) or (not p))
+
+    # ✅ PRO: 구분 라인(가벼운 분리감)
+    if IS_PRO:
+        st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+
+    # --- Me bubble ---
+    _bubble("내(말)", a_show, akr_show, "me")
+    st.markdown("<div style='height:4px'></div>", unsafe_allow_html=True)
+    _speaker_button(f"a_{qid}", a, a_au, (not IS_PRO) or (not a))
 
 def play_audio_or_tts(text: str, audio_url: str, label: str, key: str):
     """PRO: mp3 URL 재생 / FREE: 잠금. URL 없으면 TTS fallback."""
