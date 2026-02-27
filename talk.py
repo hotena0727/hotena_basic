@@ -996,161 +996,259 @@ def tts_inline_row(role_label: str, text: str, key: str, show_text: bool = True,
             height=44,
         )
 
-def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bool = True,
-                    partner_audio_url: str = "", answer_audio_url: str = "",
-                    partner_kr: str = "", answer_kr: str = ""):
-    '''결과 박스: 상대/내 문장을 한 줄씩 + 스피커(문장 오른쪽).
-    ✅ PRO 클릭 시: 브라우저에서 바로 재생(오디오/mp3 우선, 없으면 SpeechSynthesis)
-    ✅ FREE: 잠금(비활성)
-    - Streamlit 버튼을 쓰지 않아, 클릭 시 페이지 rerun(번쩍임)을 유발하지 않습니다.
-    '''
+
+def tts_inline_pair(
+    partner_text: str,
+    answer_text: str,
+    qid: str,
+    show_text: bool = True,
+    partner_audio_url: str = "",
+    answer_audio_url: str = "",
+    partner_kr: str = "",
+    answer_kr: str = "",
+):
+    """
+    ✅ 발음/말하기 결과 박스(상대/내 말) — 모바일에서도 '잘림 없이' 반응형으로 렌더합니다.
+
+    - 한 iframe(components.html) 안에서 2줄(상대/내)을 렌더하고,
+      내용 높이를 JS로 측정해 streamlit:setFrameHeight 로 자동 확장/축소합니다.
+      → 문장이 길면 늘어나고, 짧으면 불필요한 여백이 생기지 않습니다.
+    - 🔊 클릭: mp3 우선 재생 → 실패/없으면 브라우저 TTS fallback
+    - FREE: 🔊 비활성(잠금) 유지
+    """
     p = (partner_text or "").strip()
     a = (answer_text or "").strip()
+    pkr = (partner_kr or "").strip()
+    akr = (answer_kr or "").strip()
+
     p_au = resolve_audio_url(partner_audio_url)
     a_au = resolve_audio_url(answer_audio_url)
 
-    # JS-safe
+    # show_text=False면 텍스트 숨김(버튼만 자리 유지)
+    if not show_text:
+        p_show, a_show, pkr_show, akr_show = "", "", "", ""
+    else:
+        p_show, a_show, pkr_show, akr_show = p, a, pkr, akr
+
     def _esc(s: str) -> str:
         return (
             (s or "")
             .replace("\\", "\\\\")
-            .replace('"', '\\"')
+            .replace('"', '\"')
             .replace("`", "")
             .replace("\n", " ")
             .replace("\r", " ")
         )
 
-    p_safe = _esc(p)
-    a_safe = _esc(a)
-    pkr_safe = _esc((partner_kr or "").strip())
-    akr_safe = _esc((answer_kr or "").strip())
+    # JS-safe strings
+    p_safe = _esc(p_show)
+    a_safe = _esc(a_show)
+    pkr_safe = _esc(pkr_show)
+    akr_safe = _esc(akr_show)
     p_au_safe = _esc(p_au)
     a_au_safe = _esc(a_au)
 
-    disabled = (not IS_PRO) or (not (p or a))
+    # 버튼 disable
+    disabled_p = (not IS_PRO) or (not p)
+    disabled_a = (not IS_PRO) or (not a)
 
-    # show_text=False면 텍스트는 숨기고(공백), 버튼만 남김
-    show = "block" if show_text else "none"
+    # KR 존재 여부
+    has_pkr = bool(pkr_safe.strip())
+    has_akr = bool(akr_safe.strip())
 
-    # ✅ 컴포넌트 높이(불필요 공백 최소화)
-    has_pkr = bool(pkr_safe)
-    has_akr = bool(akr_safe)
-    height = 154
-    if show_text:
-        if has_pkr:
-            height += 22
-        if has_akr:
-            height += 22
+    # PRO 뱃지(Free에서만)
+    pro_badge = "" if IS_PRO else '<span class="pro">PRO</span>'
 
     html = f"""
 <div class="ttspair">
   <div class="row bubble bubble-p">
-    <span class="lab">상대(말)</span>
-    <div class="txtwrap" style="display:{show}">
+    <div class="lab">상대(말)</div>
+    <div class="txtwrap" style="display:{'block' if show_text else 'none'}">
       <div class="jp">{p_safe}</div>
       <div class="kr" style="display:{'block' if has_pkr else 'none'}">{pkr_safe}</div>
     </div>
-    <button class="btn" id="pbtn-{qid}" aria-label="listen" {'disabled' if disabled or (not p) else ''}>🔊</button>
-    {('<span class="pro">PRO</span>' if (not IS_PRO) else '')}
+    <button class="btn" id="pbtn-{qid}" {'disabled' if disabled_p else ''} aria-label="listen">🔊</button>
+    {pro_badge}
   </div>
 
   <div class="row bubble bubble-a">
-    <span class="lab">내(말)</span>
-    <div class="txtwrap" style="display:{show}">
+    <div class="lab">내(말)</div>
+    <div class="txtwrap" style="display:{'block' if show_text else 'none'}">
       <div class="jp">{a_safe}</div>
       <div class="kr" style="display:{'block' if has_akr else 'none'}">{akr_safe}</div>
     </div>
-    <button class="btn" id="abtn-{qid}" aria-label="listen" {'disabled' if disabled or (not a) else ''}>🔊</button>
-    {('<span class="pro">PRO</span>' if (not IS_PRO) else '')}
+    <button class="btn" id="abtn-{qid}" {'disabled' if disabled_a else ''} aria-label="listen">🔊</button>
+    {pro_badge}
   </div>
 </div>
 
 <style>
-  /* ✅ 무지/미니멀 A안 + 말풍선 각각 아웃라인(레이아웃 영향 없음: box-shadow) */
-  .ttspair{{display:flex;flex-direction:column;gap:8px;}}
-  .ttspair .row{{display:flex;align-items:flex-start;gap:10px;line-height:1.35;}}
-  .ttspair .bubble{{border-radius:14px; box-shadow:0 0 0 1px rgba(0,0,0,.12);}}
-  .ttspair .bubble-p{{box-shadow:0 0 0 1px rgba(0,0,0,.20);}}
-  .ttspair .bubble-a{{box-shadow:0 0 0 1px rgba(0,0,0,.12);}}
+/* iframe 내부: 여백/높이 최소화 + 줄바꿈 안전 */
+html, body {{ margin:0; padding:0; }}
+.ttspair {{ width:100%; display:flex; flex-direction:column; gap:8px; }}
+.row {{
+  width:100%;
+  display:flex;
+  align-items:flex-start;
+  gap:10px;
+}}
+.bubble {{
+  padding:9px 10px;
+  border-radius:14px;
+  border:1px solid rgba(49,51,63,.14);
+  box-shadow:0 1px 0 rgba(0,0,0,.015);
+}}
+.bubble-p {{ background: rgba(0,0,0,.018); }}
+.bubble-a {{ background: rgba(0,0,0,.012); }}
 
-  .ttspair .lab{{min-width:52px;font-weight:650;opacity:.82;flex:0 0 auto;padding:10px 0 10px 10px;}}
-  .ttspair .txtwrap{{flex:1 1 auto;min-width:0;white-space:normal;overflow-wrap:anywhere;word-break:break-word;padding:10px 0;}}
-  .ttspair .jp{{font-size:1.03rem;font-weight:560;line-height:1.35;letter-spacing:.01em;}}
-  .ttspair .kr{{margin-top:3px;font-size:.86rem;line-height:1.25;opacity:.72;}}
-  .ttspair .btn{{border:0;background:transparent;padding:10px 10px 10px 0;margin-left:2px;font-size:1.05rem;cursor:pointer;opacity:.95;}}
-  .ttspair .btn[disabled]{{cursor:not-allowed;opacity:.35;}}
-  .ttspair .pro{{align-self:flex-start;margin-top:10px;font-size:.75rem;letter-spacing:.02em;border:1px solid rgba(0,0,0,.18);border-radius:999px;padding:1px 6px;opacity:.45;}}
+.lab {{
+  flex:0 0 auto;
+  min-width:64px;
+  font-weight:800;
+  font-size:.88rem;
+  opacity:.82;
+  line-height:1.2;
+  padding-top:2px;
+}}
+
+.txtwrap {{ flex:1 1 auto; min-width:0; }}
+.jp {{
+  font-size:1.03rem;
+  font-weight:560;
+  line-height:1.35;
+  word-break:break-word;
+  overflow-wrap:anywhere;
+  white-space:normal;
+}}
+.kr {{
+  margin-top:4px;
+  font-size:.90rem;
+  opacity:.82;
+  line-height:1.35;
+  word-break:break-word;
+  overflow-wrap:anywhere;
+  white-space:normal;
+}}
+
+.btn {{
+  flex:0 0 auto;
+  border:0;
+  background:transparent;
+  padding:2px 2px;
+  margin:0;
+  font-size:1.08rem;
+  cursor:pointer;
+  opacity:.95;
+}}
+.btn:disabled {{
+  cursor:not-allowed;
+  opacity:.35;
+}}
+
+.pro {{
+  flex:0 0 auto;
+  font-size:.72rem;
+  letter-spacing:.02em;
+  border:1px solid rgba(0,0,0,.18);
+  border-radius:999px;
+  padding:1px 6px;
+  opacity:.45;
+  margin-top:2px;
+}}
 </style>
 
 <script>
 (function(){{
+  const pText = "{_esc(p)}";
+  const aText = "{_esc(a)}";
+  const pAudio = "{p_au_safe}";
+  const aAudio = "{a_au_safe}";
+
   function pickJaVoice(){{
     try {{
       const synth = window.speechSynthesis;
       const vs = synth ? (synth.getVoices() || []) : [];
       const ja = vs.filter(v => String(v.lang||"").toLowerCase().startsWith("ja"));
       if(!ja.length) return null;
-      const pref = ja.find(v => /female|woman|kyoko|haruka|nanami|mizuki|yuna/i.test(String(v.name||"")));
-      return pref || ja[0];
-    }} catch(e) {{
-      return null;
-    }}
+      return ja.find(v => /google/i.test(v.name||"")) ||
+             ja.find(v => /日本|japanese/i.test(v.name||"")) ||
+             ja[0] || null;
+    }} catch(e) {{ return null; }}
   }}
 
   function speak(text){{
     try {{
       const synth = window.speechSynthesis;
       if(!synth) return;
-      const u = new SpeechSynthesisUtterance(text || "");
+      synth.cancel();
+      const u = new SpeechSynthesisUtterance(text);
       u.lang = "ja-JP";
       const v = pickJaVoice();
       if(v) u.voice = v;
-      synth.cancel();
+      u.rate = 1.0; u.pitch = 1.0;
       synth.speak(u);
     }} catch(e) {{}}
   }}
 
   function play(audioUrl, text){{
-    if(audioUrl){{
-      try{{ const a = new Audio(audioUrl); a.play().catch(()=>{{ speak(text); }}); return; }}catch(e){{}}
+    if(!audioUrl) {{
+      speak(text);
+      return;
     }}
-    speak(text);
+    try {{
+      const au = new Audio(audioUrl);
+      au.play().catch(()=>{{ speak(text); }});
+    }} catch(e) {{
+      speak(text);
+    }}
   }}
 
-  const pbtn = document.getElementById('pbtn-{qid}');
-  const abtn = document.getElementById('abtn-{qid}');
-  if(pbtn) pbtn.addEventListener('click', (e)=>{{ e.preventDefault(); if(pbtn.disabled) return; play("{p_au_safe}", "{p_safe}"); }});
-  if(abtn) abtn.addEventListener('click', (e)=>{{ e.preventDefault(); if(abtn.disabled) return; play("{a_au_safe}", "{a_safe}"); }});
-}})();
-</script>
-<script>
-(function(){{
-  function send(){{
-    try{{
-      var h = Math.max(
-        document.body ? document.body.scrollHeight : 0,
-        document.documentElement ? document.documentElement.scrollHeight : 0
-      );
-      if (window.parent){{
-        window.parent.postMessage({{isStreamlitMessage:true, type:"streamlit:setFrameHeight", height:h + 12}}, "*");
-      }}
-    }}catch(e){{}}
+  function bind(btnId, audioUrl, text){{
+    const btn = document.getElementById(btnId);
+    if(!btn) return;
+    if(btn.dataset.bound === "1") return;
+    btn.dataset.bound = "1";
+    btn.addEventListener("click", (e)=>{{
+      e.preventDefault();
+      if(btn.disabled) return;
+      play(audioUrl, text);
+    }});
   }}
-  try{{
-    if (window.ResizeObserver){{
-      var ro = new ResizeObserver(function(){{ send(); }});
-      ro.observe(document.body);
-    }}
-  }}catch(e){{}}
-  window.addEventListener("load", function(){{ setTimeout(send, 30); }});
-  setTimeout(send, 80);
+
+  bind("pbtn-{qid}", pAudio, pText);
+  bind("abtn-{qid}", aAudio, aText);
+
+  // ✅ 반응형 높이: 내용에 맞춰 iframe 높이 자동 조절
+  function setH(){{
+    try {{
+      const root = document.body;
+      if(!root) return;
+      const h = Math.ceil(root.scrollHeight);
+      window.parent.postMessage({{
+        isStreamlitMessage: true,
+        type: "streamlit:setFrameHeight",
+        height: h
+      }}, "*");
+    }} catch(e) {{}}
+  }}
+
+  // DOM/폰트/리사이즈에 대응
+  const schedule = ()=>{{ setTimeout(setH, 0); setTimeout(setH, 80); setTimeout(setH, 220); }};
+  schedule();
+  window.addEventListener("resize", schedule);
+  // 텍스트가 길어서 줄바꿈이 바뀌는 경우 대비(orientation change 등)
+  if (document.fonts && document.fonts.ready) {{
+    document.fonts.ready.then(()=>{{ schedule(); }}).catch(()=>{{}});
+  }}
 }})();
 </script>
-
-
 """
-
-    components.html(html, height=260, scrolling=False)
+    # 최소 높이로 렌더 후 JS가 setFrameHeight로 맞춥니다.
+    try:
+        components.html(html, height=10, scrolling=False)
+    except Exception:
+        # fallback: script 실행이 막힌 환경에서도 최소한 텍스트는 보이게
+        st.markdown(html.replace("<script>", "<!--").replace("</script>", "-->"), unsafe_allow_html=True)
 
 def play_audio_or_tts(text: str, audio_url: str, label: str, key: str):
     """PRO: mp3 URL 재생 / FREE: 잠금. URL 없으면 TTS fallback."""
