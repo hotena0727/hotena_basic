@@ -38,54 +38,45 @@ import streamlit as st
 # ============================================================
 # ✅ Hotena UI: 타이틀 왼쪽 캐릭터 아이콘(최소 버전)
 # ============================================================
-import base64
-from pathlib import Path
-import streamlit as st
-
-def _img_to_data_uri(path: str) -> str:
-    p = Path(path)
-    b = p.read_bytes()
-    ext = p.suffix.lower().lstrip(".")
-    mime = "png" if ext == "png" else ext
-    return f"data:image/{mime};base64," + base64.b64encode(b).decode("utf-8")
-
-def hotena_title(icon_path: str, title: str, size_px: int = 56, gap_px: int = 6,
-                 right_text: str | None = None, text_nudge_px: int = 0):
-    """
-    아이콘 바닥과 텍스트 바닥을 최대한 맞춤.
-    text_nudge_px로 텍스트를 1~4px 정도 아래로 미세 조정 가능.
-    """
-    try:
-        uri = _img_to_data_uri(icon_path)
-        right_html = (
-            f'<div style="margin-left:auto;font-size:0.98rem;opacity:0.85;'
-            f'line-height:1; transform:translateY({text_nudge_px}px);">{right_text}</div>'
-            if right_text else ""
-        )
-
+def hotena_title(icon_path: str, title: str, size_px: int = 56, right_text: str | None = None):
+    """Left icon + title, optional right text."""
+    c1, c2, c3 = st.columns([0.14, 0.61, 0.25], vertical_alignment="center")
+    with c1:
+        try:
+            st.image(icon_path, width=size_px)
+        except Exception:
+            st.markdown(" ")
+    with c2:
         st.markdown(
-            f"""
-            <div style="display:flex;align-items:flex-end;gap:{gap_px}px;margin:4px 0 10px 0;">
-              <img src="{uri}" style="
-                width:{size_px}px;height:{size_px}px;
-                object-fit:contain;flex:0 0 auto;
-                display:block;   /* ✅ 이미지 아래 베이스라인 갭 제거 */
-              " />
-              <div style="
-                font-size:1.18rem;font-weight:900;
-                line-height:2;   /* ✅ 글 박스 바닥을 더 정확히 */
-                white-space:nowrap;
-                transform:translateY({text_nudge_px}px); /* ✅ 필요시 1~4px */
-              ">{title}</div>
-              {right_html}
-            </div>
-            """,
-            unsafe_allow_html=True
+            f"""<div style="font-size:1.20rem;font-weight:900;line-height:1.05;margin:0;">{title}</div>""",
+            unsafe_allow_html=True,
         )
-    except Exception:
-        st.markdown(f"### {title}")
+    with c3:
+        if right_text:
+            st.markdown(
+                f"""<div style="text-align:right;font-size:0.98rem;opacity:0.85;line-height:1.05;margin:0;">{right_text}</div>""",
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(" ")
+
+def hotena_title_in_col(icon_path: str, title: str, size_px: int = 44):
+    """Use inside an existing column."""
+    ic, tc = st.columns([0.20, 0.80], vertical_alignment="center")
+    with ic:
+        try:
+            st.image(icon_path, width=size_px)
+        except Exception:
+            st.markdown(" ")
+    with tc:
+        st.markdown(
+            f"""<div style="font-size:1.10rem;font-weight:900;line-height:1.05;margin:0;">{title}</div>""",
+            unsafe_allow_html=True,
+        )
+
 
 import ai_tutor
+
 
 # ============================================================
 # ✅ wrong_notes debug helper
@@ -997,13 +988,12 @@ def tts_inline_row(role_label: str, text: str, key: str, show_text: bool = True,
         )
 
 def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bool = True,
-                    partner_audio_url: str = "", answer_audio_url: str = "",
-                    partner_kr: str = "", answer_kr: str = ""):
-    '''결과 박스: 상대/내 문장을 한 줄씩 + 스피커(문장 오른쪽).
+                    partner_audio_url: str = "", answer_audio_url: str = ""):
+    """결과 박스: 상대/내 문장을 한 줄씩 + 스피커(문장 오른쪽).
     ✅ PRO 클릭 시: 브라우저에서 바로 재생(오디오/mp3 우선, 없으면 SpeechSynthesis)
     ✅ FREE: 잠금(비활성)
     - Streamlit 버튼을 쓰지 않아, 클릭 시 페이지 rerun(번쩍임)을 유발하지 않습니다.
-    '''
+    """
     p = (partner_text or "").strip()
     a = (answer_text or "").strip()
     p_au = resolve_audio_url(partner_audio_url)
@@ -1014,7 +1004,7 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
         return (
             (s or "")
             .replace("\\", "\\\\")
-            .replace('"', '\\"')
+            .replace('"', '\"')
             .replace("`", "")
             .replace("\n", " ")
             .replace("\r", " ")
@@ -1022,8 +1012,6 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
 
     p_safe = _esc(p)
     a_safe = _esc(a)
-    pkr_safe = _esc((partner_kr or "").strip())
-    akr_safe = _esc((answer_kr or "").strip())
     p_au_safe = _esc(p_au)
     a_au_safe = _esc(a_au)
 
@@ -1032,56 +1020,32 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
     # show_text=False면 텍스트는 숨기고(공백), 버튼만 남김
     show = "block" if show_text else "none"
 
-    # ✅ 컴포넌트 높이(불필요 공백 최소화)
-    has_pkr = bool(pkr_safe)
-    has_akr = bool(akr_safe)
-    height = 154
-    if show_text:
-        if has_pkr:
-            height += 22
-        if has_akr:
-            height += 22
-
     html = f"""
 <div class="ttspair">
-  <div class="row bubble bubble-p">
+  <div class="row">
     <span class="lab">상대(말)</span>
-    <div class="txtwrap" style="display:{show}">
-      <div class="jp">{p_safe}</div>
-      <div class="kr" style="display:{'block' if has_pkr else 'none'}">{pkr_safe}</div>
-    </div>
-    <button class="btn" id="pbtn-{qid}" aria-label="listen" {'disabled' if disabled or (not p) else ''}>🔊</button>
+    <span class="txt" style="display:{show}">{p_safe}</span>
+    <button class="btn" id="pbtn-{qid}" aria-label="listen" {'disabled' if (not IS_PRO) or (not p) else ''}>🔊</button>
     {('<span class="pro">PRO</span>' if (not IS_PRO) else '')}
   </div>
-
-  <div class="row bubble bubble-a">
+  <div class="row">
     <span class="lab">내(말)</span>
-    <div class="txtwrap" style="display:{show}">
-      <div class="jp">{a_safe}</div>
-      <div class="kr" style="display:{'block' if has_akr else 'none'}">{akr_safe}</div>
-    </div>
-    <button class="btn" id="abtn-{qid}" aria-label="listen" {'disabled' if disabled or (not a) else ''}>🔊</button>
+    <span class="txt" style="display:{show}">{a_safe}</span>
+    <button class="btn" id="abtn-{qid}" aria-label="listen" {'disabled' if (not IS_PRO) or (not a) else ''}>🔊</button>
     {('<span class="pro">PRO</span>' if (not IS_PRO) else '')}
   </div>
 </div>
-
 <style>
-  /* ✅ 무지/미니멀 A안 + 말풍선 각각 아웃라인(레이아웃 영향 없음: box-shadow) */
   .ttspair{{display:flex;flex-direction:column;gap:8px;}}
-  .ttspair .row{{display:flex;align-items:flex-start;gap:10px;line-height:1.35;}}
-  .ttspair .bubble{{border-radius:14px; box-shadow:0 0 0 1px rgba(0,0,0,.12);}}
-  .ttspair .bubble-p{{box-shadow:0 0 0 1px rgba(0,0,0,.20);}}
-  .ttspair .bubble-a{{box-shadow:0 0 0 1px rgba(0,0,0,.12);}}
+  /* flex row: allow wrapping without clipping on narrow screens (Android) */
+  .ttspair .row{{display:flex;align-items:flex-start;gap:8px;line-height:1.45;}}
+  .ttspair .lab{{min-width:52px;font-weight:700;opacity:.85;flex:0 0 auto;}}
+  .ttspair .txt{{font-size:1.05rem;flex:1 1 auto;min-width:0;white-space:normal;overflow-wrap:anywhere;word-break:break-word;}}
 
-  .ttspair .lab{{min-width:52px;font-weight:650;opacity:.82;flex:0 0 auto;padding:10px 0 10px 10px;}}
-  .ttspair .txtwrap{{flex:1 1 auto;min-width:0;white-space:normal;overflow-wrap:anywhere;word-break:break-word;padding:10px 0;}}
-  .ttspair .jp{{font-size:1.03rem;font-weight:560;line-height:1.35;letter-spacing:.01em;}}
-  .ttspair .kr{{margin-top:3px;font-size:.86rem;line-height:1.25;opacity:.72;}}
-  .ttspair .btn{{border:0;background:transparent;padding:10px 10px 10px 0;margin-left:2px;font-size:1.05rem;cursor:pointer;opacity:.95;}}
+  .ttspair .btn{{border:0;background:transparent;padding:0;margin-left:2px;font-size:1.05rem;cursor:pointer;opacity:.95;}}
   .ttspair .btn[disabled]{{cursor:not-allowed;opacity:.35;}}
-  .ttspair .pro{{align-self:flex-start;margin-top:10px;font-size:.75rem;letter-spacing:.02em;border:1px solid rgba(0,0,0,.18);border-radius:999px;padding:1px 6px;opacity:.45;}}
+  .ttspair .pro{{font-size:.75rem;letter-spacing:.02em;border:1px solid rgba(0,0,0,.18);border-radius:999px;padding:1px 6px;opacity:.45;}}
 </style>
-
 <script>
 (function(){{
   function pickJaVoice(){{
@@ -1090,33 +1054,28 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
       const vs = synth ? (synth.getVoices() || []) : [];
       const ja = vs.filter(v => String(v.lang||"").toLowerCase().startsWith("ja"));
       if(!ja.length) return null;
-      const pref = ja.find(v => /female|woman|kyoko|haruka|nanami|mizuki|yuna/i.test(String(v.name||"")));
-      return pref || ja[0];
-    }} catch(e) {{
-      return null;
-    }}
+      return ja.find(v => /google/i.test(v.name||"")) || ja.find(v => /日本|japanese/i.test(v.name||"")) || ja[0] || null;
+    }} catch(e) {{ return null; }}
   }}
-
   function speak(text){{
     try {{
+      if(!window.speechSynthesis) return;
       const synth = window.speechSynthesis;
-      if(!synth) return;
-      const u = new SpeechSynthesisUtterance(text || "");
+      synth.cancel();
+      const u = new SpeechSynthesisUtterance(text);
       u.lang = "ja-JP";
       const v = pickJaVoice();
       if(v) u.voice = v;
-      synth.cancel();
+      u.rate = 1.0; u.pitch = 1.0;
       synth.speak(u);
     }} catch(e) {{}}
   }}
-
   function play(audioUrl, text){{
     if(audioUrl){{
       try{{ const a = new Audio(audioUrl); a.play().catch(()=>{{ speak(text); }}); return; }}catch(e){{}}
     }}
     speak(text);
   }}
-
   const pbtn = document.getElementById('pbtn-{qid}');
   const abtn = document.getElementById('abtn-{qid}');
   if(pbtn) pbtn.addEventListener('click', (e)=>{{ e.preventDefault(); if(pbtn.disabled) return; play("{p_au_safe}", "{p_safe}"); }});
@@ -1125,7 +1084,33 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
 </script>
 """
 
-    components.html(html, height=height)
+    
+    # ✅ Dynamic height: prevent clipping when sentences are long (Android/WebView)
+    # - components.html uses an iframe with fixed height; if text grows, it gets cut off.
+    # - We estimate line count from text length (rough but reliable enough) and scale height.
+    def _est_lines(s: str, chars_per_line: int = 28) -> int:
+        s = (s or "").strip()
+        if not s:
+            return 0
+        # count explicit newlines + wrapped lines
+        parts = [p for p in s.split("\n") if p != ""]
+        if not parts:
+            return 1
+        lines = 0
+        for part in parts:
+            n = max(1, (len(part) + chars_per_line - 1) // chars_per_line)
+            lines += n
+        return lines
+
+    _lines = _est_lines(p, 28) + _est_lines(a, 28)
+    # base height covers labels/buttons + 2 short lines; scale with content
+    _h = 150 + int(_lines * 22)
+    if _h < 180:
+        _h = 180
+    if _h > 520:
+        _h = 520
+
+    components.html(html, height=_h)
 
 def play_audio_or_tts(text: str, audio_url: str, label: str, key: str):
     """PRO: mp3 URL 재생 / FREE: 잠금. URL 없으면 TTS fallback."""
@@ -1452,16 +1437,9 @@ if submitted:
         # ✅ 상대(말) / 내(말) — 스피커 아이콘 버튼은 여기서만 노출
         
         # ✅ 상대(말) / 내(말) — 한 iframe에서 2줄 렌더(간격 촘촘)
-        tts_inline_pair(
-            row.get("partner_jp",""),
-            row.get("answer_jp",""),
-            qid=str(qid),
-            show_text=True,
-            partner_audio_url=(row.get("partner_mp3","") or row.get("partner_audio","") or row.get("partner_audio_url","") or ""),
-            answer_audio_url=(row.get("answer_mp3","") or row.get("answer_audio","") or row.get("answer_audio_url","") or ""),
-            partner_kr=(row.get("partner_kr","") or row.get("partner_ko","") or row.get("partner_kor","") or ""),
-            answer_kr=(row.get("answer_kr","") or row.get("answer_ko","") or row.get("answer_kor","") or ""),
-        )
+        tts_inline_pair(row.get("partner_jp",""), row.get("answer_jp",""), qid=str(qid), show_text=True,
+                   partner_audio_url=row.get("partner_mp3","") or row.get("partner_audio","") or row.get("partner_audio_url","") or "",
+                   answer_audio_url=row.get("answer_mp3","") or row.get("answer_audio","") or row.get("answer_audio_url","") or "")
 
         # FREE: 제출 후에도 발음 듣기 하루 3회만 허용 (상대/내 각각 버튼 제공)
         if not IS_PRO:
@@ -1830,7 +1808,7 @@ if submitted:
 
         c_sc1, c_sc2 = st.columns([0.72, 0.28], vertical_alignment="center")
         with c_sc1:
-            hotena_title("assets/hotena_talk/icons_title/icon_score_title.png", "말하기 점수", size_px=44, gap_px=0)
+            hotena_title_in_col("assets/hotena_talk/icons_title/icon_score_title.png", "말하기 점수", size_px=44)
         with c_sc2:
             # ✅ '다시 계산'은 네트워크/브라우저 상태 등으로 자동 계산이 실패했을 때만 노출
             show_recalc = bool(st.session_state.get(err_key))
@@ -1869,8 +1847,21 @@ if submitted:
         st.caption("정답을 보고 2~3번 따라 말해 보세요. 녹음이 끝나면 점수가 자동으로 계산됩니다.")
         reward_key = f"{NS}_reward_ready_{qid}"
         if st.button("✅ 다 했어요 (보상 받기)", use_container_width=True, key=f"{NS}_next_after"):
-            # ✅ 1단계: 보상만 보여주고, 다음 이동은 사용자가 명확히 누르도록 분리
-            st.session_state[reward_key] = True
+            # ✅ 보상 규칙(최종):
+            # - 녹음(오디오) + 점수 계산 완료 + 100점일 때만 보상 표시
+            _score = st.session_state.get(score_key, None)
+            if not has_audio:
+                st.warning("보상은 녹음과 점수 계산(100점)이 완료됐을 때만 받을 수 있어요. 먼저 녹음해 주세요.")
+                st.session_state[reward_key] = False
+            elif _score is None:
+                st.warning("점수가 아직 없어요. 녹음 후 점수 계산을 완료해 주세요.")
+                st.session_state[reward_key] = False
+            elif int(_score) != 100:
+                st.info("보상은 100점일 때만 받을 수 있어요. 한 번 더 도전해 볼까요?")
+                st.session_state[reward_key] = False
+            else:
+                # ✅ 1단계: 보상만 보여주고, 다음 이동은 사용자가 명확히 누르도록 분리
+                st.session_state[reward_key] = True
 
         if st.session_state.get(reward_key):
             hotena_title("assets/hotena_talk/icons_title/icon_reward_title.png", "말하기 완료 보상")
