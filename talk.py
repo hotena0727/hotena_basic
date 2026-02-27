@@ -60,19 +60,19 @@ def hotena_title(icon_path: str, title: str, size_px: int = 56, right_text: str 
         else:
             st.markdown(" ")
 
-def hotena_title_in_col(icon_path: str, title: str, size_px: int = 56, gap_px=6):
-    """Use inside an existing column."""
-    ic, tc = st.columns([0.20, 0.80], vertical_alignment="center")
-    with ic:
-        try:
-            st.image(icon_path, width=size_px)
-        except Exception:
-            st.markdown(" ")
-    with tc:
-        st.markdown(
-            f"""<div style="font-size:1.10rem;font-weight:900;line-height:1.05;margin:0;">{title}</div>""",
-            unsafe_allow_html=True,
-        )
+def hotena_title(icon_path: str, title: str, size_px: int = 56, gap_px: int = 0, right_text: str | None = None):
+    uri = _img_to_data_uri(icon_path)
+    right_html = f'<div style="margin-left:auto;font-size:0.98rem;opacity:0.85;">{right_text}</div>' if right_text else ""
+    st.markdown(
+        f"""
+        <div style="display:flex;align-items:center;margin:4px 0 10px 0;">
+          <img src="{uri}" style="width:{size_px}px;height:{size_px}px;object-fit:contain;flex:0 0 auto;margin-right:{gap_px}px;" />
+          <div style="font-size:1.18rem;font-weight:900;line-height:1.05;margin:0;padding:0;">{title}</div>
+          {right_html}
+        </div>
+        """,
+        unsafe_allow_html=True
+    )
 
 
 import ai_tutor
