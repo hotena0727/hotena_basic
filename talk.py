@@ -1245,7 +1245,7 @@ html, body {{ margin:0; padding:0; }}
 """
     # 최소 높이로 렌더 후 JS가 setFrameHeight로 맞춥니다.
     try:
-        components.html(html, height=10, scrolling=False)
+        components.html(html, height=220, scrolling=False)
     except Exception:
         # fallback: script 실행이 막힌 환경에서도 최소한 텍스트는 보이게
         st.markdown(html.replace("<script>", "<!--").replace("</script>", "-->"), unsafe_allow_html=True)
