@@ -1051,7 +1051,7 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
       <div class="kr" style="display:{'block' if has_pkr else 'none'}">{pkr_safe}</div>
     </div>
     <button class="btn" id="pbtn-{qid}" aria-label="listen" {'disabled' if disabled or (not p) else ''}>🔊</button>
-    
+    {('<span class="pro">PRO</span>' if (not IS_PRO) else '')}
   </div>
 
   <div class="row bubble bubble-a">
@@ -1061,7 +1061,7 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
       <div class="kr" style="display:{'block' if has_akr else 'none'}">{akr_safe}</div>
     </div>
     <button class="btn" id="abtn-{qid}" aria-label="listen" {'disabled' if disabled or (not a) else ''}>🔊</button>
-    
+    {('<span class="pro">PRO</span>' if (not IS_PRO) else '')}
   </div>
 </div>
 
@@ -1131,6 +1131,8 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
         document.body ? document.body.scrollHeight : 0,
         document.documentElement ? document.documentElement.scrollHeight : 0
       );
+      // ✅ fallback: some mobile browsers fail to apply setFrameHeight reliably
+      h = Math.max(h, 1);  // allow shrink; no large forced minimum
       if (window.parent){{
         window.parent.postMessage({{isStreamlitMessage:true, type:"streamlit:setFrameHeight", height:h + 12}}, "*");
       }}
@@ -1144,13 +1146,16 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
   }}catch(e){{}}
   window.addEventListener("load", function(){{ setTimeout(send, 30); }});
   setTimeout(send, 80);
+  setTimeout(send, 180);
+  setTimeout(send, 320);
+  setTimeout(send, 520);
 }})();
 </script>
 
 
 """
 
-    components.html(html, height=260, scrolling=False)
+    components.html(html, height=190, scrolling=True)
 
 def play_audio_or_tts(text: str, audio_url: str, label: str, key: str):
     """PRO: mp3 URL 재생 / FREE: 잠금. URL 없으면 TTS fallback."""
@@ -1201,6 +1206,35 @@ def build_choices(row: dict, pool_answers: list[str]) -> list[str]:
 
 
 pool_answers = pool_df["answer_jp"].astype(str).tolist()
+
+
+# ============================================================
+# ✅ Reset set when tag/sub/plan changes
+# - '이해' 등 특정 tag로 바꿨을 때, 이전 tag의 qids가 남아있으면
+#   다음 문제로 넘어가도 idx가 0으로 되돌아가며 "고정"되는 현상이 생깁니다.
+# - 따라서 tag/sub/plan 조합이 바뀌면 set_qids/idx/opts 캐시를 안전하게 초기화합니다.
+# ============================================================
+try:
+    _pool_sig = f"{str(tag)}|{str(sub)}|{'PRO' if IS_PRO else 'FREE'}"
+    _prev_sig = st.session_state.get(f"{NS}_pool_sig")
+    if _prev_sig != _pool_sig:
+        # 기존 세트/진행 초기화
+        st.session_state.pop(f"{NS}_set_qids", None)
+        st.session_state.pop(f"{NS}_idx", None)
+        st.session_state.pop(f"{NS}_answers", None)
+        st.session_state.pop(f"{NS}_submitted", None)
+
+        # qid별 캐시(보기/선택/제출/말하기 체크/보상 상태)도 초기화
+        for _k in list(st.session_state.keys()):
+            if _k.startswith(f"{NS}_opts_") or _k.startswith(f"{NS}_selected_") or _k.startswith(f"{NS}_submitted_") or _k.startswith(f"{NS}_radio_") or _k.startswith(f"{NS}_speak_done_") or _k.startswith(f"{NS}_reward_ready_") or _k.startswith(f"{NS}_turn_saved_"):
+                st.session_state.pop(_k, None)
+
+        # FAB queryparam 중복 방지 키도 초기화
+        st.session_state.pop("_talk_next_seen", None)
+
+        st.session_state[f"{NS}_pool_sig"] = _pool_sig
+except Exception:
+    pass
 
 # ============================================================
 # ✅ Initialize set (10 qids) + pointer
