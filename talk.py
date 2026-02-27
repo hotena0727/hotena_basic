@@ -1571,7 +1571,7 @@ if submitted:
         st.error("오답 ❌")
 
     # ✅ 오늘의 회화 레벨 게이지(일일) + 미션 카드(포인트)
-    _goal = 6
+    _goal = 7
     _done = _get_today_speech_done()
     _ratio = min(1.0, (_done / _goal) if _goal else 0.0)
 
@@ -2029,8 +2029,40 @@ if submitted:
         text_key = f"talk_pron_text_{qid}"
         err_key = f"talk_pron_err_{qid}"
 
+        # ✅ (중요) 정답 제출 직후에는 '녹음 전' 상태가 기본입니다.
+        # - Streamlit rerun/캐시로 이전 결과가 남아 보이는 현상을 막기 위해,
+        #   이 문제(qid)의 발음 점수/인식결과는 '처음 진입' 시 1회 초기화합니다.
+        _entered_key = f"talk_pron_entered_{qid}"
+        if not st.session_state.get(_entered_key, False):
+            st.session_state[_entered_key] = True
+            st.session_state.pop(text_key, None)
+            st.session_state.pop(score_key, None)
+            st.session_state.pop(err_key, None)
+            st.session_state.pop(f"talk_pron_lasthash_{qid}", None)
+
         audio_obj = locals().get("_audio", None)
-        has_audio = audio_obj is not None
+
+        # ✅ 녹음 '전'에는 결과/점수 표시 및 자동 계산을 절대 하지 않기
+        _peek = b""
+        if audio_obj is not None:
+            try:
+                if hasattr(audio_obj, "getvalue"):
+                    _peek = audio_obj.getvalue() or b""
+                elif hasattr(audio_obj, "read"):
+                    _pos = audio_obj.tell() if hasattr(audio_obj, "tell") else None
+                    _peek = audio_obj.read() or b""
+                    if _pos is not None and hasattr(audio_obj, "seek"):
+                        audio_obj.seek(_pos)
+            except Exception:
+                _peek = b""
+
+        has_audio = bool(_peek)
+        if not has_audio:
+            # 화면에는 '녹음기'만 보이고, 결과/점수는 숨깁니다.
+            st.session_state.pop(text_key, None)
+            st.session_state.pop(score_key, None)
+            st.session_state.pop(err_key, None)
+
 
         # ✅ (중요) 녹음을 아직 하지 않았는데 이전 결과(점수/인식)가 남아 보이는 경우가 있어
         # 제출 직후(또는 위젯이 아직 비어있는 상태)에는 결과를 초기화합니다.
