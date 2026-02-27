@@ -35,6 +35,51 @@ except Exception:
 import pandas as pd
 import streamlit as st
 
+# ============================================================
+# ✅ 오늘의 회화 레벨 게이지(일일 완료 카운트) + 일본인 버전(간단 변환)
+# ============================================================
+def _kst_today_str() -> str:
+    # 서버가 KST가 아닐 수 있으므로 +9 보정
+    try:
+        now = datetime.utcnow() + timedelta(hours=9)
+    except Exception:
+        now = datetime.now()
+    return now.date().isoformat()
+
+def _get_today_speech_done() -> int:
+    key_date = "talk_speech_done_date"
+    key_cnt = "talk_speech_done_cnt"
+    today = _kst_today_str()
+    if st.session_state.get(key_date) != today:
+        st.session_state[key_date] = today
+        st.session_state[key_cnt] = 0
+    return int(st.session_state.get(key_cnt) or 0)
+
+def _inc_today_speech_done(n: int = 1) -> None:
+    key_cnt = "talk_speech_done_cnt"
+    cur = _get_today_speech_done()
+    st.session_state[key_cnt] = int(cur) + int(n)
+
+_NATIVE_MAP = [
+    ("てもいいですか", "てもいい？"),
+    ("てもよろしいでしょうか", "てもいい？"),
+    ("でしょうか", "かな"),
+    ("お願いします", "お願い"),
+    ("ですか", "？"),
+]
+
+def _jp_native_variant(s: str) -> str:
+    t = (s or "").strip()
+    if not t:
+        return ""
+    out = t
+    for a, b in _NATIVE_MAP:
+        if a in out:
+            out = out.replace(a, b)
+    # 살짝 더 자연스럽게(너무 과하면 위험하니 최소만)
+    out = out.replace("。", "。").strip()
+    return out if out and out != t else ""
+
 
 # ============================================================
 # ✅ Hotena UI: 타이틀 왼쪽 캐릭터 아이콘(최소 버전)
@@ -1525,6 +1570,14 @@ if submitted:
     else:
         st.error("오답 ❌")
 
+    # ✅ 오늘의 회화 레벨 게이지(일일)
+    _goal = 6
+    _done = _get_today_speech_done()
+    _ratio = min(1.0, (_done / _goal) if _goal else 0.0)
+    st.markdown("#### 🗣 오늘의 회화 레벨")
+    st.progress(_ratio)
+    st.caption(f"{_done} / {_goal} 문장 완료")
+
     # 상대/정답 스크립트 + 해설(제출 후에만)
     with st.container(border=True):
         hotena_title("assets/hotena_talk/icons_title/icon_pronounce_title.png", "대화/해설")
@@ -1659,9 +1712,15 @@ if submitted:
             if explain_kr:
                 st.markdown("<div style='margin-top:-18px'></div>", unsafe_allow_html=True)
                 st.info("💡 하테나쌤 원포인트 일본어\n\n" + explain_kr)
+                _nv = _jp_native_variant(str(row.get("answer_jp","") or ""))
+                if _nv:
+                    st.caption("💬 일본인 버전: " + _nv)
             elif hint:
                 st.markdown("<div style='margin-top:-18px'></div>", unsafe_allow_html=True)
                 st.info("💡 하테나쌤 원포인트 일본어\n\n" + hint)
+                _nv = _jp_native_variant(str(row.get("answer_jp","") or ""))
+                if _nv:
+                    st.caption("💬 일본인 버전: " + _nv)
             else:
                 st.markdown("<div style='margin-top:-18px'></div>", unsafe_allow_html=True)
                 st.info(
@@ -1669,6 +1728,9 @@ if submitted:
                     "포인트: 상황에서 ‘요청/사과/확인/거절’ 중 무엇인지 먼저 잡고, "
                     "그에 맞는 톤(정중/캐주얼)을 고르면 실수가 줄어듭니다."
                 )
+                _nv = _jp_native_variant(str(row.get("answer_jp","") or ""))
+                if _nv:
+                    st.caption("💬 일본인 버전: " + _nv)
 
             # ------------------------------------
             # 🤖 스마트 코치
@@ -1997,8 +2059,9 @@ if submitted:
             if _said and _sc == 100:
                 # ✅ 1단계: 보상만 보여주고, 다음 이동은 사용자가 명확히 누르도록 분리
                 st.session_state[reward_key] = True
+                _inc_today_speech_done(1)
             else:
-                st.warning("보상은 '녹음 + 100점'일 때만 받을 수 있어요. 지금 바로 녹음하고 100점을 만들어 보세요.")
+                st.warning("보상은 '녹음 + 100점'일 때만 받을 수 있어요. 먼저 녹음하고 100점을 만들어 주세요.")
 
         # ✅ 보상 조건을 못 맞춰도, 다음 문제로는 넘어갈 수 있게(보상만 미지급)
         if st.button("➡️ 다음 문제로 (보상 없이)", use_container_width=True, key=f"{NS}_go_next_no_reward_{qid}"):
