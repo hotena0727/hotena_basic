@@ -1123,9 +1123,34 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
   if(abtn) abtn.addEventListener('click', (e)=>{{ e.preventDefault(); if(abtn.disabled) return; play("{a_au_safe}", "{a_safe}"); }});
 }})();
 </script>
+<script>
+(function(){{
+  function send(){{
+    try{{
+      var h = Math.max(
+        document.body ? document.body.scrollHeight : 0,
+        document.documentElement ? document.documentElement.scrollHeight : 0
+      );
+      if (window.parent){{
+        window.parent.postMessage({{isStreamlitMessage:true, type:"streamlit:setFrameHeight", height:h + 12}}, "*");
+      }}
+    }}catch(e){{}}
+  }}
+  try{{
+    if (window.ResizeObserver){{
+      var ro = new ResizeObserver(function(){{ send(); }});
+      ro.observe(document.body);
+    }}
+  }}catch(e){{}}
+  window.addEventListener("load", function(){{ setTimeout(send, 30); }});
+  setTimeout(send, 80);
+}})();
+</script>
+
+
 """
 
-    components.html(html, height=height)
+    components.html(html, height=10, scrolling=False)
 
 def play_audio_or_tts(text: str, audio_url: str, label: str, key: str):
     """PRO: mp3 URL 재생 / FREE: 잠금. URL 없으면 TTS fallback."""
@@ -1869,8 +1894,15 @@ if submitted:
         st.caption("정답을 보고 2~3번 따라 말해 보세요. 녹음이 끝나면 점수가 자동으로 계산됩니다.")
         reward_key = f"{NS}_reward_ready_{qid}"
         if st.button("✅ 다 했어요 (보상 받기)", use_container_width=True, key=f"{NS}_next_after"):
-            # ✅ 1단계: 보상만 보여주고, 다음 이동은 사용자가 명확히 누르도록 분리
-            st.session_state[reward_key] = True
+            # ✅ 규칙: '녹음'을 했고, 점수가 100점일 때만 보상을 받습니다.
+            _sc = int(st.session_state.get(score_key) or 0) if st.session_state.get(score_key) is not None else 0
+            _said = str(st.session_state.get(text_key) or "").strip()
+            if _said and _sc == 100:
+                # ✅ 1단계: 보상만 보여주고, 다음 이동은 사용자가 명확히 누르도록 분리
+                st.session_state[reward_key] = True
+            else:
+                st.warning("보상은 '녹음 + 100점'일 때만 받을 수 있어요. 먼저 녹음하고 100점을 만들어 주세요.")
+
 
         if st.session_state.get(reward_key):
             hotena_title("assets/hotena_talk/icons_title/icon_reward_title.png", "말하기 완료 보상")
