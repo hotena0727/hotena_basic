@@ -1149,33 +1149,33 @@ pool_answers = pool_df["answer_jp"].astype(str).tolist()
 # ✅ Initialize set (10 qids) + pointer
 # ============================================================
 
-    # ------------------------------------------------------------
-    # ✅ 필터(레벨/유형/서브) 변경 시: '고정 세트'를 반드시 새로 생성
-    # - (특히 새로 추가된 유형)에서 세트가 이전 유형의 qid를 들고 있으면
-    #   qid 매칭 실패 → 항상 pool_df의 첫 문제로 fallback → "다음"을 눌러도 1번이 반복되는 현상이 생김
-    # ------------------------------------------------------------
-    try:
-        _pool_qids = pool_df["qid"].astype(str).tolist()
-    except Exception:
-        _pool_qids = []
-    _pool_sig = hashlib.md5(("|".join(_pool_qids)).encode("utf-8")).hexdigest()
-    _sel_sig_key = f"{NS}_pool_sig"
-    _sel_sig = f"{level}|{tag}|{sub}|{_pool_sig}"
-    if st.session_state.get(_sel_sig_key) != _sel_sig:
-        st.session_state[_sel_sig_key] = _sel_sig
-        for _k in [
-            f"{NS}_set_qids",
-            f"{NS}_idx",
-            f"{NS}_qid",
-            f"{NS}_selected",
-            f"{NS}_submitted",
-            f"{NS}_spoken",
-            f"{NS}_answers",
-            f"{NS}_next_after",
-            f"{NS}_set_done",
-            f"{NS}_new_set",
-        ]:
-            st.session_state.pop(_k, None)
+# ------------------------------------------------------------
+# ✅ 필터(레벨/유형/서브) 변경 시: '고정 세트'를 반드시 새로 생성
+# - (특히 새로 추가된 유형)에서 세트가 이전 유형의 qid를 들고 있으면
+#   qid 매칭 실패 → 항상 pool_df의 첫 문제로 fallback → "다음"을 눌러도 1번이 반복되는 현상이 생김
+# ------------------------------------------------------------
+try:
+    _pool_qids = pool_df["qid"].astype(str).tolist()
+except Exception:
+    _pool_qids = []
+_pool_sig = hashlib.md5(("|".join(_pool_qids)).encode("utf-8")).hexdigest()
+_sel_sig_key = f"{NS}_pool_sig"
+_sel_sig = f"{level}|{tag}|{sub}|{_pool_sig}"
+if st.session_state.get(_sel_sig_key) != _sel_sig:
+    st.session_state[_sel_sig_key] = _sel_sig
+    for _k in [
+        f"{NS}_set_qids",
+        f"{NS}_idx",
+        f"{NS}_qid",
+        f"{NS}_selected",
+        f"{NS}_submitted",
+        f"{NS}_spoken",
+        f"{NS}_answers",
+        f"{NS}_next_after",
+        f"{NS}_set_done",
+        f"{NS}_new_set",
+    ]:
+        st.session_state.pop(_k, None)
 
 if f"{NS}_set_qids" not in st.session_state:
     n = min((SET_LEN if IS_PRO else FREE_SET_LEN), len(pool_df))
