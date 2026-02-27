@@ -1995,6 +1995,7 @@ if submitted:
 # ✅ 말하기 녹음(선택)
         # - PRO: 녹음 가능
         # - FREE: PRO 안내 카드 노출
+        _audio = None
         if IS_PRO:
             _audio = st.audio_input("🎤 (선택) 내 발음을 녹음하고 들어보세요", key=f"{qid}_record")
             if _audio is not None:
