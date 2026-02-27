@@ -1034,7 +1034,7 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
 
     html = f"""
 <div class="ttspair">
-  <div class="row">
+  <div class="row partner">
     <span class="lab">상대(말)</span>
     <div class="txtwrap" style="display:{show}">
       <div class="jp">{p_safe}</div>
@@ -1043,7 +1043,7 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
     <button class="btn" id="pbtn-{qid}" aria-label="listen" {'disabled' if (not IS_PRO) or (not p) else ''}>🔊</button>
     {('<span class="pro">PRO</span>' if (not IS_PRO) else '')}
   </div>
-  <div class="row">
+  <div class="row answer">
     <span class="lab">내(말)</span>
     <div class="txtwrap" style="display:{show}">
       <div class="jp">{a_safe}</div>
@@ -1064,6 +1064,10 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
   .ttspair .btn{{border:0;background:transparent;padding:0;margin-left:2px;font-size:1.05rem;cursor:pointer;opacity:.95;}}
   .ttspair .btn[disabled]{{cursor:not-allowed;opacity:.35;}}
   .ttspair .pro{{font-size:.75rem;letter-spacing:.02em;border:1px solid rgba(0,0,0,.18);border-radius:999px;padding:1px 6px;opacity:.45;}}
+
+  /* ✅ bubble outline per row (no layout shift) */
+  .ttspair .row.partner .txtwrap{{box-shadow:0 0 0 1px rgba(0,0,0,.10);border-radius:12px;}}
+  .ttspair .row.answer .txtwrap{{box-shadow:0 0 0 1px rgba(0,0,0,.16);border-radius:12px;}}
 </style>
 <script>
 (function(){{
