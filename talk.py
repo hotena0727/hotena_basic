@@ -1845,10 +1845,40 @@ if submitted:
             st.metric("점수", int(st.session_state.get(score_key) or 0))
 
         st.caption("정답을 보고 2~3번 따라 말해 보세요. 녹음이 끝나면 점수가 자동으로 계산됩니다.")
+
+        # ------------------------------------------------------------
+        # ✅ 말하기 완료 보상 지급 규칙 (완전 적용)
+        # 1) 녹음(has_audio) + 점수 산출(score_key) 완료
+        # 2) 점수 > 60 (60점 이하는 보상 없음)
+        # 3) 1문제당 1회만 지급
+        # ------------------------------------------------------------
         reward_key = f"{NS}_reward_ready_{qid}"
-        if st.button("✅ 다 했어요 (보상 받기)", use_container_width=True, key=f"{NS}_next_after"):
-            # ✅ 1단계: 보상만 보여주고, 다음 이동은 사용자가 명확히 누르도록 분리
+        rewarded_key = f"{NS}_rewarded_{qid}"
+
+        _score_val = st.session_state.get(score_key)
+        _score_int = int(_score_val or 0) if _score_val is not None else None
+        eligible_reward = bool(has_audio) and (_score_int is not None) and (_score_int > 60) and (not st.session_state.get(rewarded_key, False))
+
+        if st.button(
+            "✅ 다 했어요 (보상 받기)",
+            use_container_width=True,
+            key=f"{NS}_next_after",
+            disabled=not eligible_reward,
+        ):
+            # ✅ 보상 지급(1회)
             st.session_state[reward_key] = True
+            st.session_state[rewarded_key] = True
+            st.session_state[f"{NS}_speak_done_{qid}"] = True
+            try:
+                award_xp(2, "talk_speaking_reward")
+            except Exception:
+                pass
+
+        if (not eligible_reward) and (not st.session_state.get(rewarded_key, False)):
+            if _score_int is None:
+                st.caption("※ 녹음 후 점수가 계산되면 보상 버튼이 활성화됩니다.")
+            elif _score_int <= 60:
+                st.caption("※ 점수가 61점 이상일 때만 보상이 지급됩니다.")
 
         if st.session_state.get(reward_key):
             hotena_title("assets/hotena_talk/icons_title/icon_reward_title.png", "말하기 완료 보상")
