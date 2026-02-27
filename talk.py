@@ -1903,6 +1903,10 @@ if submitted:
             else:
                 st.warning("보상은 '녹음 + 100점'일 때만 받을 수 있어요. 먼저 녹음하고 100점을 만들어 주세요.")
 
+        # ✅ 보상 조건을 못 맞춰도, 다음 문제로는 넘어갈 수 있게(보상만 미지급)
+        if st.button("➡️ 다음 문제로 (보상 없이)", use_container_width=True, key=f"{NS}_go_next_no_reward_{qid}"):
+            _go_next_question()
+
 
         if st.session_state.get(reward_key):
             hotena_title("assets/hotena_talk/icons_title/icon_reward_title.png", "말하기 완료 보상")
