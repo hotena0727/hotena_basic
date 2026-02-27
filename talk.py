@@ -1079,7 +1079,7 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
     html = f"""
 <div class="ttspair{ " scroll" if scroll_mode else "" }" style="{ ("--txtmax:"+txtmax+";") if txtmax else "" }">
   <div class="row bubble bubble-p">
-    <span class="lab">상대(말)</span>
+    <span class="lab">상대</span>
     <div class="txtwrap" style="display:{show}">
       <div class="jp">{p_safe}</div>
       <div class="kr" style="display:{'block' if has_pkr else 'none'}">{pkr_safe}</div>
@@ -1089,7 +1089,7 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
   </div>
 
   <div class="row bubble bubble-a">
-    <span class="lab">내(말)</span>
+    <span class="lab">나</span>
     <div class="txtwrap" style="display:{show}">
       <div class="jp">{a_safe}</div>
       <div class="kr" style="display:{'block' if has_akr else 'none'}">{akr_safe}</div>
