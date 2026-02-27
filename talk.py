@@ -59,7 +59,7 @@ def hotena_title(icon_path: str, title: str, size_px: int = 56, gap_px: int = 6,
         right_html = f'<div style="margin-left:auto;font-size:0.98rem;opacity:0.85;">{right_text}</div>' if right_text else ""
         st.markdown(
             f"""
-            <div style="display:flex;align-items:center;gap:{gap_px}px;margin:4px 0 10px 0;">
+            <div style="display:flex;align-items:end;gap:{gap_px}px;margin:4px 0 10px 0;">
               <img src="{uri}" style="width:{size_px}px;height:{size_px}px;object-fit:contain;flex:0 0 auto;" />
               <div style="font-size:1.18rem;font-weight:900;line-height:1.05;white-space:nowrap;">{title}</div>
               {right_html}
