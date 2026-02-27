@@ -1044,16 +1044,16 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
             """
 <style>
 /* 대화/해설 말풍선(상대/나) - Free/Pro 공통 */
-.ht-pair-wrap{display:flex;flex-direction:column;gap:10px;margin-top:8px;}
-.ht-bubble{border:1px solid rgba(0,0,0,.12);border-radius:14px;padding:10px 10px;background:#fff;}
-.ht-row{display:flex;align-items:flex-start;gap:10px;min-width:0;}
-.ht-role{flex:0 0 auto;min-width:34px;font-weight:800;opacity:.92;margin-top:2px;white-space:nowrap;}
-.ht-text{flex:1 1 auto;min-width:0;}
-.ht-jp{font-size:1.05rem;font-weight:560;line-height:1.35;word-break:break-word;overflow-wrap:anywhere;white-space:normal;}
-.ht-kr{margin-top:4px;font-size:.90rem;opacity:.82;line-height:1.35;word-break:break-word;overflow-wrap:anywhere;white-space:normal;}
-.ht-tts{flex:0 0 auto;display:flex;align-items:flex-start;justify-content:flex-end;margin-left:2px;}
+.ht-pair-wrap{display:flex;flex-direction:column;gap:14px;margin-top:10px;}
+.ht-bubble{border:1px solid rgba(0,0,0,.12);border-radius:14px;padding:9px 10px;background:#fff;}
+.ht-row{display:flex;align-items:flex-start;gap:8px;min-width:0;flex-wrap:nowrap;}
+.ht-role{flex:0 0 auto;min-width:26px;font-weight:800;opacity:.92;margin-top:2px;white-space:nowrap;}
+.ht-tts{flex:0 0 auto;display:flex;align-items:flex-start;justify-content:flex-start;margin-left:0;}
 .ht-ttsbtn{border:0;background:transparent;padding:2px;margin:0;font-size:1.08rem;cursor:pointer;opacity:.95;line-height:1;}
 .ht-ttsbtn[disabled]{opacity:.35;cursor:not-allowed;}
+.ht-text{flex:1 1 auto;min-width:0;}
+.ht-jp{font-size:1.05rem;font-weight:560;line-height:1.35;word-break:break-word;overflow-wrap:anywhere;white-space:normal;}
+.ht-kr{display:block;margin-top:4px;font-size:.90rem;opacity:.82;line-height:1.35;word-break:break-word;overflow-wrap:anywhere;white-space:normal;}
 </style>
 """,
             unsafe_allow_html=True,
@@ -1074,12 +1074,12 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
 <div class="ht-bubble">
   <div class="ht-row" style="display:{show};">
     <div class="ht-role">{_esc_html(role)}</div>
+    <div class="ht-tts">
+      <button id="{btn_id}" class="ht-ttsbtn" {dis_attr} aria-label="tts">{icon}</button>
+    </div>
     <div class="ht-text">
       <div class="ht-jp">{jp_html}</div>
       {'<div class="ht-kr">' + kr_html + '</div>' if kr_html else ''}
-    </div>
-    <div class="ht-tts">
-      <button id="{btn_id}" class="ht-ttsbtn" {dis_attr} aria-label="tts">{icon}</button>
     </div>
   </div>
 </div>
