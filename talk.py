@@ -1525,9 +1525,48 @@ if submitted:
     else:
         st.error("오답 ❌")
 
-        # ✅ 제출 이후에만 원포인트 + 스마트코치 표시
-        # ============================================================
-        if submitted:
+    # 상대/정답 스크립트 + 해설(제출 후에만)
+    with st.container(border=True):
+        hotena_title("assets/hotena_talk/icons_title/icon_pronounce_title.png", "발음/말하기")
+
+        # ✅ 상황(제출 전에도 보이지만, 결과 박스에도 다시 한 번 노출)
+        situation = str(row.get("situation_kr", "")).strip()
+        if situation:
+            st.caption(f"상황: {situation}")
+
+
+        # ✅ 상대/나 스크립트(스피커 없음) — 텍스트만 표시
+        partner_jp = str(row.get("partner_jp","") or "")
+        answer_jp  = str(row.get("answer_jp","") or "")
+        partner_kr = str(row.get("partner_kr","") or row.get("partner_ko","") or row.get("partner_kor","") or "")
+        answer_kr  = str(row.get("answer_kr","") or row.get("answer_ko","") or row.get("answer_kor","") or "")
+
+        st.markdown(
+            f"""
+            <div class="talk-bubble-row">
+              <div class="talk-bubble-label">상대</div>
+              <div class="talk-bubble partner">{partner_jp}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        if partner_kr.strip():
+            st.markdown(f"<div class='talk-bubble-sub'>{partner_kr}</div>", unsafe_allow_html=True)
+
+        st.markdown(
+            f"""
+            <div class="talk-bubble-row">
+              <div class="talk-bubble-label">나</div>
+              <div class="talk-bubble me">{answer_jp}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        if answer_kr.strip():
+            st.markdown(f"<div class='talk-bubble-sub'>{answer_kr}</div>", unsafe_allow_html=True)
+        # ✅ 상대(말) / 내(말) — 스피커 아이콘 버튼은 여기서만 노출
+        
+
 
             # ------------------------------------
             # 💡 원포인트 일본어
