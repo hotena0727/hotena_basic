@@ -1503,7 +1503,7 @@ if submitted:
 
     # 상대/정답 스크립트 + 해설(제출 후에만)
     with st.container(border=True):
-        hotena_title("assets/hotena_talk/icons_title/icon_pronounce_title.png", "발음/말하기")
+        hotena_title("assets/hotena_talk/icons_title/icon_pronounce_title.png", "대화/해설")
 
         # ✅ 상황(제출 전에도 보이지만, 결과 박스에도 다시 한 번 노출)
         situation = str(row.get("situation_kr", "")).strip()
@@ -1977,7 +1977,7 @@ if submitted:
                 # ✅ 1단계: 보상만 보여주고, 다음 이동은 사용자가 명확히 누르도록 분리
                 st.session_state[reward_key] = True
             else:
-                st.warning("보상은 '녹음 + 100점'일 때만 받을 수 있어요. 먼저 녹음하고 100점을 만들어 주세요.")
+                st.warning("보상은 '녹음 + 100점'일 때만 받을 수 있어요. 지금 바로 녹음하고 점수를 확인해 보세요.")
 
         # ✅ 보상 조건을 못 맞춰도, 다음 문제로는 넘어갈 수 있게(보상만 미지급)
         if st.button("➡️ 다음 문제로 (보상 없이)", use_container_width=True, key=f"{NS}_go_next_no_reward_{qid}"):
