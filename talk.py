@@ -60,22 +60,6 @@ def _inc_today_speech_done(n: int = 1) -> None:
     cur = _get_today_speech_done()
     st.session_state[key_cnt] = int(cur) + int(n)
 
-
-# ✅ 오늘 총 말한 문장(= 오늘 정답 제출/시도 횟수) 카운트
-def _get_today_talk_attempts() -> int:
-    key_date = "talk_attempts_date"
-    key_cnt = "talk_attempts_cnt"
-    today = _kst_today_str()
-    if st.session_state.get(key_date) != today:
-        st.session_state[key_date] = today
-        st.session_state[key_cnt] = 0
-    return int(st.session_state.get(key_cnt) or 0)
-
-def _inc_today_talk_attempts(n: int = 1) -> None:
-    key_cnt = "talk_attempts_cnt"
-    cur = _get_today_talk_attempts()
-    st.session_state[key_cnt] = int(cur) + int(n)
-
 _NATIVE_MAP = [
     ("てもいいですか", "てもいい？"),
     ("てもよろしいでしょうか", "てもいい？"),
@@ -1350,11 +1334,6 @@ p1, p2 = st.columns([1.6, 0.6], vertical_alignment="center")
 with p1:
     st.progress(progress)
     st.caption(f"진행: {idx+1}/{len(qids)}")
-    # ✅ 작은 심리 장치(행동 유도)
-    st.caption("오늘은 입을 6번만 열어봅시다.")
-    # ✅ 오늘 말한(시도한) 문장 수
-    _attempts_today = _get_today_talk_attempts()
-    st.caption(f"🗣 오늘 총 말한 문장: {_attempts_today}문장")
 
 with p2:
     if st.button("🔄 새 세트", use_container_width=True, type="secondary", key=f"{NS}_new_set"):
@@ -1533,8 +1512,6 @@ if submitted:
                 "ok": bool(ok),
             })
             st.session_state[snap_key] = True
-            # ✅ 오늘 시도(정답 제출) 카운트 +1
-            _inc_today_talk_attempts(1)
     except Exception:
         pass
 
@@ -1593,13 +1570,60 @@ if submitted:
     else:
         st.error("오답 ❌")
 
-    # ✅ 오늘의 회화 레벨 게이지(일일)
+    # ✅ 오늘의 회화 레벨 게이지(일일) + 미션 카드(포인트)
     _goal = 6
     _done = _get_today_speech_done()
     _ratio = min(1.0, (_done / _goal) if _goal else 0.0)
-    st.markdown("#### 🗣 오늘의 회화 레벨")
+
+    if not st.session_state.get("_talk_mission_css", False):
+        st.markdown("""
+<style>
+.talk-mission-wrap{
+  display:flex; align-items:center; justify-content:space-between;
+  gap:12px; padding:12px 14px; border-radius:14px;
+  border:1px solid rgba(0,0,0,.10);
+  background:rgba(255, 244, 220, .55);
+  margin:10px 0 12px 0;
+}
+.talk-mission-left{min-width:0;}
+.talk-mission-badge{
+  display:inline-flex; align-items:center;
+  padding:3px 8px; border-radius:999px;
+  font-size:.82rem; font-weight:800;
+  background:rgba(0,0,0,.06);
+}
+.talk-mission-text{
+  margin-top:6px; font-size:0.98rem; font-weight:700;
+  line-height:1.25;
+}
+.talk-mission-right{
+  display:flex; flex-direction:column; align-items:flex-end;
+  flex:0 0 auto;
+}
+.talk-count-label{font-size:.82rem; opacity:.85; font-weight:700;}
+.talk-count-num{font-size:1.9rem; font-weight:900; line-height:1;}
+.talk-count-unit{font-size:.82rem; opacity:.85; font-weight:700; margin-top:2px;}
+</style>
+""", unsafe_allow_html=True)
+        st.session_state["_talk_mission_css"] = True
+
+    st.markdown(
+        f"""
+        <div class=\"talk-mission-wrap\">
+          <div class=\"talk-mission-left\">
+            <div class=\"talk-mission-badge\">🎯 오늘 미션</div>
+            <div class=\"talk-mission-text\">오늘은 입을 <b>{_goal}번</b>만 열어봅시다.</div>
+          </div>
+          <div class=\"talk-mission-right\">
+            <div class=\"talk-count-label\">🗣 오늘 말한 문장</div>
+            <div class=\"talk-count-num\">{_done}</div>
+            <div class=\"talk-count-unit\">문장</div>
+          </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     st.progress(_ratio)
-    st.caption(f"{_done} / {_goal} 문장 완료")
 
     # 상대/정답 스크립트 + 해설(제출 후에만)
     with st.container(border=True):
@@ -2087,7 +2111,7 @@ if submitted:
                 st.warning("보상은 '녹음 + 100점'일 때만 받을 수 있어요. 지금 바로 녹음하고 100점을 만들어 보세요.")
 
         # ✅ 보상 조건을 못 맞춰도, 다음 문제로는 넘어갈 수 있게(보상만 미지급)
-        if st.button("➡️ 다음 문제로 (보상 없이)", use_container_width=True, key=f"{NS}_go_next_no_reward_{qid}", type=("primary" if ok else "secondary")):
+        if st.button("➡️ 다음 문제로 (보상 없이)", use_container_width=True, key=f"{NS}_go_next_no_reward_{qid}"):
             _go_next_question()
 
 
@@ -2096,7 +2120,7 @@ if submitted:
             st.success("+2 XP 🎤 (말하기 완료 보상)")
             st.caption("👇 아래 버튼을 누르면 다음 문제로 넘어갑니다.")
 
-            if st.button("➡️ 다음 문제 풀기", use_container_width=True, key=f"{NS}_go_next_after_reward_{qid}", type=("primary" if ok else "secondary")):
+            if st.button("➡️ 다음 문제 풀기", use_container_width=True, key=f"{NS}_go_next_after_reward_{qid}"):
                 _go_next_question()
 # st.rerun()  # Streamlit은 버튼 클릭 시 자동 rerun됩니다.
 
