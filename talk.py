@@ -997,7 +997,8 @@ def tts_inline_row(role_label: str, text: str, key: str, show_text: bool = True,
         )
 
 def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bool = True,
-                    partner_audio_url: str = "", answer_audio_url: str = ""):
+                    partner_audio_url: str = "", answer_audio_url: str = "",
+                    partner_kr: str = "", answer_kr: str = ""):
     """결과 박스: 상대/내 문장을 한 줄씩 + 스피커(문장 오른쪽).
     ✅ PRO 클릭 시: 브라우저에서 바로 재생(오디오/mp3 우선, 없으면 SpeechSynthesis)
     ✅ FREE: 잠금(비활성)
@@ -1021,6 +1022,8 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
 
     p_safe = _esc(p)
     a_safe = _esc(a)
+    pkr_safe = _esc((partner_kr or "").strip())
+    akr_safe = _esc((answer_kr or "").strip())
     p_au_safe = _esc(p_au)
     a_au_safe = _esc(a_au)
 
@@ -1033,32 +1036,31 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
 <div class="ttspair">
   <div class="row">
     <span class="lab">상대(말)</span>
-    <span class="txt" style="display:{show}">{p_safe}</span>
+    <div class="txtwrap" style="display:{show}">
+      <div class="jp">{p_safe}</div>
+      <div class="kr" style="display:{("block" if pkr_safe else "none")}">{pkr_safe}</div>
+    </div>
     <button class="btn" id="pbtn-{qid}" aria-label="listen" {'disabled' if (not IS_PRO) or (not p) else ''}>🔊</button>
     {('<span class="pro">PRO</span>' if (not IS_PRO) else '')}
   </div>
   <div class="row">
     <span class="lab">내(말)</span>
-    <span class="txt" style="display:{show}">{a_safe}</span>
+    <div class="txtwrap" style="display:{show}">
+      <div class="jp">{a_safe}</div>
+      <div class="kr" style="display:{("block" if akr_safe else "none")}">{akr_safe}</div>
+    </div>
     <button class="btn" id="abtn-{qid}" aria-label="listen" {'disabled' if (not IS_PRO) or (not a) else ''}>🔊</button>
     {('<span class="pro">PRO</span>' if (not IS_PRO) else '')}
   </div>
 </div>
 <style>
-  /* =========================
-     Hotena Talk – Minimal (Muji-like)
-     - keep existing HTML structure (lab/txt/btn/pro)
-     ========================= */
-  .ttspair{{display:flex;flex-direction:column;gap:10px;margin:10px 0 12px 0;}}
-  .ttspair .row{{display:flex;align-items:flex-start;gap:8px;line-height:1.35;padding:10px 12px;border-radius:16px;border:1px solid rgba(0,0,0,.08);box-shadow:0 1px 0 rgba(0,0,0,.03);}}
-  .ttspair .row:nth-child(1){{background:rgba(0,0,0,.015);}}
-  .ttspair .row:nth-child(2){{background:#fff;border:1px solid rgba(0,0,0,.10);}}
-
-  .ttspair .lab{{min-width:58px;font-weight:800;opacity:.78;flex:0 0 auto;font-size:.86rem;letter-spacing:.01em;}}
-  .ttspair .txt{{font-size:1.02rem;font-weight:750;flex:1 1 auto;min-width:0;white-space:normal;overflow-wrap:anywhere;word-break:break-word;}}
-  /* If KR translation lines are later added, keep them subtle */
-  .ttspair .kr{{margin-top:4px;font-size:.86rem;line-height:1.28;opacity:.72;}}
-
+  .ttspair{{display:flex;flex-direction:column;gap:8px;}}
+  /* flex row: allow wrapping without clipping on narrow screens (Android) */
+  .ttspair .row{{display:flex;align-items:flex-start;gap:10px;line-height:1.35;}}
+  .ttspair .lab{{min-width:52px;font-weight:650;opacity:.82;flex:0 0 auto;}}
+  .ttspair .txtwrap{{flex:1 1 auto;min-width:0;white-space:normal;overflow-wrap:anywhere;word-break:break-word;}}
+  .ttspair .jp{{font-size:1.03rem;font-weight:620;line-height:1.35;letter-spacing:.01em;}}
+  .ttspair .kr{{margin-top:3px;font-size:.86rem;line-height:1.25;opacity:.72;}}
   .ttspair .btn{{border:0;background:transparent;padding:0;margin-left:2px;font-size:1.05rem;cursor:pointer;opacity:.95;}}
   .ttspair .btn[disabled]{{cursor:not-allowed;opacity:.35;}}
   .ttspair .pro{{font-size:.75rem;letter-spacing:.02em;border:1px solid rgba(0,0,0,.18);border-radius:999px;padding:1px 6px;opacity:.45;}}
@@ -1428,9 +1430,16 @@ if submitted:
         # ✅ 상대(말) / 내(말) — 스피커 아이콘 버튼은 여기서만 노출
         
         # ✅ 상대(말) / 내(말) — 한 iframe에서 2줄 렌더(간격 촘촘)
-        tts_inline_pair(row.get("partner_jp",""), row.get("answer_jp",""), qid=str(qid), show_text=True,
-                   partner_audio_url=row.get("partner_mp3","") or row.get("partner_audio","") or row.get("partner_audio_url","") or "",
-                   answer_audio_url=row.get("answer_mp3","") or row.get("answer_audio","") or row.get("answer_audio_url","") or "")
+        tts_inline_pair(
+            row.get("partner_jp",""),
+            row.get("answer_jp",""),
+            qid=str(qid),
+            show_text=True,
+            partner_audio_url=(row.get("partner_mp3","") or row.get("partner_audio","") or row.get("partner_audio_url","") or ""),
+            answer_audio_url=(row.get("answer_mp3","") or row.get("answer_audio","") or row.get("answer_audio_url","") or ""),
+            partner_kr=(row.get("partner_kr","") or row.get("partner_ko","") or row.get("partner_kor","") or ""),
+            answer_kr=(row.get("answer_kr","") or row.get("answer_ko","") or row.get("answer_kor","") or ""),
+        )
 
         # FREE: 제출 후에도 발음 듣기 하루 3회만 허용 (상대/내 각각 버튼 제공)
         if not IS_PRO:
