@@ -1036,45 +1036,32 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
     # ✅ 컴포넌트 높이(불필요 공백 최소화)
     has_pkr = bool(pkr_safe)
     has_akr = bool(akr_safe)
-
-    # ✅ components.html은 자동 높이 불가 → "줄 수"로 높이를 좀 더 보수적으로 추정
-    # - 모바일에서는 더 자주 줄바꿈되므로, cpl(한 줄 문자수)을 낮게 잡습니다.
+    # ✅ 컴포넌트 높이: 짧을 땐 컴팩트하게, 길면 자동 확장(너무 길면 내부 스크롤)
+    # - Streamlit components.html은 "자동 높이"가 불가해서, 텍스트 길이로 높이를 추정합니다.
+    # - 너무 긴 문장은 전체 UI가 과도하게 길어지지 않도록, 컴포넌트 높이를 상한으로 두고 내부 스크롤을 켭니다.
     def _lines(s: str, cpl: int) -> int:
         s = (s or "").strip()
         if not s:
             return 0
-        # 공백/개행 고려: 개행은 강제 줄바꿈으로 추가 카운트
-        hard = s.count("\n")
-        s2 = s.replace("\n", " ")
-        return max(1, hard + math.ceil(len(s2) / max(10, cpl)))
+        return max(1, math.ceil(len(s) / max(8, cpl)))
 
-    # 라인 수(모바일 기준 보수)
-    jp_p = _lines(p, 16)
-    jp_a = _lines(a, 16)
-    kr_p = _lines((partner_kr or ""), 20) if (partner_kr or "").strip() else 0
-    kr_a = _lines((answer_kr or ""), 20) if (answer_kr or "").strip() else 0
+    # ⚠️ 모바일 기준으로 보수적으로(더 많이 줄바꿈되는 쪽) 계산
+    jp_p = _lines(p, 18)
+    jp_a = _lines(a, 18)
+    kr_p = _lines((partner_kr or ""), 22) if (partner_kr or "").strip() else 0
+    kr_a = _lines((answer_kr or ""), 22) if (answer_kr or "").strip() else 0
 
-    # ✅ 각 말풍선의 예상 높이(패딩/마진 포함)
-    # - jp: 24px/line, kr: 20px/line, 버블 내부 상하 패딩/여유 포함
-    def _bubble_h(jp_lines: int, kr_lines: int) -> int:
-        if jp_lines <= 0 and kr_lines <= 0:
-            return 54
-        h = 22  # 상하 패딩/여유
-        h += jp_lines * 24
-        if kr_lines:
-            h += 6  # jp-kr 간격
-            h += kr_lines * 20
-        return h
+    # 기본 + 라인 수에 따른 가변
+    lines_total = jp_p + jp_a + kr_p + kr_a
+    est = 92 + lines_total * 20
+    if kr_p:
+        est += 6
+    if kr_a:
+        est += 6
 
-    bubble_p_h = _bubble_h(jp_p, kr_p)
-    bubble_a_h = _bubble_h(jp_a, kr_a)
-
-    # 전체: 두 버블 + gap + 약간의 여유(iframe 하단 잘림 방지)
-    est = bubble_p_h + bubble_a_h + 18
-
-    # 최소/최대 높이(너무 길면 내부 스크롤)
-    min_h = 170
-    max_h = 440
+    # 최소/최대 높이
+    min_h = 154
+    max_h = 360
     height = int(max(min_h, est))
     scroll_mode = False
     if height > max_h:
@@ -1092,7 +1079,7 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
     html = f"""
 <div class="ttspair{ " scroll" if scroll_mode else "" }" style="{ ("--txtmax:"+txtmax+";") if txtmax else "" }">
   <div class="row bubble bubble-p">
-    <span class="lab">상대</span>
+    <span class="lab">상대(말)</span>
     <div class="txtwrap" style="display:{show}">
       <div class="jp">{p_safe}</div>
       <div class="kr" style="display:{'block' if has_pkr else 'none'}">{pkr_safe}</div>
@@ -1102,7 +1089,7 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
   </div>
 
   <div class="row bubble bubble-a">
-    <span class="lab">나</span>
+    <span class="lab">내(말)</span>
     <div class="txtwrap" style="display:{show}">
       <div class="jp">{a_safe}</div>
       <div class="kr" style="display:{'block' if has_akr else 'none'}">{akr_safe}</div>
