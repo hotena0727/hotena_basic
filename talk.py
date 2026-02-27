@@ -34,6 +34,47 @@ except Exception:
 import pandas as pd
 import streamlit as st
 
+
+# ============================================================
+# ✅ Hotena UI: 타이틀 왼쪽 캐릭터 아이콘(최소 버전)
+# ============================================================
+def hotena_title(icon_path: str, title: str, size_px: int = 56, right_text: str | None = None):
+    """Left icon + title, optional right text."""
+    c1, c2, c3 = st.columns([0.14, 0.61, 0.25], vertical_alignment="center")
+    with c1:
+        try:
+            st.image(icon_path, width=size_px)
+        except Exception:
+            st.markdown(" ")
+    with c2:
+        st.markdown(
+            f"""<div style="font-size:1.20rem;font-weight:900;line-height:1.05;margin:0;">{title}</div>""",
+            unsafe_allow_html=True,
+        )
+    with c3:
+        if right_text:
+            st.markdown(
+                f"""<div style="text-align:right;font-size:0.98rem;opacity:0.85;line-height:1.05;margin:0;">{right_text}</div>""",
+                unsafe_allow_html=True,
+            )
+        else:
+            st.markdown(" ")
+
+def hotena_title_in_col(icon_path: str, title: str, size_px: int = 44):
+    """Use inside an existing column."""
+    ic, tc = st.columns([0.20, 0.80], vertical_alignment="center")
+    with ic:
+        try:
+            st.image(icon_path, width=size_px)
+        except Exception:
+            st.markdown(" ")
+    with tc:
+        st.markdown(
+            f"""<div style="font-size:1.10rem;font-weight:900;line-height:1.05;margin:0;">{title}</div>""",
+            unsafe_allow_html=True,
+        )
+
+
 import ai_tutor
 
 
@@ -1360,7 +1401,7 @@ if submitted:
 
     # 상대/정답 스크립트 + 해설(제출 후에만)
     with st.container(border=True):
-        st.markdown("### 🧑‍🏫 발음/말하기")
+        hotena_title("assets/hotena_talk/icons_title/icon_pronounce_title.png", "발음/말하기")
 
         # ✅ 상황(제출 전에도 보이지만, 결과 박스에도 다시 한 번 노출)
         situation = str(row.get("situation_kr", "")).strip()
@@ -1460,6 +1501,8 @@ if submitted:
             # 🤖 스마트 코치
             # ------------------------------------
             with st.expander("🤖 원포인트 일본어가 어려우면 하테나쌤에게 물어보세요", expanded=False):
+
+                hotena_title("assets/hotena_talk/icons_title/icon_coach_title.png", "스마트코치")
 
                 st.markdown("### 💬 하테나쌤 스마트 코치")
 
@@ -1632,15 +1675,7 @@ if submitted:
     with st.container(border=True):
         total_cnt = len(qids)
         current_no = idx + 1
-        st.markdown(
-            f"""
-        <div style="display:flex; align-items:baseline; justify-content:space-between; gap:12px;">
-          <div style="font-size:1.6rem; font-weight:700;">🎙️ 발음 체크</div>
-          <div style="font-size:1rem; opacity:0.85;">📘 진행: {current_no} / {total_cnt}</div>
-        </div>
-        """,
-            unsafe_allow_html=True,
-        )
+        hotena_title("assets/hotena_talk/icons_title/icon_check_title.png", "발음 체크", size_px=56, right_text=f"📘 진행: {current_no} / {total_cnt}")
 
 
         
@@ -1747,7 +1782,7 @@ if submitted:
 
         c_sc1, c_sc2 = st.columns([0.72, 0.28], vertical_alignment="center")
         with c_sc1:
-            st.markdown('<div style="font-size:1.25rem; font-weight:700;">📊 말하기 점수</div>', unsafe_allow_html=True)
+            hotena_title_in_col("assets/hotena_talk/icons_title/icon_score_title.png", "말하기 점수", size_px=44)
         with c_sc2:
             # ✅ '다시 계산'은 네트워크/브라우저 상태 등으로 자동 계산이 실패했을 때만 노출
             show_recalc = bool(st.session_state.get(err_key))
@@ -1790,6 +1825,7 @@ if submitted:
             st.session_state[reward_key] = True
 
         if st.session_state.get(reward_key):
+            hotena_title("assets/hotena_talk/icons_title/icon_reward_title.png", "말하기 완료 보상")
             st.success("+2 XP 🎤 (말하기 완료 보상)")
             st.caption("👇 아래 버튼을 누르면 다음 문제로 넘어갑니다.")
 
