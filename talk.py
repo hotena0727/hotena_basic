@@ -1031,13 +1031,13 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
 
     html = f"""
 <div class="ttspair">
-  <div class="row bubble partner">
+  <div class="row">
     <span class="lab">상대(말)</span>
     <span class="txt" style="display:{show}">{p_safe}</span>
     <button class="btn" id="pbtn-{qid}" aria-label="listen" {'disabled' if (not IS_PRO) or (not p) else ''}>🔊</button>
     {('<span class="pro">PRO</span>' if (not IS_PRO) else '')}
   </div>
-  <div class="row bubble me">
+  <div class="row">
     <span class="lab">내(말)</span>
     <span class="txt" style="display:{show}">{a_safe}</span>
     <button class="btn" id="abtn-{qid}" aria-label="listen" {'disabled' if (not IS_PRO) or (not a) else ''}>🔊</button>
@@ -1051,29 +1051,8 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
      ========================= */
   .ttspair{{display:flex;flex-direction:column;gap:10px;margin:10px 0 12px 0;}}
   .ttspair .row{{display:flex;align-items:flex-start;gap:8px;line-height:1.35;padding:10px 12px;border-radius:16px;border:1px solid rgba(0,0,0,.08);box-shadow:0 1px 0 rgba(0,0,0,.03);}}
-  /* ✅ Bubble outline (no layout shift) */
-  .ttspair .bubble{outline:1px solid rgba(0,0,0,.12);outline-offset:0;}
-  .ttspair .bubble.partner{outline-color:rgba(0,0,0,.12);}
-  .ttspair .bubble.me{outline-color:rgba(0,0,0,.20);}
-  /* make separation clearer without changing spacing */
-  .ttspair .bubble.partner{box-shadow:0 0 0 1px rgba(0,0,0,.05), 0 1px 0 rgba(0,0,0,.03);}
-  .ttspair .bubble.me{box-shadow:0 0 0 1px rgba(0,0,0,.09), 0 1px 0 rgba(0,0,0,.03);}
   .ttspair .row:nth-child(1){{background:rgba(0,0,0,.015);}}
-  /* ✅ Bubble outline (no layout shift) */
-  .ttspair .bubble{outline:1px solid rgba(0,0,0,.12);outline-offset:0;}
-  .ttspair .bubble.partner{outline-color:rgba(0,0,0,.12);}
-  .ttspair .bubble.me{outline-color:rgba(0,0,0,.20);}
-  /* make separation clearer without changing spacing */
-  .ttspair .bubble.partner{box-shadow:0 0 0 1px rgba(0,0,0,.05), 0 1px 0 rgba(0,0,0,.03);}
-  .ttspair .bubble.me{box-shadow:0 0 0 1px rgba(0,0,0,.09), 0 1px 0 rgba(0,0,0,.03);}
   .ttspair .row:nth-child(2){{background:#fff;border:1px solid rgba(0,0,0,.10);}}
-  /* ✅ Bubble outline (no layout shift) */
-  .ttspair .bubble{outline:1px solid rgba(0,0,0,.12);outline-offset:0;}
-  .ttspair .bubble.partner{outline-color:rgba(0,0,0,.12);}
-  .ttspair .bubble.me{outline-color:rgba(0,0,0,.20);}
-  /* make separation clearer without changing spacing */
-  .ttspair .bubble.partner{box-shadow:0 0 0 1px rgba(0,0,0,.05), 0 1px 0 rgba(0,0,0,.03);}
-  .ttspair .bubble.me{box-shadow:0 0 0 1px rgba(0,0,0,.09), 0 1px 0 rgba(0,0,0,.03);}
 
   .ttspair .lab{{min-width:58px;font-weight:800;opacity:.78;flex:0 0 auto;font-size:.86rem;letter-spacing:.01em;}}
   .ttspair .txt{{font-size:1.02rem;font-weight:750;flex:1 1 auto;min-width:0;white-space:normal;overflow-wrap:anywhere;word-break:break-word;}}
@@ -1082,7 +1061,8 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
 
   .ttspair .btn{{border:0;background:transparent;padding:0;margin-left:2px;font-size:1.05rem;cursor:pointer;opacity:.95;}}
   .ttspair .btn[disabled]{{cursor:not-allowed;opacity:.35;}}
-  .ttspair .pro{{font-size:.75rem;letter-spacing:.02em;border:1px solid rgba(0,0,0,.18);border-radius:999px;padding:1px 6px;opacity:.45;}}</style>
+  .ttspair .pro{{font-size:.75rem;letter-spacing:.02em;border:1px solid rgba(0,0,0,.18);border-radius:999px;padding:1px 6px;opacity:.45;}}
+</style>
 <script>
 (function(){{
   function pickJaVoice(){{
