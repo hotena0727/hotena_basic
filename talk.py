@@ -2032,6 +2032,15 @@ if submitted:
         audio_obj = locals().get("_audio", None)
         has_audio = audio_obj is not None
 
+        # ✅ (중요) 녹음을 아직 하지 않았는데 이전 결과(점수/인식)가 남아 보이는 경우가 있어
+        # 제출 직후(또는 위젯이 아직 비어있는 상태)에는 결과를 초기화합니다.
+        _last_hash_key = f"talk_pron_lasthash_{qid}"
+        if not has_audio:
+            st.session_state.pop(text_key, None)
+            st.session_state.pop(score_key, None)
+            st.session_state.pop(err_key, None)
+            st.session_state.pop(_last_hash_key, None)
+
         # ✅ 자동 점수 계산 (녹음이 새로 들어왔을 때 1회만)
         # - 보기 선택 단계/리런에 영향 없도록, 오디오 해시가 바뀐 경우에만 실행합니다.
         if has_audio:
@@ -2047,7 +2056,13 @@ if submitted:
             except Exception:
                 _b, _mime, _h = b"", "audio/wav", ""
 
-            _last_hash_key = f"talk_pron_lasthash_{qid}"
+            # 오디오가 아직 실제로 녹음되지 않은 상태(빈 바이트)면 이전 결과를 보여주지 않음
+            if not _h:
+                st.session_state.pop(text_key, None)
+                st.session_state.pop(score_key, None)
+                st.session_state.pop(err_key, None)
+                st.session_state.pop(_last_hash_key, None)
+
             if _h and st.session_state.get(_last_hash_key) != _h:
                 st.session_state[_last_hash_key] = _h
                 st.session_state.pop(err_key, None)
