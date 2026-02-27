@@ -997,25 +997,21 @@ def tts_inline_row(role_label: str, text: str, key: str, show_text: bool = True,
             height=44,
         )
 
-
 def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bool = True,
                     partner_audio_url: str = "", answer_audio_url: str = "",
                     partner_kr: str = "", answer_kr: str = ""):
-    """대화/해설(상대/나) 말풍선 + 우측 스피커.
-    ✅ 핵심: components.html(iframe) 안에 텍스트를 넣지 않고 st.markdown으로 직접 렌더링 → 긴 문장도 잘리지 않음(Free/Pro 공통).
-    ✅ 스피커 클릭은 JS로 처리(페이지 rerun 없음). PRO는 재생/읽기, FREE는 잠금 표시.
-    """
+    '''결과 박스: 상대/내 문장을 한 줄씩 + 스피커(문장 오른쪽).
+    ✅ PRO 클릭 시: 브라우저에서 바로 재생(오디오/mp3 우선, 없으면 SpeechSynthesis)
+    ✅ FREE: 잠금(비활성)
+    - Streamlit 버튼을 쓰지 않아, 클릭 시 페이지 rerun(번쩍임)을 유발하지 않습니다.
+    '''
     p = (partner_text or "").strip()
     a = (answer_text or "").strip()
-    pkr = (partner_kr or "").strip()
-    akr = (answer_kr or "").strip()
-
-    # mp3 우선 (없으면 TTS)
     p_au = resolve_audio_url(partner_audio_url)
     a_au = resolve_audio_url(answer_audio_url)
 
     # JS-safe
-    def _esc_js(s: str) -> str:
+    def _esc(s: str) -> str:
         return (
             (s or "")
             .replace("\\", "\\\\")
@@ -1025,133 +1021,184 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
             .replace("\r", " ")
         )
 
-    # HTML-safe
-    def _esc_html(s: str) -> str:
-        return (
-            (s or "")
-            .replace("&", "&amp;")
-            .replace("<", "&lt;")
-            .replace(">", "&gt;")
-            .replace('"', "&quot;")
-        )
+    p_safe = _esc(p)
+    a_safe = _esc(a)
+    pkr_safe = _esc((partner_kr or "").strip())
+    akr_safe = _esc((answer_kr or "").strip())
+    p_au_safe = _esc(p_au)
+    a_au_safe = _esc(a_au)
 
-    # 텍스트 숨김 옵션
-    show = "block" if show_text else "none"
-
-    # ✅ CSS 1회 주입
-    if not st.session_state.get("_tts_pair_css_injected", False):
-        st.markdown(
-            """
-<style>
-/* 대화/해설 말풍선(상대/나) - Free/Pro 공통 */
-.ht-pair-wrap{display:flex;flex-direction:column;gap:14px;margin-top:10px;}
-.ht-bubble{border:1px solid rgba(0,0,0,.12);border-radius:14px;padding:9px 10px;background:#fff;}
-.ht-row{display:flex;align-items:flex-start;gap:8px;min-width:0;flex-wrap:nowrap;}
-.ht-role{flex:0 0 auto;min-width:26px;font-weight:800;opacity:.92;margin-top:2px;white-space:nowrap;}
-.ht-tts{flex:0 0 auto;display:flex;align-items:flex-start;justify-content:flex-start;margin-left:0;}
-.ht-ttsbtn{border:0;background:transparent;padding:2px;margin:0;font-size:1.08rem;cursor:pointer;opacity:.95;line-height:1;}
-.ht-ttsbtn[disabled]{opacity:.35;cursor:not-allowed;}
-.ht-text{flex:1 1 auto;min-width:0;}
-.ht-jp{font-size:1.05rem;font-weight:560;line-height:1.35;word-break:break-word;overflow-wrap:anywhere;white-space:normal;}
-.ht-kr{display:block;margin-top:4px;font-size:.90rem;opacity:.82;line-height:1.35;word-break:break-word;overflow-wrap:anywhere;white-space:normal;}
-</style>
-""",
-            unsafe_allow_html=True,
-        )
-        st.session_state["_tts_pair_css_injected"] = True
-
-    # ✅ 렌더 (iframe 아님 → 자동 높이)
     disabled = (not IS_PRO) or (not (p or a))
 
-    def _bubble(role: str, jp: str, kr: str, btn_id: str):
-        jp_html = _esc_html(jp)
-        kr_html = _esc_html(kr)
-        # FREE는 잠금 아이콘, PRO는 스피커
-        icon = "🔒" if disabled else "🔊"
-        dis_attr = "disabled" if disabled else ""
-        st.markdown(
-            f"""
-<div class="ht-bubble">
-  <div class="ht-row" style="display:{show};">
-    <div class="ht-role">{_esc_html(role)}</div>
-    <div class="ht-tts">
-      <button id="{btn_id}" class="ht-ttsbtn" {dis_attr} aria-label="tts">{icon}</button>
-    </div>
-    <div class="ht-text">
-      <div class="ht-jp">{jp_html}</div>
-      {'<div class="ht-kr">' + kr_html + '</div>' if kr_html else ''}
-    </div>
-  </div>
-</div>
-""",
-            unsafe_allow_html=True,
-        )
+    # show_text=False면 텍스트는 숨기고(공백), 버튼만 남김
+    show = "block" if show_text else "none"
 
-    st.markdown('<div class="ht-pair-wrap">', unsafe_allow_html=True)
-    _bubble("상대", p, pkr, f"ttsbtn_p_{qid}")
-    _bubble("나", a, akr, f"ttsbtn_a_{qid}")
-    st.markdown("</div>", unsafe_allow_html=True)
+    # ✅ 컴포넌트 높이(불필요 공백 최소화)
+    has_pkr = bool(pkr_safe)
+    has_akr = bool(akr_safe)
 
-    # ✅ JS 바인딩(버튼 클릭 시 재생/읽기) - height=0 iframe로만 주입
-    # - st.markdown의 DOM 버튼을 찾아 이벤트를 붙임(페이지 rerun 없음)
-    # - 중복 바인딩 방지: per-qid 플래그
-    flag_key = f"_tts_pair_js_{qid}"
-    if st.session_state.get(flag_key, False):
-        return
-    st.session_state[flag_key] = True
+    # ✅ components.html은 자동 높이 불가 → "줄 수"로 높이를 좀 더 보수적으로 추정
+    # - 모바일에서는 더 자주 줄바꿈되므로, cpl(한 줄 문자수)을 낮게 잡습니다.
+    def _lines(s: str, cpl: int) -> int:
+        s = (s or "").strip()
+        if not s:
+            return 0
+        # 공백/개행 고려: 개행은 강제 줄바꿈으로 추가 카운트
+        hard = s.count("\n")
+        s2 = s.replace("\n", " ")
+        return max(1, hard + math.ceil(len(s2) / max(10, cpl)))
 
-    p_safe = _esc_js(p)
-    a_safe = _esc_js(a)
-    p_au_safe = _esc_js(p_au)
-    a_au_safe = _esc_js(a_au)
+    # 라인 수(모바일 기준 보수)
+    jp_p = _lines(p, 16)
+    jp_a = _lines(a, 16)
+    kr_p = _lines((partner_kr or ""), 20) if (partner_kr or "").strip() else 0
+    kr_a = _lines((answer_kr or ""), 20) if (answer_kr or "").strip() else 0
+
+    # ✅ 각 말풍선의 예상 높이(패딩/마진 포함)
+    # - jp: 24px/line, kr: 20px/line, 버블 내부 상하 패딩/여유 포함
+    def _bubble_h(jp_lines: int, kr_lines: int) -> int:
+        if jp_lines <= 0 and kr_lines <= 0:
+            return 54
+        h = 22  # 상하 패딩/여유
+        h += jp_lines * 24
+        if kr_lines:
+            h += 6  # jp-kr 간격
+            h += kr_lines * 20
+        return h
+
+    bubble_p_h = _bubble_h(jp_p, kr_p)
+    bubble_a_h = _bubble_h(jp_a, kr_a)
+
+    # 전체: 두 버블 + gap + 약간의 여유(iframe 하단 잘림 방지)
+    est = bubble_p_h + bubble_a_h + 18
+
+    # 최소/최대 높이(너무 길면 내부 스크롤)
+    min_h = 170
+    max_h = 440
+    height = int(max(min_h, est))
+    scroll_mode = False
+    if height > max_h:
+        height = max_h
+        scroll_mode = True
+
+    # 내부 스크롤이 켜질 때만 txtwrap에 max-height를 부여
+    # (각 말풍선에 동일하게 적용)
+    txtmax = ""
+    if scroll_mode:
+        # 라벨/버튼/패딩을 제외한 영역을 대략 절반으로 배분
+        each = max(72, int((height - 56) / 2))
+        txtmax = f"{each}px"
 
     html = f"""
+<div class="ttspair{ " scroll" if scroll_mode else "" }" style="{ ("--txtmax:"+txtmax+";") if txtmax else "" }">
+  <div class="row bubble bubble-p">
+    <span class="lab">상대</span>
+    <div class="txtwrap" style="display:{show}">
+      <div class="jp">{p_safe}</div>
+      <div class="kr" style="display:{'block' if has_pkr else 'none'}">{pkr_safe}</div>
+    </div>
+    <button class="btn" id="pbtn-{qid}" aria-label="listen" {'disabled' if disabled or (not p) else ''}>🔊</button>
+    
+  </div>
+
+  <div class="row bubble bubble-a">
+    <span class="lab">나</span>
+    <div class="txtwrap" style="display:{show}">
+      <div class="jp">{a_safe}</div>
+      <div class="kr" style="display:{'block' if has_akr else 'none'}">{akr_safe}</div>
+    </div>
+    <button class="btn" id="abtn-{qid}" aria-label="listen" {'disabled' if disabled or (not a) else ''}>🔊</button>
+    
+  </div>
+</div>
+
+<style>
+  /* ✅ 무지/미니멀 A안 + 말풍선 각각 아웃라인(레이아웃 영향 없음: box-shadow) */
+  .ttspair{{display:flex;flex-direction:column;gap:8px;}}
+  .ttspair .row{{display:flex;align-items:flex-start;gap:10px;line-height:1.35;}}
+  .ttspair .bubble{{border-radius:14px; box-shadow:0 0 0 1px rgba(0,0,0,.12);}}
+  .ttspair .bubble-p{{box-shadow:0 0 0 1px rgba(0,0,0,.20);}}
+  .ttspair .bubble-a{{box-shadow:0 0 0 1px rgba(0,0,0,.12);}}
+
+  .ttspair .lab{{min-width:52px;font-weight:650;opacity:.82;flex:0 0 auto;padding:10px 0 10px 10px;}}
+  .ttspair .txtwrap{{flex:1 1 auto;min-width:0;white-space:normal;overflow-wrap:anywhere;word-break:break-word;padding:10px 0;}}
+  .ttspair.scroll .txtwrap{{max-height:var(--txtmax);overflow:auto;padding-right:6px;}}
+  .ttspair .jp{{font-size:1.03rem;font-weight:560;line-height:1.35;letter-spacing:.01em;}}
+  .ttspair .kr{{margin-top:3px;font-size:.86rem;line-height:1.25;opacity:.72;}}
+  .ttspair .btn{{border:0;background:transparent;padding:10px 10px 10px 0;margin-left:2px;font-size:1.05rem;cursor:pointer;opacity:.95;}}
+  .ttspair .btn[disabled]{{cursor:not-allowed;opacity:.35;}}
+  .ttspair .pro{{align-self:flex-start;margin-top:10px;font-size:.75rem;letter-spacing:.02em;border:1px solid rgba(0,0,0,.18);border-radius:999px;padding:1px 6px;opacity:.45;}}
+</style>
+
 <script>
 (function(){{
-  function speakOrPlay(text, audioUrl){{
+  function pickJaVoice(){{
+    try {{
+      const synth = window.speechSynthesis;
+      const vs = synth ? (synth.getVoices() || []) : [];
+      const ja = vs.filter(v => String(v.lang||"").toLowerCase().startsWith("ja"));
+      if(!ja.length) return null;
+      const pref = ja.find(v => /female|woman|kyoko|haruka|nanami|mizuki|yuna/i.test(String(v.name||"")));
+      return pref || ja[0];
+    }} catch(e) {{
+      return null;
+    }}
+  }}
+
+  function speak(text){{
+    try {{
+      const synth = window.speechSynthesis;
+      if(!synth) return;
+      const u = new SpeechSynthesisUtterance(text || "");
+      u.lang = "ja-JP";
+      const v = pickJaVoice();
+      if(v) u.voice = v;
+      synth.cancel();
+      synth.speak(u);
+    }} catch(e) {{}}
+  }}
+
+  function play(audioUrl, text){{
+    if(audioUrl){{
+      try{{ const a = new Audio(audioUrl); a.play().catch(()=>{{ speak(text); }}); return; }}catch(e){{}}
+    }}
+    speak(text);
+  }}
+
+  const pbtn = document.getElementById('pbtn-{qid}');
+  const abtn = document.getElementById('abtn-{qid}');
+  if(pbtn) pbtn.addEventListener('click', (e)=>{{ e.preventDefault(); if(pbtn.disabled) return; play("{p_au_safe}", "{p_safe}"); }});
+  if(abtn) abtn.addEventListener('click', (e)=>{{ e.preventDefault(); if(abtn.disabled) return; play("{a_au_safe}", "{a_safe}"); }});
+}})();
+</script>
+<script>
+(function(){{
+  function send(){{
     try{{
-      if (audioUrl && audioUrl.trim().length > 0){{
-        var au = new Audio(audioUrl);
-        au.play().catch(function(){{}});
-        return;
-      }}
-      if (window.speechSynthesis){{
-        var u = new SpeechSynthesisUtterance(text);
-        u.lang = "ja-JP";
-        window.speechSynthesis.cancel();
-        window.speechSynthesis.speak(u);
+      var h = Math.max(
+        document.body ? document.body.scrollHeight : 0,
+        document.documentElement ? document.documentElement.scrollHeight : 0
+      );
+      if (window.parent){{
+        window.parent.postMessage({{isStreamlitMessage:true, type:"streamlit:setFrameHeight", height:h + 12}}, "*");
       }}
     }}catch(e){{}}
   }}
-
-  function bind(id, text, audioUrl){{
-    var el = document.getElementById(id);
-    if(!el) return false;
-    if(el.dataset && el.dataset.bound === "1") return true;
-    el.addEventListener("click", function(ev){{
-      try{{ ev.preventDefault(); ev.stopPropagation(); }}catch(e){{}}
-      speakOrPlay(text, audioUrl);
-    }});
-    if(el.dataset) el.dataset.bound = "1";
-    return true;
-  }}
-
-  function tryBind(){{
-    var ok1 = bind("ttsbtn_p_{qid}", "{p_safe}", "{p_au_safe}");
-    var ok2 = bind("ttsbtn_a_{qid}", "{a_safe}", "{a_au_safe}");
-    return ok1 && ok2;
-  }}
-
-  // DOM이 늦게 만들어져도 붙도록 재시도
-  var n=0;
-  var timer = setInterval(function(){{
-    n++;
-    if(tryBind() || n>20) clearInterval(timer);
-  }}, 150);
+  try{{
+    if (window.ResizeObserver){{
+      var ro = new ResizeObserver(function(){{ send(); }});
+      ro.observe(document.body);
+    }}
+  }}catch(e){{}}
+  window.addEventListener("load", function(){{ setTimeout(send, 30); }});
+  setTimeout(send, 80);
 }})();
 </script>
+
+
 """
-    components.html(html, height=0, scrolling=False)
+
+    components.html(html, height=height, scrolling=False)
 
 def play_audio_or_tts(text: str, audio_url: str, label: str, key: str):
     """PRO: mp3 URL 재생 / FREE: 잠금. URL 없으면 TTS fallback."""
