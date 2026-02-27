@@ -1,4 +1,4 @@
-# talk.py (v27) - 1문제 집중형 + 말하기 완료 체크(B)
+# talk.py (v27) - 1문제 집중형 + 말하기 완료 체크(B) 
 from __future__ import annotations
 # BUILD_STAMP_TALK: talk-newset-in-progress-v1 2026-02-22 KST (+09:00)
 
@@ -1066,12 +1066,12 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
 </div>
 
 <style>
-  /* ✅ 무지/미니멀 A안 + 말풍선 각각 아웃라인(레이아웃 영향 없음: box-shadow) */
-  .ttspair{{display:flex;flex-direction:column;gap:8px;}}
-  .ttspair .row{{display:flex;align-items:flex-start;gap:10px;line-height:1.35;}}
-  .ttspair .bubble{{border-radius:14px; box-shadow:0 0 0 1px rgba(0,0,0,.12);}}
-  .ttspair .bubble-p{{box-shadow:0 0 0 1px rgba(0,0,0,.20);}}
-  .ttspair .bubble-a{{box-shadow:0 0 0 1px rgba(0,0,0,.12);}}
+  /* ✅ 무지/미니멀 A안 + 말풍선 아웃라인 (✅ 잘림 방지: box-shadow→border + 우측 패딩) */
+  .ttspair{{display:flex;flex-direction:column;gap:8px;box-sizing:border-box;padding-right:10px;}}
+  .ttspair .row{{display:flex;align-items:flex-start;gap:10px;line-height:1.35;box-sizing:border-box;}}
+  .ttspair .bubble{{border-radius:14px;border:1px solid rgba(0,0,0,.12);}}
+  .ttspair .bubble-p{{border-color:rgba(0,0,0,.20);}}
+  .ttspair .bubble-a{{border-color:rgba(0,0,0,.12);}}
 
   .ttspair .lab{{min-width:52px;font-weight:650;opacity:.82;flex:0 0 auto;padding:10px 0 10px 10px;}}
   .ttspair .txtwrap{{flex:1 1 auto;min-width:0;white-space:normal;overflow-wrap:anywhere;word-break:break-word;padding:10px 0;}}
@@ -1150,7 +1150,7 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
 
 """
 
-    components.html(html, height=260, scrolling=False)
+    components.html(html, height=10, scrolling=False)
 
 def play_audio_or_tts(text: str, audio_url: str, label: str, key: str):
     """PRO: mp3 URL 재생 / FREE: 잠금. URL 없으면 TTS fallback."""
@@ -1349,7 +1349,7 @@ with st.container(border=True):
                 unsafe_allow_html=True,
             )
 
-    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
+    st.markdown("---")
     with st.container(border=True):
         st.markdown("**내가 할 말(선택)**")
 
@@ -1495,45 +1495,25 @@ if submitted:
             with c1:
                 if rem2 > 0 and st.button("🔊 상대 발음 듣기", key=f"{qid}_free_tts_partner_after", use_container_width=True):
                     _use_free_tts_once()
-                    p_audio_url = resolve_audio_url((row.get("partner_mp3","") or row.get("partner_audio","") or row.get("partner_audio_url","") or ""))
-                    p_text = (row.get("partner_jp","") or "").replace(chr(10)," ")
                     components.html(f"""<script>
 (function(){{
-  const audioUrl = {p_audio_url!r};
-  const text = {p_text!r};
-  function pickJaVoice(){{
-    try {{
-      const synth = window.speechSynthesis;
-      const voices = synth ? (synth.getVoices() || []) : [];
+  try{{
+    const synth = window.speechSynthesis;
+    function pickJaVoice(){{
+      const voices = synth.getVoices() || [];
       const ja = voices.filter(v => String(v.lang||"").toLowerCase().startsWith("ja"));
       if (!ja.length) return null;
       return ja.find(v => /google/i.test(v.name||""))
           || ja.find(v => /日本|japanese/i.test(v.name||""))
           || ja[0] || null;
-    }} catch(e) {{ return null; }}
-  }}
-  function speak(){{
-    try {{
-      const synth = window.speechSynthesis;
-      if (!synth) return;
-      synth.cancel();
-      const u = new SpeechSynthesisUtterance(text);
-      u.lang = "ja-JP";
-      const v = pickJaVoice();
-      if (v) u.voice = v;
-      synth.speak(u);
-    }} catch(e) {{}}
-  }}
-  if (audioUrl){{
-    try {{
-      const a = new Audio(audioUrl);
-      a.play().catch(()=>speak());
-    }} catch(e) {{
-      speak();
     }}
-  }} else {{
-    speak();
-  }}
+    const u = new SpeechSynthesisUtterance({(row.get('partner_jp','') or '').replace(chr(10),' ')!r});
+    u.lang = "ja-JP";
+    const v = pickJaVoice();
+    if (v) u.voice = v;
+    synth.cancel();
+    synth.speak(u);
+  }}catch(e){{}}
 }})();
 </script>""", height=0)
                 elif rem2 <= 0:
@@ -1542,45 +1522,25 @@ if submitted:
                 rem3 = _free_tts_remaining()
                 if rem3 > 0 and st.button("🔊 내 발음 듣기", key=f"{qid}_free_tts_answer_after", use_container_width=True):
                     _use_free_tts_once()
-                    a_audio_url = resolve_audio_url((row.get("answer_mp3","") or row.get("answer_audio","") or row.get("answer_audio_url","") or ""))
-                    a_text = (row.get("answer_jp","") or "").replace(chr(10)," ")
                     components.html(f"""<script>
 (function(){{
-  const audioUrl = {a_audio_url!r};
-  const text = {a_text!r};
-  function pickJaVoice(){{
-    try {{
-      const synth = window.speechSynthesis;
-      const voices = synth ? (synth.getVoices() || []) : [];
+  try{{
+    const synth = window.speechSynthesis;
+    function pickJaVoice(){{
+      const voices = synth.getVoices() || [];
       const ja = voices.filter(v => String(v.lang||"").toLowerCase().startsWith("ja"));
       if (!ja.length) return null;
       return ja.find(v => /google/i.test(v.name||""))
           || ja.find(v => /日本|japanese/i.test(v.name||""))
           || ja[0] || null;
-    }} catch(e) {{ return null; }}
-  }}
-  function speak(){{
-    try {{
-      const synth = window.speechSynthesis;
-      if (!synth) return;
-      synth.cancel();
-      const u = new SpeechSynthesisUtterance(text);
-      u.lang = "ja-JP";
-      const v = pickJaVoice();
-      if (v) u.voice = v;
-      synth.speak(u);
-    }} catch(e) {{}}
-  }}
-  if (audioUrl){{
-    try {{
-      const a = new Audio(audioUrl);
-      a.play().catch(()=>speak());
-    }} catch(e) {{
-      speak();
     }}
-  }} else {{
-    speak();
-  }}
+    const u = new SpeechSynthesisUtterance({(row.get('answer_jp','') or '').replace(chr(10),' ')!r});
+    u.lang = "ja-JP";
+    const v = pickJaVoice();
+    if (v) u.voice = v;
+    synth.cancel();
+    synth.speak(u);
+  }}catch(e){{}}
 }})();
 </script>""", height=0)
                 elif rem3 <= 0:
@@ -1942,10 +1902,6 @@ if submitted:
                 st.session_state[reward_key] = True
             else:
                 st.warning("보상은 '녹음 + 100점'일 때만 받을 수 있어요. 먼저 녹음하고 100점을 만들어 주세요.")
-
-        # ✅ 보상 조건을 못 맞춰도, 다음 문제로는 넘어갈 수 있게(보상만 미지급)
-        if st.button("➡️ 다음 문제로 (보상 없이)", use_container_width=True, key=f"{NS}_go_next_no_reward_{qid}"):
-            _go_next_question()
 
 
         if st.session_state.get(reward_key):
