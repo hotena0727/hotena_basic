@@ -1059,25 +1059,15 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
     if kr_a:
         est += 6
 
-    # 최소/최대 높이
     min_h = 154
-    max_h = 360
     height = int(max(min_h, est))
-    scroll_mode = False
-    if height > max_h:
-        height = max_h
-        scroll_mode = True
 
-    # 내부 스크롤이 켜질 때만 txtwrap에 max-height를 부여
-    # (각 말풍선에 동일하게 적용)
+    # ✅ 상한/내부스크롤 제거: 길면 길수록 iframe이 그대로 늘어나도록
+    scroll_mode = False
     txtmax = ""
-    if scroll_mode:
-        # 라벨/버튼/패딩을 제외한 영역을 대략 절반으로 배분
-        each = max(72, int((height - 56) / 2))
-        txtmax = f"{each}px"
 
     html = f"""
-<div class="ttspair{ " scroll" if scroll_mode else "" }" style="{ ("--txtmax:"+txtmax+";") if txtmax else "" }">
+<div class="ttspair">
   <div class="row bubble bubble-p">
     <span class="lab">상대(말)</span>
     <div class="txtwrap" style="display:{show}">
@@ -1109,7 +1099,6 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
 
   .ttspair .lab{{min-width:52px;font-weight:650;opacity:.82;flex:0 0 auto;padding:10px 0 10px 10px;}}
   .ttspair .txtwrap{{flex:1 1 auto;min-width:0;white-space:normal;overflow-wrap:anywhere;word-break:break-word;padding:10px 0;}}
-  .ttspair.scroll .txtwrap{{max-height:var(--txtmax);overflow:auto;padding-right:6px;}}
   .ttspair .jp{{font-size:1.03rem;font-weight:560;line-height:1.35;letter-spacing:.01em;}}
   .ttspair .kr{{margin-top:3px;font-size:.86rem;line-height:1.25;opacity:.72;}}
   .ttspair .btn{{border:0;background:transparent;padding:10px 10px 10px 0;margin-left:2px;font-size:1.05rem;cursor:pointer;opacity:.95;}}
@@ -1185,7 +1174,7 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
 
 """
 
-    components.html(html, height=height, scrolling=False)
+    components.html(html, height=max(200, height + 40), scrolling=False)
 
 def play_audio_or_tts(text: str, audio_url: str, label: str, key: str):
     """PRO: mp3 URL 재생 / FREE: 잠금. URL 없으면 TTS fallback."""
