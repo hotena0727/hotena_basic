@@ -1051,7 +1051,7 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
       <div class="kr" style="display:{'block' if has_pkr else 'none'}">{pkr_safe}</div>
     </div>
     <button class="btn" id="pbtn-{qid}" aria-label="listen" {'disabled' if disabled or (not p) else ''}>🔊</button>
-    {('<span class="pro">PRO</span>' if (not IS_PRO) else '')}
+    
   </div>
 
   <div class="row bubble bubble-a">
@@ -1061,7 +1061,7 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
       <div class="kr" style="display:{'block' if has_akr else 'none'}">{akr_safe}</div>
     </div>
     <button class="btn" id="abtn-{qid}" aria-label="listen" {'disabled' if disabled or (not a) else ''}>🔊</button>
-    {('<span class="pro">PRO</span>' if (not IS_PRO) else '')}
+    
   </div>
 </div>
 
