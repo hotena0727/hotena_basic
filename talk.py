@@ -73,7 +73,7 @@ def hotena_title(icon_path: str, title: str, size_px: int = 56, gap_px: int = 6,
               " />
               <div style="
                 font-size:1.18rem;font-weight:900;
-                line-height:0.5;   /* ✅ 글 박스 바닥을 더 정확히 */
+                line-height:3;   /* ✅ 글 박스 바닥을 더 정확히 */
                 white-space:nowrap;
                 transform:translateY({text_nudge_px}px); /* ✅ 필요시 1~4px */
               ">{title}</div>
