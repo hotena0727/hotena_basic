@@ -322,6 +322,94 @@ def _normalize_paragraphs(text: str, *, max_paras: int = 3) -> str:
     return joined
 
 
+
+# ----------------------------
+# Consult pitch (optional, periodic)
+# ----------------------------
+def _pitch_every_n() -> int:
+    """How often to append consultation guidance in talk mode (default 7)."""
+    try:
+        v = int((_cfg("TALK_COACH_PITCH_EVERY") or "").strip() or "7")
+        return max(3, min(v, 30))
+    except Exception:
+        return 7
+
+
+def _talk_invocation_count_inc() -> int:
+    key = "_talk_hatena_call_count"
+    try:
+        st.session_state[key] = int(st.session_state.get(key, 0)) + 1
+    except Exception:
+        st.session_state[key] = 1
+    return int(st.session_state.get(key, 1))
+
+
+def _score_bucket(score: Optional[float]) -> str:
+    if score is None:
+        return ""
+    try:
+        s = float(score)
+    except Exception:
+        return ""
+    if s < 65:
+        return "low"
+    if s < 81:
+        return "mid"
+    return "high"
+
+
+def _gen_consult_pitch(*, score: Optional[float], model: str) -> str:
+    """Generate 1–2 line neutral consultation guidance (no salesy tone)."""
+    bucket = _score_bucket(score)
+    score_txt = f"{int(score)}" if isinstance(score, (int, float)) and score is not None else ""
+    # Keep prompt compact (token saving)
+    sys = "너는 일본어 회화 훈련 전문가다. 과장/판매/명령 표현 없이, 짧고 차분하게 한 줄~두 줄로 상담 안내 문구만 작성한다. '해결하세요' 같은 지시형 금지. '강의 등록/신청/결제' 단어 금지."
+    if bucket == "low":
+        user = f"최근 점수(대략 {score_txt}점)는 기본 구조 안정화가 필요한 단계로 보인다. '성장하고 싶다면 하테나쌤 상담을 통해 훈련 방향을 안내받을 수 있다'는 취지로 1~2줄."
+    elif bucket == "mid":
+        user = f"최근 점수(대략 {score_txt}점)는 구조는 이해했으나 자동화가 부족한 단계로 보인다. 상담 안내 1~2줄."
+    elif bucket == "high":
+        user = f"최근 점수(대략 {score_txt}점)는 안정적이다. 다음 단계(자연스러움/표현 밀도) 점검을 상담으로 안내받을 수 있다는 1~2줄."
+    else:
+        user = "최근 학습 흐름을 바탕으로 다음 훈련 방향이 고민될 때 하테나쌤 상담으로 안내받을 수 있다는 1~2줄."
+    txt = _openai_chat(model, [{"role":"system","content":sys},{"role":"user","content":user}], max_output_tokens=90)
+    # normalize: 1~2 lines
+    lines = [ln.strip() for ln in (txt or "").splitlines() if ln.strip()]
+    if not lines:
+        return ""
+    lines = lines[:2]
+    return "\n".join(lines).strip()
+
+
+def _maybe_append_consult_pitch(ans: str, *, mode: str, user_input: str, context: str, meta: dict | None, model: str) -> str:
+    """Append periodic consultation guidance to talk-mode answer."""
+    if (mode or "").lower().strip() != "talk":
+        return ans
+    # Count every invocation (including cache hits), but do not cache the appended pitch.
+    cnt = _talk_invocation_count_inc()
+    every = _pitch_every_n()
+    if cnt % every != 0:
+        return ans
+
+    qid = None
+    if isinstance(meta, dict):
+        qid = meta.get("qid")
+    score = None
+    if qid:
+        try:
+            score = st.session_state.get(f"{qid}_pron_score")
+            if score is None:
+                score = st.session_state.get(f"{qid}_pron_score_last")
+        except Exception:
+            score = None
+
+    pitch = _gen_consult_pitch(score=score, model=model)
+    if not pitch:
+        return ans
+
+    # Append as last paragraph
+    return (ans or "").rstrip() + "\n\n" + pitch
+
 def _system_prompt(mode: str) -> str:
     # Keep consistent tone: teacher but kind, KR-first, small JP mix
     base = [
@@ -332,7 +420,7 @@ def _system_prompt(mode: str) -> str:
         "이모지는 필수가 아니다. 필요하면 1개 이하로만 사용한다.",
         "긴 강의처럼 말하지 말고, 학습자가 바로 이해/말하기를 이어가게 한다.",
         "추가 질문을 하지 않는다. 사용자의 다음 행동을 요구하지 않는다.",
-        "반드시 피드백 문장으로 끝낸다.",
+        "반드시 피드백 문장으로 끝낸다. 격려/응원 문구는 넣지 않는다.",
     ]
     m = (mode or "").lower().strip()
     if m == "talk":
@@ -342,7 +430,7 @@ def _system_prompt(mode: str) -> str:
             "답변은 번호/라벨 없이 3문단으로 쓴다. 문단 사이에는 빈 줄 1줄을 둔다.",
             "1문단: 질문에 대한 직접 해결(1~2문장).",
             "2문단: 추가 정보/뉘앙스 + 더 자연스러운 대안 1개(1~2문장).",
-            "3문단: 짧은 연습 1문장(일본어) + 격려(1~2문장).",
+            "3문단: 짧은 연습 1문장(일본어) + 마무리(1~2문장, 격려 문구는 넣지 않는다).",
             "문단별 문장 수를 제한한다: 1문단 1문장, 2문단 최대 2문장, 3문단 최대 2문장. 장황한 서론/캐릭터 설정은 1문장 이상 쓰지 않는다.",
             "말투는 따뜻하고 부드럽게, 과하게 딱딱한 표현은 피한다.",
             "중요: 사용자의 질문이 제공된 상황/문맥과 무관해 보이면, 문맥을 억지로 끼워 맞추지 말고 질문을 우선으로 답한다. 필요하면 문맥은 간단히 무시한다.",
@@ -403,7 +491,9 @@ def ask_hatena(
     # Cache check first (free)
     cached = get_cached_answer(mode, user_input, context)
     if cached:
-        return cached
+        # Even on cache hit, we may append periodic consultation guidance (talk mode only).
+        model = _cfg("OPENAI_MODEL_LOW") or DEFAULT_MODEL_LOW
+        return _maybe_append_consult_pitch(cached, mode=mode, user_input=user_input, context=context, meta=_meta, model=model)
 
     # Must be logged in (DB quota uses auth.uid())
     if not get_user_id():
@@ -425,15 +515,20 @@ def ask_hatena(
     max_toks = 240 if (mode or "").lower().strip() == "talk" else 220
     raw = _openai_chat(model, messages, max_output_tokens=max_toks)
 
-    # Normalize + cache
+    # Normalize (cache base answer only; pitch is appended per-call)
     if (mode or "").lower().strip() == "talk":
         if min_lines == MIN_LINES_DEFAULT:
             min_lines = 3
         if max_lines == MAX_LINES_DEFAULT:
             max_lines = 6
     if (mode or "").lower().strip() == "talk":
-        ans = _normalize_paragraphs(raw, max_paras=3)
+        base_ans = _normalize_paragraphs(raw, max_paras=3)
     else:
-        ans = _normalize_lines(raw, min_lines=min_lines, max_lines=max_lines)
-    set_cached_answer(mode, user_input, context, ans)
+        base_ans = _normalize_lines(raw, min_lines=min_lines, max_lines=max_lines)
+
+    # Cache the base answer (no pitch)
+    set_cached_answer(mode, user_input, context, base_ans)
+
+    # Optionally append consultation guidance periodically (talk mode only)
+    ans = _maybe_append_consult_pitch(base_ans, mode=mode, user_input=user_input, context=context, meta=_meta, model=model)
     return ans
