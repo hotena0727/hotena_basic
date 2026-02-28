@@ -460,6 +460,61 @@ def save_progress(progress_all: dict):
         sb.table("profiles").update({"progress": progress_all}).eq("id", USER_ID).execute()
     except Exception:
         pass
+
+
+# ============================================================
+# ✅ Smart coach pitch counter (persisted in profiles.progress)
+# - 스마트 코치 답변에 '상담 안내'를 너무 자주 노출하지 않기 위해 사용
+# - 기본: 7회마다 1번 (env TALK_COACH_PITCH_EVERY 로 조정 가능)
+# ============================================================
+def _talk_coach_pitch_every() -> int:
+    try:
+        n = int(os.getenv("TALK_COACH_PITCH_EVERY", "7") or "7")
+        return max(2, min(30, n))
+    except Exception:
+        return 7
+
+def _get_talk_coach_ask_cnt() -> int:
+    try:
+        prog = load_progress()
+        talk_prog = (prog or {}).get("talk") or {}
+        return int(talk_prog.get("coach_ask_cnt") or 0)
+    except Exception:
+        return int(st.session_state.get("talk_coach_ask_cnt") or 0)
+
+def _inc_talk_coach_ask_cnt() -> int:
+    cnt = _get_talk_coach_ask_cnt() + 1
+    st.session_state["talk_coach_ask_cnt"] = int(cnt)
+    try:
+        prog = load_progress()
+        talk_prog = prog.get("talk") or {}
+        talk_prog["coach_ask_cnt"] = int(cnt)
+        prog["talk"] = talk_prog
+        save_progress(prog)
+    except Exception:
+        pass
+    return int(cnt)
+
+def _maybe_append_consultation_pitch(ans: str, *, qid: str) -> str:
+    """Append 상담 안내 every Nth smart-coach ask."""
+    try:
+        every = _talk_coach_pitch_every()
+        cnt = _inc_talk_coach_ask_cnt()
+        if every > 0 and (cnt % every) != 0:
+            return ans
+        score = st.session_state.get(f"{qid}_pron_score")
+        if isinstance(score, (int, float)):
+            score_part = f"최근 말하기 점수는 {int(score)}점이에요."
+        else:
+            score_part = "최근 말하기 점수 기준으로"
+        pitch = (
+            "\n\n---\n\n"
+            f"📌 안내: {score_part} 더 빠르게 성장하고 싶다면, "
+            "하테나쌤과의 상담을 통해 현재 약점과 다음 학습 방향을 잡아보세요."
+        )
+        return (ans or "") + pitch
+    except Exception:
+        return ans
 # ============================================================
 # ✅ Recent 2 turns (stable, 안전 2턴 유지)
 # - session_state + profiles.progress['talk']['recent_turns']에 함께 저장
@@ -2085,7 +2140,10 @@ if submitted:
                                 },
                             )
 
-                        coach_slot.info(ans)# ============================================================
+                        ans = _maybe_append_consultation_pitch(ans, qid=str(qid))
+
+                        coach_slot.info(ans)
+# ============================================================
 # ✅ (추가) 정답 발음 확인 버튼용: 플레이어 없이 즉시 재생(JS Audio / TTS)
 # - 브라우저에 플레이어 UI가 뜨지 않게, new Audio().play()로만 재생
 # - JS 문자열은 % 포맷을 써서 f-string 중괄호 오류를 방지
