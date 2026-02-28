@@ -12,37 +12,9 @@ import base64
 from cryptography.fernet import Fernet
 from datetime import date, datetime, timedelta, timezone
 import streamlit as st
+import landing
 import core
 import streamlit.components.v1 as components
-
-# ============================================================
-# ✅ user id helper (robust across supabase return shapes)
-# ============================================================
-def _get_user_id(user):
-    """Return user id as string or None. Handles dict/obj/nested user objects."""
-    if user is None:
-        return None
-    try:
-        # dict-like
-        if isinstance(user, dict):
-            v = user.get("id") or (user.get("user") or {}).get("id")
-            return str(v) if v else None
-        # common attributes
-        for attr in ("id", "user_id", "uid"):
-            v = getattr(user, attr, None)
-            if v:
-                return str(v)
-        # nested supabase style: user.user.id
-        u = getattr(user, "user", None)
-        if u is not None:
-            if isinstance(u, dict):
-                v = u.get("id")
-                return str(v) if v else None
-            v = getattr(u, "id", None)
-            return str(v) if v else None
-    except Exception:
-        return None
-    return None
 
 # ============================================================
 # ✅ Font: 일본식 한자(글리프) 우선 적용
@@ -572,12 +544,9 @@ def get_authed_sb():
 
 
 def ensure_profile(sb_authed, user):
-    uid = _get_user_id(user)
-    if not uid:
-        return
     try:
         sb_authed.table("profiles").upsert(
-            {"id": uid, "email": getattr(user, "email", None)},
+            {"id": user.id, "email": getattr(user, "email", None)},
             on_conflict="id",
         ).execute()
     except Exception:
@@ -585,9 +554,6 @@ def ensure_profile(sb_authed, user):
 
 
 def load_profile(sb_authed, user_id: str):
-    uid = _get_user_id(user)
-    if not uid:
-        return
     try:
         res = sb_authed.table("profiles").select("progress, plan, is_admin").eq("id", user_id).single().execute()
         data = res.data if res and res.data else {}
@@ -736,17 +702,14 @@ def _dots_3(done_sets: int, goal_sets: int) -> str:
 
 
 def render_home_dashboard(sb_authed, user):
-    uid = _get_user_id(user)
-    if not uid:
-        return
     """Home Hub dashboard (A++): donut + weekly heatmap + level mini bars + rows + smart CTA + compact goal gear."""
     from datetime import datetime, timezone, timedelta
 
     # ---- data ----
-    attempts_recent = fetch_recent_attempts(sb_authed, uid, limit=500)
+    attempts_recent = fetch_recent_attempts(sb_authed, user.id, limit=500)
     sm_recent = summarize_attempts(attempts_recent)
 
-    attempts_today = fetch_today_attempts(sb_authed, uid)
+    attempts_today = fetch_today_attempts(sb_authed, user.id)
     sm_today = summarize_attempts(attempts_today)
 
     daily_map = build_daily_sets_map(attempts_recent)
@@ -773,7 +736,7 @@ def render_home_dashboard(sb_authed, user):
         # close any open settings panel on day change
         st.session_state["show_goal_settings"] = False
         try:
-            save_progress(sb_authed, uid, progress_all)
+            save_progress(sb_authed, user.id, progress_all)
         except Exception:
             pass
 
@@ -1106,7 +1069,7 @@ def render_home_dashboard(sb_authed, user):
                 progress_all["hub_flow_guide_collapsed"] = bool(_set_val)
                 st.session_state["progress_all"] = progress_all
                 try:
-                    save_progress(sb_authed, uid, progress_all)  # type: ignore[name-defined]
+                    save_progress(sb_authed, user.id, progress_all)  # type: ignore[name-defined]
                 except Exception:
                     pass
             except Exception:
@@ -1121,7 +1084,7 @@ def render_home_dashboard(sb_authed, user):
             progress_all["hub_flow_guide_collapsed"] = bool(v)
             st.session_state["progress_all"] = progress_all
             try:
-                save_progress(sb_authed, uid, progress_all)  # type: ignore[name-defined]
+                save_progress(sb_authed, user.id, progress_all)  # type: ignore[name-defined]
             except Exception:
                 pass
             st.rerun()
@@ -1322,7 +1285,7 @@ def render_home_dashboard(sb_authed, user):
             if st.button("저장", use_container_width=True, key="hub_daily_goal_save"):
                 progress_all["daily_goal_sets"] = int(new_goal)
                 st.session_state["progress_all"] = progress_all
-                save_progress(sb_authed, uid, progress_all)
+                save_progress(sb_authed, user.id, progress_all)
                 st.session_state["show_goal_settings"] = False
                 st.rerun()
         with cclose:
@@ -1553,14 +1516,11 @@ def render_reminder_settings(sb_authed, user):
         progress_all["reminder"] = {"enabled": bool(enabled), "time": f"{hh:02d}:{mm:02d}"}
         progress_all['naver_talk_fab_enabled'] = (yn == 'Y')
         st.session_state["progress_all"] = progress_all
-        save_progress(sb_authed, uid, progress_all)
+        save_progress(sb_authed, user.id, progress_all)
         st.success("저장했습니다.")
 
 
 def fire_in_app_reminder_if_enabled(user):
-    uid = _get_user_id(user)
-    if not uid:
-        return
     """If reminder is enabled, schedule an in-app notification when the app is open."""
     progress_all = st.session_state.get("progress_all", {}) or {}
     rem = progress_all.get("reminder") or {}
@@ -1582,7 +1542,7 @@ def fire_in_app_reminder_if_enabled(user):
     except Exception:
         delay_ms = 0
 
-    msg = json.dumps(daily_message(str(uid)))
+    msg = json.dumps(daily_message(str(user.id)))
     components.html(
         f"""
 <script>
@@ -1679,46 +1639,42 @@ user = st.session_state.get("user")
 sb_authed = st.session_state.get("sb_authed")
 
 if not user:
-    st.subheader("로그인")
-    with st.form("login_form", clear_on_submit=False):
-        email = st.text_input("이메일", key="hub_email")
-        pw = st.text_input("비밀번호", type="password", key="hub_pw")
-        mode = st.radio("모드", ["로그인", "회원가입"], horizontal=True)
-        submit = st.form_submit_button("확인", use_container_width=True)
+    # ✅ Landing-style login (full-screen hero)
+    email, pw, mode, submit = landing.landing_ui(assets_dir='assets')
 
     if submit:
         if not email or not pw:
-            st.error("이메일/비밀번호를 입력해 주세요.")
+            st.error('이메일/비밀번호를 입력해 주세요.')
             st.stop()
         try:
-            if mode == "로그인":
-                res = sb.auth.sign_in_with_password({"email": email, "password": pw})
+            if mode == '로그인':
+                res = sb.auth.sign_in_with_password({'email': email, 'password': pw})
             else:
-                res = sb.auth.sign_up({"email": email, "password": pw})
+                res = sb.auth.sign_up({'email': email, 'password': pw})
 
-            if getattr(res, "session", None) and getattr(res.session, "access_token", None):
-                st.session_state["user"] = res.user
-                st.session_state["access_token"] = res.session.access_token
-                st.session_state["refresh_token"] = res.session.refresh_token
-                cookies["access_token"] = res.session.access_token
-                cookies["refresh_token"] = res.session.refresh_token
+            if getattr(res, 'session', None) and getattr(res.session, 'access_token', None):
+                st.session_state['user'] = res.user
+                st.session_state['access_token'] = res.session.access_token
+                st.session_state['refresh_token'] = res.session.refresh_token
+                cookies['access_token'] = res.session.access_token
+                cookies['refresh_token'] = res.session.refresh_token
                 _cookies_save_once_per_run()
 
-                # ✅ persist encrypted tokens for refresh-proof login
+                # ✅ persist encrypted tokens for refresh-proof login (existing behavior)
                 try:
-                    st.query_params["rt"] = _enc(res.session.refresh_token)
-                    st.query_params["at"] = _enc(res.session.access_token)
-                    _js_set_localstorage("hotena_rt", st.query_params.get("rt",""))
-                    _js_set_localstorage("hotena_at", st.query_params.get("at",""))
+                    st.query_params['rt'] = _enc(res.session.refresh_token)
+                    st.query_params['at'] = _enc(res.session.access_token)
+                    _js_set_localstorage('hotena_rt', st.query_params.get('rt',''))
+                    _js_set_localstorage('hotena_at', st.query_params.get('at',''))
                 except Exception:
                     pass
 
-                st.success("로그인 완료!")
+                st.success('로그인 완료!')
                 st.rerun()
             else:
-                st.warning("이메일 인증이 필요할 수 있습니다. (Supabase 설정에 따라 다름)")
+                st.warning('이메일 인증이 필요할 수 있습니다. (Supabase 설정에 따라 다름)')
         except Exception as e:
-            st.error("로그인/가입 실패")
+            st.error('로그인/가입 실패')
             st.code(str(e))
     st.stop()
 
@@ -1726,7 +1682,7 @@ if not user:
 sb_authed = get_authed_sb()
 user = st.session_state.get("user")
 ensure_profile(sb_authed, user)
-load_profile(sb_authed, uid)
+load_profile(sb_authed, user.id)
 
 # ============================================================
 # 🔔 In-app reminder (no inline UI; settings live in menu -> Reminder page)
