@@ -1639,85 +1639,127 @@ sb_authed = st.session_state.get("sb_authed")
 
 if not user:
 
-# === HOTENA_LOGIN_SIDE_BY_SIDE_V1 ===
-# 로그인 화면: PC는 2컬럼(좌: 캐릭터/멘트, 우: 로그인 카드), 모바일은 1컬럼(위→아래)
-_LOGIN_SKIN_ON = True
+    # === HOTENA_LOGIN_SIDE_BY_SIDE_V2 ===
 
-if _LOGIN_SKIN_ON:
-    st.markdown("""<style>
-    /* --- login-only skin --- */
-    .block-container { padding-top: 1.0rem !important; padding-bottom: 1.5rem !important; }
-    /* center the whole login area */
-    .hotena-login-wrap { max-width: 1120px; margin: 0 auto; }
-    .hotena-copy h1 { margin: 0 0 .35rem 0; font-size: 2.05rem; font-weight: 900; line-height: 1.15; }
-    .hotena-copy p  { margin: 0; font-size: 1.02rem; opacity: .80; line-height: 1.55; }
-    .hotena-tagline { margin-top: .65rem; font-weight: 800; font-size: 1.25rem; }
-    .hotena-sub { margin-top: .25rem; font-weight: 700; opacity: .72; }
-    /* login card look (targets Streamlit form container) */
-    div[data-testid="stForm"] {
-      background: rgba(255,255,255,.92);
-      border: 1px solid rgba(0,0,0,.10);
-      border-radius: 18px;
-      padding: 18px 18px 8px 18px;
-      box-shadow: 0 18px 55px rgba(0,0,0,.08);
-    }
-    /* make inputs breathe */
-    div[data-testid="stTextInput"] > div, div[data-testid="stPasswordInput"] > div {
-      border-radius: 12px !important;
-    }
-    /* button */
-    div[data-testid="stFormSubmitButton"] button {
-      border-radius: 12px !important;
-      font-weight: 800 !important;
-      height: 44px !important;
-    }
-    /* on very wide screens, keep the form at a nice width */
-    .hotena-form-col { max-width: 640px; }
-    /* mobile stacking tweaks */
-    @media (max-width: 820px) {
-      .hotena-copy h1 { font-size: 1.65rem; }
-      .hotena-tagline { font-size: 1.12rem; }
-      .hotena-form-col { max-width: 100%; }
-    }
-    </style>""", unsafe_allow_html=True)
+    # 로그인 화면: PC는 2컬럼(좌: 캐릭터/멘트, 우: 로그인 카드), 모바일은 1컬럼(위→아래)
 
-    # --- layout ---
-    st.markdown('<div class="hotena-login-wrap">', unsafe_allow_html=True)
+    _LOGIN_SKIN_ON = True
 
-    # PC: side-by-side, Mobile: stacked automatically (columns become vertical)
-    left, right = st.columns([1.05, 1.35], gap="large")
 
-    with left:
-        # character image (optional)
-        _img_path = None
-        for _cand in ["assets/hotena_sensei.png", "assets/character.png", "assets/hatena_sensei.png"]:
-            if os.path.exists(_cand):
-                _img_path = _cand
-                break
-        if _img_path:
-            st.image(_img_path, width=260)
-        st.markdown(
-            """<div class="hotena-copy">
-                <h1>하테나쌤과 함께<br/>하루 5분, 회화 루틴</h1>
-                <p>짧게, 자주, 확실하게. 오늘도 한 세트만 시작해요.</p>
-                <div class="hotena-tagline">틀려도 괜찮아요.<br/>오늘도 함께 말해봅시다.</div>
-                <div class="hotena-sub">짧게, 자주, 확실하게.</div>
-            </div>""",
-            unsafe_allow_html=True,
-        )
+    if _LOGIN_SKIN_ON:
 
-    with right:
-        st.markdown('<div class="hotena-form-col">', unsafe_allow_html=True)
-        # We'll render the existing login form below; this wrapper just constrains width.
-        st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown("""<style>
 
-    st.markdown("</div>", unsafe_allow_html=True)
+        /* --- login-only skin --- */
 
-    # IMPORTANT:
-    # We only handled layout/skin. The actual login form widgets should remain as-is below.
-    # To avoid duplicate visuals, we add a small spacer only.
-    st.write("")
+        .block-container { padding-top: 1.0rem !important; padding-bottom: 1.5rem !important; }
 
+        .hotena-login-wrap { max-width: 1120px; margin: 0 auto; }
+
+        .hotena-copy h1 { margin: 0 0 .35rem 0; font-size: 2.05rem; font-weight: 900; line-height: 1.15; }
+
+        .hotena-copy p  { margin: 0; font-size: 1.02rem; opacity: .80; line-height: 1.55; }
+
+        .hotena-tagline { margin-top: .65rem; font-weight: 800; font-size: 1.25rem; }
+
+        .hotena-sub { margin-top: .25rem; font-weight: 700; opacity: .72; }
+
+        div[data-testid="stForm"] {
+
+          background: rgba(255,255,255,.92);
+
+          border: 1px solid rgba(0,0,0,.10);
+
+          border-radius: 18px;
+
+          padding: 18px 18px 8px 18px;
+
+          box-shadow: 0 18px 55px rgba(0,0,0,.08);
+
+        }
+
+        div[data-testid="stTextInput"] > div, div[data-testid="stPasswordInput"] > div {
+
+          border-radius: 12px !important;
+
+        }
+
+        div[data-testid="stFormSubmitButton"] button {
+
+          border-radius: 12px !important;
+
+          font-weight: 800 !important;
+
+          height: 44px !important;
+
+        }
+
+        .hotena-form-col { max-width: 640px; }
+
+        @media (max-width: 820px) {
+
+          .hotena-copy h1 { font-size: 1.65rem; }
+
+          .hotena-tagline { font-size: 1.12rem; }
+
+          .hotena-form-col { max-width: 100%; }
+
+        }
+
+        </style>""", unsafe_allow_html=True)
+
+
+        st.markdown('<div class="hotena-login-wrap">', unsafe_allow_html=True)
+
+        left, right = st.columns([1.05, 1.35], gap="large")
+
+
+        with left:
+
+            _img_path = None
+
+            for _cand in ["assets/hotena_sensei.png", "assets/character.png", "assets/hatena_sensei.png"]:
+
+                if os.path.exists(_cand):
+
+                    _img_path = _cand
+
+                    break
+
+            if _img_path:
+
+                st.image(_img_path, width=260)
+
+
+            st.markdown(
+
+                """<div class="hotena-copy">
+
+                    <h1>하테나쌤과 함께<br/>하루 5분, 회화 루틴</h1>
+
+                    <p>짧게, 자주, 확실하게. 오늘도 한 세트만 시작해요.</p>
+
+                    <div class="hotena-tagline">틀려도 괜찮아요.<br/>오늘도 함께 말해봅시다.</div>
+
+                    <div class="hotena-sub">짧게, 자주, 확실하게.</div>
+
+                </div>""",
+
+                unsafe_allow_html=True,
+
+            )
+
+
+        with right:
+
+            st.markdown('<div class="hotena-form-col">', unsafe_allow_html=True)
+
+            st.markdown('</div>', unsafe_allow_html=True)
+
+
+        st.markdown('</div>', unsafe_allow_html=True)
+
+        st.write("")
 
     st.subheader("로그인")
     with st.form("login_form", clear_on_submit=False):
