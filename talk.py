@@ -47,18 +47,68 @@ def _kst_today_str() -> str:
     return now.date().isoformat()
 
 def _get_today_speech_done() -> int:
+    """오늘 말한 문장 수(일 단위).
+    - session_state가 날아가도, profiles.progress['talk']['speech_done']에서 복구
+    - 날짜가 바뀌면 자동 0 리셋(+progress에도 반영)
+    """
     key_date = "talk_speech_done_date"
     key_cnt = "talk_speech_done_cnt"
     today = _kst_today_str()
-    if st.session_state.get(key_date) != today:
-        st.session_state[key_date] = today
-        st.session_state[key_cnt] = 0
+
+    # ✅ 1) session_state가 오늘로 세팅되어 있으면 그대로 사용
+    if st.session_state.get(key_date) == today and st.session_state.get(key_cnt) is not None:
+        return int(st.session_state.get(key_cnt) or 0)
+
+    # ✅ 2) progress에서 복구 시도
+    cnt_from_db = 0
+    try:
+        prog = load_progress()  # may raise if sb not ready
+        talk_prog = (prog or {}).get("talk") or {}
+        sd = talk_prog.get("speech_done") or {}
+        if isinstance(sd, dict) and str(sd.get("date") or "") == today:
+            cnt_from_db = int(sd.get("cnt") or 0)
+    except Exception:
+        cnt_from_db = 0
+
+    st.session_state[key_date] = today
+    st.session_state[key_cnt] = int(cnt_from_db)
+
+    # ✅ 오늘로 progress가 없으면 0으로 초기화(다음 복구 안정)
+    if int(cnt_from_db) == 0:
+        try:
+            prog = load_progress()
+            talk_prog = prog.get("talk") or {}
+            sd = talk_prog.get("speech_done")
+            if not (isinstance(sd, dict) and str(sd.get("date") or "") == today):
+                talk_prog["speech_done"] = {"date": today, "cnt": 0}
+                prog["talk"] = talk_prog
+                save_progress(prog)
+        except Exception:
+            pass
+
     return int(st.session_state.get(key_cnt) or 0)
 
 def _inc_today_speech_done(n: int = 1) -> None:
+    """오늘 말한 문장 수 증가 + progress에도 즉시 저장."""
+    key_date = "talk_speech_done_date"
     key_cnt = "talk_speech_done_cnt"
+    today = _kst_today_str()
+
     cur = _get_today_speech_done()
-    st.session_state[key_cnt] = int(cur) + int(n)
+    new_cnt = int(cur) + int(n)
+
+    st.session_state[key_date] = today
+    st.session_state[key_cnt] = new_cnt
+
+    # progress 저장(일 단위, 전역 카운트)
+    try:
+        prog = load_progress()
+        talk_prog = prog.get("talk") or {}
+        talk_prog["speech_done"] = {"date": today, "cnt": int(new_cnt)}
+        prog["talk"] = talk_prog
+        save_progress(prog)
+    except Exception:
+        pass
 
 _NATIVE_MAP = [
     ("てもいいですか", "てもいい？"),
