@@ -1649,7 +1649,7 @@ if not user:
     .hotena-brand p  { margin:.35rem 0 0 0; font-size:.95rem; opacity:.55; color:#111827; }
     .hotena-card-title { font-size:1.15rem; font-weight:800; color:#111827; margin: 0 0 1.0rem 0; }
     div[data-testid="stForm"] {
-      max-width: 520px !important; margin: 0 auto !important;
+      max-width: 680px !important; margin: 0 auto !important;
       border: 1px solid rgba(0,0,0,.08) !important;
       border-radius: 16px !important;
       padding: 28px 28px 18px 28px !important;
@@ -1658,20 +1658,24 @@ if not user:
     }
     div[data-testid="stTextInput"] input { height: 48px !important; border-radius: 12px !important; }
     button[kind="primary"] { height: 46px !important; border-radius: 12px !important; font-weight:800 !important; }
-    </style>''', unsafe_allow_html=True)
-    st.markdown('<div class="hotena-brand"><h1>하테나일본어</h1><p>Japanese Learning Platform</p></div>', unsafe_allow_html=True)
+    
+    /* Layout harmony for login row */
+    div[data-testid="stHorizontalBlock"]{align-items:flex-end; column-gap:32px !important;}
+    .hotena-char-spacer{height:clamp(40px,6vh,120px);}
+</style>''', unsafe_allow_html=True)
+    st.markdown('<div class="hotena-brand"><h1>하테나일본어</h1></div>', unsafe_allow_html=True)
     st.subheader("로그인")
     # === HOTENA_LOGIN_COLUMNS_V1 ===
-    col_login, col_char = st.columns([1.0, 0.9], gap="large")
+    col_login, col_char = st.columns([1.3, 0.7], gap="medium")
     with col_login:
-        st.markdown('<div class="hotena-card-title">계정으로 시작하기</div>', unsafe_allow_html=True)
-        with st.form("login_form", clear_on_submit=False):
+                with st.form("login_form", clear_on_submit=False):
             email = st.text_input("이메일", key="hub_email")
             pw = st.text_input("비밀번호", type="password", key="hub_pw")
             mode = st.radio("모드", ["로그인", "회원가입"], horizontal=True)
             submit = st.form_submit_button("로그인", use_container_width=True)
 
     with col_char:
+        st.markdown('<div class="hotena-char-spacer"></div>', unsafe_allow_html=True)
         _p = os.path.join('assets','hotena_sensei.png')
         if os.path.exists(_p):
             st.image(_p, use_container_width=True)
