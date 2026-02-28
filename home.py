@@ -1639,27 +1639,48 @@ sb_authed = st.session_state.get("sb_authed")
 
 if not user:
     # ============================================================
-    # ✅ Login Landing (side-by-side) — stable HTML (no raw tag text)
+    # ✅ Login Landing (side-by-side) — cohesive shell
     # ============================================================
     _ASSET_IMG = os.path.join("assets", "hotena_sensei.png")
+
     st.markdown(
         """<style>
-        /* hide default anchor spacing artifacts */
-        .block-container{padding-top:1.0rem;padding-bottom:2.0rem;max-width:1200px;}
-        /* login card */
-        .hotena-login-card{
-            background: rgba(255,255,255,0.72);
-            border: 1px solid rgba(0,0,0,0.08);
-            border-radius: 18px;
-            padding: 22px 22px 18px 22px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.06);
+        /* page width */
+        .block-container{padding-top:1.0rem;padding-bottom:2.0rem;max-width:1180px;}
+
+        /* anchor -> style the very next border-container only (landing shell) */
+        #hotena-landing-anchor + div[data-testid="stVerticalBlockBorderWrapper"]{
+            background: linear-gradient(180deg, rgba(255,255,255,0.82), rgba(255,255,255,0.70));
+            border: 1px solid rgba(0,0,0,0.06);
+            border-radius: 26px;
+            box-shadow: 0 18px 60px rgba(0,0,0,0.08);
             backdrop-filter: blur(10px);
         }
+        #hotena-landing-anchor + div[data-testid="stVerticalBlockBorderWrapper"] > div{
+            padding: 28px 26px 22px 26px;
+        }
+
+        /* subtle divider feel between columns */
+        @media (min-width: 900px){
+          #hotena-landing-anchor + div[data-testid="stVerticalBlockBorderWrapper"] div[data-testid="stHorizontalBlock"]{
+            gap: 34px;
+          }
+          #hotena-landing-anchor + div[data-testid="stVerticalBlockBorderWrapper"] div[data-testid="column"]:nth-child(1){
+            padding-right: 18px;
+            border-right: 1px solid rgba(0,0,0,0.06);
+          }
+          #hotena-landing-anchor + div[data-testid="stVerticalBlockBorderWrapper"] div[data-testid="column"]:nth-child(2){
+            padding-left: 18px;
+          }
+        }
+
+        /* left copy */
         .hotena-copy h1{
-            font-size: 2.0rem;
-            line-height: 1.22;
-            margin: 0 0 .55rem 0;
+            font-size: 2.05rem;
+            line-height: 1.18;
+            margin: 10px 0 10px 0;
             font-weight: 900;
+            letter-spacing: -0.02em;
         }
         .hotena-copy p{
             margin: 0;
@@ -1668,49 +1689,104 @@ if not user:
         }
         .hotena-kicker{
             display:inline-flex;align-items:center;gap:8px;
-            padding: 8px 12px;
+            padding: 9px 13px;
             border-radius: 999px;
             background: rgba(0,0,0,0.04);
             border: 1px solid rgba(0,0,0,0.06);
-            margin: 6px 0 14px 0;
             font-size: .92rem;
-            opacity: .9;
+            opacity: .92;
         }
-        /* make inputs slightly larger */
-        div[data-testid="stTextInput"] input{height: 44px;}
+
+        /* right form card inside the shell */
+        .hotena-form-card{
+            background: rgba(255,255,255,0.72);
+            border: 1px solid rgba(0,0,0,0.08);
+            border-radius: 18px;
+            padding: 20px 20px 16px 20px;
+        }
+
+        /* bigger inputs */
+        div[data-testid="stTextInput"] input{height: 46px;}
         </style>""",
         unsafe_allow_html=True
     )
 
-    left, right = st.columns([1.05, 1.35], gap="large")
+    # anchor for the CSS selector
+    st.markdown('<div id="hotena-landing-anchor"></div>', unsafe_allow_html=True)
 
-    with left:
-        if os.path.exists(_ASSET_IMG):
-            st.image(_ASSET_IMG, width=260)
-        st.markdown(
-            """<div class="hotena-copy">
-                <div class="hotena-kicker">🗣️ 매일 5분 · 회화 루틴</div>
-                <h1>하테나쌤과 함께<br/>오늘도 한 세트만 시작해요</h1>
-                <p>틀려도 괜찮아요. 짧게, 자주, 확실하게.</p>
-            </div>""",
-            unsafe_allow_html=True
-        )
+    with st.container(border=True):
+        left, right = st.columns([1.05, 1.35], gap="large")
 
-    with right:
-        st.markdown('<div class="hotena-login-card">', unsafe_allow_html=True)
-        st.markdown("### 시작하기")
-        st.caption("로그인 후 바로 홈 허브로 이동합니다.")
-        with st.form("login_form", clear_on_submit=False):
-            email = st.text_input("이메일", key="hub_email")
-            pw = st.text_input("비밀번호", type="password", key="hub_pw")
-            mode = st.radio("모드", ["로그인", "회원가입"], horizontal=True)
-            submit = st.form_submit_button("확인", use_container_width=True)
-        st.markdown('</div>', unsafe_allow_html=True)
+        with left:
+            # image + copy grouped for better balance
+            if os.path.exists(_ASSET_IMG):
+                st.image(_ASSET_IMG, width=250)
+
+            st.markdown(
+                """<div class="hotena-copy">
+                    <div class="hotena-kicker">🗣️ 매일 5분 · 회화 루틴</div>
+                    <h1>하테나쌤과 함께<br/>오늘도 한 세트만 시작해요</h1>
+                    <p>틀려도 괜찮아요. 짧게, 자주, 확실하게.</p>
+                </div>""",
+                unsafe_allow_html=True
+            )
+
+            st.markdown(
+                """<div style="margin-top:14px; opacity:.80; font-size:.92rem; line-height:1.45;">
+                • 오늘의 루틴만 끝내도 충분해요.<br/>
+                • 회화가 ‘습관’이 되면 실력이 됩니다.
+                </div>""",
+                unsafe_allow_html=True
+            )
+
+        with right:
+            st.markdown('<div class="hotena-form-card">', unsafe_allow_html=True)
+            st.markdown("### 시작하기")
+            st.caption("로그인 후 바로 홈 허브로 이동합니다.")
+            with st.form("login_form", clear_on_submit=False):
+                email = st.text_input("이메일", key="hub_email")
+                pw = st.text_input("비밀번호", type="password", key="hub_pw")
+                mode = st.radio("모드", ["로그인", "회원가입"], horizontal=True)
+                submit = st.form_submit_button("확인", use_container_width=True)
+            st.markdown('</div>', unsafe_allow_html=True)
 
     if submit:
         if not email or not pw:
             st.error("이메일/비밀번호를 입력해 주세요.")
             st.stop()
+        try:
+            if mode == "로그인":
+                res = sb.auth.sign_in_with_password({"email": email, "password": pw})
+            else:
+                res = sb.auth.sign_up({"email": email, "password": pw})
+
+            if getattr(res, "session", None) and getattr(res.session, "access_token", None):
+                st.session_state["user"] = res.user
+                st.session_state["access_token"] = res.session.access_token
+                st.session_state["refresh_token"] = res.session.refresh_token
+                cookies["access_token"] = res.session.access_token
+                cookies["refresh_token"] = res.session.refresh_token
+                _cookies_save_once_per_run()
+
+                # ✅ persist encrypted tokens for refresh-proof login
+                try:
+                    st.query_params["rt"] = _enc(res.session.refresh_token)
+                    st.query_params["at"] = _enc(res.session.access_token)
+                    _js_set_localstorage("hotena_rt", st.query_params.get("rt",""))
+                    _js_set_localstorage("hotena_at", st.query_params.get("at",""))
+                except Exception:
+                    pass
+
+                st.success("로그인 완료!")
+                st.rerun()
+            else:
+                st.warning("이메일 인증이 필요할 수 있습니다. (Supabase 설정에 따라 다름)")
+        except Exception as e:
+            st.error("로그인/가입 실패")
+            st.code(str(e))
+
+    st.stop()
+    st.stop()
         try:
             if mode == "로그인":
                 res = sb.auth.sign_in_with_password({"email": email, "password": pw})
