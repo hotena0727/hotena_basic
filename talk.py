@@ -1,336 +1,389 @@
-# talk.py (v27) - 1문제 집중형 + 말하기 완료 체크(B)
+
+# ===== Hotena Login Safe Skin (Structure Untouched) =====
+import streamlit as st
+
+st.markdown("""
+<style>
+.stApp {
+  background: linear-gradient(135deg, #fff6f2 0%, #ffffff 55%, #f7fbff 100%);
+}
+
+.block-container {
+  max-width: 960px;
+  padding-top: 2rem;
+}
+
+div[data-testid="stForm"] {
+  border: 1px solid rgba(0,0,0,.08);
+  border-radius: 18px;
+  padding: 24px 24px 18px 24px;
+  background: rgba(255,255,255,.85);
+  box-shadow: 0 18px 42px rgba(0,0,0,.08);
+  backdrop-filter: blur(6px);
+}
+
+div[data-testid="stTextInput"] input {
+  height: 48px;
+  border-radius: 12px;
+}
+
+div[role="radiogroup"] {
+  gap: 10px;
+}
+
+button[kind="primary"] {
+  border-radius: 12px !important;
+  height: 46px;
+}
+
+section.main > div {
+  padding-top: 0rem;
+}
+</style>
+""", unsafe_allow_html=True)
+# =========================================================
+
+# home.py
 from __future__ import annotations
-# BUILD_STAMP_TALK: talk-newset-in-progress-v1 2026-02-22 KST (+09:00)
 
+BUILD_STAMP = 'home-clean-no-spacer-v3 (fix run_module reload) 2026-02-22 KST (+09:00)'
 from pathlib import Path
-from datetime import datetime, timedelta, date
-import random
-import math
-import hashlib
 import os
-import difflib
-import re
-import io
-
-# ============================================================
-# ✅ (선택) 한자/가나 표기 차이를 줄이기 위한 히라가나 정규화
-# - pykakasi가 설치되어 있으면: 한자/카타카나 → 히라가나로 통일
-# - 설치되어 있지 않으면: 원문 그대로(표기 차이에 따른 감점 가능)
-# ============================================================
-try:
-    from pykakasi import kakasi as _kakasi  # type: ignore
-    _KKS = _kakasi()
-    _KKS.setMode("J", "H")  # Kanji to Hiragana
-    _KKS.setMode("K", "H")  # Katakana to Hiragana
-    _KKS.setMode("H", "H")  # Hiragana keep
-    _KKS_CONV = _KKS.getConverter()
-    def _to_hira(s: str) -> str:
-        try:
-            return _KKS_CONV.do(s or "")
-        except Exception:
-            return s or ""
-except Exception:
-    _KKS_CONV = None
-    def _to_hira(s: str) -> str:
-        return s or ""
-import pandas as pd
-import streamlit as st
-
-# ============================================================
-# ✅ 오늘의 회화 레벨 게이지(일일 완료 카운트) + 일본인 버전(간단 변환)
-# ============================================================
-def _kst_today_str() -> str:
-    # 서버가 KST가 아닐 수 있으므로 +9 보정
-    try:
-        now = datetime.utcnow() + timedelta(hours=9)
-    except Exception:
-        now = datetime.now()
-    return now.date().isoformat()
-
-def _get_today_speech_done() -> int:
-    """오늘 말한 문장 수(일 단위).
-    - session_state가 날아가도, profiles.progress['talk']['speech_done']에서 복구
-    - 날짜가 바뀌면 자동 0 리셋(+progress에도 반영)
-    """
-    key_date = "talk_speech_done_date"
-    key_cnt = "talk_speech_done_cnt"
-    today = _kst_today_str()
-
-    # ✅ 1) session_state가 오늘로 세팅되어 있으면 그대로 사용
-    if st.session_state.get(key_date) == today and st.session_state.get(key_cnt) is not None:
-        return int(st.session_state.get(key_cnt) or 0)
-
-    # ✅ 2) progress에서 복구 시도
-    cnt_from_db = 0
-    try:
-        prog = load_progress()  # may raise if sb not ready
-        talk_prog = (prog or {}).get("talk") or {}
-        sd = talk_prog.get("speech_done") or {}
-        if isinstance(sd, dict) and str(sd.get("date") or "") == today:
-            cnt_from_db = int(sd.get("cnt") or 0)
-    except Exception:
-        cnt_from_db = 0
-
-    st.session_state[key_date] = today
-    st.session_state[key_cnt] = int(cnt_from_db)
-
-    # ✅ 오늘로 progress가 없으면 0으로 초기화(다음 복구 안정)
-    if int(cnt_from_db) == 0:
-        try:
-            prog = load_progress()
-            talk_prog = prog.get("talk") or {}
-            sd = talk_prog.get("speech_done")
-            if not (isinstance(sd, dict) and str(sd.get("date") or "") == today):
-                talk_prog["speech_done"] = {"date": today, "cnt": 0}
-                prog["talk"] = talk_prog
-                save_progress(prog)
-        except Exception:
-            pass
-
-    return int(st.session_state.get(key_cnt) or 0)
-
-def _inc_today_speech_done(n: int = 1) -> None:
-    """오늘 말한 문장 수 증가 + progress에도 즉시 저장."""
-    key_date = "talk_speech_done_date"
-    key_cnt = "talk_speech_done_cnt"
-    today = _kst_today_str()
-
-    cur = _get_today_speech_done()
-    new_cnt = int(cur) + int(n)
-
-    st.session_state[key_date] = today
-    st.session_state[key_cnt] = new_cnt
-
-    # progress 저장(일 단위, 전역 카운트)
-    try:
-        prog = load_progress()
-        talk_prog = prog.get("talk") or {}
-        talk_prog["speech_done"] = {"date": today, "cnt": int(new_cnt)}
-        prog["talk"] = talk_prog
-        save_progress(prog)
-    except Exception:
-        pass
-
-_NATIVE_MAP = [
-    ("てもいいですか", "てもいい？"),
-    ("てもよろしいでしょうか", "てもいい？"),
-    ("でしょうか", "かな"),
-    ("お願いします", "お願い"),
-    ("ですか", "？"),
-]
-
-def _jp_native_variant(s: str) -> str:
-    t = (s or "").strip()
-    if not t:
-        return ""
-    out = t
-    for a, b in _NATIVE_MAP:
-        if a in out:
-            out = out.replace(a, b)
-    # 살짝 더 자연스럽게(너무 과하면 위험하니 최소만)
-    out = out.replace("。", "。").strip()
-    return out if out and out != t else ""
-
-
-# ============================================================
-# ✅ Hotena UI: 타이틀 왼쪽 캐릭터 아이콘(최소 버전)
-# ============================================================
+import runpy
+import importlib
+import json
+import hashlib
 import base64
-from pathlib import Path
+from cryptography.fernet import Fernet
+from datetime import date, datetime, timedelta, timezone
 import streamlit as st
-
-def _img_to_data_uri(path: str) -> str:
-    p = Path(path)
-    b = p.read_bytes()
-    ext = p.suffix.lower().lstrip(".")
-    mime = "png" if ext == "png" else ext
-    return f"data:image/{mime};base64," + base64.b64encode(b).decode("utf-8")
-
-def hotena_title(icon_path: str, title: str, size_px: int = 56, gap_px: int = 6,
-                 right_text: str | None = None, text_nudge_px: int = 0):
-    """
-    아이콘 바닥과 텍스트 바닥을 최대한 맞춤.
-    text_nudge_px로 텍스트를 1~4px 정도 아래로 미세 조정 가능.
-    """
-    try:
-        uri = _img_to_data_uri(icon_path)
-        right_html = (
-            f'<div style="margin-left:auto;font-size:0.98rem;opacity:0.85;'
-            f'line-height:1; transform:translateY({text_nudge_px}px);">{right_text}</div>'
-            if right_text else ""
-        )
-
-        st.markdown(
-            f"""
-            <div style="display:flex;align-items:flex-end;gap:{gap_px}px;margin:4px 0 10px 0;">
-              <img src="{uri}" style="
-                width:{size_px}px;height:{size_px}px;
-                object-fit:contain;flex:0 0 auto;
-                display:block;   /* ✅ 이미지 아래 베이스라인 갭 제거 */
-              " />
-              <div style="
-                font-size:1.18rem;font-weight:900;
-                line-height:2;   /* ✅ 글 박스 바닥을 더 정확히 */
-                white-space:nowrap;
-                transform:translateY({text_nudge_px}px); /* ✅ 필요시 1~4px */
-              ">{title}</div>
-              {right_html}
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
-    except Exception:
-        st.markdown(f"### {title}")
-
-import ai_tutor
-
-# ============================================================
-# ✅ wrong_notes debug helper
-# ============================================================
-_WN_DEBUG = bool(st.session_state.get("is_admin", False)) or bool(st.session_state.get("is_admin_cached", False))
-def _wn_warn(msg: str):
-    if _WN_DEBUG:
-        try:
-            st.warning(msg)
-        except Exception:
-            # fallback: Streamlit 기본 녹음(브라우저/환경에 따라 components 녹음이 막힐 때)
-            try:
-                st.audio_input("(선택) 내 말 녹음")
-            except Exception:
-                pass
-# ============================================================
-# ✅ HUB 진입 시: 선택/제출 상태 초기화 (회화)
-# ============================================================
-if st.session_state.get("_entered_talk"):
-    for k in list(st.session_state.keys()):
-        if k.startswith("talk_") or k in ("submitted", "is_graded", "answers"):
-            st.session_state.pop(k, None)
-    st.session_state["_entered_talk"] = False
-
-
+import landing
+import core
 import streamlit.components.v1 as components
-from supabase import create_client
-
-# ✅ MP3 base (스토리지)
-BASE_AUDIO_URL = 'https://hotena.com/hotena/app/mp3/'
-
-def resolve_audio_url(v: str) -> str:
-    """CSV에 '00.mp3' 처럼 파일명만 적어도 재생되도록 URL을 보정한다.
-    - v가 http(s)로 시작하면 그대로 사용
-    - BASE_AUDIO_URL이 있으면 BASE_AUDIO_URL + v 로 결합
-    - BASE_AUDIO_URL이 없으면 상대경로(v)를 그대로 사용(예: 'mp3/00.mp3')
-    """
-    v = (v or "").strip()
-    if not v:
-        return ""
-    if v.startswith("http://") or v.startswith("https://"):
-        return v
-    if BASE_AUDIO_URL:
-        return BASE_AUDIO_URL.rstrip("/") + "/" + v.lstrip("/")
-    return v
-
-# ✅ MP3 URL이 없을 때 브라우저 TTS로 대체할지 여부
-USE_TTS_FALLBACK = True  # mp3만 쓰려면 False
-
 
 # ============================================================
-# ✅ Settings
+# ✅ Font: 일본식 한자(글리프) 우선 적용
 # ============================================================
-NS = "talk"
-SET_LEN = 10
-FREE_SET_LEN = 3  # FREE는 3문제만 제공
-FREE_TTS_QUOTA = 3  # FREE 발음 듣기 3회(일)
-FREE_RECORD_QUOTA = 3  # FREE 녹음 3회(일)
-
-# ============================================================
-# ✅ Hub login required
-# ============================================================
-u = st.session_state.get("user")
-if not u:
-    st.warning("홈에서 로그인 후 이용해 주세요.")
-    st.stop()
-
-USER_ID = getattr(u, "id", None)
-USER_EMAIL = getattr(u, "email", "") or ""
-
-USER_PLAN = (st.session_state.get("user_plan") or "free").lower()
-IS_PRO = USER_PLAN == "pro"
-
-def _inject_talk_ui_css():
-    if st.session_state.get("_talk_ui_css_done", False):
+def _inject_jp_font_once():
+    if st.session_state.get("_jp_font_injected", False):
         return
-    st.session_state["_talk_ui_css_done"] = True
+    st.session_state["_jp_font_injected"] = True
     st.markdown(
         """
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
-.talk-bubble-row{display:flex;gap:10px;align-items:flex-end;margin:6px 0;}
-.talk-bubble-label{min-width:68px;font-weight:800;opacity:.85;}
-.talk-bubble{
-  display:inline-block;
-  max-width:100%;
-  padding:10px 12px;
-  border-radius:16px;
-  border:1px solid rgba(49,51,63,.14);
-  box-shadow:0 1px 0 rgba(0,0,0,.02);
-  line-height:1.25;
-  word-break:break-word;
+html, body, [class*="css"]  {
+  font-family: 'Noto Sans JP','Noto Sans KR','Yu Gothic','Hiragino Kaku Gothic ProN','Meiryo','Apple SD Gothic Neo',sans-serif !important;
 }
-.talk-bubble.partner{background:rgba(0,0,0,.02);}
-.talk-bubble.me{background:rgba(33,150,243,.08);}
-.talk-bubble-sub{font-size:.86rem;opacity:.70;margin-top:2px;}
-.talk-tts-col{display:flex;justify-content:flex-end;align-items:center;}
 </style>
 """,
         unsafe_allow_html=True,
     )
 
-_inject_talk_ui_css()
+_inject_jp_font_once()
 
-# ✅ TTS 플레이어(1개) 렌더 — 요청이 있을 때만 재생
-# (moved) _render_talk_tts_player() call is placed near the end to avoid NameError on import.
 
-st.markdown(
+# ============================================================
+# ✅ Module runner (NO runpy/run_path)
+# - Import (or reload) a module by name so it renders in the SAME Streamlit flow
+# ============================================================
+def run_module(module_name: str):
+    """Import (or reload) a module by name so it renders in the SAME Streamlit flow.
+
+    Additionally performs a compile-time syntax/indentation check so Streamlit's
+    redaction doesn't hide the real line number.
     """
-<style>
-/* 헤더 자리 고정: rerun 시에도 레이아웃 흔들림 최소화 */
-.talk-fixed-header{
-  padding: 6px 0 10px 0;
-  min-height: 64px;     /* ✅ PC에서 타이틀+캡션 높이 자리 확보 */
-}
-.talk-fixed-title{
-  font-size: 2rem;
-  font-weight: 800;
-  line-height: 1.15;
-  margin: 0;
-}
-.talk-fixed-caption{
-  margin-top: 6px;
-  font-size: 0.95rem;
-  opacity: 0.75;
-}
-@media (max-width: 768px){
-  .talk-fixed-header{ min-height: 52px; } /* 모바일은 조금 줄임 */
-  .talk-fixed-title{ font-size: 1.6rem; }
-}
-</style>
+    try:
+        import sys
+        import importlib.util
+        from pathlib import Path
 
-<div class="talk-fixed-header">
-  <div class="talk-fixed-title">일본어회화</div>
-  <div class="talk-fixed-caption">
-    1문제씩: 상황 → 상대 발화(🔊/PRO) → 보기 선택 → 제출 → 정답/설명 → (선택)말하기 완료 체크
-  </div>
-</div>
+        # --- Preflight compile to reveal exact SyntaxError/IndentationError line ---
+        spec = importlib.util.find_spec(module_name)
+        origin = getattr(spec, "origin", None) if spec else None
+        if origin and origin.endswith(".py") and Path(origin).exists():
+            src = Path(origin).read_text(encoding="utf-8")
+            try:
+                compile(src, origin, "exec")
+            except (SyntaxError, IndentationError) as se:
+                lineno = getattr(se, "lineno", None) or 0
+                msg = getattr(se, "msg", str(se))
+                text = (getattr(se, "text", "") or "").rstrip("\n")
+                st.error(f"❌ {module_name}.py 문법/들여쓰기 오류: {msg} (line {lineno})")
+                if text:
+                    st.code(f"{text}", language="python")
+                # show context
+                try:
+                    lines = src.splitlines()
+                    start = max(lineno - 5, 1)
+                    end = min(lineno + 4, len(lines))
+                    ctx = "\n".join([f"{i:>4}: {lines[i-1]}" for i in range(start, end+1)])
+                    st.code(ctx, language="python")
+                except Exception:
+                    pass
+                st.stop()
+
+        # --- Import / reload ---
+        if module_name in sys.modules:
+            mod = importlib.reload(sys.modules[module_name])
+        else:
+            mod = importlib.import_module(module_name)
+
+        if hasattr(mod, "render") and callable(getattr(mod, "render")):
+            mod.render()
+
+    except Exception as e:
+        st.exception(e)
+        raise
+
+# ============================================================
+# ✅ LocalStorage / QueryParam persistence helpers
+# ============================================================
+def _js_bridge_localstorage_to_queryparam(ls_key: str, qp_key: str):
+    # (Helper) Mirror localStorage value into a URL queryparam without a full page reload.
+    # Uses history.replaceState (NOT location.replace) to avoid full reload/new-tab behavior.
+    try:
+        components.html(
+            f"""<script>
+(function(){{
+  try {{
+    const lsKey = {json.dumps(ls_key)};
+    const qpKey = {json.dumps(qp_key)};
+    const url = new URL(window.location.href);
+    if (!url.searchParams.get(qpKey)) {{
+      const v = localStorage.getItem(lsKey);
+      if (v) {{
+        url.searchParams.set(qpKey, v);
+        window.history.replaceState({{}}, document.title, url.toString());
+      }}
+    }}
+  }} catch(e) {{}}
+}})();
+</script>""".replace("LS_KEY", ls_key).replace("QP_KEY", qp_key),
+            height=0,
+        )
+    except Exception:
+        pass
+
+
+def _js_set_localstorage(key: str, value: str):
+    try:
+        components.html(
+            f"""<script>
+try {{
+  localStorage.setItem({json.dumps("K")}, {json.dumps("V")});
+}} catch(e) {{}}
+</script>""".replace("K", key).replace("V", value),
+            height=0,
+        )
+    except Exception:
+        pass
+
+def _js_remove_localstorage(key: str):
+    try:
+        components.html(
+            f"""<script>
+try {{
+  localStorage.removeItem({json.dumps("K")});
+}} catch(e) {{}}
+</script>""".replace("K", key),
+            height=0,
+        )
+    except Exception:
+        pass
+
+
+from supabase import create_client
+from streamlit_cookies_manager import EncryptedCookieManager
+import html as html_module  # ✅ for html escaping in admin cards
+
+# ============================================================
+# ✅ Page Config (Hub only)
+# ============================================================
+st.set_page_config(page_title="Hotena Hub", layout="centered")
+
+# ✅ Anchor for bottom-right '맨 위로' button
+st.markdown('<div id="hotena-top"></div>', unsafe_allow_html=True)
+
+
+# ✅ Kill component iframe placeholders ASAP (before any other output)
+try:
+    core.hide_component_iframe_placeholders()
+except Exception:
+    pass
+
+
+
+# ============================================================
+# ✅ TOP SPACING FIX (PC + Mobile)
+# - Remove Streamlit's default top padding/space
+# - Applied once per session
+# ============================================================
+if not st.session_state.get("_top_compact_css_applied"):
+    st.markdown("""<style>
+/* === Hotena: ultra-compact top spacing (mobile + desktop) === */
+/* 핵심: block-container의 기본 top padding 제거 + 첫 요소 여백 제거 */
+section.main > div.block-container,
+div[data-testid="stAppViewContainer"] > div.block-container {
+  padding-top: 0rem !important;
+  margin-top: 0rem !important;
+}
+
+/* 첫 요소(메뉴/버튼 래퍼) 상단 여백 제거 */
+div.block-container > div:first-child {
+  margin-top: 0rem !important;
+  padding-top: 0rem !important;
+}
+
+/* Streamlit 헤더가 만드는 공간 최소화 */
+header[data-testid="stHeader"]{
+  display:none !important;
+  height:0 !important;
+  min-height:0 !important;
+}
+div[data-testid="stToolbar"]{
+  display:none !important;
+  height:0 !important;
+  visibility:hidden !important;
+}
+footer{display:none !important;}
+
+/* Container spacing: pull content to the very top */
+div[data-testid="stAppViewContainer"]{
+  padding-top: 0 !important;
+  margin-top: 0 !important;
+}
+div[data-testid="stAppViewContainer"] .block-container{
+  padding-top: 0 !important;
+  margin-top: 0 !important;
+  padding-bottom: 1.25rem !important; /* keep breathing room for bottom nav */
+}
+
+/* Headlines: tighter */
+div[data-testid="stAppViewContainer"] h1,
+div[data-testid="stAppViewContainer"] h2{
+  margin-top: 0.15rem !important;
+  margin-bottom: 0.55rem !important;
+}
+
+/* Defensive: if a child adds negative margins / weird offsets */
+div[data-testid="stAppViewContainer"] .main,
+div[data-testid="stAppViewContainer"]{
+  margin-top: 0 !important;
+}
+
+/* Tighten very top whitespace */
+.block-container > div:first-child { margin-top: 0 !important; }
+
+/* Buttons: minimum tap size + readable text */
+div[data-testid="stAppViewContainer"] .stButton > button,
+div[data-testid="stAppViewContainer"] button[kind]{
+  min-height: 44px !important;
+  padding-top: 0.55rem !important;
+  padding-bottom: 0.55rem !important;
+  font-size: 16px !important;
+  border-radius: 12px !important;
+}
+
+/* Inputs: readable */
+div[data-testid="stAppViewContainer"] input,
+div[data-testid="stAppViewContainer"] textarea{
+  font-size: 16px !important; /* prevent iOS zoom */
+}
+
+/* Selectbox / multiselect */
+div[data-testid="stAppViewContainer"] div[role="combobox"]{
+  min-height: 44px !important;
+}
+
+/* Expander: make summary easier to tap */
+div[data-testid="stExpander"] summary{
+  padding-top: 0.35rem !important;
+  padding-bottom: 0.35rem !important;
+}
+
+/* Card-like blocks (metrics/containers) slightly tighter */
+div[data-testid="stMetric"]{
+  padding: 0.15rem 0 !important;
+}
+
+/* Mobile-only tuning */
+@media (max-width: 640px){
+  div[data-testid="stAppViewContainer"] .block-container{
+    padding-left: 1.0rem !important;
+    padding-right: 1.0rem !important;
+    padding-top: 0.15rem !important;
+    padding-bottom: 1.5rem !important;
+  }
+
+  /* Slightly larger tap targets on phones */
+  div[data-testid="stAppViewContainer"] .stButton > button,
+  div[data-testid="stAppViewContainer"] button[kind]{
+    min-height: 48px !important;
+    font-size: 16px !important;
+    border-radius: 14px !important;
+  }
+}
+
+/* ✅ Goal settings (inline, modern) */
+.goal-settings-wrap{
+  margin-top: 10px;
+  margin-bottom: 10px;
+  padding: 12px 14px;
+  border: 1px solid rgba(0,0,0,0.06);
+  border-radius: 14px;
+  background: rgba(245,247,251,0.85);
+}
+.goal-settings-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  margin-bottom: 10px;
+}
+.goal-settings-head .ttl{
+  font-weight:700;
+  font-size: 14px;
+}
+.goal-settings-head .meta{
+  font-size: 12px;
+  color: rgba(0,0,0,0.55);
+  white-space: nowrap;
+}
+.goal-bar{
+  width:100%;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(0,0,0,0.08);
+  overflow:hidden;
+  margin: 8px 0 12px;
+}
+.goal-bar > div{
+  height:100%;
+  width: var(--w, 0%);
+  border-radius: 999px;
+  background: rgba(0,0,0,0.55);
+  transition: width 420ms ease;
+}
+.goal-help{
+  margin-top: 6px;
+  font-size: 12px;
+  color: rgba(0,0,0,0.55);
+}
+
+</style>
 """,
     unsafe_allow_html=True,
 )
+st.session_state["_page_config_set"] = True  # children should not call set_page_config
+
+BASE_DIR = Path(__file__).resolve().parent
 
 # ============================================================
-# ✅ Supabase client (hub reuse)
+# ✅ Config helper (env -> secrets)
 # ============================================================
-
 def get_cfg(key: str) -> str:
-    cfg = st.session_state.get("cfg") or {}
-    v = cfg.get(key)
+    v = os.getenv(key)
     if v:
         return v
     try:
@@ -338,2186 +391,2773 @@ def get_cfg(key: str) -> str:
     except Exception:
         return ""
 
+CFG = {
+    "COOKIE_PASSWORD": get_cfg("COOKIE_PASSWORD"),
+    "SUPABASE_URL": get_cfg("SUPABASE_URL"),
+    "SUPABASE_ANON_KEY": get_cfg("SUPABASE_ANON_KEY"),
+}
+# ✅ If COOKIE_PASSWORD is not set, derive a STABLE key from SUPABASE_ANON_KEY.
+#    This prevents 'logout on refresh' caused by missing/rotating cookie password across instances.
+COOKIE_PASSWORD_FALLBACK = hashlib.sha256(CFG["SUPABASE_ANON_KEY"].encode("utf-8")).hexdigest()
+if not CFG.get("COOKIE_PASSWORD"):
+    CFG["COOKIE_PASSWORD"] = COOKIE_PASSWORD_FALLBACK
 
-@st.cache_resource(show_spinner=False)
-def _make_sb(url: str, key: str):
-    return create_client(url, key)
+st.session_state["cfg"] = CFG
 
-def get_sb():
-    """Supabase client (lazy init + cached)."""
-    sb = st.session_state.get("sb")
-    if sb is not None:
-        return sb
-    url = get_cfg("SUPABASE_URL")
-    key = get_cfg("SUPABASE_ANON_KEY")
-    if not url or not key:
-        st.error("Supabase 설정이 없습니다. (SUPABASE_URL / SUPABASE_ANON_KEY)")
-        st.stop()
-    sb = _make_sb(url, key)
-    st.session_state["sb"] = sb
-    return sb
-
-
-def get_authed_sb():
-    # 홈허브 로그인 세션의 access_token을 사용해 PostgREST 권한 요청을 보냅니다.
-    token = st.session_state.get("access_token")
-    if not token:
-        return None
-
-    cached = st.session_state.get("_sb_authed_talk")
-    cached_token = st.session_state.get("_sb_authed_talk_token")
-    if cached is not None and cached_token == token:
-        return cached
-
-    sb2 = get_sb()
-    try:
-        # supabase-py: postgrest.auth(token)
-        sb2.postgrest.auth(token)
-    except Exception:
-        # 일부 버전은 내부 client 설정이 다를 수 있음
-        pass
-
-    st.session_state["_sb_authed_talk"] = sb2
-    st.session_state["_sb_authed_talk_token"] = token
-    return sb2
-
-
-sb = get_sb()
-
-# ============================================================
-# ✅ CSV load
-# ============================================================
-BASE_DIR = Path(__file__).resolve().parent
-CSV_PATH = BASE_DIR / "data" / "talk_situations.csv"
-
-if not CSV_PATH.exists():
-    st.error(f"CSV 파일이 없습니다: {CSV_PATH}")
+missing = [k for k, v in CFG.items() if not v]
+if missing:
+    st.error(f"설정값이 없습니다: {', '.join(missing)} (Cloud Run env 또는 Streamlit secrets 확인)")
     st.stop()
 
 
-@st.cache_data(show_spinner=False)
-def load_csv(path: Path) -> pd.DataFrame:
-    df = pd.read_csv(path, encoding="utf-8-sig")
-    required = ["qid", "level", "tag", "situation_kr", "partner_jp", "answer_jp"]
-    for c in required:
-        if c not in df.columns:
-            raise ValueError(f"CSV 필수 컬럼 누락: {c}")
-
-    # 문자열 정리
-    for c in df.columns:
-        if df[c].dtype == object:
-            df[c] = df[c].astype(str).str.strip()
-            df[c] = df[c].replace({"nan": "", "NaN": "", "None": ""})
-
-    # level/tag 소문자
-    df["level"] = df["level"].astype(str).str.lower().str.strip()
-    df["tag"] = df["tag"].astype(str).str.lower().str.strip()
-
-    return df.fillna("")
-
-
-DF = load_csv(CSV_PATH)
-
 # ============================================================
-# ✅ Labels
+# ✅ Encrypted token helpers (defined early)
 # ============================================================
-TAG_LABELS = {
-    "basic": "기본",
-    "business": "비즈니스",
-    "daily": "일상",
-    "call": "전화/온라인",
-    "interview": "면접",
-    "travel": "여행",
-    "shopping": "쇼핑",
-    "food": "음식/카페",
-    "emergency": "긴급/트러블",
-}
-LEVEL_LABELS = {"n5": "N5", "n4": "N4", "n3": "N3"}
+def _fernet():
+    pw = CFG.get("COOKIE_PASSWORD", "")
+    key = base64.urlsafe_b64encode(hashlib.sha256(pw.encode("utf-8")).digest())
+    return Fernet(key)
 
-# ============================================================
-# ✅ Progress I/O (profiles.progress)
-# ============================================================
+def _enc(s: str) -> str:
+    return _fernet().encrypt(s.encode("utf-8")).decode("utf-8")
 
-def load_progress() -> dict:
-    if isinstance(st.session_state.get("progress_all"), dict):
-        return st.session_state["progress_all"]
+def _dec(token: str) -> str | None:
     try:
-        resp = sb.table("profiles").select("progress").eq("id", USER_ID).single().execute()
-        prog = (getattr(resp, "data", None) or {}).get("progress") or {}
-        if not isinstance(prog, dict):
-            prog = {}
-        st.session_state["progress_all"] = prog
-        return prog
-    except Exception:
-        prog = {}
-        st.session_state["progress_all"] = prog
-        return prog
-
-
-def save_progress(progress_all: dict):
-    st.session_state["progress_all"] = progress_all
-    try:
-        sb.table("profiles").update({"progress": progress_all}).eq("id", USER_ID).execute()
-    except Exception:
-        pass
-# ============================================================
-# ✅ Recent 2 turns (stable, 안전 2턴 유지)
-# - session_state + profiles.progress['talk']['recent_turns']에 함께 저장
-# - 항상 길이 2 유지(부족하면 빈 턴으로 패딩)
-# ============================================================
-def _ensure_recent_turns():
-    lst = st.session_state.get("talk_recent_turns")
-    if not isinstance(lst, list) or not lst:
-        # seed from DB-backed progress (best effort)
-        try:
-            prog = load_progress()
-            talk_prog = prog.get("talk") or {}
-            seeded = talk_prog.get("recent_turns") or []
-            if isinstance(seeded, list):
-                lst = seeded
-        except Exception:
-            lst = []
-
-    if not isinstance(lst, list):
-        lst = []
-    lst = [x for x in lst if isinstance(x, dict)]
-
-    pad = {"qid": "", "situation_kr": "", "partner_jp": "", "selected": "", "correct": "", "ok": None}
-    while len(lst) < 2:
-        lst.insert(0, dict(pad))
-    lst = lst[-2:]
-
-    st.session_state["talk_recent_turns"] = lst
-
-    # persist (best effort) — 매 rerun마다 DB 업데이트하지 않도록 변경
-    try:
-        h = hashlib.md5(str(lst).encode("utf-8")).hexdigest()
-        if st.session_state.get("_talk_recent_turns_hash") != h:
-            prog = load_progress()
-            talk_prog = prog.get("talk") or {}
-            talk_prog["recent_turns"] = lst
-            prog["talk"] = talk_prog
-            save_progress(prog)
-            st.session_state["_talk_recent_turns_hash"] = h
-    except Exception:
-        pass
-
-def _push_recent_turn(turn: dict):
-    _ensure_recent_turns()
-    lst = st.session_state.get("talk_recent_turns") or []
-    if not isinstance(lst, list):
-        lst = []
-    if isinstance(turn, dict):
-        lst.append(turn)
-    lst = [x for x in lst if isinstance(x, dict)][-2:]
-
-    pad = {"qid": "", "situation_kr": "", "partner_jp": "", "selected": "", "correct": "", "ok": None}
-    while len(lst) < 2:
-        lst.insert(0, dict(pad))
-
-    st.session_state["talk_recent_turns"] = lst
-
-    # persist (best effort) — 매 rerun마다 DB 업데이트하지 않도록 변경
-    try:
-        h = hashlib.md5(str(lst).encode("utf-8")).hexdigest()
-        if st.session_state.get("_talk_recent_turns_hash") != h:
-            prog = load_progress()
-            talk_prog = prog.get("talk") or {}
-            talk_prog["recent_turns"] = lst
-            prog["talk"] = talk_prog
-            save_progress(prog)
-            st.session_state["_talk_recent_turns_hash"] = h
-    except Exception:
-        pass
-
-def _recent_turns_summary() -> str:
-    _ensure_recent_turns()
-    lst = st.session_state.get("talk_recent_turns") or []
-    lines = []
-    for i, t in enumerate(lst, start=1):
-        s = str((t or {}).get("situation_kr") or "").strip()
-        p = str((t or {}).get("partner_jp") or "").strip()
-        me = str((t or {}).get("selected") or "").strip()
-        ok = (t or {}).get("ok")
-        ok_mark = "O" if ok is True else ("X" if ok is False else "-")
-        if not (s or p or me):
-            continue
-        lines.append(f"[최근{i}]({ok_mark}) 상황:{s[:40]} / 상대:{p[:40]} / 내:{me[:40]}")
-    return "\n".join(lines).strip()
-
-# init buffer early
-try:
-    _ensure_recent_turns()
-except Exception:
-    pass
-
-
-
-
-
-# ============================================================
-# ✅ Daily resume (A안): tag/sub/plan 별로 '오늘 진행' 저장/복구
-# - profiles.progress['talk']['daily_state']에 저장 (일 단위)
-# - 같은 날/같은 필터(tag|sub|plan)이면 이어서 진행
-# - 다음날이면 자동으로 새로 시작
-# ============================================================
-def _talk_resume_key(tag: str, sub: str, is_pro: bool) -> str:
-    return f"{str(tag).strip().lower()}|{str(sub).strip().lower()}|{'pro' if is_pro else 'free'}"
-
-def _get_talk_daily_state_all() -> dict:
-    try:
-        prog = load_progress()
-        talk_prog = prog.get("talk") or {}
-        ds = talk_prog.get("daily_state") or {}
-        if not isinstance(ds, dict):
-            ds = {}
-        return ds
-    except Exception:
-        return {}
-
-def _set_talk_daily_state_all(ds: dict) -> None:
-    try:
-        prog = load_progress()
-        talk_prog = prog.get("talk") or {}
-        talk_prog["daily_state"] = ds if isinstance(ds, dict) else {}
-        prog["talk"] = talk_prog
-        save_progress(prog)
-    except Exception:
-        pass
-
-def _load_talk_daily_state(resume_key: str) -> dict | None:
-    try:
-        today = _kst_today_str()
-        ds = _get_talk_daily_state_all()
-        state = ds.get(resume_key)
-        if not isinstance(state, dict):
-            return None
-        if str(state.get("date") or "") != today:
-            return None
-        # normalize
-        qids = state.get("set_qids")
-        idx = state.get("idx")
-        if not isinstance(qids, list) or not qids:
-            return None
-        if idx is None:
-            idx = 0
-        try:
-            idx = int(idx)
-        except Exception:
-            idx = 0
-        return {"date": today, "set_qids": [str(x) for x in qids], "idx": idx}
+        return _fernet().decrypt(token.encode("utf-8")).decode("utf-8")
     except Exception:
         return None
 
-def _save_talk_daily_state(resume_key: str, set_qids: list[str], idx: int) -> None:
+# ============================================================
+# ✅ Cookies (MUST be created only once per app run)
+# ============================================================
+cookies = st.session_state.get("cookies")
+if cookies is None:
+    cookies = EncryptedCookieManager(prefix="hotena_beginner_", password=CFG["COOKIE_PASSWORD"])
+    if not cookies.ready():
+        st.info("잠깐만요! 곧 시작할게요🙂")
+        st.stop()
+    st.session_state["cookies"] = cookies
+
+# ✅ 쿠키 컴포넌트는 같은 run에서 같은 key로 두 번 렌더링되면
+#    StreamlitDuplicateElementKey가 발생할 수 있습니다.
+#    (특히 cookies.save()를 한 run 안에서 여러 번 호출할 때)
+#    따라서 '이번 run에서 save는 1번만' 보장합니다.
+st.session_state["_cookie_save_lock"] = False
+
+def _cookies_save_once_per_run():
+    if st.session_state.get("_cookie_save_lock"):
+        return
+    st.session_state["_cookie_save_lock"] = True
     try:
-        today = _kst_today_str()
-        ds = _get_talk_daily_state_all()
-        ds[resume_key] = {
-            "date": today,
-            "set_qids": [str(x) for x in (set_qids or [])],
-            "idx": int(idx),
-        }
-        _set_talk_daily_state_all(ds)
+        cookies.save()
     except Exception:
+        # 쿠키 저장 실패는 치명적이지 않으므로 조용히 무시
         pass
 
-def _clear_talk_daily_state(resume_key: str) -> None:
-    try:
-        ds = _get_talk_daily_state_all()
-        if resume_key in ds:
-            ds.pop(resume_key, None)
-            _set_talk_daily_state_all(ds)
-    except Exception:
-        pass
+# ============================================================
+# ✅ Supabase client (anon)
+# ============================================================
+sb = st.session_state.get("sb")
+if sb is None:
+    sb = create_client(CFG["SUPABASE_URL"], CFG["SUPABASE_ANON_KEY"])
+    st.session_state["sb"] = sb
 
-def _restore_daily_progress_if_any(resume_key: str, pool_df: pd.DataFrame) -> bool:
-    """session_state에 세트가 없을 때만 호출.
-    성공 시 True (복구 완료), 실패 시 False.
-    """
-    stt = _load_talk_daily_state(resume_key)
-    if not stt:
+# ============================================================
+# ✅ Auth helpers (restore from cookies + authed client)
+# ============================================================
+
+def refresh_session_from_cookie_if_needed(force: bool = False) -> bool:
+    # ✅ If a page explicitly set auth keys to None (logout intent),
+    #    do NOT restore session from cookies/query/localStorage.
+    #    Instead, hard-clear all persistence once.
+    if (not force
+        and ("access_token" in st.session_state and st.session_state.get("access_token") is None)
+        and ("user" in st.session_state and st.session_state.get("user") is None)
+    ):
+        try:
+            cookies["access_token"] = ""
+            cookies["refresh_token"] = ""
+            _cookies_save_once_per_run()
+        except Exception:
+            pass
+        try:
+            st.query_params.clear()
+        except Exception:
+            pass
+        try:
+            _js_remove_localstorage("hotena_rt")
+            _js_remove_localstorage("hotena_at")
+        except Exception:
+            pass
+        # Clean a minimal set of keys; keep the rest of UI state intact.
+        for k in ["access_token", "refresh_token", "user", "sb_authed", "sb_authed_token"]:
+            st.session_state.pop(k, None)
         return False
 
-    # 현재 풀에 존재하는 qid만 유지(필터/CSV 변경 안전)
-    pool_qids = set(pool_df["qid"].astype(str).tolist())
-    qids = [q for q in (stt.get("set_qids") or []) if q in pool_qids]
-    if not qids:
-        return False
+    if not force and st.session_state.get("user") and st.session_state.get("access_token"):
+        return True
 
-    idx = int(stt.get("idx") or 0)
-    idx = max(0, min(idx, len(qids) - 1))
+    # Bridge localStorage -> query params once
+    _js_bridge_localstorage_to_queryparam("hotena_rt", "rt")
+    _js_bridge_localstorage_to_queryparam("hotena_at", "at")
 
-    st.session_state[f"{NS}_set_qids"] = qids
-    st.session_state[f"{NS}_idx"] = idx
-    st.session_state[f"{NS}_answers"] = {qid: {"selected": None, "ok": None, "spoken": False} for qid in qids}
-    st.session_state[f"{NS}_submitted"] = False
-    return True
-
-def _persist_daily_progress(resume_key: str, set_qids: list[str], idx: int) -> None:
-    # 너무 잦은 저장을 막기 위해 해시로 간단 가드
+    rt = None
+    at = None
     try:
-        payload = {"k": resume_key, "q": list(set_qids or []), "i": int(idx)}
-        h = hashlib.md5(str(payload).encode("utf-8")).hexdigest()
-        if st.session_state.get("_talk_daily_state_hash") == h:
-            return
-        _save_talk_daily_state(resume_key, list(set_qids or []), int(idx))
-        st.session_state["_talk_daily_state_hash"] = h
+        rt_enc = st.query_params.get("rt")
+        at_enc = st.query_params.get("at")
+        rt = _dec(rt_enc) if isinstance(rt_enc, str) and rt_enc else None
+        at = _dec(at_enc) if isinstance(at_enc, str) and at_enc else None
     except Exception:
-        pass
+        rt = None
+        at = None
 
-# ============================================================
-# ✅ FREE quota (daily): TTS 3회 / 녹음 3회
-# - profiles.progress['talk']['free_quota'] 에 저장해서 새로고침/재로그인에도 유지
-# ============================================================
-from datetime import date as _date
+    if not rt:
+        try:
+            rt = cookies.get("refresh_token")
+        except Exception:
+            rt = None
+    if not at:
+        try:
+            at = cookies.get("access_token")
+        except Exception:
+            at = None
 
-def _today_key() -> str:
+    if rt:
+        refreshed = None
+        try:
+            refreshed = sb.auth.refresh_session(rt)
+        except Exception:
+            try:
+                refreshed = sb.auth.refresh_session({"refresh_token": rt})
+            except Exception:
+                refreshed = None
+
+        if refreshed and getattr(refreshed, "session", None) and getattr(refreshed.session, "access_token", None):
+            st.session_state["user"] = refreshed.user
+            st.session_state["access_token"] = refreshed.session.access_token
+            st.session_state["refresh_token"] = refreshed.session.refresh_token
+
+            try:
+                cookies["access_token"] = refreshed.session.access_token
+                cookies["refresh_token"] = refreshed.session.refresh_token
+                _cookies_save_once_per_run()
+            except Exception:
+                pass
+
+            try:
+                st.query_params["rt"] = _enc(refreshed.session.refresh_token)
+                st.query_params["at"] = _enc(refreshed.session.access_token)
+                _js_set_localstorage("hotena_rt", st.query_params.get("rt", ""))
+                _js_set_localstorage("hotena_at", st.query_params.get("at", ""))
+            except Exception:
+                pass
+
+            return True
+
+    if at:
+        try:
+            u = sb.auth.get_user(at)
+            user_obj = getattr(u, "user", None) or getattr(u, "data", None)
+            if user_obj:
+                st.session_state["user"] = user_obj
+                st.session_state["access_token"] = at
+                if rt:
+                    st.session_state["refresh_token"] = rt
+                return True
+        except Exception:
+            pass
+
+    return False
+
+
+
+def get_authed_sb():
+    refresh_session_from_cookie_if_needed(force=True)
+    token = st.session_state.get("access_token")
+    if not token:
+        return None
+    cached = st.session_state.get("sb_authed")
+    cached_token = st.session_state.get("sb_authed_token")
+    if cached is not None and cached_token == token:
+        return cached
+    sb2 = create_client(CFG["SUPABASE_URL"], CFG["SUPABASE_ANON_KEY"])
+    sb2.postgrest.auth(token)
+    st.session_state["sb_authed"] = sb2
+    st.session_state["sb_authed_token"] = token
+    return sb2
+
+
+def ensure_profile(sb_authed, user):
     try:
-        return _date.today().isoformat()
-    except Exception:
-        return "1970-01-01"
-
-
-def _get_free_quota() -> dict:
-    """returns dict: {'date': 'YYYY-MM-DD', 'tts_used': int, 'record_used': int}"""
-    prog = load_progress()
-    talk_prog = prog.get("talk") or {}
-    fq = talk_prog.get("free_quota") or {}
-    if not isinstance(fq, dict):
-        fq = {}
-    d = fq.get("date") or ""
-    if d != _today_key():
-        fq = {"date": _today_key(), "tts_used": 0, "record_used": 0}
-        talk_prog["free_quota"] = fq
-        prog["talk"] = talk_prog
-        save_progress(prog)
-    fq["date"] = fq.get("date") or _today_key()
-    fq["tts_used"] = int(fq.get("tts_used") or 0)
-    fq["record_used"] = int(fq.get("record_used") or 0)
-    return fq
-
-
-def _set_free_quota(fq: dict):
-    prog = load_progress()
-    talk_prog = prog.get("talk") or {}
-    talk_prog["free_quota"] = fq
-    prog["talk"] = talk_prog
-    save_progress(prog)
-
-
-def _free_tts_remaining() -> int:
-    if IS_PRO:
-        return 9999
-    fq = _get_free_quota()
-    return max(0, int(FREE_TTS_QUOTA) - int(fq.get("tts_used") or 0))
-
-
-def _free_record_remaining() -> int:
-    if IS_PRO:
-        return 9999
-    fq = _get_free_quota()
-    return max(0, int(FREE_RECORD_QUOTA) - int(fq.get("record_used") or 0))
-
-
-def _use_free_tts_once():
-    if IS_PRO:
-        return
-    fq = _get_free_quota()
-    fq["tts_used"] = int(fq.get("tts_used") or 0) + 1
-    _set_free_quota(fq)
-
-
-def _use_free_record_once():
-    if IS_PRO:
-        return
-    fq = _get_free_quota()
-    fq["record_used"] = int(fq.get("record_used") or 0) + 1
-    _set_free_quota(fq)
-
-
-# ============================================================
-# ✅ Pronunciation score (A안: 서버 STT → 텍스트 유사도 점수)
-# - "보기 선택" 단계에는 영향을 주지 않도록, 제출 후/버튼 클릭 시에만 실행
-# ============================================================
-def _norm_jp(s: str) -> str:
-    s = (s or "").strip()
-    # 공백/전각공백 제거
-    s = s.replace(" ", "").replace("\\u3000", "")
-    # 흔한 문장부호 제거
-    s = re.sub(r"[、。．，!！?？…]+", "", s)
-    # ✅ 표기 차이를 줄이기 위해 히라가나로 통일(가능할 때만)
-    s = _to_hira(s)
-    return s
-
-def _bigrams(s: str) -> set[str]:
-    return {s[i:i+2] for i in range(len(s)-1)} if len(s) >= 2 else set()
-
-def _levenshtein(a: str, b: str) -> int:
-    # O(len(a)*len(b)) DP
-    if a == b:
-        return 0
-    if not a:
-        return len(b)
-    if not b:
-        return len(a)
-    prev = list(range(len(b) + 1))
-    for i, ca in enumerate(a, 1):
-        cur = [i]
-        for j, cb in enumerate(b, 1):
-            ins = cur[j - 1] + 1
-            dele = prev[j] + 1
-            sub = prev[j - 1] + (0 if ca == cb else 1)
-            cur.append(min(ins, dele, sub))
-        prev = cur
-    return prev[-1]
-
-def _similarity_score(a: str, b: str, gate: float = 0.15, floor_to_zero: int = 15) -> int:
-    """발음 점수(0~100):
-    1) 2글자 bigram 겹침이 너무 적으면(완전 다른 문장) 0점
-    2) 편집거리(순서 포함) 기반 점수
-    3) 너무 낮은 점수는 0으로 정리(선택)
-    """
-    a2, b2 = _norm_jp(a), _norm_jp(b)
-    if not a2 or not b2:
-        return 0
-
-    # 1) 완전 다른 문장 차단
-    ba = _bigrams(b2)
-    if ba:
-        overlap = len(_bigrams(a2) & ba) / max(1, len(ba))
-        if overlap < gate:
-            return 0
-
-    # 2) 순서 기반 점수(편집거리)
-    dist = _levenshtein(a2, b2)
-    max_len = max(len(a2), len(b2))
-    score = int(round(100 * (1 - dist / max_len)))
-
-    # 3) 바닥값 정리
-    if score < int(floor_to_zero):
-        return 0
-    return max(0, min(100, score))
-
-def _openai_transcribe_bytes(audio_bytes: bytes, mime: str = "audio/wav") -> str:
-    # OpenAI Python SDK (new) 사용. 없으면 예외로 안내.
-    api_key = (st.secrets.get("OPENAI_API_KEY", "") if hasattr(st, "secrets") else "") or os.getenv("OPENAI_API_KEY", "")
-    if not api_key:
-        raise RuntimeError("OPENAI_API_KEY가 설정되어 있지 않습니다.")
-    model = os.getenv("OPENAI_TRANSCRIBE_MODEL", "gpt-4o-mini-transcribe")
-    try:
-        from openai import OpenAI  # type: ignore
-    except Exception as e:
-        raise RuntimeError("openai 패키지가 설치되어 있지 않습니다.") from e
-
-    client = OpenAI(api_key=api_key)
-    # 파일 객체 형태로 전달
-    file_tuple = ("speech.wav", audio_bytes, mime)
-    try:
-        out = client.audio.transcriptions.create(
-            model=model,
-            file=file_tuple,
-        )
-        # SDK 버전에 따라 text 속성/문자열 반환이 다를 수 있어 안전 처리
-        txt = getattr(out, "text", None)
-        if isinstance(txt, str) and txt.strip():
-            return txt.strip()
-        if isinstance(out, str) and out.strip():
-            return out.strip()
-        # dict 형태 fallback
-        if isinstance(out, dict):
-            t = out.get("text")
-            if isinstance(t, str):
-                return t.strip()
-        return ""
-    except Exception as e:
-        raise RuntimeError(f"STT 실패: {e}") from e
-
-
-def log_attempt(level: str, score: int, quiz_len: int, wrong_count: int, wrong_list: list[dict], tag: str):
-    try:
-        sb.table("quiz_attempts").insert(
-            {
-                "user_id": USER_ID,
-                "user_email": USER_EMAIL,
-                "level": "talk",  # 홈 마이페이지에서 훈련 구분
-                "pos_mode": f"talk:{tag}:{level}",
-                "quiz_len": int(quiz_len),
-                "score": int(score),
-                "wrong_count": int(wrong_count),
-                "wrong_list": wrong_list,
-            }
+        sb_authed.table("profiles").upsert(
+            {"id": user.id, "email": getattr(user, "email", None)},
+            on_conflict="id",
         ).execute()
     except Exception:
         pass
 
 
-def award_xp(amount: int, reason: str):
-    fn = st.session_state.get("hub_award_xp")
-    if callable(fn):
-        fn(int(amount), reason)
-
-
-# ============================================================
-# ✅ New set / reset on hub navigation
-# ============================================================
-
-def reset_set():
-    for k in list(st.session_state.keys()):
-        if k.startswith(f"{NS}_"):
-            # 홈에서 공유하는 건 제외
-            if k.startswith("talk_"):
-                st.session_state.pop(k, None)
-    # 안전하게 핵심만 제거
-    for k in [
-        f"{NS}_set_qids",
-        f"{NS}_idx",
-        f"{NS}_answers",
-        f"{NS}_submitted",
-        f"{NS}_selected",
-        f"{NS}_opts",
-        f"{NS}_spoken",
-    ]:
-        st.session_state.pop(k, None)
-
-
-try:
-    nav = st.session_state.get("_hub_nav_token")
-    last = st.session_state.get(f"_{NS}_last_nav_token")
-    if nav and nav != last:
-        st.session_state[f"_{NS}_last_nav_token"] = nav
-        reset_set()
-except Exception:
-    pass
-
-# ============================================================
-# ✅ Filters (상황(tag))
-# ============================================================
-
-# --- normalize (비교 실패/공백 문제 방지) ---
-for _c in ["mode", "tag", "level"]:
-    if _c in DF.columns:
-        DF[_c] = DF[_c].astype(str).fillna("").str.strip()
-
-if "mode" in DF.columns:
-    DF["mode"] = DF["mode"].str.lower()
-if "tag" in DF.columns:
-    DF["tag"] = DF["tag"].str.lower().str.replace(r"[\s\-]+", "_", regex=True)
-if "sub" in DF.columns:
-    DF["sub"] = (
-        DF["sub"].astype(str)
-        .str.replace("\u3000", " ", regex=False)
-        .str.strip()
-        .str.lower()
-        .str.replace(r"[\s\-]+", "_", regex=True)
-    )
-if "level" in DF.columns:
-    DF["level"] = DF["level"].str.lower().str.replace(" ", "")
-
-# --- 실전회화만 사용 ---
-DF_BASE = DF.copy()
-if "mode" in DF_BASE.columns:
-    # 기본값: real(실전회화)만. 다른 모드가 없으면 전체 사용.
-    _real = DF_BASE[DF_BASE["mode"].astype(str).str.lower() == "real"]
-    if not _real.empty:
-        DF_BASE = _real.copy()
-
-# --- tag(상황) 라벨: 기본값 + CSV에 없는 태그는 그대로 노출 ---
-TAG_LABELS = {
-    "aisatsu": "인사말",
-    "understand": "이해",
-    "travel": "여행",
-    "shopping": "쇼핑",
-    "food": "음식/카페",
-    "call": "전화/온라인",
-    "business": "비즈니스",
-    "interview": "면접",
-    "emergency": "긴급/트러블",
-}
-
-def _tag_label(t: str) -> str:
-    t = str(t)
-    return TAG_LABELS.get(t, t)
-
-# ✅ CSV에 존재하는 tag 자동 수집
-if "tag" in DF_BASE.columns:
-    tag_options = sorted([x for x in DF_BASE["tag"].astype(str).tolist() if str(x).strip()])
-    # 중복 제거 + 순서 유지(정렬 유지하려면 set 사용)
-    tag_options = sorted(set(tag_options))
-else:
-    tag_options = []
-
-if not tag_options:
-    st.warning("해당 상황의 회화 문제가 없습니다. (CSV의 tag 확인)")
-    st.stop()
-
-tag = st.selectbox(
-    "상황 선택",
-    options=tag_options,
-    format_func=_tag_label,
-    key=f"{NS}_tag",
-)
-
-# ✅ 유형(sub) 선택 (CSV에 sub 컬럼이 있으면 노출)
-SUB_LABEL = {
-    "__all__": "전체",
-    # aisatsu 쪽에서 쓰는 값들
-    "home": "집/가정",
-    "morning": "아침",
-    "day": "낮/친구",
-    "evening": "저녁/밤",
-    "thanks": "감사",
-    "apology": "사과",
-    "work": "회사 기본",
-    "meeting": "미팅/첫인사",
-    "phone": "전화",
-    "basic": "기본",
-    "daily": "일상",
-    # understand 등에서 쓰는 값들
-    "mixed": "혼합",
-}
-
-def _sub_label(s: str) -> str:
-    s = str(s)
-    return SUB_LABEL.get(s, s)
-
-sub = "__all__"
-
-# ✅ 유형(sub)은 '선택된 tag' 안에서만 보여주기(다른 tag의 sub가 섞여 나오면 혼란)
-has_sub_col = "sub" in DF_BASE.columns
-
-subs_in_tag = []
-if has_sub_col:
-    _df_tag = DF_BASE[DF_BASE["tag"].astype(str) == str(tag)].copy()
-    subs_in_tag = [x for x in _df_tag["sub"].astype(str).tolist() if str(x).strip()]
-
-# tag 안에 sub 값이 2개 이상 있을 때만 노출(1개면 자동 선택)
-subs_in_tag = sorted(set([str(x).strip() for x in subs_in_tag if str(x).strip()]))
-
-if len(subs_in_tag) >= 2:
-    sub_options = ["__all__"] + subs_in_tag
-    sub = st.selectbox(
-        "유형 선택",
-        options=sub_options,
-        format_func=_sub_label,
-        key=f"{NS}_sub",
-    )
-elif len(subs_in_tag) == 1:
-    # ✅ 1개뿐이면 드롭다운은 숨기되, 사용자에게는 '고정된 유형'을 표시
-    sub = subs_in_tag[0]
+def load_profile(sb_authed, user_id: str):
     try:
-        st.caption(f"유형: {_sub_label(sub)} (고정)")
+        res = sb_authed.table("profiles").select("progress, plan, is_admin").eq("id", user_id).single().execute()
+        data = res.data if res and res.data else {}
+        progress = data.get("progress") or {}
+        plan = data.get("plan") or "free"
+        is_admin = bool(data.get("is_admin")) if "is_admin" in data else False
+        st.session_state["progress_all"] = progress
+        st.session_state["user_plan"] = plan
+        st.session_state["is_admin"] = is_admin
+        st.session_state["user_id"] = user_id
+    except Exception:
+        st.session_state["progress_all"] = st.session_state.get("progress_all", {}) or {}
+        st.session_state["user_plan"] = st.session_state.get("user_plan", "free")
+
+
+def save_progress(sb_authed, user_id: str, progress: dict):
+    try:
+        sb_authed.table("profiles").update({"progress": progress}).eq("id", user_id).execute()
     except Exception:
         pass
-else:
-    # sub 컬럼이 없거나, 해당 tag는 sub가 비어있음
-    sub = "__all__"
 
-# 레벨 선택은 사용하지 않음(현재는 N4~N3 혼합 운영)
-level = "mix"
 
-pool_df = DF_BASE[(DF_BASE["tag"] == tag)].copy().reset_index(drop=True)
-if ("sub" in DF_BASE.columns) and sub != "__all__":
-    pool_df = pool_df[pool_df["sub"].astype(str) == str(sub)].copy().reset_index(drop=True)
+def daily_message(user_id: str) -> str:
+    messages = st.session_state.get("REMINDER_MESSAGES", [])
+    if not messages:
+        return "오늘도 5분만, 시작해볼까요?"
+    seed = f"{user_id}:{date.today().isoformat()}"
+    h = hashlib.sha256(seed.encode("utf-8")).hexdigest()
+    idx = int(h[:8], 16) % len(messages)
+    return messages[idx]
 
-if pool_df.empty:
-    st.warning("해당 상황의 회화 문제가 없습니다. (CSV의 tag/sub 확인)")
-    st.stop()
-
-# ============================================================
-# ✅ TTS (PRO only) - 브라우저 SpeechSynthesis
-# ============================================================
 
 
 # ============================================================
-# ✅ TTS (Unified player: single iframe, no per-line components.html)
-# - 버튼 클릭 → session_state에 요청 저장 → 아래 플레이어가 1회 재생
-# - UI/기능은 유지하되, iframe 난립으로 인한 번쩍임을 줄입니다.
+# 🎯 Daily goal (Home) - aggregate across Word/Kanji/Talk via quiz_attempts
 # ============================================================
+KST = timezone(timedelta(hours=9))
 
-def _talk_tts_request(text: str, audio_url: str = "") -> None:
-    txt = (text or "").strip()
-    au = (audio_url or "").strip()
-    if not txt and not au:
-        return
-    st.session_state["_talk_tts_nonce"] = int(st.session_state.get("_talk_tts_nonce") or 0) + 1
-    st.session_state["_talk_tts_req"] = {
-        "text": txt,
-        "audio_url": resolve_audio_url(au),
-        "nonce": int(st.session_state["_talk_tts_nonce"]),
-    }
+def _today_kst_range_utc():
+    """Return (start_utc_iso, end_utc_iso) for today's KST 00:00~24:00."""
+    today_kst = datetime.now(KST).date()
+    start_kst = datetime(today_kst.year, today_kst.month, today_kst.day, 0, 0, 0, tzinfo=KST)
+    end_kst = start_kst + timedelta(days=1)
+    start_utc = start_kst.astimezone(timezone.utc)
+    end_utc = end_kst.astimezone(timezone.utc)
+    # Supabase accepts RFC3339/ISO; keep timezone info
+    return start_utc.isoformat(), end_utc.isoformat()
 
-def _render_talk_tts_player() -> None:
-    req = st.session_state.get("_talk_tts_req")
-    if not isinstance(req, dict):
-        return
-    txt = str(req.get("text") or "")
-    au = str(req.get("audio_url") or "")
-    nonce = int(req.get("nonce") or 0)
+def _infer_kind(level: str, pos_mode: str) -> str:
+    lv = (level or "").strip().lower()
+    pm = (pos_mode or "").strip().lower()
+    if pm.endswith(":situation") or ":situation" in pm:
+        return "talk"
+    if lv in {"noun", "verb", "adj_i", "adj_na", "other", "adverb", "particle", "conjunction", "interjection"}:
+        return "word"
+    # default: kanji
+    return "kanji"
 
-    # JS-safe escape
-    def _esc(s: str) -> str:
-        return (
-            s.replace("\\", "\\\\")
-             .replace('"', '\"')
-             .replace("`", "")
-             .replace("\n", " ")
-             .replace("\r", " ")
+def fetch_today_attempts(sb_authed, user_id: str) -> list[dict]:
+    start_utc, end_utc = _today_kst_range_utc()
+    try:
+        res = (
+            sb_authed.table("quiz_attempts")
+            .select("created_at, level, pos_mode, quiz_len, score")
+            .eq("user_id", user_id)
+            .gte("created_at", start_utc)
+            .lt("created_at", end_utc)
+            .order("created_at", desc=False)
+            .execute()
         )
+        return res.data or []
+    except Exception:
+        return []
 
-    txt_js = _esc(txt)
-    au_js = _esc(au)
 
-    components.html(
-        f"""<script>
-(function(){{
-  // nonce가 바뀔 때마다 재생
-  const nonce = {nonce};
-  const text = "{txt_js}";
-  const audioUrl = "{au_js}";
-
-  function pickJaVoice(){{
-    try {{
-      const synth = window.speechSynthesis;
-      const vs = synth ? (synth.getVoices() || []) : [];
-      const ja = vs.filter(v => String(v.lang||"").toLowerCase().startsWith("ja"));
-      if(!ja.length) return null;
-      return ja.find(v => /google/i.test(v.name||"")) || ja.find(v => /日本|japanese/i.test(v.name||"")) || ja[0] || null;
-    }} catch(e) {{
-      return null;
-    }}
-  }}
-
-  function speak(){{
-    try {{
-      if (!window.speechSynthesis) return;
-      const synth = window.speechSynthesis;
-      synth.cancel();
-      const u = new SpeechSynthesisUtterance(text);
-      u.lang = "ja-JP";
-      const v = pickJaVoice();
-      if (v) u.voice = v;
-      u.rate = 1.0; u.pitch = 1.0;
-      synth.speak(u);
-    }} catch(e) {{}}
-  }}
-
-  function playAudio(){{
-    try {{
-      const a = new Audio(audioUrl);
-      a.play().catch(()=>{{ speak(); }});
-    }} catch(e) {{
-      speak();
-    }}
-  }}
-
-  if (audioUrl) playAudio();
-  else speak();
-}})();
-</script>""",
-        height=0,
-    )
-
-def tts_inline_row(role_label: str, text: str, key: str, show_text: bool = True, audio_url: str = ""):
-    """문장 오른쪽 스피커 아이콘.
-    ✅ PRO 클릭 시: 브라우저에서 바로 재생(오디오/mp3 우선, 없으면 SpeechSynthesis)
-    ✅ FREE: 잠금(비활성)
-    - Streamlit 버튼을 쓰지 않아, 클릭 시 페이지 rerun(번쩍임)을 유발하지 않습니다.
-    """
-    txt = (text or "").strip()
-    au = resolve_audio_url(audio_url)
-
-    c1, c2, c3 = st.columns([0.18, 0.72, 0.10], vertical_alignment="center")
-    with c1:
-        st.markdown(f"**{role_label}**")
-    with c2:
-        if show_text:
-            st.markdown(txt if txt else "")
-        else:
-            st.markdown("&nbsp;", unsafe_allow_html=True)
-    with c3:
-        disabled = (not IS_PRO) or (not txt)
-        # JS-safe
-        def _esc(s: str) -> str:
-            return (
-                (s or "")
-                .replace("\\", "\\\\")
-                .replace('"', '\"')
-                .replace("`", "")
-                .replace("\n", " ")
-                .replace("\r", " ")
-            )
-        txt_js = _esc(txt)
-        au_js = _esc(au)
-
-        components.html(
-            f"""<div style="width:100%;display:flex;justify-content:flex-end;align-items:center;gap:6px;">
-  <button id="btn-{key}" {'disabled' if disabled else ''} style="border:0;background:transparent;padding:0;margin:0;
-          font-size:1.05rem;cursor:{'not-allowed' if disabled else 'pointer'};opacity:{'0.35' if disabled else '0.95'};">🔊</button>
-  {('<span style="font-size:.75rem;letter-spacing:.02em;border:1px solid rgba(0,0,0,.18);border-radius:999px;padding:1px 6px;opacity:.45;">PRO</span>' if (not IS_PRO) else '')}
-</div>
-<script>
-(function(){{
-  const btn = document.getElementById("btn-{key}");
-  if(!btn) return;
-  if(btn.dataset.bound === "1") return;
-  btn.dataset.bound = "1";
-  const text = "{txt_js}";
-  const audioUrl = "{au_js}";
-  function pickJaVoice(){{
-    try {{
-      const synth = window.speechSynthesis;
-      const vs = synth ? (synth.getVoices() || []) : [];
-      const ja = vs.filter(v => String(v.lang||"").toLowerCase().startsWith("ja"));
-      if(!ja.length) return null;
-      return ja.find(v => /google/i.test(v.name||"")) || ja.find(v => /日本|japanese/i.test(v.name||"")) || ja[0] || null;
-    }} catch(e) {{ return null; }}
-  }}
-  function speak(){{
-    try {{
-      if (!window.speechSynthesis) return;
-      const synth = window.speechSynthesis;
-      synth.cancel();
-      const u = new SpeechSynthesisUtterance(text);
-      u.lang = "ja-JP";
-      const v = pickJaVoice();
-      if (v) u.voice = v;
-      u.rate = 1.0; u.pitch = 1.0;
-      synth.speak(u);
-    }} catch(e) {{}}
-  }}
-  function playAudio(){{
-    try {{
-      const a = new Audio(audioUrl);
-      a.play().catch(()=>{{ speak(); }});
-    }} catch(e) {{
-      speak();
-    }}
-  }}
-  btn.addEventListener("click", (e)=>{{
-    e.preventDefault();
-    if (btn.disabled) return;
-    if (audioUrl) playAudio();
-    else speak();
-  }});
-}})();
-</script>""",
-            height=44,
+def fetch_recent_attempts(sb_authed, user_id: str, limit: int = 500) -> list[dict]:
+    """Fetch recent attempts for dashboard analytics (capped for speed)."""
+    try:
+        res = (
+            sb_authed.table("quiz_attempts")
+            .select("created_at, quiz_len, score, level, pos_mode")
+            .eq("user_id", str(user_id))
+            .order("created_at", desc=True)
+            .limit(int(limit))
+            .execute()
         )
-
-def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bool = True,
-                    partner_audio_url: str = "", answer_audio_url: str = "",
-                    partner_kr: str = "", answer_kr: str = ""):
-    '''결과 박스: 상대/내 문장을 한 줄씩 + 스피커(문장 오른쪽).
-    ✅ PRO 클릭 시: 브라우저에서 바로 재생(오디오/mp3 우선, 없으면 SpeechSynthesis)
-    ✅ FREE: 잠금(비활성)
-    - Streamlit 버튼을 쓰지 않아, 클릭 시 페이지 rerun(번쩍임)을 유발하지 않습니다.
-    '''
-    p = (partner_text or "").strip()
-    a = (answer_text or "").strip()
-    p_au = resolve_audio_url(partner_audio_url)
-    a_au = resolve_audio_url(answer_audio_url)
-
-    # JS-safe
-    def _esc(s: str) -> str:
-        return (
-            (s or "")
-            .replace("\\", "\\\\")
-            .replace('"', '\\"')
-            .replace("`", "")
-            .replace("\n", " ")
-            .replace("\r", " ")
-        )
-
-    p_safe = _esc(p)
-    a_safe = _esc(a)
-    pkr_safe = _esc((partner_kr or "").strip())
-    akr_safe = _esc((answer_kr or "").strip())
-    p_au_safe = _esc(p_au)
-    a_au_safe = _esc(a_au)
-
-    disabled = (not IS_PRO) or (not (p or a))
-
-    # show_text=False면 텍스트는 숨기고(공백), 버튼만 남김
-    show = "block" if show_text else "none"
-
-    # ✅ 컴포넌트 높이(불필요 공백 최소화)
-    has_pkr = bool(pkr_safe)
-    has_akr = bool(akr_safe)
-    # ✅ 컴포넌트 높이: 짧을 땐 컴팩트하게, 길면 자동 확장(너무 길면 내부 스크롤)
-    # - Streamlit components.html은 "자동 높이"가 불가해서, 텍스트 길이로 높이를 추정합니다.
-    # - 너무 긴 문장은 전체 UI가 과도하게 길어지지 않도록, 컴포넌트 높이를 상한으로 두고 내부 스크롤을 켭니다.
-    def _lines(s: str, cpl: int) -> int:
-        s = (s or "").strip()
-        if not s:
-            return 0
-        return max(1, math.ceil(len(s) / max(8, cpl)))
-
-    # ⚠️ 모바일 기준으로 보수적으로(더 많이 줄바꿈되는 쪽) 계산
-    jp_p = _lines(p, 18)
-    jp_a = _lines(a, 18)
-    kr_p = _lines((partner_kr or ""), 22) if (partner_kr or "").strip() else 0
-    kr_a = _lines((answer_kr or ""), 22) if (answer_kr or "").strip() else 0
-
-    # 기본 + 라인 수에 따른 가변
-    lines_total = jp_p + jp_a + kr_p + kr_a
-    est = 92 + lines_total * 20
-    if kr_p:
-        est += 6
-    if kr_a:
-        est += 6
-
-    min_h = 154
-    height = int(max(min_h, est))
-
-    # ✅ 상한/내부스크롤 제거: 길면 길수록 iframe이 그대로 늘어나도록
-    scroll_mode = False
-    txtmax = ""
-
-    html = f"""
-<div class="ttspair">
-  <div class="row bubble bubble-p">
-    <span class="lab">상대(말)</span>
-    <div class="txtwrap" style="display:{show}">
-      <div class="jp">{p_safe}</div>
-      <div class="kr" style="display:{'block' if has_pkr else 'none'}">{pkr_safe}</div>
-    </div>
-    <button class="btn" id="pbtn-{qid}" aria-label="listen" {'disabled' if disabled or (not p) else ''}>🔊</button>
-    
-  </div>
-
-  <div class="row bubble bubble-a">
-    <span class="lab">내(말)</span>
-    <div class="txtwrap" style="display:{show}">
-      <div class="jp">{a_safe}</div>
-      <div class="kr" style="display:{'block' if has_akr else 'none'}">{akr_safe}</div>
-    </div>
-    <button class="btn" id="abtn-{qid}" aria-label="listen" {'disabled' if disabled or (not a) else ''}>🔊</button>
-    
-  </div>
-</div>
-
-<style>
-  /* ✅ 무지/미니멀 A안 + 말풍선 각각 아웃라인(레이아웃 영향 없음: box-shadow) */
-  .ttspair{{display:flex;flex-direction:column;gap:8px;}}
-  .ttspair .row{{display:flex;align-items:flex-start;gap:10px;line-height:1.35;}}
-  .ttspair .bubble{{border-radius:14px; box-shadow:0 0 0 1px rgba(0,0,0,.12);}}
-  .ttspair .bubble-p{{box-shadow:0 0 0 1px rgba(0,0,0,.20);}}
-  .ttspair .bubble-a{{box-shadow:0 0 0 1px rgba(0,0,0,.12);}}
-
-  .ttspair .lab{{min-width:52px;font-weight:650;opacity:.82;flex:0 0 auto;padding:10px 0 10px 10px;}}
-  .ttspair .txtwrap{{flex:1 1 auto;min-width:0;white-space:normal;overflow-wrap:anywhere;word-break:break-word;padding:10px 0;}}
-  .ttspair .jp{{font-size:1.03rem;font-weight:560;line-height:1.35;letter-spacing:.01em;}}
-  .ttspair .kr{{margin-top:3px;font-size:.86rem;line-height:1.25;opacity:.72;}}
-  .ttspair .btn{{border:0;background:transparent;padding:10px 10px 10px 0;margin-left:2px;font-size:1.05rem;cursor:pointer;opacity:.95;}}
-  .ttspair .btn[disabled]{{cursor:not-allowed;opacity:.35;}}
-  .ttspair .pro{{align-self:flex-start;margin-top:10px;font-size:.75rem;letter-spacing:.02em;border:1px solid rgba(0,0,0,.18);border-radius:999px;padding:1px 6px;opacity:.45;}}
-</style>
-
-<script>
-(function(){{
-  function pickJaVoice(){{
-    try {{
-      const synth = window.speechSynthesis;
-      const vs = synth ? (synth.getVoices() || []) : [];
-      const ja = vs.filter(v => String(v.lang||"").toLowerCase().startsWith("ja"));
-      if(!ja.length) return null;
-      const pref = ja.find(v => /female|woman|kyoko|haruka|nanami|mizuki|yuna/i.test(String(v.name||"")));
-      return pref || ja[0];
-    }} catch(e) {{
-      return null;
-    }}
-  }}
-
-  function speak(text){{
-    try {{
-      const synth = window.speechSynthesis;
-      if(!synth) return;
-      const u = new SpeechSynthesisUtterance(text || "");
-      u.lang = "ja-JP";
-      const v = pickJaVoice();
-      if(v) u.voice = v;
-      synth.cancel();
-      synth.speak(u);
-    }} catch(e) {{}}
-  }}
-
-  function play(audioUrl, text){{
-    if(audioUrl){{
-      try{{ const a = new Audio(audioUrl); a.play().catch(()=>{{ speak(text); }}); return; }}catch(e){{}}
-    }}
-    speak(text);
-  }}
-
-  const pbtn = document.getElementById('pbtn-{qid}');
-  const abtn = document.getElementById('abtn-{qid}');
-  if(pbtn) pbtn.addEventListener('click', (e)=>{{ e.preventDefault(); if(pbtn.disabled) return; play("{p_au_safe}", "{p_safe}"); }});
-  if(abtn) abtn.addEventListener('click', (e)=>{{ e.preventDefault(); if(abtn.disabled) return; play("{a_au_safe}", "{a_safe}"); }});
-}})();
-</script>
-<script>
-(function(){{
-  function send(){{
-    try{{
-      var h = Math.max(
-        document.body ? document.body.scrollHeight : 0,
-        document.documentElement ? document.documentElement.scrollHeight : 0
-      );
-      if (window.parent){{
-        window.parent.postMessage({{isStreamlitMessage:true, type:"streamlit:setFrameHeight", height:h + 12}}, "*");
-      }}
-    }}catch(e){{}}
-  }}
-  try{{
-    if (window.ResizeObserver){{
-      var ro = new ResizeObserver(function(){{ send(); }});
-      ro.observe(document.body);
-    }}
-  }}catch(e){{}}
-  window.addEventListener("load", function(){{ setTimeout(send, 30); }});
-  setTimeout(send, 80);
-}})();
-</script>
+        return res.data or []
+    except Exception:
+        return []
 
 
-"""
-
-    components.html(html, height=max(200, height + 40), scrolling=False)
-
-def play_audio_or_tts(text: str, audio_url: str, label: str, key: str):
-    """PRO: mp3 URL 재생 / FREE: 잠금. URL 없으면 TTS fallback."""
-    audio_url = (audio_url or "").strip()
-    # URL이 전체가 아니면 BASE_AUDIO_URL을 붙입니다.
-    if audio_url and (not audio_url.startswith('http://')) and (not audio_url.startswith('https://')):
-        audio_url = BASE_AUDIO_URL.rstrip('/') + '/' + audio_url.lstrip('/')
-
-    if audio_url:
-        if IS_PRO:
-            if st.button(f"🔊 {label}", key=f"{key}_btn"):
-                st.audio(audio_url)
-        else:
-            st.button(f"🔒 {label} (PRO 전용)", disabled=True, key=f"{key}_lock")
-        return
-
-    # URL이 없으면 브라우저 TTS fallback
-    if st.button(f"🔊 {label}", key=f"{key}_ttsbtn"):
-        tts_button(text, label, key=f"{key}_tts")
-
-def build_choices(row: dict, pool_answers: list[str]) -> list[str]:
-    correct = str(row.get("answer_jp", "")).strip()
-    qid_seed = str(row.get("qid", "") or "") + "|" + correct
-    # ✅ 보기 순서가 '클릭/리런'에 따라 바뀌지 않도록, qid 기반으로 셔플을 고정합니다.
-    # (세션키가 초기화되어도 항상 같은 순서로 재생성)
-    seed = int(hashlib.md5(qid_seed.encode("utf-8")).hexdigest()[:8], 16)
-    rng = random.Random(seed)
-
-    picks: list[str] = []
-
-    for c in ["d1_jp", "d2_jp", "d3_jp"]:
-        if c in row:
-            v = str(row.get(c, "")).strip()
-            if v and v != correct and v not in picks:
-                picks.append(v)
-
-    if len(picks) < 3:
-        cand = [a for a in pool_answers if a and a != correct and a not in picks]
-        rng.shuffle(cand)
-        picks += cand[: (3 - len(picks))]
-
-    picks = picks[:3]
-    choices = picks + [correct]
-    rng.shuffle(choices)
-    return choices
+def _kst_date_from_created_at(created_at: str) -> date | None:
+    """Parse created_at (ISO) into KST date."""
+    if not created_at:
+        return None
+    try:
+        dt = datetime.fromisoformat(str(created_at).replace("Z", "+00:00"))
+        kst = timezone(timedelta(hours=9))
+        return dt.astimezone(kst).date()
+    except Exception:
+        return None
 
 
-
-
-
-
-# ============================================================
-# ✅ Filter 변경(tag/sub/plan) 시 세트/진행 초기화
-# - 특히 tag="understand"(이해)에서 '다음 문제'가 안 넘어가는 현상 방지
-# ============================================================
-_cur_fk = f"{tag}|{sub}|{'pro' if IS_PRO else 'free'}"
-_prev_fk = st.session_state.get(f"{NS}_filter_key")
-if _prev_fk != _cur_fk:
-    # ✅ 세트/진행 관련 키만 제거 (tag/sub 선택 값은 유지)
-    _keep = {f"{NS}_tag", f"{NS}_sub"}
-    _wipe_exact = {
-        f"{NS}_set_qids",
-        f"{NS}_idx",
-        f"{NS}_answers",
-        f"{NS}_submitted",
-        f"{NS}_selected",
-        f"{NS}_opts",
-        f"{NS}_spoken",
-    }
-    _wipe_prefix = (
-        f"{NS}_submitted_",
-        f"{NS}_selected_",
-        f"{NS}_opts_",
-        f"{NS}_radio_",
-        f"{NS}_speak_done_",
-        f"{NS}_reward_ready_",
-        f"{NS}_submit_",
-        f"{NS}_go_next_",
-    )
-    for _k in list(st.session_state.keys()):
-        if str(_k) in _keep:
+def build_daily_sets_map(attempts: list[dict]) -> dict[date, int]:
+    """Return {date: sets} map (1 attempt == 1 set)."""
+    m: dict[date, int] = {}
+    for a in attempts:
+        d = _kst_date_from_created_at(str(a.get("created_at") or ""))
+        if not d:
             continue
-        if str(_k) in _wipe_exact or any(str(_k).startswith(p) for p in _wipe_prefix):
-            st.session_state.pop(_k, None)
-    st.session_state[f"{NS}_filter_key"] = _cur_fk
-pool_answers = pool_df["answer_jp"].astype(str).tolist()
+        m[d] = m.get(d, 0) + 1
+    return m
 
 
-# ============================================================
-# ✅ Initialize set (10 qids) + pointer
-# - session_state가 초기화되어도 '오늘 진행'은 DB(progress)에 저장된 값으로 복구(A안)
-# ============================================================
-resume_key = _talk_resume_key(tag, sub, IS_PRO)
+def calc_streak(daily_sets: dict[date, int], today: date | None = None) -> int:
+    """Consecutive days streak where sets >= 1 (including today)."""
+    today = today or datetime.now(timezone(timedelta(hours=9))).date()
+    streak = 0
+    cur = today
+    while daily_sets.get(cur, 0) >= 1:
+        streak += 1
+        cur = cur - timedelta(days=1)
+        if streak > 3650:
+            break
+    return streak
 
-if f"{NS}_set_qids" not in st.session_state:
-    # 1) 오늘 진행 복구 시도
-    restored = _restore_daily_progress_if_any(resume_key, pool_df)
-
-    # 2) 복구 실패면 새 세트 생성
-    if not restored:
-        n = min((SET_LEN if IS_PRO else FREE_SET_LEN), len(pool_df))
-        sample = pool_df.sample(n=n, replace=False).reset_index(drop=True)
-        qids = sample["qid"].astype(str).tolist()
-        st.session_state[f"{NS}_set_qids"] = qids
-        st.session_state[f"{NS}_idx"] = 0
-        st.session_state[f"{NS}_answers"] = {qid: {"selected": None, "ok": None, "spoken": False} for qid in qids}
-        st.session_state[f"{NS}_submitted"] = False
-
-    # 3) 최초 진입 시점에도 저장(복구든 신규든)
-    try:
-        _persist_daily_progress(resume_key, st.session_state.get(f"{NS}_set_qids") or [], int(st.session_state.get(f"{NS}_idx") or 0))
-    except Exception:
-        pass
-
-qids: list[str] = st.session_state[f"{NS}_set_qids"]
-idx: int = int(st.session_state.get(f"{NS}_idx") or 0)
-idx = max(0, min(idx, len(qids) - 1))
-answers = st.session_state.get(f"{NS}_answers") or {}
-
-# ============================================================
-# ✅ Progress header (1/10)
-#   - '새 세트' 버튼을 진행 영역 오른쪽으로 이동(필터와 분리)
-# ============================================================
-progress = (idx + 1) / max(1, len(qids))
-
-p1, p2 = st.columns([1.6, 0.6], vertical_alignment="center")
-with p1:
-    st.progress(progress)
-    st.caption(f"진행: {idx+1}/{len(qids)}")
-
-with p2:
-    if st.button("🔄 새 세트", use_container_width=True, type="secondary", key=f"{NS}_new_set"):
-        reset_set()
-        try:
-            _clear_talk_daily_state(resume_key)
-            _persist_daily_progress(resume_key, [], 0)
-        except Exception:
-            pass
-        # st.rerun()  # Streamlit은 버튼 클릭 시 자동 rerun됩니다.
-
-# ============================================================
-# ✅ Current question
-# ============================================================
-qid = qids[idx]
-_cur = pool_df[pool_df["qid"].astype(str) == str(qid)]
-# ✅ 필터/상황/레벨 변경 등으로 qid가 풀에서 사라질 수 있음 → 안전 처리
-if _cur.empty:
-    # 가장 첫 문제로 강제 리셋
-    st.session_state[f"{NS}_idx"] = 0
-    qid = qids[0]
-    _cur = pool_df[pool_df["qid"].astype(str) == str(qid)]
-if _cur.empty:
-    # 선택된 qid가 현재 풀에 없으면 첫 문제로 안전하게 재설정
-    qid = str(pool_df.iloc[0].get("qid"))
-    st.session_state[f"{NS}_qid"] = qid
-    _cur = pool_df[pool_df["qid"].astype(str) == str(qid)]
-row = _cur.iloc[0].to_dict()
-
-# options fixed per qid
-opt_key = f"{NS}_opts_{qid}"
-if opt_key not in st.session_state:
-    st.session_state[opt_key] = build_choices(row, pool_answers)
-choices: list[str] = st.session_state[opt_key]
-
-# selected
-sel_key = f"{NS}_selected_{qid}"
-if sel_key not in st.session_state:
-    st.session_state[sel_key] = None
-selected = st.session_state.get(sel_key)
-
-submitted_key = f"{NS}_submitted_{qid}"
-if submitted_key not in st.session_state:
-    st.session_state[submitted_key] = False
-submitted = bool(st.session_state.get(submitted_key))
 
 
 # ============================================================
-# ✅ Next question helper (명확한 UX) + FAB queryparam hook
+# ✅ UI helper: fixed 3-dot progress (home dashboard)
 # ============================================================
-def _go_next_question():
-    nxt = idx + 1
-    if nxt >= len(qids):
-        nxt = 0
-    st.session_state[f"{NS}_idx"] = nxt
-    try:
-        _persist_daily_progress(resume_key, qids, nxt)
-    except Exception:
-        pass
-    # 상태 초기화(다음 문제)
-    st.session_state[submitted_key] = False
-    st.session_state.pop(sel_key, None)
-    st.session_state.pop(f"{NS}_radio_{qid}", None)
-    st.session_state.pop(f"{NS}_speak_done_{qid}", None)
-    st.session_state.pop(f"{NS}_reward_ready_{qid}", None)
-    st.rerun()
-
-# ✅ FAB에서 URL queryparam으로 다음 이동 요청
-try:
-    qp = st.query_params
-    v = str(qp.get("talk_next", "")).strip()
-    if v:
-        if st.session_state.get("_talk_next_seen") != v:
-            st.session_state["_talk_next_seen"] = v
-            try:
-                del qp["talk_next"]
-            except Exception:
-                pass
-            if submitted:
-                _go_next_question()
-        # 미제출이면 아무 것도 하지 않음(추가 rerun 금지)
-except Exception:
-    pass
-
-# ============================================================
-# ✅ Render card
-# ============================================================
-with st.container(border=True):
-    st.markdown(f"**상황**: {row.get('situation_kr','')}")
-    # FREE는 듣기가 잠겨 있으니, 문제 단계에서 스크립트를 보여줍니다.
-    # 상대(말): PRO는 스크립트 숨김(듣기만), FREE는 스크립트 + (발음 듣기 3회/일) 버튼
-    if IS_PRO:
-        tts_inline_row("상대(말)", row.get("partner_jp",""), key=f"{qid}_partner_q", show_text=False, audio_url=row.get("partner_mp3","") or row.get("partner_audio","") or row.get("partner_audio_url","") or "")
+def _dots_3(done_sets: int, goal_sets: int) -> str:
+    # Always show 3 dots for a clean dashboard look.
+    if goal_sets <= 0:
+        filled = 0
     else:
-        tts_inline_row("상대(말)", row.get("partner_jp",""), key=f"{qid}_partner_q", show_text=True, audio_url=row.get("partner_mp3","") or row.get("partner_audio","") or row.get("partner_audio_url","") or "")
-        rem = _free_tts_remaining()
-        if rem > 0:
-            if st.button(f"🔊 발음 듣기 (무료 {FREE_TTS_QUOTA-rem+1}/{FREE_TTS_QUOTA})", key=f"{qid}_free_tts_q", use_container_width=True):
-                _use_free_tts_once()
-                components.html(f"""<script>
-(function(){{
-  try{{
-    const synth = window.speechSynthesis;
-    function pickJaVoice(){{
-      const voices = synth.getVoices() || [];
-      const ja = voices.filter(v => String(v.lang||"").toLowerCase().startsWith("ja"));
-      if (!ja.length) return null;
-      return ja.find(v => /google/i.test(v.name||""))
-          || ja.find(v => /日本|japanese/i.test(v.name||""))
-          || ja[0] || null;
-    }}
-    const u = new SpeechSynthesisUtterance({(row.get('partner_jp','') or '').replace(chr(10),' ')!r});
-    u.lang = "ja-JP";
-    const v = pickJaVoice();
-    if (v) u.voice = v;
-    synth.cancel();
-    synth.speak(u);
-  }}catch(e){{}}
-}})();
-</script>""", height=0)
+        ratio = done_sets / float(goal_sets)
+        if ratio <= 0:
+            filled = 0
+        elif ratio >= 1:
+            filled = 3
         else:
-            st.markdown(
-                '<div style="margin-top:6px;display:flex;align-items:center;gap:8px;">'
-                '<span style="font-size:12px;background:#FFD54F;color:#000;padding:2px 6px;border-radius:8px;font-weight:800;">PRO</span>'
-                '<span style="font-size:0.92rem;opacity:0.85;">발음 듣기는 PRO 전용 (무료 3회 소진)</span>'
-                '</div>',
-                unsafe_allow_html=True,
-            )
-
-    st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
-    with st.container(border=True):
-        st.markdown("**내가 할 말(선택)**")
-
-        # ✅ 보기 선택(속도/안정성 개선)
-        # - st.button 4개는 클릭할 때마다 전체가 재렌더링되어 체감이 느릴 수 있어
-        # - st.radio 1개 위젯으로 선택만 바꾸면 훨씬 가볍고, 보기 순서도 고정됨
-        radio_key = f"{NS}_radio_{qid}"
-
-        # ✅ 초기 선택은 비워두기: 기존 선택이 있을 때만 index 지정
-        default_idx = choices.index(selected) if (selected and selected in choices) else None
-
-        picked = st.radio(
-            label="보기 선택",
-            options=choices,
-            index=default_idx,  # None이면 미선택 상태
-            key=radio_key,
-            disabled=submitted,
-            label_visibility="collapsed",
-        )
-
-        # ✅ radio는 선택 시 즉시 rerun되므로, 버튼 활성화가 즉시 반영됨
-        can_submit = bool(picked) and (not submitted)
-        submitted_now = st.button(
-            "정답 제출",
-            use_container_width=True,
-            disabled=not can_submit,
-            key=f"{NS}_submit_{qid}",
-        )
-
-        # 제출 시에만 선택/제출 상태를 확정
-        if submitted_now and (not submitted):
-            st.session_state[sel_key] = picked
-            st.session_state[submitted_key] = True
-            selected = picked
-            submitted = True
+            filled = int(round(ratio * 3))
+            filled = max(0, min(3, filled))
+    return " ".join(["●"] * filled + ["○"] * (3 - filled))
 
 
-# ============================================================
-# ✅ After submit
-# ============================================================
-if submitted:
-    correct = str(row.get("answer_jp", "")).strip()
-    ok = (selected == correct)
+def render_home_dashboard(sb_authed, user):
+    """Home Hub dashboard (A++): donut + weekly heatmap + level mini bars + rows + smart CTA + compact goal gear."""
+    from datetime import datetime, timezone, timedelta
 
-    # ✅ 최근 2턴 저장(정답 제출 직후 1회만)
-    try:
-        snap_key = f"talk_turn_saved_{qid}"
-        if not st.session_state.get(snap_key):
-            _push_recent_turn({
-                "qid": str(qid),
-                "situation_kr": str(row.get("situation_kr", "")).strip(),
-                "partner_jp": str(row.get("partner_jp", "")).strip(),
-                "selected": str(selected or "").strip(),
-                "correct": str(correct or "").strip(),
-                "ok": bool(ok),
-            })
-            st.session_state[snap_key] = True
-    except Exception:
-        pass
+    # ---- data ----
+    attempts_recent = fetch_recent_attempts(sb_authed, user.id, limit=500)
+    sm_recent = summarize_attempts(attempts_recent)
 
+    attempts_today = fetch_today_attempts(sb_authed, user.id)
+    sm_today = summarize_attempts(attempts_today)
 
-    # ============================================================
-    # ✅ 오답 상세 저장 (wrong_notes) — 회화도 '단어/정답/내답' 기록
-    # ============================================================
-    if not ok:
+    daily_map = build_daily_sets_map(attempts_recent)
+
+    kst_today = datetime.now(timezone(timedelta(hours=9))).date()
+    streak = calc_streak(daily_map, today=kst_today)
+
+    progress_all = st.session_state.get("progress_all", {}) or {}
+    goal_sets = int((progress_all.get("daily_goal_sets") or 3))
+
+    done_total = int(sm_today.get("total_sets", 0))
+    pct = 0 if goal_sets <= 0 else int(round(min(1.0, done_total / float(goal_sets)) * 100))
+
+    w = sm_today["by_kind"]["word"]
+    k = sm_today["by_kind"]["kanji"]
+    t = sm_today["by_kind"]["talk"]
+
+    # ---- daily auto reset marker (KST) ----
+    last_seen = (progress_all.get("last_seen_date") or "")
+    today_str = str(kst_today)
+    if last_seen != today_str:
+        progress_all["last_seen_date"] = today_str
+        st.session_state["progress_all"] = progress_all
+        # close any open settings panel on day change
+        st.session_state["show_goal_settings"] = False
         try:
-            sb2 = st.session_state.get("sb_authed") or sb  # hub에서 공유되면 sb_authed 우선
-            if sb2 and USER_ID:
-                q_text = (str(row.get("q_jp", "")) or str(row.get("situation_kr",""))).strip()
-                sb2 = get_authed_sb() or sb2
-
-                if not sb2:
-
-                    _wn_warn("오답 저장 실패: authed client 없음(access_token).")
-
-                else:
-
-                    try:
-
-                        sb2.table("wrong_notes").insert({
-
-                            "user_id": USER_ID,
-
-                            "quiz_type": "talk",
-
-                            "question": q_text if q_text else str(row.get("id", "")),
-
-                            "correct_answer": str(correct),
-
-                            "user_answer": str(selected),
-
-                            "level": "talk",
-
-                        }).execute()
-
-                    except Exception as e:
-
-                        _wn_warn(f"오답 저장 실패: {e}")
+            save_progress(sb_authed, user.id, progress_all)
         except Exception:
             pass
 
-# 저장(answers)
-    answers.setdefault(qid, {})
-    answers[qid]["selected"] = selected
-    answers[qid]["ok"] = ok
-    st.session_state[f"{NS}_answers"] = answers
-    try:
-        _persist_daily_progress(resume_key, qids, idx)
-    except Exception:
-        pass
+    # ---- one-line motivation (stable per day) ----
+    remaining_sets = max(0, goal_sets - done_total)
+    messages = [
+        "오늘도 10문제면 충분해요. 가볍게 한 세트만.",
+        "완벽 말고, 이어가기. 오늘도 한 번만 눌러보세요.",
+        "하루 한 세트가 쌓이면, 실력이 됩니다.",
+        "짧게라도 괜찮아요. 지금 시작이 제일 쉬워요.",
+        "어제보다 1문제만 더. 그게 루틴이에요.",
+        "오늘의 성취는 ‘시작’에서 결정돼요.",
+    ]
+    idx = (kst_today.toordinal() + (streak * 3) + remaining_sets) % len(messages)
+    motivation = messages[idx]
 
-    st.markdown("---")
-    st.subheader("결과")
+    # ---- 오늘의 한마디 (한국어, 날짜 기반 고정) ----
+    HUB_QUOTES = [
+        "오늘 20분이면 충분합니다.",
+        "꾸준함은 재능을 이깁니다.",
+        "작은 차이가 1년을 바꿉니다.",
+        "루틴은 의지를 대신합니다.",
+        "느려도 괜찮습니다. 계속하면 됩니다.",
+        "매일 조금씩이 가장 빠른 길입니다.",
+        "오늘을 채우면 내일이 편해집니다.",
+        "공부는 감정이 아니라 구조입니다.",
+        "포기하지 않는 사람이 결국 이깁니다.",
+        "하테나는 루틴을 만듭니다.",
+        "어제보다 1%만 나아지면 됩니다.",
+        "오늘 한 문제라도 의미 있습니다.",
+        "멈추지 않으면 쌓입니다.",
+        "실력은 조용히 올라갑니다.",
+        "반복이 결국 차이를 만듭니다.",
+        "몰아서 하지 말고, 매일 하세요.",
+        "오늘의 기록이 내일의 자신감입니다.",
+        "성장은 보이지 않게 진행됩니다.",
+        "공부는 자신과의 약속입니다.",
+        "매일 하는 사람이 강합니다.",
+        "완벽하지 않아도 괜찮습니다.",
+        "오늘을 넘기지 마세요.",
+        "시작이 가장 쉽습니다.",
+        "루틴은 배신하지 않습니다.",
+        "하루는 짧지만, 1년은 깁니다.",
+        "꾸준함이 가장 큰 무기입니다.",
+        "오늘을 버티면 실력이 됩니다.",
+        "계속하는 사람이 결국 남습니다.",
+        "지금 시작하는 것이 가장 빠릅니다.",
+        "하테나는 오늘도 쌓입니다.",
+    ]
+    today_quote = HUB_QUOTES[kst_today.toordinal() % len(HUB_QUOTES)]
 
-    if ok:
-        st.success("정답 ✅")
-    else:
-        st.error("오답 ❌")
+    
 
-    # ✅ 오늘의 회화 레벨 게이지(일일) + 미션 카드(포인트)
-    _goal = 7
-    _done = _get_today_speech_done()
-    _ratio = min(1.0, (_done / _goal) if _goal else 0.0)
+    # ---- local helper ----
+    def _dots_3(done_sets: int, goal_sets_: int) -> str:
+        if goal_sets_ <= 0:
+            filled = 0
+        else:
+            ratio = done_sets / float(goal_sets_)
+            if ratio <= 0:
+                filled = 0
+            elif ratio >= 1:
+                filled = 3
+            else:
+                filled = int(round(ratio * 3))
+                filled = max(0, min(3, filled))
+        return " ".join(["●"] * filled + ["○"] * (3 - filled))
 
-    if not st.session_state.get("_talk_mission_css", False):
-        st.markdown("""
-<style>
-.talk-mission-wrap{
-  display:flex; align-items:center; justify-content:space-between;
-  gap:12px; padding:12px 14px; border-radius:14px;
-  border:1px solid rgba(0,0,0,.10);
-  background:rgba(255, 244, 220, .55);
-  margin:10px 0 12px 0;
-}
-.talk-mission-left{min-width:0;}
-.talk-mission-badge{
-  display:inline-flex; align-items:center;
-  padding:3px 8px; border-radius:999px;
-  font-size:.82rem; font-weight:800;
-  background:rgba(0,0,0,.06);
-}
-.talk-mission-text{
-  margin-top:6px; font-size:0.98rem; font-weight:700;
-  line-height:1.25;
-}
-.talk-mission-right{
-  display:flex; flex-direction:column; align-items:flex-end;
-  flex:0 0 auto;
-}
-.talk-count-label{font-size:.82rem; opacity:.85; font-weight:700;}
-.talk-count-num{font-size:1.9rem; font-weight:900; line-height:1;}
-.talk-count-unit{font-size:.82rem; opacity:.85; font-weight:700; margin-top:2px;}
-</style>
-""", unsafe_allow_html=True)
-        st.session_state["_talk_mission_css"] = True
-
+    # ---- CSS ----
     st.markdown(
-        f"""
-        <div class=\"talk-mission-wrap\">
-          <div class=\"talk-mission-left\">
-            <div class=\"talk-mission-badge\">🎯 오늘 미션</div>
-            <div class=\"talk-mission-text\">오늘은 입을 <b>{_goal}번</b>만 열어봅시다.</div>
-          </div>
-          <div class=\"talk-mission-right\">
-            <div class=\"talk-count-label\">🗣 오늘 말한 문장</div>
-            <div class=\"talk-count-num\">{_done}</div>
-            <div class=\"talk-count-unit\">문장</div>
-          </div>
-        </div>
+        """
+<style>
+  .h-wrap{margin-top:.10rem;}
+  .h-top{display:flex;align-items:flex-end;justify-content:space-between;gap:.75rem;margin:.15rem 0 .45rem;}
+  .h-title{font-size:1.28rem;font-weight:850;line-height:1.15;margin:0;}
+  .h-sub{opacity:.70;font-size:.92rem;margin:.18rem 0 0;}
+  .h-pill{display:inline-flex;align-items:center;gap:.35rem;padding:.20rem .55rem;border-radius:999px;border:1px solid rgba(0,0,0,.10);background:rgba(0,0,0,.02);font-size:.92rem;white-space:nowrap;}
+
+  /* gear */
+  .h-gear-wrap{display:flex;justify-content:flex-end;margin:.10rem 0 .05rem;}
+  div[data-testid="column"] .stButton button{border-radius:14px;}
+
+  /* donut */
+  @property --p { syntax: '<number>'; inherits: false; initial-value: 0; }
+  .h-center{display:flex;align-items:center;justify-content:center;margin:.52rem 0 .20rem;position:relative;}
+  .donut{
+    --p: 0;
+    width: 150px; height: 150px; border-radius: 50%;
+    background:
+      conic-gradient(
+        from -90deg,
+        rgba(46,124,246,0.95) calc(var(--p) * 1%),
+        rgba(0,0,0,.08) 0
+      );
+    display:flex;align-items:center;justify-content:center;
+    box-shadow: 0 12px 34px rgba(0,0,0,0.10);
+    border: 1px solid rgba(49,51,63,0.14);
+    position:relative;
+    animation: donutFill 650ms ease-out forwards;
+  }
+  .donut::after{
+    content:"";
+    position:absolute; inset: 6px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 30% 25%, rgba(255,255,255,0.70), rgba(255,255,255,0.0) 55%);
+    pointer-events:none;
+    mix-blend-mode: soft-light;
+  }
+  .donut::before{
+    content:"";
+    width: 110px; height: 110px; border-radius: 50%;
+    background: rgba(255,255,255,0.98);
+    border: 1px solid rgba(0,0,0,.06);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.7);
+    position:relative;
+    z-index: 1;
+  }
+  .donut-inner{
+    position:absolute;
+    width: 150px; height: 150px;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    text-align:center;
+    pointer-events:none;
+    z-index: 2;
+  }
+  .donut-pct{font-size:1.62rem;font-weight:900;line-height:1.0;margin-bottom:.15rem;}
+  .donut-label{font-size:.86rem;opacity:.72;}
+  @keyframes donutFill{ from { --p: 0; } to { --p: var(--target); } }
+
+  /* weekly heatmap */
+  .hm-wrap{margin:.05rem 0 .40rem;}
+  .hm-title{display:flex;align-items:center;justify-content:space-between;margin:.06rem 0 .22rem;}
+  .hm-title b{font-size:.92rem;}
+  .hm-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:.30rem;}
+  .hm-cell{
+    height: 20px;
+    border-radius: 7px;
+    border: 1px solid rgba(49,51,63,0.12);
+    background: rgba(0,0,0,0.05);
+    display:flex;align-items:center;justify-content:center;
+    font-size:.80rem;
+    opacity:.92;
+  }
+  .hm-on{background: rgba(46,124,246,0.16); border-color: rgba(46,124,246,0.20);}
+  .hm-mid{background: rgba(46,124,246,0.26); border-color: rgba(46,124,246,0.24);}
+  .hm-hi{background: rgba(46,124,246,0.36); border-color: rgba(46,124,246,0.28);}
+  .hm-lab{font-size:.78rem; opacity:.68; margin-top:.16rem;}
+
+  /* level bars */
+  .lv-wrap{
+    margin:.10rem 0 .42rem;
+    padding:.58rem .70rem;
+    border-radius:16px;
+    border:1px solid rgba(49,51,63,0.14);
+    background: rgba(255,255,255,0.06);
+    box-shadow: 0 9px 24px rgba(0,0,0,0.06);
+  }
+  .lv-title{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:.42rem;}
+  .lv-title b{font-size:.92rem;}
+  .lv-title span{font-size:.82rem;opacity:.68;}
+  .lv-row{display:grid;grid-template-columns:38px 1fr 30px;gap:.45rem;align-items:center;margin:.22rem 0;}
+  .lv-lab{font-size:.86rem;font-weight:800;opacity:.78;}
+  .lv-track{height:10px;border-radius:999px;background:rgba(0,0,0,0.07);overflow:hidden;border:1px solid rgba(0,0,0,0.05);}
+  .lv-fill{height:100%;border-radius:999px;background:rgba(46,124,246,0.55);}
+  .lv-val{font-size:.82rem;opacity:.70;text-align:right;}
+
+  /* rows */
+  .h-rows{display:flex;flex-direction:column;gap:.46rem;margin:.05rem 0 .55rem;}
+  .row{
+    display:flex;align-items:center;justify-content:space-between;gap:.6rem;
+    padding: .62rem .72rem;
+    border-radius: 16px;
+    border: 1px solid rgba(49,51,63,0.14);
+    background: rgba(255,255,255,0.02);
+    box-shadow: 0 9px 24px rgba(0,0,0,0.07);
+    transition: transform 120ms ease, box-shadow 120ms ease;
+  }
+  .row:hover{transform: translateY(-1px); box-shadow: 0 12px 30px rgba(0,0,0,0.10);}
+  .row-left{display:flex;flex-direction:column;gap:.12rem;min-width:0;}
+  .row-title{font-size:1.00rem;font-weight:820;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .row-meta{font-size:.82rem;opacity:.72;margin:0;}
+  .row-right{text-align:right;white-space:nowrap;}
+  .row-dots{font-size:1.05rem;letter-spacing:1px;margin:0;}
+  .row-goal{font-size:.82rem;opacity:.72;margin-top:.05rem;}
+
+  .row-word{background: linear-gradient(90deg, rgba(46,124,246,0.09), rgba(255,255,255,0.02) 55%); border-color: rgba(46,124,246,0.18);}
+  .row-kanji{background: linear-gradient(90deg, rgba(76,175,80,0.09), rgba(255,255,255,0.02) 55%); border-color: rgba(76,175,80,0.18);}
+  .row-talk{background: linear-gradient(90deg, rgba(156,39,176,0.09), rgba(255,255,255,0.02) 55%); border-color: rgba(156,39,176,0.18);}
+
+  /* ✅ Smart CTA (A안): message+CTA fused card */
+  .cta_box{
+    margin-top: .20rem;
+    margin-bottom: 0;
+    padding: 12px 14px;
+    border: 1px solid rgba(0,0,0,0.08);
+    border-radius: 14px;
+    background: rgba(255,255,255,0.70);
+    backdrop-filter: blur(2px);
+  }
+  .cta_box b{font-size:1.0rem;}
+  .cta_box_top{
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    border-bottom: 0;
+  }
+
+  /* CTA button: match cards and fuse with message box */
+  .st-key-hub_cta_primary button{
+    width:100% !important;
+    border-top-left-radius:0 !important;
+    border-top-right-radius:0 !important;
+    margin-top:0 !important;
+    min-height: 46px !important;
+    font-size: 1.02rem !important;
+  }
+  .st-key-hub_cta_primary{ margin-top:0 !important; }
+
+  /* ✅ goal gear: icon-only + overlay on level progress card */
+  .st-key-hub_goal_gear_icon{display:flex;justify-content:flex-end;margin-top:-44px;margin-bottom:10px;}
+  .st-key-hub_goal_gear_icon button{
+    background:transparent !important;border:0 !important;outline:none !important;box-shadow:none !important;
+    padding:0 !important;min-height:auto !important;height:auto !important;line-height:1 !important;
+  }
+  .st-key-hub_goal_gear_icon button:focus,
+  .st-key-hub_goal_gear_icon button:focus-visible,
+  .st-key-hub_goal_gear_icon button:active{outline:none !important;box-shadow:none !important;}
+  .st-key-hub_goal_gear_icon button p{font-size:18px !important;margin:0 !important;}
+
+
+
+
+/* Quote (오늘의 한마디) */
+.h-quote-card{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  margin: 0.25rem 0 0.1rem 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(244,247,251,0.95);
+  border: 1px solid rgba(227,232,240,1);
+}
+.h-quote-dot{
+  width:6px;height:6px;border-radius:50%;
+  background: rgba(74,108,247,1);
+  flex-shrink:0;
+}
+.h-quote-t{
+  font-size: 0.98rem;
+  font-weight: 600;
+  color: rgba(44,62,80,1);
+}
+
+/* First-visit guide card (Hub only) */
+.h-guide-wrap{margin:.25rem 0 .55rem 0;}
+.h-guidebox{
+  background: rgba(255,255,255,1);
+  border: 1px solid rgba(226,232,240,1);
+  border-radius: 18px;
+  box-shadow: 0 10px 30px rgba(15,23,42,.06);
+  padding: .85rem .95rem .85rem;
+}
+.h-guide-top{display:flex;align-items:flex-start;justify-content:space-between;gap:.75rem;}
+.h-guide-title{font-size:1.02rem;font-weight:800;color:rgba(15,23,42,1);margin:0;line-height:1.25;}
+.h-guide-sub{margin:.15rem 0 0;font-size:.88rem;color:rgba(51,65,85,1);opacity:.82;line-height:1.45;}
+.h-guide-steps{margin:.55rem 0 .15rem;padding:0;list-style:none;display:flex;flex-direction:column;gap:.35rem;}
+.h-step{display:flex;gap:.55rem;align-items:flex-start;}
+.h-step-badge{
+  width:22px;height:22px;border-radius:999px;
+  display:inline-flex;align-items:center;justify-content:center;
+  font-size:.8rem;font-weight:800;
+  border:1px solid rgba(74,108,247,.25);
+  background: rgba(74,108,247,.08);
+  color: rgba(34,61,214,1);
+  flex-shrink:0;
+  margin-top:.05rem;
+}
+.h-step-t{font-size:.92rem;color:rgba(30,41,59,1);line-height:1.45;}
+.h-guide-mini{
+  display:flex;align-items:center;justify-content:space-between;gap:.7rem;
+  padding:.55rem .7rem;border-radius:16px;
+  border:1px solid rgba(226,232,240,1);
+  background: rgba(248,250,252,1);
+}
+.h-guide-actions{
+  display:flex;align-items:center;justify-content:space-between;gap:.6rem;
+  margin-top:.65rem;padding-top:.65rem;
+  border-top:1px solid rgba(226,232,240,1);
+}
+.h-guide-mini-actions{
+  display:flex;align-items:center;justify-content:flex-end;gap:.5rem;
+}
+.h-guide-btn{
+  display:inline-flex;align-items:center;justify-content:center;
+  padding:.48rem .78rem;border-radius:999px;
+  font-size:.86rem;font-weight:800;
+  text-decoration:none !important;
+  border:1px solid rgba(226,232,240,1);
+  background: rgba(255,255,255,1);
+  color: rgba(51,65,85,1);
+  white-space:nowrap;
+}
+.h-guide-btn.primary{
+  background: rgba(74,108,247,1);
+  border-color: rgba(74,108,247,1);
+  color: rgba(255,255,255,1);
+}
+.h-guide-btn.ghost{
+  background: rgba(255,255,255,1);
+}
+.h-guide-btn:hover{filter:brightness(.98);}
+.h-guide-mini-t{font-size:.92rem;font-weight:800;color:rgba(15,23,42,1);margin:0;}
+
+</style>
         """,
         unsafe_allow_html=True,
     )
-    st.progress(_ratio)
-
-    # 상대/정답 스크립트 + 해설(제출 후에만)
-    with st.container(border=True):
-        hotena_title("assets/hotena_talk/icons_title/icon_pronounce_title.png", "대화/해설")
-
-        # ✅ 상황(제출 전에도 보이지만, 결과 박스에도 다시 한 번 노출)
-        situation = str(row.get("situation_kr", "")).strip()
-        if situation:
-            st.caption(f"상황: {situation}")
-
-        # ✅ 상대(말) / 내(말) — 스피커 아이콘 버튼은 여기서만 노출
-        
-        # ✅ 상대(말) / 내(말) — 한 iframe에서 2줄 렌더(간격 촘촘)
-        tts_inline_pair(
-            row.get("partner_jp",""),
-            row.get("answer_jp",""),
-            qid=str(qid),
-            show_text=True,
-            partner_audio_url=(row.get("partner_mp3","") or row.get("partner_audio","") or row.get("partner_audio_url","") or ""),
-            answer_audio_url=(row.get("answer_mp3","") or row.get("answer_audio","") or row.get("answer_audio_url","") or ""),
-            partner_kr=(row.get("partner_kr","") or row.get("partner_ko","") or row.get("partner_kor","") or ""),
-            answer_kr=(row.get("answer_kr","") or row.get("answer_ko","") or row.get("answer_kor","") or ""),
-        )
-
-        # FREE: 제출 후에도 발음 듣기 하루 3회만 허용 (상대/내 각각 버튼 제공)
-        if not IS_PRO:
-            rem2 = _free_tts_remaining()
-            c1, c2 = st.columns(2)
-            with c1:
-                if rem2 > 0 and st.button("🔊 상대 발음 듣기", key=f"{qid}_free_tts_partner_after", use_container_width=True):
-                    _use_free_tts_once()
-                    p_audio_url = resolve_audio_url((row.get("partner_mp3","") or row.get("partner_audio","") or row.get("partner_audio_url","") or ""))
-                    p_text = (row.get("partner_jp","") or "").replace(chr(10)," ")
-                    components.html(f"""<script>
-(function(){{
-  const audioUrl = {p_audio_url!r};
-  const text = {p_text!r};
-  function pickJaVoice(){{
-    try {{
-      const synth = window.speechSynthesis;
-      const voices = synth ? (synth.getVoices() || []) : [];
-      const ja = voices.filter(v => String(v.lang||"").toLowerCase().startsWith("ja"));
-      if (!ja.length) return null;
-      return ja.find(v => /google/i.test(v.name||""))
-          || ja.find(v => /日本|japanese/i.test(v.name||""))
-          || ja[0] || null;
-    }} catch(e) {{ return null; }}
-  }}
-  function speak(){{
-    try {{
-      const synth = window.speechSynthesis;
-      if (!synth) return;
-      synth.cancel();
-      const u = new SpeechSynthesisUtterance(text);
-      u.lang = "ja-JP";
-      const v = pickJaVoice();
-      if (v) u.voice = v;
-      synth.speak(u);
-    }} catch(e) {{}}
-  }}
-  if (audioUrl){{
-    try {{
-      const a = new Audio(audioUrl);
-      a.play().catch(()=>speak());
-    }} catch(e) {{
-      speak();
-    }}
-  }} else {{
-    speak();
-  }}
-}})();
-</script>""", height=0)
-                elif rem2 <= 0:
-                    st.button("🔒 상대 발음 듣기 (PRO)", key=f"{qid}_free_tts_partner_after_lock", disabled=True, use_container_width=True)
-            with c2:
-                rem3 = _free_tts_remaining()
-                if rem3 > 0 and st.button("🔊 내 발음 듣기", key=f"{qid}_free_tts_answer_after", use_container_width=True):
-                    _use_free_tts_once()
-                    a_audio_url = resolve_audio_url((row.get("answer_mp3","") or row.get("answer_audio","") or row.get("answer_audio_url","") or ""))
-                    a_text = (row.get("answer_jp","") or "").replace(chr(10)," ")
-                    components.html(f"""<script>
-(function(){{
-  const audioUrl = {a_audio_url!r};
-  const text = {a_text!r};
-  function pickJaVoice(){{
-    try {{
-      const synth = window.speechSynthesis;
-      const voices = synth ? (synth.getVoices() || []) : [];
-      const ja = voices.filter(v => String(v.lang||"").toLowerCase().startsWith("ja"));
-      if (!ja.length) return null;
-      return ja.find(v => /google/i.test(v.name||""))
-          || ja.find(v => /日本|japanese/i.test(v.name||""))
-          || ja[0] || null;
-    }} catch(e) {{ return null; }}
-  }}
-  function speak(){{
-    try {{
-      const synth = window.speechSynthesis;
-      if (!synth) return;
-      synth.cancel();
-      const u = new SpeechSynthesisUtterance(text);
-      u.lang = "ja-JP";
-      const v = pickJaVoice();
-      if (v) u.voice = v;
-      synth.speak(u);
-    }} catch(e) {{}}
-  }}
-  if (audioUrl){{
-    try {{
-      const a = new Audio(audioUrl);
-      a.play().catch(()=>speak());
-    }} catch(e) {{
-      speak();
-    }}
-  }} else {{
-    speak();
-  }}
-}})();
-</script>""", height=0)
-                elif rem3 <= 0:
-                    st.button("🔒 내 발음 듣기 (PRO)", key=f"{qid}_free_tts_answer_after_lock", disabled=True, use_container_width=True)
-# ============================================================
-        # ✅ 제출 이후에만 원포인트 + 스마트코치 표시
-        # ============================================================
-        if submitted:
-
-            # ------------------------------------
-            # 💡 원포인트 일본어
-            # ------------------------------------
-            explain_kr = str(row.get("explain_kr", "")).strip()
-            hint = str(row.get("hint_kr", "")).strip()
-
-            if explain_kr:
-                st.markdown("<div style='margin-top:-18px'></div>", unsafe_allow_html=True)
-                st.info("💡 하테나쌤 원포인트 일본어\n\n" + explain_kr)
-                _nv = _jp_native_variant(str(row.get("answer_jp","") or ""))
-                if _nv:
-                    st.caption("💬 일본인 버전: " + _nv)
-            elif hint:
-                st.markdown("<div style='margin-top:-18px'></div>", unsafe_allow_html=True)
-                st.info("💡 하테나쌤 원포인트 일본어\n\n" + hint)
-                _nv = _jp_native_variant(str(row.get("answer_jp","") or ""))
-                if _nv:
-                    st.caption("💬 일본인 버전: " + _nv)
-            else:
-                st.markdown("<div style='margin-top:-18px'></div>", unsafe_allow_html=True)
-                st.info(
-                    "💡 하테나쌤 원포인트 일본어\n\n"
-                    "포인트: 상황에서 ‘요청/사과/확인/거절’ 중 무엇인지 먼저 잡고, "
-                    "그에 맞는 톤(정중/캐주얼)을 고르면 실수가 줄어듭니다."
-                )
-                _nv = _jp_native_variant(str(row.get("answer_jp","") or ""))
-                if _nv:
-                    st.caption("💬 일본인 버전: " + _nv)
-
-            # ------------------------------------
-            # 🤖 스마트 코치
-            # ------------------------------------
-            with st.expander("🤖 원포인트 일본어가 어려우면 하테나쌤에게 물어보세요", expanded=False):
-
-                hotena_title("assets/hotena_talk/icons_title/icon_coach_title.png", "하테나쌤 스마트 코치")
-                q_default = st.session_state.get("talk_ai_last_q") or ""
-                user_q = st.text_input(
-                    "질문",
-                    value=str(q_default),
-                    key=f"talk_ai_q_{qid}",
-                    placeholder="예) 더 자연스러운 표현도 있어요?",
-                    label_visibility="collapsed",
-                )
-
-                st.caption("회화 표현·뉘앙스·자연스러움 위주 질문에 최적화되어 있어요.")
-
-                ask = st.button(
-                    "AI 코칭 받기 시작",
-                    use_container_width=True,
-                    key=f"talk_ai_ask_{qid}",
-                )
-
-                coach_slot = st.empty()
-
-                if ask and str(user_q).strip():
-
-                    question = str(user_q).strip()
-                    st.session_state["talk_ai_last_q"] = question
-
-                    # 👉 일반 문의 분기
-                    general_keywords = [
-                        "패키지", "요금", "가격", "결제",
-                        "환불", "기능", "프로", "무료",
-                        "상담", "문의", "톡", "네이버", "교재"
-                    ]
-
-                    if any(k in question for k in general_keywords):
-
-                        coach_slot.info(
-                            "📌 해당 문의는 회화 코칭 범위를 벗어납니다.\n\n"
-                            "👉 정확한 안내는 **하테나쌤 톡**으로 문의해주세요 🙂"
-                        )
-
-                        st.link_button(
-                            "💬 톡 문의하기",
-                            "http://talk.naver.com/W45141",
-                            use_container_width=True
-                        )
-
-                    else:
-                        # 회화 질문일 때만 AI 호출
-                        def _is_ctx_relevant(q: str, row_: dict) -> bool:
-                            q = (q or "").strip().lower()
-                            if not q:
-                                return False
-                            # If question explicitly refers to correctness/nuance/why, treat as relevant
-                            key_hits = ["정답", "오답", "왜", "뉘앙스", "자연", "어색", "차이", "문법", "표현", "대안", "바꿔", "맞아", "틀려"]
-                            if any(k in q for k in key_hits):
-                                return True
-                            # If includes Japanese chars, likely about the expression
-                            if re.search(r"[\u3040-\u30ff\u4e00-\u9fff]", q):
-                                return True
-                            # If includes a snippet from this item's fields, it's relevant
-                            s = str(row_.get("situation_kr", "") or "").strip().lower()
-                            p = str(row_.get("partner_jp", "") or "").strip().lower()
-                            a = str(row_.get("answer_jp", "") or "").strip().lower()
-                            for ref in (p, a):
-                                if ref and ref[:8] in q:
-                                    return True
-                            # Default: treat as general question → do NOT bind to current quiz context
-                            return False
 
 
-                        use_ctx = _is_ctx_relevant(question, row)
-                        ctx_parts = [] if use_ctx else None
-
-                        s = str(row.get("situation_kr", "")).strip()
-                        p = str(row.get("partner_jp", "")).strip()
-                        a = str(row.get("answer_jp", "")).strip()
-                        me = str(selected or "").strip()
-
-                        if ctx_parts is not None and s:
-                            ctx_parts.append(f"현재상황: {s}")
-                        if ctx_parts is not None and p:
-                            ctx_parts.append(f"상대발화: {p}")
-                        if ctx_parts is not None and a:
-                            ctx_parts.append(f"정답표현: {a}")
-                        if ctx_parts is not None and me:
-                            ctx_parts.append(f"내선택: {me}")
-
-                        if ctx_parts is not None:
-                            ctx_parts.append(f"정오답: {'정답' if ok else '오답'}")
-
-                        ctx = "\n".join(ctx_parts) if isinstance(ctx_parts, list) else ""
-
-                        with st.spinner("하테나쌤 답변 중…"):
-                            ans = ai_tutor.ask_hatena(
-                                mode="talk",
-                                user_input=question,
-                                context=ctx,
-                                meta={
-                                    "page": "talk",
-                                    "qid": str(qid),
-                                    "submitted": True,
-                                    "ctx_used": bool(ctx),
-                                    "ok": bool(ok),
-                                    "is_admin": bool(
-                                        st.session_state.get("is_admin", False)
-                                        or st.session_state.get("is_admin_cached", False)
-                                    ),
-                                },
-                            )
-
-                        coach_slot.info(ans)# ============================================================
-# ✅ (추가) 정답 발음 확인 버튼용: 플레이어 없이 즉시 재생(JS Audio / TTS)
-# - 브라우저에 플레이어 UI가 뜨지 않게, new Audio().play()로만 재생
-# - JS 문자열은 % 포맷을 써서 f-string 중괄호 오류를 방지
-# ============================================================
-import json as _json
-
-def _play_audio_html_oneclick(url: str, uid: str, label: str = "🔊 정답 발음 확인") -> None:
-    """One-click hidden audio play (no player UI). Works on iOS/Android/PC."""
-    url = (url or "").strip()
-    if not url:
-        return
+    # ---- first-visit guide (Hub only) ----
     try:
-        safe_url = _json.dumps(url)
-        html = f"""
-        <div style="margin:6px 0 2px 0;">
-          <audio id="aud_{uid}" preload="none" src={safe_url}></audio>
-          <button type="button"
-            onclick="(function(){{try{{var a=document.getElementById('aud_{uid}');if(!a)return;a.currentTime=0;a.play();}}catch(e){{}}}})()"
-            style="width:100%;padding:10px 12px;border-radius:12px;border:1px solid rgba(0,0,0,.15);background:#fff;font-size:16px;font-weight:700;cursor:pointer;">
-            {label}
-          </button>
-        </div>
-        """
-        components.html(html, height=70)
-    except Exception:
-        pass
+        progress_all = st.session_state.get("progress_all", {}) or {}
+        _collapsed = bool(progress_all.get("hub_flow_guide_collapsed", False))
 
-
-def _play_audio_no_player(url: str) -> None:
-    url = (url or "").strip()
-    if not url:
-        return
-    try:
-        components.html(
-            "<script>(function(){try{new Audio(%s).play();}catch(e){}})();</script>" % _json.dumps(url),
-            height=0,
-        )
-    except Exception:
-        pass
-
-def _speak_no_player(text: str) -> None:
-    txt = (text or "").strip()
-    if not txt:
-        return
-    try:
-        components.html(
-            "<script>(function(){try{const synth=window.speechSynthesis;if(!synth)return;"
-            "function pick(){const vs=synth.getVoices()||[];const ja=vs.filter(v=>(String(v.lang||'').toLowerCase().startsWith('ja')));"
-            "return ja.find(v=>/google/i.test(v.name||''))||ja[0]||null;}"
-            "const u=new SpeechSynthesisUtterance(%s);u.lang='ja-JP';const v=pick();if(v)u.voice=v;"
-            "synth.cancel();synth.speak(u);}catch(e){}})();</script>" % _json.dumps(txt),
-            height=0,
-        )
-    except Exception:
-        pass
-
-if submitted:
-    with st.container(border=True):
-        total_cnt = len(qids)
-        current_no = idx + 1
-        hotena_title("assets/hotena_talk/icons_title/icon_check_title.png", "발음 체크", size_px=56, right_text=f"📘 진행: {current_no} / {total_cnt}")
-
-
-        
-        # ✅ 정답 발음 확인 (플레이어 없이)
-        # - PRO: 무제한
-        # - FREE: 남은 발음 듣기(무료 3회/일) 내에서 사용
-        _ans_audio = (
-            row.get("answer_mp3", "")
-            or row.get("answer_audio", "")
-            or row.get("answer_audio_url", "")
-            or ""
-        )
-        _ans_audio = resolve_audio_url(str(_ans_audio))
-        _ans_txt = str(row.get("answer_jp", "") or "").strip()
-
-        if IS_PRO:
-            # ✅ PRO: universal one-click no-player playback (all platforms)
-            if _ans_audio:
-                _play_audio_html_oneclick(_ans_audio, uid=f"{qid}_ans_pron_html", label="🔊 정답 발음 확인")
-            else:
-                if st.button("🔊 정답 발음 확인", key=f"{qid}_ans_pron_tts", use_container_width=True):
-                    _speak_no_player(_ans_txt)
-        else:
-            _rem_tts = _free_tts_remaining()
-            if _rem_tts > 0:
-                if st.button(
-                    f"🔊 정답 발음 확인 (무료 {FREE_TTS_QUOTA-_rem_tts+1}/{FREE_TTS_QUOTA})",
-                    key=f"{qid}_ans_pron_free",
-                    use_container_width=True,
-                ):
-                    _use_free_tts_once()
-                    if _ans_audio:
-                        _play_audio_no_player(_ans_audio)
-                    else:
-                        _speak_no_player(_ans_txt)
-            else:
-                st.button("🔒 정답 발음 확인 (PRO)", key=f"{qid}_ans_pron_lock", disabled=True, use_container_width=True)
-# ✅ 말하기 녹음(선택)
-        # - PRO: 녹음 가능
-        # - FREE: PRO 안내 카드 노출
-        # ✅ 녹음 위젯이 간헐적으로 꼬이는 환경(모바일/브라우저) 대비: 문제(qid)마다 key nonce를 바꿔 새 위젯으로 렌더
-        if st.session_state.get("_talk_audio_nonce_qid") != str(qid):
-            st.session_state["_talk_audio_nonce"] = int(st.session_state.get("_talk_audio_nonce") or 0) + 1
-            st.session_state["_talk_audio_nonce_qid"] = str(qid)
-        _audio_nonce = int(st.session_state.get("_talk_audio_nonce") or 0)
-        _audio = None
-        if IS_PRO:
-            _audio = st.audio_input("🎤 (선택) 내 발음을 녹음하고 들어보세요", key=f"{qid}_record_{_audio_nonce}")
-            if _audio is not None:
-                # 🔧 audio_input 반환 객체를 그대로 st.audio에 넘기면(스트림 포인터/재렌더링 영향)
-                # 일부 환경에서 'An error has occurred, please try again.'가 뜰 수 있어
-                # bytes로 복사해서 재생/후속 처리에 재사용합니다.
-                _rec_bytes_key = f"{qid}__rec_bytes"
-                try:
-                    if hasattr(_audio, "getvalue"):
-                        _ab = _audio.getvalue()
-                    else:
-                        _ab = _audio.read()
-                        if hasattr(_audio, "seek"):
-                            _audio.seek(0)  # ✅ audio_input 내부 미리보기/파형용으로 되감기
-                except Exception:
-                    _ab = None
-
-                if _ab:
-                    st.session_state[_rec_bytes_key] = _ab
-                    _fmt = getattr(_audio, "type", None) or "audio/wav"
-                    st.audio(_ab, format=_fmt)  # ✅ wav 고정 말고 실제 타입 사용
-        else:
-            remr = _free_record_remaining()
-            if remr > 0:
-                st.caption(f"FREE 녹음 남은 횟수: {remr}/{FREE_RECORD_QUOTA} (오늘 기준)")
-                _audio = st.audio_input("🎤 (무료) 내 발음을 녹음하고 들어보세요", key=f"{qid}_record_free_{_audio_nonce}")
-                if _audio is not None:
-                    _use_free_record_once()
-                    st.audio(_audio)
-            else:
-                st.markdown(
-                    '''
-<div style="padding:12px;border:1px solid #FFD54F;border-radius:12px;background:#FFF8E1;">
-  <div style="font-weight:800;">🎙️ 발음 녹음 기능은 PRO 전용입니다</div>
-  <div style="margin-top:6px;font-size:0.92rem;opacity:0.9;">
-    오늘의 무료 녹음 3회를 모두 사용했습니다.
-  </div>
-  <div style="margin-top:10px;">
-    <span style="background:#FFD54F;color:#000;padding:3px 10px;border-radius:10px;font-weight:900;">PRO</span>
-  </div>
-</div>
-''',
-                    unsafe_allow_html=True,
-                )
-
-        # ✅ 말하기 점수 (A안: 서버 STT 기반) — 제출 후/버튼 클릭 시에만 실행
-        # - 보기 선택 단계에는 영향을 주지 않습니다.
-        score_key = f"talk_pron_score_{qid}"
-        text_key = f"talk_pron_text_{qid}"
-        err_key = f"talk_pron_err_{qid}"
-
-        # ✅ (중요) 정답 제출 직후에는 '녹음 전' 상태가 기본입니다.
-        # - Streamlit rerun/캐시로 이전 결과가 남아 보이는 현상을 막기 위해,
-        #   이 문제(qid)의 발음 점수/인식결과는 '처음 진입' 시 1회 초기화합니다.
-        _entered_key = f"talk_pron_entered_{qid}"
-        if not st.session_state.get(_entered_key, False):
-            st.session_state[_entered_key] = True
-            st.session_state.pop(text_key, None)
-            st.session_state.pop(score_key, None)
-            st.session_state.pop(err_key, None)
-            st.session_state.pop(f"talk_pron_lasthash_{qid}", None)
-
-        audio_obj = locals().get("_audio", None)
-        # bytes를 session_state에 저장해두었다면(BytesIO로 감싸서) 이후 STT/채점에서 안정적으로 사용
-        _rec_bytes_key = f"{qid}__rec_bytes"
-        _ab = st.session_state.get(_rec_bytes_key)
-        if _ab:
+        _flow_action = st.query_params.get("flow")
+        if _flow_action in ("hide", "open"):
+            # apply once then clear param
             try:
-                audio_obj = io.BytesIO(_ab)
+                _set_val = True if _flow_action == "hide" else False
+                progress_all["hub_flow_guide_collapsed"] = bool(_set_val)
+                st.session_state["progress_all"] = progress_all
+                try:
+                    save_progress(sb_authed, user.id, progress_all)  # type: ignore[name-defined]
+                except Exception:
+                    pass
             except Exception:
                 pass
-
-        # ✅ 녹음 '전'에는 결과/점수 표시 및 자동 계산을 절대 하지 않기
-        _peek = b""
-        if audio_obj is not None:
             try:
-                if hasattr(audio_obj, "getvalue"):
-                    _peek = audio_obj.getvalue() or b""
-                elif hasattr(audio_obj, "read"):
-                    _pos = audio_obj.tell() if hasattr(audio_obj, "tell") else None
-                    _peek = audio_obj.read() or b""
-                    if _pos is not None and hasattr(audio_obj, "seek"):
-                        audio_obj.seek(_pos)
+                del st.query_params["flow"]
             except Exception:
-                _peek = b""
+                st.query_params.update({})
+            st.rerun()
 
-        has_audio = bool(_peek)
-        if not has_audio:
-            # 화면에는 '녹음기'만 보이고, 결과/점수는 숨깁니다.
-            st.session_state.pop(text_key, None)
-            st.session_state.pop(score_key, None)
-            st.session_state.pop(err_key, None)
-
-
-        # ✅ (중요) 녹음을 아직 하지 않았는데 이전 결과(점수/인식)가 남아 보이는 경우가 있어
-        # 제출 직후(또는 위젯이 아직 비어있는 상태)에는 결과를 초기화합니다.
-        _last_hash_key = f"talk_pron_lasthash_{qid}"
-        if not has_audio:
-            st.session_state.pop(text_key, None)
-            st.session_state.pop(score_key, None)
-            st.session_state.pop(err_key, None)
-            st.session_state.pop(_last_hash_key, None)
-
-        # ✅ 자동 점수 계산 (녹음이 새로 들어왔을 때 1회만)
-        # - 보기 선택 단계/리런에 영향 없도록, 오디오 해시가 바뀐 경우에만 실행합니다.
-        if has_audio:
+        def _set_collapsed(v: bool):
+            progress_all["hub_flow_guide_collapsed"] = bool(v)
+            st.session_state["progress_all"] = progress_all
             try:
-                _b = b""
-                _mime = "audio/wav"
-                _mime = getattr(audio_obj, "type", None) or "audio/wav"
-                if hasattr(audio_obj, "getvalue"):
-                    _b = audio_obj.getvalue()
-                elif hasattr(audio_obj, "read"):
-                    _b = audio_obj.read()
-                _h = hashlib.sha1(_b).hexdigest() if _b else ""
+                save_progress(sb_authed, user.id, progress_all)  # type: ignore[name-defined]
             except Exception:
-                _b, _mime, _h = b"", "audio/wav", ""
+                pass
+            st.rerun()
 
-            # 오디오가 아직 실제로 녹음되지 않은 상태(빈 바이트)면 이전 결과를 보여주지 않음
-            if not _h:
-                st.session_state.pop(text_key, None)
-                st.session_state.pop(score_key, None)
-                st.session_state.pop(err_key, None)
-                st.session_state.pop(_last_hash_key, None)
+        st.markdown('<div class="h-guide-wrap">', unsafe_allow_html=True)
+        if _collapsed:
+            base = _hub_build_base_qs()
+            open_href = "?" + base + "flow=open"
+            hide_href = "?" + base + "flow=hide"
+            start_href = "?" + base + "p=word"
 
-            if _h and st.session_state.get(_last_hash_key) != _h:
-                st.session_state[_last_hash_key] = _h
-                st.session_state.pop(err_key, None)
-                with st.spinner("말하기 점수 계산 중..."):
-                    try:
-                        _txt = _openai_transcribe_bytes(_b, mime=_mime)
-                        st.session_state[text_key] = _txt
-                        st.session_state[score_key] = _similarity_score(_txt, str(row.get("answer_jp", "")))
-                    except Exception as _e:
-                        st.session_state[err_key] = str(_e)
+            st.markdown(
+                f'''<div class="h-guidebox">
+              <div class="h-guide-mini">
+                <p class="h-guide-mini-t">📘 하테나일본어 앱 사용 흐름</p>
+                <div class="h-guide-mini-actions">
+                    <a class="h-guide-btn ghost" href="{open_href}" target="_self">사용 흐름 보기 ▼</a>
+                    <a class="h-guide-btn primary" href="{start_href}" target="_self">바로 시작하기</a>
+                    <a class="h-guide-btn ghost" href="{hide_href}" target="_self">이 안내 접기</a>
+                </div>
+              </div>
+            </div>''',
+                unsafe_allow_html=True,
+            )
 
-        c_sc1, c_sc2 = st.columns([0.72, 0.28], vertical_alignment="center")
-        with c_sc1:
-            hotena_title("assets/hotena_talk/icons_title/icon_score_title.png", "말하기 점수", size_px=44, gap_px=0)
-        with c_sc2:
-            # ✅ '다시 계산'은 네트워크/브라우저 상태 등으로 자동 계산이 실패했을 때만 노출
-            show_recalc = bool(st.session_state.get(err_key))
-            do_calc = False
-            if show_recalc:
-                do_calc = st.button("다시 계산", use_container_width=True, disabled=not has_audio, key=f"{qid}_pron_calc")
+        st.markdown("</div>", unsafe_allow_html=True)
+    except Exception:
+        pass
 
-        if do_calc:
-            try:
-                b = b""
-                mime = "audio/wav"
-                if audio_obj is not None:
-                    mime = getattr(audio_obj, "type", None) or "audio/wav"
-                    if hasattr(audio_obj, "getvalue"):
-                        b = audio_obj.getvalue()
-                    elif hasattr(audio_obj, "read"):
-                        b = audio_obj.read()
-                txt = _openai_transcribe_bytes(b, mime=mime)
-                st.session_state[text_key] = txt
-                st.session_state[score_key] = _similarity_score(txt, str(row.get("answer_jp", "")))
-                st.session_state.pop(err_key, None)
-            except Exception as e:
-                st.session_state[err_key] = str(e)
+    # ---- header ----
+    st.markdown(
+        f"""
+<div class="h-wrap">
+  <div class="h-top">
+    <div>
+      <p class="h-title">하테나일본어</p>
+      <div class="h-quote-card"><span class="h-quote-dot"></span><span class="h-quote-t">{today_quote}</span></div>
+      <p class="h-sub" style="opacity:.58;font-size:.86rem;margin:.10rem 0 0;">오늘의 성취율을 확인하고, 바로 이어가세요.</p>
+    </div>
+    <div class="h-pill">🔥 <b>{streak}</b>일</div>
+  </div>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
 
-        if st.session_state.get(err_key):
-            st.warning("점수 계산 실패: " + str(st.session_state.get(err_key)))
+    # ---- donut ----
+    st.markdown(
+        f"""
+<div class="h-center">
+  <div class="donut" style="--target:{pct};"></div>
+  <div class="donut-inner">
+    <div class="donut-pct">{pct}%</div>
+    <div class="donut-label">오늘 목표</div>
+  </div>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
 
-        # 결과 표시(계산된 경우)
-        if st.session_state.get(text_key):
-            st.caption("인식 결과(참고)")
-            st.write(str(st.session_state.get(text_key)))
+    # ---- weekly heatmap ----
+    days = []
+    for i in range(6, -1, -1):
+        d = kst_today - timedelta(days=i)
+        s = int(daily_map.get(d, 0))
+        days.append((d, s))
 
-        if st.session_state.get(score_key) is not None:
-            st.metric("점수", int(st.session_state.get(score_key) or 0))
+    def _hm_class(sets_: int) -> str:
+        if sets_ <= 0:
+            return "hm-cell"
+        if sets_ == 1:
+            return "hm-cell hm-on"
+        if sets_ == 2:
+            return "hm-cell hm-mid"
+        return "hm-cell hm-hi"
 
-        st.caption("정답을 보고 2~3번 따라 말해 보세요. 녹음이 끝나면 점수가 자동으로 계산됩니다.")
-        reward_key = f"{NS}_reward_ready_{qid}"
-        if st.button("✅ 다 했어요 (보상 받기)", use_container_width=True, key=f"{NS}_next_after"):
-            # ✅ 규칙: '녹음'을 했고, 점수가 100점일 때만 보상을 받습니다.
-            _sc = int(st.session_state.get(score_key) or 0) if st.session_state.get(score_key) is not None else 0
-            _said = str(st.session_state.get(text_key) or "").strip()
-            if _said and _sc == 100:
-                # ✅ 1단계: 보상만 보여주고, 다음 이동은 사용자가 명확히 누르도록 분리
-                st.session_state[reward_key] = True
-                _inc_today_speech_done(1)
+    hm_cells = ""
+    for d, s in days:
+        cls = _hm_class(s)
+        mark = "●" if s > 0 else "○"
+        hm_cells += f"<div class='{cls}' title='{d.isoformat()} · {s}세트'>{mark}</div>"
+
+    st.markdown(
+        f"""
+<div class="hm-wrap">
+  <div class="hm-title">
+    <b>이번 주 루틴</b>
+    <div style="font-size:.86rem;opacity:.72;">{sum(1 for _,s in days if s>0)}/7일</div>
+  </div>
+  <div class="hm-grid">{hm_cells}</div>
+  <div class="hm-lab">최근 7일 (오늘 포함)</div>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
+
+    # ---- level mini progress (recent 30 days, sets) ----
+    kst_now = datetime.now(timezone(timedelta(hours=9)))
+    cutoff = kst_now - timedelta(days=30)
+
+    lvl_sets = {"N5": 0, "N4": 0, "N3": 0, "N2": 0, "N1": 0}
+    for a in attempts_recent:
+        try:
+            lv = str(a.get("level") or "").strip().upper()
+            created_at = a.get("created_at")
+            if isinstance(created_at, str):
+                s = created_at.replace("Z", "+00:00")
+                dt = datetime.fromisoformat(s)
             else:
-                st.warning("보상은 '녹음 + 100점'일 때만 받을 수 있어요. 지금 바로 녹음하고 100점을 만들어 보세요.")
+                continue
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            if dt < cutoff:
+                continue
+            if lv in lvl_sets:
+                lvl_sets[lv] += 1
+        except Exception:
+            continue
 
-        # ✅ 보상 조건을 못 맞춰도, 다음 문제로는 넘어갈 수 있게(보상만 미지급)
-        if st.button("➡️ 다음 문제로 (보상 없이)", use_container_width=True, key=f"{NS}_go_next_no_reward_{qid}"):
-            _go_next_question()
+    max_v = max(lvl_sets.values()) if lvl_sets else 0
+    def _bar_pct(v: int) -> int:
+        if max_v <= 0:
+            return 0
+        return int(round((v / max_v) * 100))
+
+    level_rows = ""
+    for lv in ["N5","N4","N3","N2","N1"]:
+        v = int(lvl_sets.get(lv, 0))
+        p = _bar_pct(v)
+        level_rows += f"""
+<div class="lv-row">
+  <div class="lv-lab">{lv}</div>
+  <div class="lv-track"><div class="lv-fill" style="width:{p}%"></div></div>
+  <div class="lv-val">{v}</div>
+</div>
+"""
+
+    st.markdown(
+        f"""
+<div class="lv-wrap">
+  <div class="lv-title"><b>📊 레벨 진행</b><span>최근 30일 · 세트 수</span></div>
+  {level_rows}
+</div>
+""",
+        unsafe_allow_html=True,
+    )
+
+    # ---- goal gear (on level progress card, top-right) ----
+    if "show_goal_settings" not in st.session_state:
+        st.session_state["show_goal_settings"] = False
+
+    _gl, _gr = st.columns([1, 0.08], gap="small")
+    with _gr:
+        if st.button("⚙️", key="hub_goal_gear_icon", help="루틴 목표 수정"):
+            st.session_state["show_goal_settings"] = not st.session_state["show_goal_settings"]
+
+    # ---- goal settings (inline panel, opens right under gear) ----
+    if st.session_state.get("show_goal_settings", False):
+        # progress percent for the small animated bar
+        _pct = 0.0
+        try:
+            _pct = 0.0 if int(goal_sets) <= 0 else min(1.0, float(done_total) / float(goal_sets))
+        except Exception:
+            _pct = 0.0
+
+        st.markdown(
+            f"""
+<div class="goal-settings-wrap">
+  <div class="goal-settings-head">
+    <div class="ttl">루틴 목표</div>
+    <div class="meta">오늘 {int(done_total)}/{int(goal_sets)} 세트</div>
+  </div>
+  <div class="goal-bar" style="--w:{_pct*100:.0f}%"><div></div></div>
+</div>
+""",
+            unsafe_allow_html=True,
+        )
+
+        # slider (reasonable max, but keep compatibility with existing data)
+        _max_goal = max(20, int(goal_sets) * 2)
+        _max_goal = min(100, _max_goal)
+        new_goal = st.slider(
+            "하루 목표 세트 수 (1세트=10문항)",
+            min_value=0,
+            max_value=int(_max_goal),
+            value=int(goal_sets),
+            step=1,
+            key="hub_goal_slider",
+            label_visibility="collapsed",
+        )
+        st.markdown(
+            f"<div class='goal-help'>하루 목표: <b>{int(new_goal)}</b> 세트 (1세트=10문항)</div>",
+            unsafe_allow_html=True,
+        )
+
+        csave, cclose = st.columns([1, 1], gap="small")
+        with csave:
+            if st.button("저장", use_container_width=True, key="hub_daily_goal_save"):
+                progress_all["daily_goal_sets"] = int(new_goal)
+                st.session_state["progress_all"] = progress_all
+                save_progress(sb_authed, user.id, progress_all)
+                st.session_state["show_goal_settings"] = False
+                st.rerun()
+        with cclose:
+            if st.button("닫기", use_container_width=True, key="hub_goal_close"):
+                st.session_state["show_goal_settings"] = False
+                st.rerun()
 
 
-        if st.session_state.get(reward_key):
-            hotena_title("assets/hotena_talk/icons_title/icon_reward_title.png", "말하기 완료 보상")
-            st.success("+2 XP 🎤 (말하기 완료 보상)")
-            st.caption("👇 아래 버튼을 누르면 다음 문제로 넘어갑니다.")
+    # ---- rows (clickable) ----
+    def _row(href: str, title: str, done: int, q: int, kind: str):
+        dots = _dots_3(int(done), int(goal_sets))
+        return f"""<a href='{href}' style='text-decoration:none;color:inherit;'>
+  <div class='row row-{kind}'>
+    <div class='row-left'>
+      <p class='row-title'>{title}</p>
+      <p class='row-meta'>{q} 문항</p>
+    </div>
+    <div class='row-right'>
+      <p class='row-dots'>{dots}</p>
+      <div class='row-goal'>{done}/{goal_sets} 세트</div>
+    </div>
+  </div>
+</a>"""
 
-            if st.button("➡️ 다음 문제 풀기", use_container_width=True, key=f"{NS}_go_next_after_reward_{qid}"):
-                _go_next_question()
-# st.rerun()  # Streamlit은 버튼 클릭 시 자동 rerun됩니다.
+    rows_html = """<div class='h-rows'>""" + \
+        _row("?p=word", "📘 단어", int(w["sets"]), int(w["q"]), "word") + \
+        _row("?p=kanji", "🈶 한자", int(k["sets"]), int(k["q"]), "kanji") + \
+        _row("?p=talk", "💬 회화", int(t["sets"]), int(t["q"]), "talk") + \
+        """</div>"""
+    st.markdown(rows_html, unsafe_allow_html=True)
+
+    # ---- Smart CTA (button set) ----
+    remaining = max(0, goal_sets - done_total)
+    kinds = [
+        ("word", "📘", "단어", int(w["sets"])),
+        ("kanji", "🈶", "한자", int(k["sets"])),
+        ("talk", "💬", "회화", int(t["sets"])),
+    ]
+    order = {"talk": 0, "kanji": 1, "word": 2}
+    kinds.sort(key=lambda x: (x[3], order.get(x[0], 9)))
+    rec_kind, rec_emoji, rec_label, _ = kinds[0]
+
+    if remaining == 0:
+        msg = "오늘 목표 달성! 내일도 1세트부터 가볍게 이어가요."
+    elif remaining == 1:
+        msg = f"오늘 1세트만 더 하면 목표 달성! ({rec_label} 추천)"
+    else:
+        msg = f"오늘 {remaining}세트만 더 하면 목표 달성! ({rec_label} 추천)"
+
+    st.markdown(f"<div class='cta_box cta_box_top'><b>{msg}</b></div>", unsafe_allow_html=True)
+
+    if st.button(f"{rec_emoji} {rec_label} 시작", use_container_width=True, key="hub_cta_primary"):
+        st.session_state["p"] = rec_kind
+        st.query_params["p"] = rec_kind
+        st.rerun()
+
+    # ---- Wrong routine CTA (compact) ----
+    st.markdown("<div style='height:0.25rem'></div>", unsafe_allow_html=True)
+    c_wr1, c_wr2 = st.columns([2, 1])
+    with c_wr1:
+        st.markdown("<div class='h-sub' style='margin-top:.10rem'>오답 루틴(반복오답)으로 복습까지 마무리해요.</div>", unsafe_allow_html=True)
+    with c_wr2:
+        if st.button("🔁 반복오답 루틴", use_container_width=True, key="hub_cta_wrongs"):
+            st.query_params["p"] = "my"
+            st.session_state["p"] = "my"
+            st.session_state["hub_page"] = "my"
+            # mypage 쪽에서 사용하면 자동 반영 (없어도 무해)
+            st.session_state["mypage_tab"] = "wrongs"
+            st.session_state["wrongs_repeat_only"] = True
+            st.rerun()
 
 
+def summarize_attempts(attempts: list[dict]) -> dict:
+    out = {
+        "total_sets": 0,
+        "total_q": 0,
+        "total_score": 0,
+        "by_kind": {
+            "word": {"sets": 0, "q": 0, "score": 0},
+            "kanji": {"sets": 0, "q": 0, "score": 0},
+            "talk": {"sets": 0, "q": 0, "score": 0},
+        },
+    }
+    for a in attempts:
+        q = int(a.get("quiz_len") or 0)
+        s = int(a.get("score") or 0)
+        kind = _infer_kind(str(a.get("level") or ""), str(a.get("pos_mode") or ""))
+        out["total_sets"] += 1
+        out["total_q"] += q
+        out["total_score"] += s
+        out["by_kind"][kind]["sets"] += 1
+        out["by_kind"][kind]["q"] += q
+        out["by_kind"][kind]["score"] += s
+    return out
 
-# ============================================================
-# ✅ 우측 하단 바로가기(FAB): 제출 후 "다음 문제" 빠른 이동
-# - Streamlit 위젯 클릭 rerun을 피하기 위해, queryparam 방식으로 트리거
-# ============================================================
-def _render_talk_fab_next():
-    if not submitted:
-        return
-    components.html(
-        r"""
+# ✅ show unread message popup once per session
+try:
+    uid_now = st.session_state.get("user_id") or getattr(user, "id", None)
+    if uid_now and sb_authed:
+        um_popup_unread_once(sb_authed, str(uid_now))
+except Exception:
+    pass
+
+def render_float_top_anchor_button():
+    """✅ Bottom-right '맨 위로' button using anchor (CSP/No-JS safe)"""
+    st.markdown(
+        """
 <style>
-  .talk-fab-next{
-    position: fixed;
-    right: 16px;
-    bottom: 18px;
-    z-index: 9999;
-    width: 56px;
-    height: 56px;
-    border-radius: 999px;
-    border: 1px solid rgba(0,0,0,.12);
-    box-shadow: 0 10px 28px rgba(0,0,0,.16);
-    background: white;
-    cursor: pointer;
-    font-size: 18px;
-    font-weight: 800;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    user-select:none;
-  }
-  .talk-fab-next:active{ transform: translateY(1px); }
+.hotena-float-top{
+  position: fixed;
+  right: 14px;
+  bottom: 88px;
+  z-index: 2147483646;
+  width: 50px;
+  height: 50px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none !important;
+  background: rgba(17,17,17,0.43);
+  color: #fff !important;
+  font-size: 18px;
+  box-shadow: 0 12px 26px rgba(0,0,0,0.22);
+}
 </style>
-<button class="talk-fab-next" id="talkFabNext" aria-label="다음 문제">➡️</button>
+<a class="hotena-float-top" href="#hotena-top" aria-label="맨 위로">⬆︎</a>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_plan_pill():
+    plan = (st.session_state.get("user_plan") or "free").lower()
+    txt = "✨ PRO 이용 중입니다" if plan == "pro" else "🆓 FREE 이용 중"
+
+    is_admin = bool(st.session_state.get("is_admin", False))
+    base = _hub_build_base_qs()
+    href_admin = "?" + base + "p=admin"
+
+    gear = f'<a class="hub-admin-gear" href="{href_admin}" target="_self" title="관리자">⚙️</a>' if is_admin else ""
+
+    st.markdown(
+        f"""
+<style>
+.hub-plan-wrap{{display:flex;justify-content:flex-start;margin-top:0.05rem;margin-bottom:-0.55rem;}}
+.hub-plan-pill{{display:inline-flex;align-items:center;gap:.45rem;padding:.28rem .55rem;border-radius:999px;
+  border:1px solid rgba(0,0,0,.10);font-size:.86rem;opacity:.92;background:rgba(0,0,0,.02);}}
+.hub-admin-gear{{display:inline-flex;align-items:center;justify-content:center;margin-left:8px;width:28px;height:28px;border-radius:999px;
+  text-decoration:none !important;border:1px solid rgba(0,0,0,.10);background:rgba(0,0,0,.02);font-size:16px;line-height:1;}}
+.hub-admin-gear:hover{{background:rgba(0,0,0,.04);}}
+.hub-plan-pill a{{text-decoration:none !important;}}
+</style>
+<div class="hub-plan-wrap">
+  <div class="hub-plan-pill">{txt}{gear}</div>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
+
+def render_daily_goal_home(sb_authed, user_id: str):
+    """Home dashboard: daily goal (sets-based). 1 set == 10 questions (quiz_len)."""
+    progress_all = st.session_state.get("progress_all", {}) or {}
+
+    # ✅ 세트 목표(기본 3세트). 기존 '문항 목표'를 쓰고 있었다면, 일단 세트 목표로 전환합니다.
+    goal_sets = int((progress_all.get("daily_goal_sets") or 3))
+
+    attempts = fetch_today_attempts(sb_authed, user_id)
+    sm = summarize_attempts(attempts)
+
+    done_sets = int(sm.get("total_sets", 0))
+    done_q = int(sm.get("total_q", 0))
+
+    pct = 0 if goal_sets <= 0 else min(100, int(round(done_sets / goal_sets * 100)))
+
+    st.markdown("## 🎯 오늘의 목표 (세트 기준)")
+    st.progress(pct / 100 if goal_sets > 0 else 0.0)
+
+    c1, c2, c3 = st.columns(3)
+    c1.metric("오늘 완료 세트", f"{done_sets}/{goal_sets}")
+    acc = 0 if done_q <= 0 else int(round(sm.get("total_score", 0) / done_q * 100))
+    c2.metric("정답률", f"{acc}%")
+    c3.metric("문항 수", f"{done_q}문항")
+
+    b1, b2, b3 = st.columns(3)
+    b1.caption(f"단어: {sm['by_kind']['word']['sets']}세트 · {sm['by_kind']['word']['q']}문항")
+    b2.caption(f"한자: {sm['by_kind']['kanji']['sets']}세트 · {sm['by_kind']['kanji']['q']}문항")
+    b3.caption(f"회화: {sm['by_kind']['talk']['sets']}세트 · {sm['by_kind']['talk']['q']}문항")
+
+    with st.expander("목표 수정", expanded=False):
+        new_goal = st.number_input("하루 목표 세트 수 (1세트=10문항)", min_value=0, max_value=100, value=goal_sets, step=1)
+        if st.button("저장", use_container_width=True, key="hub_daily_goal_save"):
+            progress_all["daily_goal_sets"] = int(new_goal)
+            st.session_state["progress_all"] = progress_all
+            save_progress(sb_authed, user_id, progress_all)
+            st.success("저장했습니다.")
+
+def render_reminder_settings(sb_authed, user):
+    """Render reminder settings UI (toggle + time) and persist to profiles.progress.reminder."""
+    progress_all = st.session_state.get("progress_all", {}) or {}
+    rem = progress_all.get("reminder") or {}
+    enabled_default = bool(rem.get("enabled", True))
+    time_default = rem.get("time", "09:00")
+
+    st.markdown("## 🔔 홈 알림 설정")
+    c1, c2 = st.columns([1, 1])
+    with c1:
+        enabled = st.toggle("알림 사용", value=enabled_default, key="hub_rem_enabled")
+    with c2:
+        time_str = st.text_input("알림 시간(HH:MM)", value=time_default, key="hub_rem_time")
+
+    # ----------------------------
+    # 💬 NAVER Talk FAB (default OFF) — saved in profiles.progress
+    # ----------------------------
+    naver_default = bool(progress_all.get('naver_talk_fab_enabled', False))
+    st.markdown('---')
+    st.markdown('### 💬 NAVER Talk 버튼')
+    yn = st.radio('표시 여부', options=['N', 'Y'], index=(1 if naver_default else 0), horizontal=True, key='hub_naver_talk_yn')
+
+    if st.button("저장", use_container_width=True, key="hub_rem_save"):
+        try:
+            hh, mm = [int(x) for x in time_str.split(":")]
+            assert 0 <= hh <= 23 and 0 <= mm <= 59
+        except Exception:
+            st.error("시간 형식이 올바르지 않습니다. 예) 09:00")
+            st.stop()
+
+        progress_all["reminder"] = {"enabled": bool(enabled), "time": f"{hh:02d}:{mm:02d}"}
+        progress_all['naver_talk_fab_enabled'] = (yn == 'Y')
+        st.session_state["progress_all"] = progress_all
+        save_progress(sb_authed, user.id, progress_all)
+        st.success("저장했습니다.")
+
+
+def fire_in_app_reminder_if_enabled(user):
+    """If reminder is enabled, schedule an in-app notification when the app is open."""
+    progress_all = st.session_state.get("progress_all", {}) or {}
+    rem = progress_all.get("reminder") or {}
+    enabled = bool(rem.get("enabled", True))
+    time_str = rem.get("time", "09:00")
+
+    if not enabled:
+        return
+
+    try:
+        hh, mm = [int(x) for x in time_str.split(":")]
+        now = datetime.now()
+        target = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
+        if target <= now:
+            # next day
+            target = target.replace(day=now.day)  # keep structure; safe fallback
+            target = target + (datetime(now.year, now.month, now.day) - datetime(now.year, now.month, now.day))
+        delay_ms = max(1000, int((target - now).total_seconds() * 1000))
+    except Exception:
+        delay_ms = 0
+
+    msg = json.dumps(daily_message(str(user.id)))
+    components.html(
+        f"""
 <script>
-(function(){
-  const b = document.getElementById("talkFabNext");
-  if(!b) return;
-  if(b.dataset.bound === "1") return;
-  b.dataset.bound = "1";
-  b.addEventListener("click", () => {
-    try{
-      const url = new URL(window.location.href);
-      url.searchParams.set("talk_next","1");
-      window.location.href = url.toString();
-    }catch(e){}
-  });
-})();
+  (function(){{
+    try {{
+      const delay = {delay_ms};
+      const message = {msg};
+      if (delay <= 0) return;
+      setTimeout(() => {{
+        try {{
+          if (typeof Notification !== 'undefined') {{
+            if (Notification.permission === 'granted') {{
+              new Notification('하테나일본어', {{ body: message }});
+            }}
+          }}
+          // Fallback: simple alert-like toast
+          const t = document.createElement('div');
+          t.textContent = message;
+          t.style.cssText = 'position:fixed;left:50%;bottom:16px;transform:translateX(-50%);padding:10px 14px;background:rgba(20,20,20,0.92);color:#fff;border-radius:12px;font-size:14px;z-index:2147483647;';
+          document.body.appendChild(t);
+          setTimeout(()=>t.remove(), 4500);
+        }} catch(e) {{}}
+      }}, delay);
+    }} catch(e) {{}}
+  }})();
 </script>
 """,
         height=0,
     )
 
-_render_talk_fab_next()
 
-# ============================================================# ✅ Set completion (10문제 모두 제출되면 자동 집계)
 # ============================================================
+# 🔔 Reminder messages (혼합 50)
+# ============================================================
+REMINDER_MESSAGES = [
+  "오늘도 5분만, 시작해볼까요?",
+  "딱 한 문제만 풀면, 흐름이 살아나요.",
+  "어제보다 1%만 앞으로 가면 됩니다.",
+  "완벽 말고, 실행. 오늘도 한 걸음!",
+  "지금 시작하면, 오늘은 이긴 겁니다.",
+  "짧아도 괜찮아요. 루틴만 지켜요.",
+  "단어 10개면 충분합니다. 가볍게 가요.",
+  "한자 1개만 써도, 실력은 쌓입니다.",
+  "회화는 30초만 말해도 효과 있어요.",
+  "오늘의 목표: ‘안 끊기기’",
+  "시작이 전부예요. 딱 지금!",
+  "지금 한 번만 열어도, 내일이 쉬워져요.",
+  "오늘의 승리는 ‘접속’입니다.",
+  "부담 0, 실행 1.",
+  "틀려도 괜찮아요. 맞힐 때까지 가요.",
+  "오늘 한 번만 하면, 내일 덜 힘들어요.",
+  "지금 2분만 투자해요.",
+  "오늘은 ‘가볍게 시작’이 정답.",
+  "내일의 내가 고마워할 선택: 지금 시작하기",
+  "문제 한 개로도 충분히 공부입니다.",
+  "오늘도 한 번 열면, 이미 반은 했어요.",
+  "무리하지 말고, 멈추지만 말자.",
+  "딱 한 세트만. 그 다음은 보너스.",
+  "오늘은 복습만 해도 충분합니다.",
+  "오늘의 목표: ‘0을 1로 만들기’",
+  "기세는 ‘첫 클릭’에서 나옵니다.",
+  "지금은 준비운동. 가볍게!",
+  "꾸준함이 결국 실력입니다.",
+  "오늘은 단어, 내일은 한자. 번갈아도 좋아요.",
+  "오늘의 승부는 ‘시작 버튼’입니다.",
+  "오늘은 내 페이스로.",
+  "지금 시작하면, 뇌가 깨어나요.",
+  "작은 성취가 큰 자신감을 만듭니다.",
+  "어제 쉬었어도 괜찮아요. 오늘 다시!",
+  "길게 말고, 짧게라도 꾸준히!",
+  "손풀기 1문제만 하고 끝내도 OK.",
+  "오늘의 미션: ‘새 문제’ 눌러보기",
+  "오늘도 연결해 둡시다.",
+  "지금의 한 문제는 미래의 자신을 돕습니다.",
+  "오늘은 ‘짧게라도 끝내기’",
+  "지금 한 번만, 진짜로.",
+  "공부는 기분이 아니라 습관.",
+  "오늘은 ‘듣기’ 한 번만 해도 좋아요.",
+  "오늘은 ‘읽기’ 한 줄만 읽어도 됩니다.",
+  "오늘의 목표: ‘시작하고 종료하기’",
+  "지금은 연습 시간. 실수해도 괜찮아요.",
+  "딱 한 번만 열어봅시다.",
+  "오늘도 한 번만!",
+  "시작하면 끝은 따라옵니다.",
+]
+st.session_state["REMINDER_MESSAGES"] = REMINDER_MESSAGES
 
-def is_done_one(qid_: str) -> bool:
-    return bool(st.session_state.get(f"{NS}_submitted_{qid_}"))
+# ============================================================
+# ✅ UI: Login (single)
+# ============================================================
+refresh_session_from_cookie_if_needed(force=False)
+
+user = st.session_state.get("user")
+sb_authed = st.session_state.get("sb_authed")
+
+if not user:
+    # ✅ Landing-style login (full-screen hero)
+    email, pw, mode, submit = landing.landing_ui(assets_dir='assets')
+
+    if submit:
+        if not email or not pw:
+            st.error('이메일/비밀번호를 입력해 주세요.')
+            st.stop()
+        try:
+            if mode == '로그인':
+                res = sb.auth.sign_in_with_password({'email': email, 'password': pw})
+            else:
+                res = sb.auth.sign_up({'email': email, 'password': pw})
+
+            if getattr(res, 'session', None) and getattr(res.session, 'access_token', None):
+                st.session_state['user'] = res.user
+                st.session_state['access_token'] = res.session.access_token
+                st.session_state['refresh_token'] = res.session.refresh_token
+                cookies['access_token'] = res.session.access_token
+                cookies['refresh_token'] = res.session.refresh_token
+                _cookies_save_once_per_run()
+
+                # ✅ persist encrypted tokens for refresh-proof login (existing behavior)
+                try:
+                    st.query_params['rt'] = _enc(res.session.refresh_token)
+                    st.query_params['at'] = _enc(res.session.access_token)
+                    _js_set_localstorage('hotena_rt', st.query_params.get('rt',''))
+                    _js_set_localstorage('hotena_at', st.query_params.get('at',''))
+                except Exception:
+                    pass
+
+                st.success('로그인 완료!')
+                st.rerun()
+            else:
+                st.warning('이메일 인증이 필요할 수 있습니다. (Supabase 설정에 따라 다름)')
+        except Exception as e:
+            st.error('로그인/가입 실패')
+            st.code(str(e))
+    st.stop()
+
+# logged in
+sb_authed = get_authed_sb()
+user = st.session_state.get("user")
+ensure_profile(sb_authed, user)
+load_profile(sb_authed, user.id)
+
+# ============================================================
+# 🔔 In-app reminder (no inline UI; settings live in menu -> Reminder page)
+# ============================================================
+fire_in_app_reminder_if_enabled(user)
+
+# ============================================================
+# ✅ Navigation (hub_page)
+# ============================================================
+if "hub_page" not in st.session_state:
+    st.session_state["hub_page"] = "home"
+
+def go(page: str):
+    st.session_state["hub_page"] = page
+    st.rerun()
 
 
-def finalize_set_if_ready():
-    if not all(is_done_one(q) for q in qids):
-        return
-
-    # 중복 집계 방지
-    done_key = f"{NS}_set_done"
-    if st.session_state.get(done_key):
-        return
-
-    score = 0
-    wrong_list: list[dict] = []
-    for q in qids:
-        tmp = pool_df[pool_df["qid"].astype(str) == str(q)]
-        if tmp.empty:
-            continue
-        r = tmp.iloc[0].to_dict()
-        correct = str(r.get("answer_jp", "")).strip()
-        sel = st.session_state.get(f"{NS}_selected_{q}")
-        ok = (sel == correct)
-        score += 1 if ok else 0
-        if not ok:
-            wrong_list.append({"qid": q, "selected": sel, "correct": correct})
-
-    wrong_count = len(wrong_list)
-
-    # progress 저장(누적)
-    prog = load_progress()
-    talk_prog = prog.get("talk") or {}
-    talk_prog["attempts"] = int(talk_prog.get("attempts") or 0) + len(qids)
-    talk_prog["correct"] = int(talk_prog.get("correct") or 0) + score
-    talk_prog["wrongs"] = int(talk_prog.get("wrongs") or 0) + wrong_count
-    talk_prog["last_set"] = {
-        "ts": datetime.utcnow().isoformat() + "Z",
-        "tag": tag,
-        "level": level,
-        "score": score,
-        "quiz_len": len(qids),
-        "wrong_count": wrong_count,
-        "qids": qids,
+def _clear_training_ui_state():
+    """Clear only training-related UI/session keys so menu navigation always feels fresh.
+    IMPORTANT: Do NOT clear auth/progress tokens or user info.
+    """
+    prefixes = (
+        "q_",          # quiz option widgets (word/kanji)
+        "talk_",       # talk widgets
+        "talk_submit_",
+        "talk_next_",
+        "talk_to_wrongs_",
+    )
+    exact_keys = {
+        # common quiz flags
+        "submitted", "is_graded",
+        # word/kanji pools
+        "_pool", "pool_ready", "_patterns", "_patterns_ready",
+        # quiz state
+        "quiz", "answers", "history", "wrong_list",
+        "wrong_counter", "total_counter",
+        "saved_this_attempt", "stats_saved_this_attempt", "session_stats_applied_this_attempt",
+        "quiz_version",
+        # misc per-run UI helpers
+        "_scroll_top_once", "_scroll_top_nonce",
+        "excluded_wrong_words",
+        "target_questions",
+        "counted_qids",
+        "combo_last_notice",
+        "_counted_today",
+        "today_done",
+        "today_goal_done",
     }
-    prog["talk"] = talk_prog
-    save_progress(prog)
 
-    # DB 로그(선택)
-    log_attempt(level=level, score=score, quiz_len=len(qids), wrong_count=wrong_count, wrong_list=wrong_list, tag=tag)
+    for k in list(st.session_state.keys()):
+        if isinstance(k, str) and (k in exact_keys or k.startswith(prefixes)):
+            st.session_state.pop(k, None)
 
-    # 홈 공통 streak/오늘세트 + XP(10)
-    rec = st.session_state.get("hub_record_completion")
-    if callable(rec):
-        rec("talk", score, len(qids))
-
-    st.session_state[done_key] = True
-
-    st.balloons()
-    st.success(f"🎉 10문제 완주! 점수: {score}/{len(qids)}  ·  오답: {wrong_count}")
+def nav_to(page: str):
+    _clear_training_ui_state()
+    st.session_state["hub_page"] = page
+    st.rerun()
 
 
+def hub_logout():
+    # ✅ clear cookie/local persistence + session state
+    try:
+        cookies["access_token"] = ""
+        cookies["refresh_token"] = ""
+        _cookies_save_once_per_run()
+    except Exception:
+        pass
+
+    # clear query params (e.g., rt/at/p)
+    try:
+        st.query_params.clear()
+    except Exception:
+        pass
+
+    # clear localStorage persistence
+    try:
+        _js_remove_localstorage("hotena_rt")
+        _js_remove_localstorage("hotena_at")
+    except Exception:
+        pass
+
+    for k in [
+        "user","access_token","refresh_token","sb_authed","sb_authed_token",
+        "progress_all","hub_page","HUB_MODE"
+    ]:
+        st.session_state.pop(k, None)
+
+    st.rerun()
 
 # ============================================================
-# ✅ TTS single-player renderer (hidden)
-# - Render once per rerun, placed here to ensure definition exists (prevents NameError).
-# - Plays audio/TTS only when st.session_state['_talk_tts_req'] nonce changes.
+# ✅ Bottom Nav (Mobile) + Training Header (A/B)
+# - A: top progress strip for training pages
+# - B: fixed bottom navigation bar (Home/Word/Kanji/Talk/My)
 # ============================================================
-_render_talk_tts_player()
 
-finalize_set_if_ready()
+def _hub_build_base_qs() -> str:
+    """Build querystring base that preserves encrypted rt/at for login persistence."""
+    try:
+        rt_enc = st.query_params.get("rt", "")
+        at_enc = st.query_params.get("at", "")
+    except Exception:
+        rt_enc, at_enc = "", ""
+
+    def _q(s: str) -> str:
+        try:
+            import urllib.parse
+            return urllib.parse.quote(s, safe="") if s else ""
+        except Exception:
+            return s or ""
+
+    parts = []
+    if rt_enc:
+        parts.append("rt=" + _q(rt_enc))
+    if at_enc:
+        parts.append("at=" + _q(at_enc))
+    return ("&".join(parts) + "&") if parts else ""
+
+def run_script(filename: str):
+    path = (BASE_DIR / filename).resolve()
+    if not path.exists() or not path.is_file():
+        st.error(f"파일을 찾을 수 없습니다: {path}")
+        st.stop()
+    # ✅ Hub mode flag so child scripts can adjust UI/CSS
+    st.session_state["HUB_MODE"] = True
+    runpy.run_path(str(path), run_name="__main__")
+
+# ============================================================
+# ✅ User Messages (Admin DM / Broadcast) utilities
+# ============================================================
+
+def _um_table_ready(sb) -> bool:
+    try:
+        sb.table("user_messages").select("id").limit(1).execute()
+        return True
+    except Exception:
+        return False
+
+def _um_safe_toast(msg: str):
+    # Streamlit toast exists in newer versions; fallback to info
+    try:
+        st.toast(msg)
+    except Exception:
+        st.info(msg)
+
+def um_unread_user_set(sb, limit: int = 10000) -> set[str]:
+    """Return set of user_id strings that have at least 1 unread message."""
+    try:
+        r = (sb.table("user_messages")
+              .select("user_id")
+              .is_("read_at", "null")
+              .limit(limit)
+              .execute())
+        rows = r.data or []
+        return {str(x.get("user_id") or "") for x in rows if x.get("user_id")}
+    except Exception:
+        return set()
+
+def um_unread_count(sb, user_id: str) -> int:
+    try:
+        r = (sb.table("user_messages")
+              .select("id", count="exact")
+              .eq("user_id", user_id)
+              .is_("read_at", "null")
+              .execute())
+        return int(getattr(r, "count", 0) or 0)
+    except Exception:
+        return 0
+
+def um_send_to_user(sb, *, to_user_id: str, sender_admin_id: str | None, title: str | None, body: str):
+    payload = {
+        "user_id": to_user_id,
+        "sender_admin_id": sender_admin_id,
+        "title": title or None,
+        "body": body,
+    }
+    return sb.table("user_messages").insert(payload).execute()
+
+def um_bulk_send(sb, payloads: list[dict]):
+    # Supabase python supports bulk insert (list of dicts)
+    return sb.table("user_messages").insert(payloads).execute()
+
+def um_fetch_inbox(sb, user_id: str, limit: int = 50):
+    r = (sb.table("user_messages")
+          .select("id,title,body,created_at,read_at")
+          .eq("user_id", user_id)
+          .order("created_at", desc=True)
+          .limit(limit)
+          .execute())
+    return r.data or []
+
+def um_mark_read(sb, ids: list[str]):
+    if not ids:
+        return
+    return (sb.table("user_messages")
+              .update({"read_at": dt.datetime.utcnow().isoformat()})
+              .in_("id", ids)
+              .execute())
+
+def um_popup_unread_once(sb, user_id: str):
+    """Show a small popup once per session if there are unread messages."""
+    if st.session_state.get("_um_popup_shown"):
+        return
+    n = um_unread_count(sb, user_id)
+    if n > 0:
+        _um_safe_toast(f"🔔 읽지 않은 메시지 {n}개가 있어요. 마이페이지에서 확인해 주세요.")
+    st.session_state["_um_popup_shown"] = True
+
+def um_template_set(title: str, body: str):
+    st.session_state["admin_msg_title"] = title
+    st.session_state["admin_msg_body"] = body
+
+
+
+def render_user_inbox_section(sb_authed, user_id: str):
+    """Render inbox UI (safe) - can be placed on My page."""
+    st.markdown("## 📩 관리자 메시지")
+    if not _um_table_ready(sb_authed):
+        st.info("메시지함이 아직 준비되지 않았습니다.")
+        return
+    msgs = um_fetch_inbox(sb_authed, user_id, limit=50)
+    if not msgs:
+        st.info("받은 메시지가 없습니다.")
+        return
+
+    unread_ids = []
+    for m in msgs:
+        unread = (m.get("read_at") is None)
+        if unread:
+            unread_ids.append(str(m.get("id")))
+        title = (m.get("title") or "메시지").strip()
+        header = f"{'🟡 ' if unread else ''}{title}"
+        with st.expander(header, expanded=unread):
+            st.write(m.get("body") or "")
+            st.caption(str(m.get("created_at") or ""))
+            if unread and st.button("읽음 처리", key=f"um_read_{m.get('id')}"):
+                try:
+                    um_mark_read(sb_authed, [str(m.get("id"))])
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"읽음 처리 실패: {e}")
+
+    # optional: mark all as read with one click
+    if unread_ids:
+        if st.button("모두 읽음 처리", use_container_width=True, key="um_read_all"):
+            try:
+                um_mark_read(sb_authed, unread_ids)
+                st.rerun()
+            except Exception as e:
+                st.error(f"읽음 처리 실패: {e}")
+
+
+def render_admin_dashboard(sb_authed):
+    """
+    Hatena-style admin dashboard.
+    - Uses Plotly if available, otherwise Altair (Streamlit default).
+    - Safe: never crashes if chart libs missing.
+    """
+    import pandas as pd
+
+    st.markdown("## 🛠 관리자 대시보드")
+    st.caption("회원/구독 관리 · 통계 · 기록")
+
+    if not sb_authed:
+        st.error("Supabase 클라이언트를 찾을 수 없습니다. 로그인 상태를 확인해주세요.")
+        return
+
+    # ---------- Load data (best-effort columns) ----------
+    def _try_select(table, cols_list, order_col=None, limit=5000):
+        last = None
+        for cols in cols_list:
+            try:
+                q = sb_authed.table(table).select(cols)
+                if order_col:
+                    q = q.order(order_col, desc=True)
+                q = q.limit(limit)
+                r = q.execute()
+                return (r.data or []), cols
+            except Exception as e:
+                last = e
+        raise last
+
+    profiles_cols = [
+        "id, email, plan, is_admin, pro_until, created_at",
+        "id, email, plan, is_admin, pro_expires_at, created_at",
+        "id, email, plan, is_admin, expires_at, created_at",
+        "id, email, plan, is_admin, created_at",
+        "id, email, plan, is_admin",
+        "id, email, plan",
+        "id, email",
+        "id",
+    ]
+    attempts_cols = [
+        "created_at, user_email, user_id, level, pos_mode, quiz_len, score, wrong_count",
+        "created_at, user_email, level, pos_mode, quiz_len, score, wrong_count",
+        "created_at, user_email, level, pos_mode, score",
+        "created_at, user_email, level, score",
+        "created_at, user_id, score",
+        "created_at",
+    ]
+
+    profiles, profiles_sel, attempts, attempts_sel = [], "", [], ""
+    prof_err = att_err = None
+
+    try:
+        profiles, profiles_sel = _try_select("profiles", profiles_cols, order_col="created_at", limit=2000)
+    except Exception as e:
+        prof_err = e
+    try:
+        attempts, attempts_sel = _try_select("quiz_attempts", attempts_cols, order_col="created_at", limit=5000)
+    except Exception as e:
+        att_err = e
+
+    dfp = pd.DataFrame(profiles) if profiles else pd.DataFrame()
+    dfa = pd.DataFrame(attempts) if attempts else pd.DataFrame()
+
+    # ---------- Hatena UI skin ----------
+    st.markdown("""
+<style>
+.ha-wrap{max-width:none;width:100%;margin:0;box-sizing:border-box;}
+.ha-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:10px 0 14px;}
+.ha-card{background:linear-gradient(180deg, rgba(0,0,0,.035), rgba(0,0,0,.015));
+  border:1px solid rgba(0,0,0,.08);border-radius:18px;padding:14px 14px 12px;}
+.ha-k{font-size:12px;opacity:.65;margin-bottom:6px;}
+.ha-v{font-size:24px;font-weight:800;letter-spacing:-0.02em;line-height:1.1;}
+.ha-s{font-size:12px;opacity:.55;margin-top:6px;}
+.ha-section{border:1px solid rgba(0,0,0,.08);border-radius:18px;padding:14px;margin:10px 0;background:rgba(255,255,255,.65);}
+.ha-title{font-size:15px;font-weight:800;margin:0 0 8px 0;}
+.ha-sub{font-size:12px;opacity:.65;margin:0 0 10px 0;}
+.ha-pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;
+  background:rgba(0,0,0,.04);border:1px solid rgba(0,0,0,.08);font-size:12px;opacity:.85;}
+@media (max-width:900px){.ha-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
+
+.ha-log{display:flex;flex-direction:column;gap:10px;margin-top:10px;}
+.ha-logcard{background:rgba(255,255,255,.82);border:1px solid rgba(0,0,0,.08);border-radius:18px;padding:14px;}
+.ha-logtop{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;}
+.ha-email{font-weight:800;letter-spacing:-0.02em;}
+.ha-time{font-size:12px;opacity:.65;margin-top:2px;display:flex;align-items:center;gap:6px;}
+.ha-badges{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;}
+.ha-badge{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;
+  background:rgba(0,0,0,.04);border:1px solid rgba(0,0,0,.08);font-size:12px;opacity:.9;}
+.ha-badge.ok{background:rgba(0,128,0,.06);border-color:rgba(0,128,0,.18);}
+.ha-badge.bad{background:rgba(220,0,0,.06);border-color:rgba(220,0,0,.18);}
+.ha-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:10px;}
+.ha-mini{display:flex;flex-direction:column;gap:2px;}
+.ha-mini .k{font-size:12px;opacity:.6;}
+.ha-mini .v{font-size:16px;font-weight:800;}
+.ha-ring{width:46px;height:46px;border-radius:999px;display:grid;place-items:center;
+  background:conic-gradient(rgba(0,0,0,.55) var(--p), rgba(0,0,0,.08) 0);}
+.ha-ring > div{width:36px;height:36px;border-radius:999px;background:white;display:grid;place-items:center;
+  font-size:12px;font-weight:800;}
+
+</style>
+""", unsafe_allow_html=True)
+
+    # ---------- KPI cards ----------
+    total_users = int(len(dfp)) if not dfp.empty else 0
+    pro_users = int((dfp.get("plan") == "pro").sum()) if (not dfp.empty and "plan" in dfp.columns) else 0
+    admin_users = int((dfp.get("is_admin") == True).sum()) if (not dfp.empty and "is_admin" in dfp.columns) else 0
+
+    today_attempts = 0
+    last7_attempts = 0
+    if not dfa.empty and "created_at" in dfa.columns:
+        try:
+            ts = pd.to_datetime(dfa["created_at"], errors="coerce", utc=True).dt.tz_convert("Asia/Seoul")
+            today = pd.Timestamp.now(tz="Asia/Seoul").date()
+            today_attempts = int((ts.dt.date == today).sum())
+            last7 = (pd.Timestamp.now(tz="Asia/Seoul") - pd.Timedelta(days=7)).date()
+            last7_attempts = int((ts.dt.date >= last7).sum())
+        except Exception:
+            pass
+
+    st.markdown(f"""
+<div class="ha-wrap">
+  <div class="ha-grid">
+    <div class="ha-card"><div class="ha-k">총 회원</div><div class="ha-v">{total_users:,}</div><div class="ha-s">현재 등록된 회원 수</div></div>
+    <div class="ha-card"><div class="ha-k">PRO 회원</div><div class="ha-v">{pro_users:,}</div><div class="ha-s">전체의 {( (pro_users/total_users)*100 if total_users else 0):.0f}%</div></div>
+    <div class="ha-card"><div class="ha-k">관리자</div><div class="ha-v">{admin_users:,}</div><div class="ha-s">권한 보유 계정</div></div>
+    <div class="ha-card"><div class="ha-k">오늘 퀴즈</div><div class="ha-v">{today_attempts:,}</div><div class="ha-s">최근 7일 합계 {last7_attempts:,}</div></div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+
+    if prof_err:
+        st.error("profiles 조회 실패 (RLS/권한/컬럼 확인 필요)")
+        st.exception(prof_err)
+    if att_err:
+        st.error("quiz_attempts 조회 실패 (RLS/권한/컬럼 확인 필요)")
+        st.exception(att_err)
+
+    tab_users, tab_stats, tab_logs, tab_backup = st.tabs(["👥 회원", "📊 통계", "🕒 기록", "🗂 백업·버전"])
+
+    # ---------- Admin helpers (profiles update / backup) ----------
+    def _admin_update_profile(user_id: str, payload: dict):
+        return sb_authed.table("profiles").update(payload).eq("id", user_id).execute()
+
+    def _admin_set_pro_until(user_id: str, date_value: str):
+        candidates = ["pro_until", "pro_expires_at", "expires_at", "pro_expiry"]
+        last_err = None
+        for col in candidates:
+            try:
+                _admin_update_profile(user_id, {col: date_value})
+                return col
+            except Exception as e:
+                last_err = e
+                continue
+        raise last_err
+
+    def _admin_make_backup_zip(version_tag: str = "") -> tuple[bytes, str]:
+        import io, zipfile, json, datetime
+        from pathlib import Path
+        ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        tag = (version_tag or "stable").strip().replace(" ", "_")
+        filename = f"hotena_backup_{tag}_{ts}.zip"
+        buf = io.BytesIO()
+        with zipfile.ZipFile(buf, "w", compression=zipfile.ZIP_DEFLATED) as z:
+            for name in ["home.py", "app.py", "hotena_basic.py", "talk.py", "mypage.py"]:
+                p = Path(__file__).parent / name
+                if p.exists():
+                    z.write(str(p), arcname=name)
+            z.writestr("manifest.json", json.dumps({
+                "created_at": ts,
+                "version_tag": tag,
+                "files": [zi.filename for zi in z.infolist()],
+            }, ensure_ascii=False, indent=2))
+        return buf.getvalue(), filename
+
+    # ---------- Charts helpers ----------
+    def donut_chart(data_df, name_col, value_col, title):
+        # Try Plotly first
+        try:
+            import plotly.express as px
+            fig = px.pie(data_df, names=name_col, values=value_col, hole=0.62)
+            fig.update_traces(textposition="inside", textinfo="percent+label")
+            fig.update_layout(
+                height=320,
+                margin=dict(t=30, b=10, l=10, r=10),
+                showlegend=False,
+                title=dict(text=title, x=0.02, y=0.96, font=dict(size=14)),
+            )
+            st.plotly_chart(fig, use_container_width=True)
+            return
+        except Exception:
+            pass
+
+        # Altair fallback (usually available with Streamlit)
+        try:
+            import altair as alt
+            chart = (
+                alt.Chart(data_df)
+                .mark_arc(innerRadius=70)
+                .encode(
+                    theta=alt.Theta(field=value_col, type="quantitative"),
+                    color=alt.Color(field=name_col, type="nominal", legend=None),
+                    tooltip=[name_col, value_col],
+                )
+                .properties(height=320, title=title)
+            )
+            st.altair_chart(chart, use_container_width=True)
+            return
+        except Exception:
+            # ultimate fallback
+            st.markdown(f"**{title}**")
+            st.dataframe(data_df, use_container_width=True, hide_index=True)
+
+    def line_chart(daily_df, date_col, value_col, title):
+        try:
+            import plotly.express as px
+            fig = px.line(daily_df, x=date_col, y=value_col)
+            fig.update_layout(
+                height=320,
+                margin=dict(t=30, b=10, l=10, r=10),
+                title=dict(text=title, x=0.02, y=0.96, font=dict(size=14)),
+            )
+            st.plotly_chart(fig, use_container_width=True)
+            return
+        except Exception:
+            pass
+        # Streamlit fallback
+        st.markdown(f"**{title}**")
+        st.line_chart(daily_df.set_index(date_col)[value_col])
+
+    # ---------- tab: stats ----------
+    with tab_stats:
+        # --- 회원별(개인) 통계 ---
+        st.markdown('<div class="ha-section"><div class="ha-title">회원별 통계</div><div class="ha-sub">특정 회원의 사용 패턴을 확인합니다.</div>', unsafe_allow_html=True)
+        if dfa.empty or "user_email" not in dfa.columns:
+            st.info("quiz_attempts 데이터가 없거나 user_email 컬럼이 없어 개인 통계를 만들 수 없습니다.")
+            st.markdown("</div>", unsafe_allow_html=True)
+        else:
+            emails = sorted([e for e in dfa["user_email"].fillna("").astype(str).unique().tolist() if e])
+            q_person = st.text_input("회원 이메일 검색", placeholder="예: gmail / naver / abc ...", key="admin_person_q")
+            emails2 = [e for e in emails if q_person.lower() in e.lower()] if q_person else emails
+            if not emails2:
+                st.warning("검색 결과가 없습니다.")
+                st.markdown("</div>", unsafe_allow_html=True)
+            else:
+                sel_email = st.selectbox("회원 선택", options=emails2[:2000], key="admin_person_sel")
+                df_person = dfa[dfa["user_email"].fillna("").astype(str) == str(sel_email)].copy()
+
+                if "level" in df_person.columns:
+                    by_level_p = df_person.groupby(df_person["level"].astype(str).str.strip().replace({"":"unknown"})).size().reset_index(name="attempts")
+                    by_level_p.columns = ["level", "attempts"]
+                    st.markdown("**레벨별 사용(개인)**")
+                    donut_chart(by_level_p, "level", "attempts", f"{sel_email} · 레벨 분포")
+
+                if "created_at" in df_person.columns:
+                    try:
+                        kst = kst_series(df_person["created_at"])
+                        df_person["date"] = kst.dt.date
+                        daily_p = df_person.groupby("date").size().reset_index(name="attempts").sort_values("date")
+                        if len(daily_p) > 30:
+                            daily_p = daily_p.tail(30)
+                        st.markdown("**최근 30일 사용 추이(개인)**")
+                        line_chart(daily_p, "date", "attempts", f"{sel_email} · 최근 30일")
+                    except Exception:
+                        st.caption("created_at 파싱 실패로 개인 추이를 만들 수 없습니다.")
+                st.markdown("</div>", unsafe_allow_html=True)
+
+        st.markdown('<div class="ha-section"><div class="ha-title">레벨별 사용량</div><div class="ha-sub">최근 기록 기준(quiz_attempts)</div>', unsafe_allow_html=True)
+        if dfa.empty:
+            st.info("quiz_attempts 데이터가 없거나 RLS로 차단되었습니다.")
+        else:
+            d = dfa.copy()
+            lvl = d.get("level", pd.Series(["unknown"]*len(d))).astype(str).str.strip().replace({"":"unknown"})
+            by_level = lvl.value_counts().reset_index()
+            by_level.columns = ["level", "attempts"]
+            donut_chart(by_level, "level", "attempts", "레벨별 시도 비율")
+        st.markdown("</div>", unsafe_allow_html=True)
+
+        st.markdown('<div class="ha-section"><div class="ha-title">최근 30일 추이</div><div class="ha-sub">일별 퀴즈 시도 수</div>', unsafe_allow_html=True)
+        if not dfa.empty and "created_at" in dfa.columns:
+            try:
+                ts = pd.to_datetime(dfa["created_at"], errors="coerce", utc=True).dt.tz_convert("Asia/Seoul")
+                daily = ts.dt.date.value_counts().sort_index().reset_index()
+                daily.columns = ["date", "attempts"]
+                if len(daily) > 30:
+                    daily = daily.tail(30)
+                line_chart(daily, "date", "attempts", "최근 30일 퀴즈 시도")
+            except Exception as e:
+                st.error("차트 생성 실패")
+                st.exception(e)
+        else:
+            st.info("created_at 컬럼이 없거나 데이터가 없습니다.")
+        st.markdown("</div>", unsafe_allow_html=True)
+
+        st.markdown('<div class="ha-section"><div class="ha-title">단어 vs 한자 vs 회화 (추정)</div><div class="ha-sub">pos_mode 기반 추정</div>', unsafe_allow_html=True)
+        if not dfa.empty:
+            def infer(row):
+                s = ""
+                for k in ("pos_mode", "mode", "kind", "app", "module"):
+                    v = row.get(k)
+                    if v is None:
+                        continue
+                    s = str(v).lower()
+                    if s:
+                        break
+                if "kanji" in s or "한자" in s:
+                    return "한자"
+                if "talk" in s or "회화" in s:
+                    return "회화"
+                return "단어"
+            mods = pd.Series([infer(r) for r in dfa.to_dict("records")])
+            by_mod = mods.value_counts().reset_index()
+            by_mod.columns = ["module", "attempts"]
+            donut_chart(by_mod, "module", "attempts", "모듈별 시도 비율")
+        else:
+            st.info("데이터가 없습니다.")
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    # ---------- tab: users ----------
+    with tab_users:
+        st.markdown("""
+        <div class="ha-section">
+          <div class="ha-title">회원 관리</div>
+          <div class="ha-sub">검색/필터 · 등급/만료일 · 기록 초기화</div>
+        </div>
+        <style>
+        .ha-card{background:rgba(255,255,255,0.72);border:1px solid rgba(0,0,0,0.06);border-radius:16px;padding:16px 16px 10px;margin:0 0 14px 0;box-shadow:0 6px 18px rgba(0,0,0,0.04);}
+        .ha-card h4{margin:0 0 10px 0;}
+        .ha-card .stCaption{margin-top:0;}
+        </style>
+        """, unsafe_allow_html=True)
+        st.markdown("""
+        <style>
+        /* Admin tab layout tuning */
+        div[data-testid="stHorizontalBlock"] { align-items: flex-start; }
+        /* Make right panel inputs not overshoot */
+        .ha-card .stSelectbox, .ha-card .stTextInput, .ha-card .stDateInput { width: 100%; }
+        /* Ensure dataframe uses full width of its column */
+        section.main div[data-testid="stDataFrame"] { max-width: 100%; }
+        </style>
+        """, unsafe_allow_html=True)
+
+        def _rpc(name: str, params: dict | None = None):
+            try:
+                return sb_authed.rpc(name, params or {}).execute()
+            except Exception as e:
+                raise e
+
+        if dfp.empty:
+            st.info("profiles 데이터가 없거나 RLS로 차단되었습니다.")
+            st.markdown("</div>", unsafe_allow_html=True)
+        else:
+            u = dfp.copy()
+
+            # --- normalize columns ---
+            if "email" in u.columns:
+                u["email"] = u["email"].fillna("").astype(str)
+            else:
+                u["email"] = ""
+
+            if "plan" in u.columns:
+                u["plan"] = u["plan"].fillna("free").astype(str).str.lower()
+            else:
+                u["plan"] = "free"
+
+            if "is_admin" in u.columns:
+                u["is_admin"] = u["is_admin"].fillna(False).astype(bool)
+            else:
+                u["is_admin"] = False
+
+            # --- last activity from attempts (best effort) ---
+            last_map = {}
+            if (not dfa.empty) and ("created_at" in dfa.columns):
+                try:
+                    _tmp = dfa.copy()
+                    if "user_id" in _tmp.columns:
+                        _tmp["__uid__"] = _tmp["user_id"].astype(str)
+                    else:
+                        _tmp["__uid__"] = ""
+                    ts = pd.to_datetime(_tmp["created_at"], errors="coerce", utc=True).dt.tz_convert("Asia/Seoul")
+                    _tmp["__kst__"] = ts
+                    last_map = _tmp.groupby("__uid__")["__kst__"].max().dropna().to_dict()
+                except Exception:
+                    last_map = {}
+
+            u["id_str"] = u.get("id", "").astype(str)
+            u["last_seen_kst"] = u["id_str"].map(last_map)
+            u["last_seen_kst"] = pd.to_datetime(u["last_seen_kst"], errors="coerce")
+
+            # --- filters ---
+            q = st.text_input("회원 검색", placeholder="이메일/이름(ID 포함)로 검색", key="admin_user_q")
+
+            # ✅ 1) 플랜은 단독 full width
+            plan_filter = st.multiselect(
+                "플랜",
+                options=["free", "pro"],
+                default=["free", "pro"],
+                key="admin_user_plan_filter",
+            )
+
+            # ✅ 2) 나머지(관리자/활동/표시)는 한 줄 full width
+            c2, c3, c4 = st.columns([1.0, 1.0, 0.7], gap="medium")
+            with c2:
+                admin_filter = st.selectbox("관리자", options=["전체","관리자만","일반만"], index=0, key="admin_user_admin_filter")
+            with c3:
+                act_filter = st.selectbox("활동", options=["전체","최근 7일 활동","최근 30일 활동","비활동(30일+)"], index=0, key="admin_user_act_filter")
+            with c4:
+                limit = st.selectbox("표시", options=[50,100,200,500,1000], index=2, key="admin_user_limit")
+
+            mask = pd.Series([True]*len(u))
+
+            if q:
+                ql = q.lower().strip()
+                mask &= (
+                    u["email"].str.lower().str.contains(ql, na=False)
+                    | u["id_str"].str.lower().str.contains(ql, na=False)
+                    | u.get("full_name", pd.Series([""]*len(u))).fillna("").astype(str).str.lower().str.contains(ql, na=False)
+                )
+
+            mask &= u["plan"].isin(plan_filter)
+
+            if admin_filter != "전체":
+                want = (admin_filter == "관리자만")
+                mask &= (u["is_admin"] == want)
+
+            # activity filter
+            now_kst = pd.Timestamp.now(tz="Asia/Seoul")
+            if act_filter != "전체":
+                ls = u["last_seen_kst"]
+                if act_filter == "최근 7일 활동":
+                    mask &= (ls.notna() & (ls >= (now_kst - pd.Timedelta(days=7))))
+                elif act_filter == "최근 30일 활동":
+                    mask &= (ls.notna() & (ls >= (now_kst - pd.Timedelta(days=30))))
+                else:  # inactive 30d+
+                    mask &= (ls.isna() | (ls < (now_kst - pd.Timedelta(days=30))))
+
+            uf = u[mask].copy().sort_values(by=["last_seen_kst","created_at"], ascending=[False, False], na_position="last")
+
+            # --- layout: list + detail (✅ full width) ---
+
+
+            left = st.container()
+
+
+            right = st.container()
+
+            with left:
+                st.caption(f"검색 결과: {len(uf):,}명 / 전체: {len(u):,}명")
+
+                # show table with nicer columns
+                show_cols = []
+                for c in ["email","full_name","plan","is_admin","pro_until","pro_expires_at","expires_at","last_seen_kst","created_at","id_str"]:
+                    if c in uf.columns:
+                        show_cols.append(c)
+                if not show_cols:
+                    show_cols = uf.columns.tolist()[:8]
+
+                table_df = uf[show_cols].head(int(limit)).copy()
+                if "last_seen_kst" in table_df.columns:
+                    table_df["last_seen_kst"] = table_df["last_seen_kst"].dt.strftime("%Y-%m-%d %H:%M").fillna("")
+                if "created_at" in table_df.columns:
+                    try:
+                        ca = pd.to_datetime(table_df["created_at"], errors="coerce", utc=True).dt.tz_convert("Asia/Seoul")
+                        table_df["created_at"] = ca.dt.strftime("%Y-%m-%d")
+                    except Exception:
+                        pass
+
+                
+                # ✅ Pretty user list (cards) instead of dataframe
+                st.markdown("""
+                <style>
+                .ha-userlist{display:flex;flex-direction:column;gap:10px;margin-top:6px;}
+                .ha-urow{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;
+                  padding:12px 14px;border-radius:16px;border:1px solid rgba(0,0,0,0.06);
+                  background:rgba(255,255,255,0.75);box-shadow:0 6px 16px rgba(0,0,0,0.03);}
+                .ha-uleft{min-width:0;}
+                .ha-uemail{font-weight:850;letter-spacing:-0.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+                .ha-umeta{font-size:12px;opacity:.68;margin-top:2px;display:flex;flex-wrap:wrap;gap:10px;}
+                .ha-badges{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end;}
+                .ha-b{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;
+                  font-size:12px;background:rgba(0,0,0,0.04);border:1px solid rgba(0,0,0,0.08);opacity:.92;}
+                .ha-b.pro{background:rgba(0,128,0,0.07);border-color:rgba(0,128,0,0.18);}
+                .ha-b.free{background:rgba(0,0,0,0.03);}
+                .ha-b.admin{background:rgba(0,0,0,0.06);border-color:rgba(0,0,0,0.12);}
+                </style>
+                """, unsafe_allow_html=True)
+
+                # --- filter: users with unread messages ---
+                unread_only = st.checkbox("📩 읽지 않은 메시지 있는 학생만", value=False, key="admin_filter_unread_only")
+                if unread_only:
+                    if _um_table_ready(sb_authed):
+                        _uset = um_unread_user_set(sb_authed)
+                        if _uset:
+                            _keycol = "id_str" if "id_str" in uf.columns else ("id" if "id" in uf.columns else None)
+                            if _keycol:
+                                uf = uf[uf[_keycol].astype(str).isin(_uset)].copy()
+                        else:
+                            st.info("읽지 않은 메시지가 있는 학생이 없습니다.")
+                    else:
+                        st.warning("메시지 기능(DB: user_messages)이 아직 준비되지 않았습니다. 먼저 Supabase에 테이블/RLS를 추가하세요.")
+
+                list_df = uf.head(int(limit)).copy()
+
+                def _fmt_dt(v):
+                    try:
+                        vv = pd.to_datetime(v, errors="coerce")
+                        if pd.isna(vv):
+                            return "-"
+                        if getattr(vv, "tzinfo", None) is not None:
+                            vv = vv.tz_convert("Asia/Seoul")
+                        return vv.strftime("%Y-%m-%d %H:%M")
+                    except Exception:
+                        return "-"
+
+                st.markdown('<div class="ha-userlist">', unsafe_allow_html=True)
+                for _, rr in list_df.iterrows():
+                    em = str(rr.get("email","") or "").strip() or "(no email)"
+                    fn = str(rr.get("full_name","") or "").strip()
+                    uid = str(rr.get("id_str","") or rr.get("id","") or "").strip()
+                    pl = str(rr.get("plan","free") or "free").lower().strip()
+                    adm = bool(rr.get("is_admin", False))
+                    last_seen = rr.get("last_seen_kst", None)
+                    created = rr.get("created_at", None)
+
+                    meta_parts = []
+                    if fn:
+                        meta_parts.append(f"이름: {html_module.escape(fn)}")
+                    if created is not None and str(created).strip():
+                        meta_parts.append(f"가입: {_fmt_dt(created)}")
+                    if last_seen is not None and str(last_seen).strip():
+                        meta_parts.append(f"최근 학습: {_fmt_dt(last_seen)}")
+                    if uid:
+                        meta_parts.append(f"ID: {html_module.escape(uid)}")
+
+                    meta_html = " · ".join(meta_parts) if meta_parts else ""
+
+                    badges = []
+                    badges.append(f"<span class='ha-b { 'pro' if pl=='pro' else 'free' }'>{html_module.escape(pl)}</span>")
+                    if adm:
+                        badges.append("<span class='ha-b admin'>관리자</span>")
+
+                    card = f"""
+                    <div class='ha-urow'>
+                      <div class='ha-uleft'>
+                        <div class='ha-uemail'>{html_module.escape(em)}</div>
+                        <div class='ha-umeta'>{meta_html}</div>
+                      </div>
+                      <div class='ha-badges'>{''.join(badges)}</div>
+                    </div>
+                    """
+                    st.markdown(card, unsafe_allow_html=True)
+                st.markdown('</div>', unsafe_allow_html=True)
+
+            # pick target user for detail actions
+            with right:
+                # ✅ Right panel: compact cards (info / plan / purge)
+                if not uf.empty:
+                    with st.container():
+                        st.markdown('<div class="ha-card">', unsafe_allow_html=True)
+                        st.markdown("#### 선택 회원")
+
+                        options = uf["email"].tolist() if "email" in uf.columns and uf["email"].astype(str).str.len().sum() > 0 else uf["id_str"].tolist()
+                        options = [o for o in options if str(o).strip()]
+
+                        if not options:
+                            st.info("오른쪽 패널을 사용하려면 검색 결과가 있어야 합니다.")
+                            st.markdown("</div>", unsafe_allow_html=True)
+                        else:
+                            sel = st.selectbox("대상", options=options[:2000], key="admin_user_detail_sel")
+
+                            if "email" in uf.columns and sel in uf["email"].values:
+                                row = uf[uf["email"] == sel].head(1)
+                            else:
+                                row = uf[uf["id_str"] == str(sel)].head(1)
+
+                            if row.empty:
+                                st.warning("대상 사용자를 찾지 못했습니다.")
+                                st.markdown("</div>", unsafe_allow_html=True)
+                            else:
+                                r0 = row.iloc[0]
+                                user_id = str(r0.get("id_str", ""))
+                                cur_plan = str(r0.get("plan", "free")).lower()
+                                cur_admin = bool(r0.get("is_admin", False))
+
+                                # find existing expiry column
+                                exp_col = None
+                                for c in ["pro_until", "pro_expires_at", "expires_at", "pro_expiry"]:
+                                    if c in uf.columns:
+                                        exp_col = c
+                                        break
+                                cur_until = r0.get(exp_col) if exp_col else None
+                                try:
+                                    cur_until_dt = pd.to_datetime(cur_until, errors="coerce")
+                                    cur_until_date = cur_until_dt.date() if pd.notna(cur_until_dt) else None
+                                except Exception:
+                                    cur_until_date = None
+
+                                st.markdown(f'<div class="ha-pill">ID: {user_id}</div>', unsafe_allow_html=True)
+                                if r0.get("email"):
+                                    st.caption(str(r0.get("email")))
+                                # optional meta
+                                meta1, meta2 = st.columns([1,1])
+                                with meta1:
+                                    if "last_seen_kst" in r0.index and pd.notna(r0.get("last_seen_kst")):
+                                        try:
+                                            st.caption("최근 학습: " + pd.to_datetime(r0.get("last_seen_kst")).strftime("%Y-%m-%d %H:%M"))
+                                        except Exception:
+                                            pass
+                                with meta2:
+                                    if "created_at" in r0.index and pd.notna(r0.get("created_at")):
+                                        try:
+                                            st.caption("가입: " + pd.to_datetime(r0.get("created_at")).strftime("%Y-%m-%d"))
+                                        except Exception:
+                                            pass
+
+                                st.markdown("</div>", unsafe_allow_html=True)
+
+                                # --- Card: plan / admin / expiry ---
+                                st.markdown('<div class="ha-card">', unsafe_allow_html=True)
+                                st.markdown("#### 플랜 · 권한 · 만료일")
+
+                                new_plan = st.selectbox("플랜", options=["free", "pro"], index=1 if cur_plan == "pro" else 0, key="admin_detail_plan")
+                                new_admin = st.selectbox("관리자", options=[False, True], index=1 if cur_admin else 0, key="admin_detail_admin")
+                                new_until = st.date_input("PRO 만료일", value=cur_until_date, key="admin_detail_until")
+
+                                b1, b2, b3 = st.columns(3)
+                                with b1:
+                                    if st.button("+30일", key="admin_until_plus30"):
+                                        try:
+                                            base = new_until or date.today()
+                                            st.session_state["admin_detail_until"] = base + timedelta(days=30)
+                                            st.rerun()
+                                        except Exception:
+                                            pass
+                                with b2:
+                                    if st.button("+90일", key="admin_until_plus90"):
+                                        try:
+                                            base = new_until or date.today()
+                                            st.session_state["admin_detail_until"] = base + timedelta(days=90)
+                                            st.rerun()
+                                        except Exception:
+                                            pass
+                                with b3:
+                                    if st.button("만료일 제거", key="admin_until_clear"):
+                                        st.session_state["admin_detail_until"] = None
+                                        st.rerun()
+
+                                # save action (re-uses existing rpc if available)
+                                confirm_save = st.checkbox("변경사항 저장 전 확인", value=False, key="admin_detail_confirm_save")
+                                if st.button("저장", type="primary", use_container_width=True, disabled=not confirm_save, key="admin_detail_save_btn"):
+                                    # ✅ 정책: '등급 변경' 시 PRO 기간을 무조건 30일로 확정
+                                    # - free -> pro  : 오늘 + 30일
+                                    # - pro  -> free : 만료일 제거(None)
+                                    # - 동일 플랜 내에서는(예: pro 유지) 현재 입력값 유지
+                                    effective_until = new_until
+                                    try:
+                                        if str(new_plan).lower() != str(cur_plan).lower():
+                                            if str(new_plan).lower() == "pro":
+                                                effective_until = date.today() + timedelta(days=30)
+                                                st.session_state["admin_detail_until"] = effective_until
+                                            else:
+                                                effective_until = None
+                                                st.session_state["admin_detail_until"] = None
+                                    except Exception:
+                                        effective_until = new_until
+
+                                    try:
+                                        _ = _rpc("admin_update_profile_plan", {
+                                            "p_user_id": user_id,
+                                            "p_plan": new_plan,
+                                            "p_is_admin": bool(new_admin),
+                                            "p_pro_until": (str(effective_until) if effective_until else None),
+                                        })
+                                        st.success("저장 완료")
+                                    except Exception:
+                                        st.warning("저장 RPC(admin_update_profile_plan)가 없거나 권한이 없습니다. (플랜/관리자 저장은 기존 구현을 사용하거나 RPC를 추가하세요.)")
+
+                                st.markdown("</div>", unsafe_allow_html=True)
+
+                                # --- Card: purge ---
+                                st.markdown('<div class="ha-card">', unsafe_allow_html=True)
+                                st.markdown("#### 회원 기록 정리 (기간 선택)")
+
+                                st.caption("N일 이전 기록을 삭제합니다.  (이 회원만 / 전체)  •  예: 30일 → 30일 이전 기록 삭제")
+
+                                dcol1, dcol2 = st.columns([1.0, 1.0])
+                                with dcol1:
+                                    days_opt = st.selectbox("기준 기간", options=["10일", "30일", "90일", "직접 입력"], index=1, key="admin_purge_days_opt")
+                                with dcol2:
+                                    days_custom = st.number_input("직접 입력(일)", min_value=0, max_value=3650, value=30, step=1, key="admin_purge_days_custom")
+
+                                purge_days = int(days_custom) if days_opt == "직접 입력" else int(days_opt.replace("일", ""))
+                                scope = st.radio("대상", options=["이 회원만", "전체 회원(공통 정리)"], horizontal=True, index=0, key="admin_purge_scope")
+
+                                full_purge = st.checkbox("⚠️ 전체삭제(기간 무시)", value=False, key="admin_purge_full")
+                                if full_purge:
+                                    purge_days = 0
+
+                                st.caption("✅ 안전장치: 먼저 **미리보기(삭제될 개수)**를 확인한 뒤 실행하세요.")
+                                puid = user_id if scope == "이 회원만" else None
+
+                                pc1, pc2, pc3 = st.columns([1.0, 1.0, 1.2])
+                                with pc1:
+                                    if st.button("삭제 미리보기", key="admin_purge_preview_btn"):
+                                        try:
+                                            resp = _rpc("admin_preview_purge_quiz_attempts", {"p_user_id": puid, "p_days": purge_days})
+                                            data = getattr(resp, "data", None) if resp is not None else None
+                                            n = None
+                                            if isinstance(data, list) and data:
+                                                if isinstance(data[0], dict):
+                                                    n = data[0].get("count") or data[0].get("cnt") or data[0].get("n")
+                                                else:
+                                                    n = data[0]
+                                            elif isinstance(data, dict):
+                                                n = data.get("count") or data.get("cnt") or data.get("n")
+                                            if n is None:
+                                                st.info("미리보기 결과를 파싱하지 못했습니다. (RPC 반환 형식 확인 필요)")
+                                            else:
+                                                st.session_state["admin_purge_preview_n"] = int(n)
+                                                who = "이 회원" if puid else "전체 회원"
+                                                st.success(f"미리보기: {who}의 **{purge_days}일 이전** 기록 {int(n):,}건이 삭제 대상입니다.")
+                                        except Exception:
+                                            st.error("미리보기 실패: admin_preview_purge_quiz_attempts RPC가 없거나 권한이 없습니다.")
+
+                                with pc2:
+                                    confirm = st.checkbox("삭제 실행 확인", value=False, key="admin_purge_confirm")
+                                with pc3:
+                                    if st.button("삭제 실행", type="primary", use_container_width=True, disabled=not confirm, key="admin_purge_run_btn"):
+                                        try:
+                                            resp = _rpc("admin_run_purge_quiz_attempts", {"p_user_id": puid, "p_days": purge_days})
+                                            data = getattr(resp, "data", None) if resp is not None else None
+                                            n = None
+                                            if isinstance(data, list) and data:
+                                                if isinstance(data[0], dict):
+                                                    n = data[0].get("count") or data[0].get("cnt") or data[0].get("n")
+                                                else:
+                                                    n = data[0]
+                                            elif isinstance(data, dict):
+                                                n = data.get("count") or data.get("cnt") or data.get("n")
+                                            if n is None:
+                                                st.success("삭제 실행 완료 (삭제 건수는 RPC 반환 형식 확인 필요)")
+                                            else:
+                                                who = "이 회원" if puid else "전체 회원"
+                                                st.success(f"삭제 완료: {who}의 **{purge_days}일 이전** 기록 {int(n):,}건 삭제")
+                                        except Exception:
+                                            st.error("삭제 실행 실패: admin_run_purge_quiz_attempts RPC가 없거나 권한이 없습니다.")
+
+                                with st.expander("Supabase RPC(SQL) 예시 (미리보기/삭제)"):
+                                    st.code("""                        -- ✅ 미리보기 (삭제 대상 건수)
+                        create or replace function public.admin_preview_purge_quiz_attempts(p_user_id uuid, p_days int)
+                        returns table(count bigint)
+                        language plpgsql
+                        security definer
+                        as $$
+                        begin
+                          return query
+                          select count(*)::bigint
+                            from public.quiz_attempts
+                           where (p_user_id is null or user_id = p_user_id)
+                             and created_at < now() - make_interval(days => p_days);
+                        end;
+                        $$;
+
+                        -- ✅ 삭제 실행 (삭제된 건수 반환)
+                        create or replace function public.admin_run_purge_quiz_attempts(p_user_id uuid, p_days int)
+                        returns table(count bigint)
+                        language plpgsql
+                        security definer
+                        as $$
+                        declare n bigint;
+                        begin
+                          delete from public.quiz_attempts
+                           where (p_user_id is null or user_id = p_user_id)
+                             and created_at < now() - make_interval(days => p_days);
+
+                          get diagnostics n = row_count;
+                          return query select n;
+                        end;
+                        $$;
+
+                        -- ✅ 중요: security definer 함수는 관리자 체크를 넣는 것을 강력 권장합니다.
+                        -- 예: profiles.is_admin=true 인지 확인 후 아니면 exception.
+                                    """, language="sql")
+
+                                st.markdown("</div>", unsafe_allow_html=True)
+
+                                # --- Card: messages ---
+                                st.markdown('<div class="ha-card">', unsafe_allow_html=True)
+                                st.markdown("#### ✉️ 학생에게 메시지 보내기")
+
+                                if not _um_table_ready(sb_authed):
+                                    st.warning("메시지 기능(user_messages)이 아직 준비되지 않았습니다. Supabase SQL(Editor)에서 테이블/RLS를 먼저 추가해 주세요.")
+                                else:
+                                    # ✅ message compose state (must run BEFORE widgets)
+                                    if "admin_msg_title" not in st.session_state:
+                                        st.session_state["admin_msg_title"] = ""
+                                    if "admin_msg_body" not in st.session_state:
+                                        st.session_state["admin_msg_body"] = ""
+                                    # clear request (set on successful send)
+                                    if st.session_state.pop("_admin_msg_clear", False):
+                                        st.session_state["_admin_msg_clear"] = True
+                                    # templates
+                                    t1, t2, t3 = st.columns(3)
+                                    with t1:
+                                        if st.button("시험 독려", use_container_width=True, key="tpl_exam"):
+                                            um_template_set("JLPT 시험 대비", "이번 주는 ‘실전 루틴’으로 갑시다.\n- 매일 1세트(10문제)\n- 오답만 다시 풀기\n- 주말엔 독해 1지문\n오늘도 10분만 같이 가요.")
+                                            st.rerun()
+                                    with t2:
+                                        if st.button("루틴 독려", use_container_width=True, key="tpl_routine"):
+                                            um_template_set("오늘도 루틴 체크", "딱 10분만 해도 루틴은 살아 있습니다.\n오늘 1세트만 하고 ‘완료’ 찍고 가요.\n하테나가 계속 옆에서 밀어드릴게요.")
+                                            st.rerun()
+                                    with t3:
+                                        if st.button("합격 축하", use_container_width=True, key="tpl_congrats"):
+                                            um_template_set("합격 축하합니다!", "정말 고생 많으셨습니다.\n이번 결과는 실력 + 루틴이 만든 성과예요.\n이제 다음 단계도 하테나랑 같이 가요 🙂")
+                                            st.rerun()
+
+                                    msg_title = st.text_input("제목(선택)", key="admin_msg_title")
+                                    msg_body  = st.text_area("내용", height=140, key="admin_msg_body", placeholder="학생에게 보낼 메시지를 입력하세요.")
+
+                                    send_c1, send_c2 = st.columns([1.0, 1.0])
+                                    with send_c1:
+                                        send_mode = st.radio("전송 대상", ["선택 회원에게", "특정 플랜 전체"], horizontal=True, index=0, key="admin_msg_mode")
+                                    with send_c2:
+                                        target_plan = st.selectbox("플랜 선택", options=["free","pro"], index=1 if str(cur_plan).lower()=="pro" else 0, key="admin_msg_target_plan")
+
+                                    confirm_send = st.checkbox("전송 확인", value=False, key="admin_msg_confirm")
+                                    if st.button("메시지 전송", type="primary", use_container_width=True, disabled=not confirm_send, key="admin_msg_send_btn"):
+                                        if not msg_body.strip():
+                                            st.warning("내용을 입력해 주세요.")
+                                        else:
+                                            sender_id = st.session_state.get("user_id")
+                                            if send_mode == "선택 회원에게":
+                                                try:
+                                                    um_send_to_user(
+                                                        sb_authed,
+                                                        to_user_id=user_id,
+                                                        sender_admin_id=sender_id,
+                                                        title=(msg_title.strip() if msg_title.strip() else None),
+                                                        body=msg_body.strip(),
+                                                    )
+                                                    st.success("보냈습니다.")
+                                                    st.session_state["_admin_msg_clear"] = True
+                                                    st.rerun()
+                                                except Exception as e:
+                                                    st.error(f"전송 실패: {e}")
+                                            else:
+                                                # broadcast by plan (insert per user)
+                                                try:
+                                                    prof = (sb_authed.table("profiles")
+                                                              .select("id")
+                                                              .eq("plan", target_plan)
+                                                              .limit(5000)
+                                                              .execute()).data or []
+                                                    ids = [str(x.get("id") or "") for x in prof if x.get("id")]
+                                                    if not ids:
+                                                        st.warning("대상 플랜 회원이 없습니다.")
+                                                    else:
+                                                        payloads = [{
+                                                            "user_id": uid,
+                                                            "sender_admin_id": sender_id,
+                                                            "title": (msg_title.strip() if msg_title.strip() else None),
+                                                            "body": msg_body.strip(),
+                                                        } for uid in ids]
+                                                        # chunk to avoid payload size issues
+                                                        chunk = 500
+                                                        for i in range(0, len(payloads), chunk):
+                                                            um_bulk_send(sb_authed, payloads[i:i+chunk])
+                                                        st.success(f"플랜({target_plan}) 회원 {len(ids)}명에게 발송했습니다.")
+                                                        st.session_state["_admin_msg_clear"] = True
+                                                        st.rerun()
+                                                except Exception as e:
+                                                    st.error(f"전체 발송 실패: {e}")
+
+                                st.markdown("</div>", unsafe_allow_html=True)
+
+                else:
+                    st.info("검색 결과가 없습니다.")
+
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    # ---------- tab: logs ----------
+    with tab_logs:
+        st.markdown('<div class="ha-section"><div class="ha-title">기록</div><div class="ha-sub">필터 · 카드형 피드</div>', unsafe_allow_html=True)
+
+        if dfa.empty:
+            st.info("quiz_attempts 데이터가 없거나 RLS로 차단되었습니다.")
+            st.markdown("</div>", unsafe_allow_html=True)
+        else:
+            d = dfa.copy()
+
+            # normalize time
+            if "created_at" in d.columns:
+                try:
+                    ts = pd.to_datetime(d["created_at"], errors="coerce", utc=True).dt.tz_convert("Asia/Seoul")
+                    d["kst"] = ts
+                    d["일시"] = ts.dt.strftime("%Y-%m-%d %H:%M")
+                except Exception:
+                    d["일시"] = d["created_at"].astype(str)
+            else:
+                d["일시"] = ""
+
+            # filters
+            c1, c2, c3, c4 = st.columns([1.1, 1.0, 1.0, 1.0])
+            with c1:
+                mask_email = st.toggle("이메일 마스킹", value=True, key="admin_logs_mask")
+            with c2:
+                days = st.selectbox("기간", [1,7,30,90,365], index=2, key="admin_logs_days")
+            with c3:
+                email_q = st.text_input("이메일 검색", placeholder="예: gmail / naver ...", key="admin_logs_email_q")
+            with c4:
+                max_rows = st.selectbox("표시", [50,100,200,500,1000], index=3, key="admin_logs_max")
+
+            # apply filters
+            if "kst" in d.columns:
+                cutoff = pd.Timestamp.now(tz="Asia/Seoul") - pd.Timedelta(days=int(days))
+                d = d[d["kst"].notna() & (d["kst"] >= cutoff)]
+            if email_q and "user_email" in d.columns:
+                d = d[d["user_email"].fillna("").astype(str).str.contains(email_q, case=False, na=False)]
+
+            d = d.sort_values(by=["kst" if "kst" in d.columns else "created_at"], ascending=False)
+
+            # pretty columns
+            rename_map = {
+                "user_email": "이메일",
+                "level": "레벨",
+                "pos_mode": "품사",
+                "quiz_type": "퀴즈",
+                "quiz_len": "문항",
+                "score": "점수",
+                "wrong_count": "오답",
+            }
+            for k, v in rename_map.items():
+                if k in d.columns:
+                    d[v] = d[k]
+
+            keep = [c for c in ["일시","이메일","레벨","품사","퀴즈","문항","점수","오답"] if c in d.columns]
+            d2 = d[keep].head(int(max_rows)).copy() if keep else d.head(int(max_rows)).copy()
+            # card view (Hatena style)
+            # card view (Hatena style)
+            st.markdown('<div class="ha-log">', unsafe_allow_html=True)
+            for _, r in d2.head(200).iterrows():
+                # raw values (may be None)
+                email = str(r.get("이메일", "") or "")
+                when = str(r.get("일시", "") or "")
+                level = str(r.get("레벨", "-") or "-")
+                pos_code = str(r.get("품사", "") or "")
+                quiz_code = str(r.get("퀴즈", "") or "")
+
+                # optional email masking
+                def _mask_mail(e: str) -> str:
+                    if not e or "@" not in e:
+                        return e
+                    name, dom = e.split("@", 1)
+                    if len(name) <= 3:
+                        masked = (name[:1] + "*" * max(1, len(name) - 1))
+                    else:
+                        masked = name[:3] + "*" * (len(name) - 3)
+                    return masked + "@" + dom
+
+                if mask_email:
+                    email = _mask_mail(email)
+
+                # code → label mapping
+                POS_LABELS = {
+                    "noun": "명사",
+                    "verb": "동사",
+                    "adj_i": "い형용사",
+                    "adj_na": "な형용사",
+                    "adverb": "부사",
+                    "particle": "조사",
+                    "conjunction": "접속사",
+                    "interjection": "감탄사",
+                }
+                QUIZ_LABELS = {
+                    "meaning": "뜻",
+                    "reading": "발음",
+                    "kr2jp": "한→일",
+                    "jp2kr": "일→한",
+                }
+
+
+                # ✅ handle legacy combined code like "noun meaning" stored in a single column
+                _raw_pos = (pos_code or "").replace("\u00a0", " ").strip()
+                _raw_quiz = (quiz_code or "").replace("\u00a0", " ").strip()
+
+                # If quiz_code is empty but pos_code contains both (e.g., "noun meaning"), split it.
+                if (not _raw_quiz) and (" " in _raw_pos):
+                    _parts = _raw_pos.split()
+                    if len(_parts) >= 2:
+                        _p, _q = _parts[0], _parts[1]
+                        if _q.lower() in {"meaning", "reading", "kr2jp", "jp2kr"}:
+                            pos_code, quiz_code = _p, _q
+
+                # If quiz_code itself is combined (rare), also split it.
+                if _raw_quiz and (" " in _raw_quiz):
+                    _parts = _raw_quiz.split()
+                    if len(_parts) >= 2:
+                        _q = _parts[0]
+                        if _q.lower() in {"meaning", "reading", "kr2jp", "jp2kr"}:
+                            quiz_code = _q
+                import re as _re
+
+                def _norm_code(s: str) -> str:
+                    s = (s or "")
+                    # remove NBSP and normalize spaces
+                    s = s.replace("\u00a0", " ").strip().lower()
+                    # remove all whitespace inside
+                    s = _re.sub(r"\s+", "", s)
+                    # unify separators
+                    s = s.replace("-", "_")
+                    return s
+
+                pos_key = _norm_code(pos_code)
+                quiz_key = _norm_code(quiz_code)
+
+                # common aliases
+                pos_key = {"conj": "conjunction", "interj": "interjection"}.get(pos_key, pos_key)
+
+                pos = POS_LABELS.get(pos_key, pos_code or "-")
+                quiz = QUIZ_LABELS.get(quiz_key, quiz_code or "-")
+
+                def _to_int(v, default=0):
+                    try:
+                        return int(float(v))
+                    except Exception:
+                        return default
+
+                quiz_len = _to_int(r.get("문항", 0), 0)
+                score = _to_int(r.get("점수", 0), 0)
+                wrong = _to_int(r.get("오답", 0), 0)
+                pct = int(round((score / quiz_len) * 100)) if quiz_len else 0
+                pct = max(0, min(100, pct))
+
+                email_html = html_module.escape(email)
+                when_html = html_module.escape(when)
+                # level badge: show JLPT level if present; if it looks like POS code, show Korean label
+                _lvl_raw = (level or "").replace("\u00a0", " ").strip()
+                _lvl_key = _lvl_raw.lower()
+                if " " in _lvl_key:
+                    _lvl_key = _lvl_key.split()[0]
+                if _lvl_key in POS_LABELS:
+                    level_html = html_module.escape(POS_LABELS[_lvl_key])
+                else:
+                    level_html = html_module.escape(_lvl_raw or "-")
+                pos_html = html_module.escape(pos)
+                quiz_html = html_module.escape(quiz)
+
+                # ✅ record label: show "훈련 모드" summary instead of raw codes (noun/meaning etc.)
+                try:
+                    kind = _infer_kind(level, pos_code)
+                except Exception:
+                    kind = "word"
+                MODE_LABELS = {
+                    "word": "발음 · 뜻 · 한→일",
+                    "kanji": "읽기 · 뜻 · 복습",
+                    "talk": "상황 판단 · 정답 선택",
+                }
+                mode_label = MODE_LABELS.get(kind, "발음 · 뜻 · 한→일")
+                mode_html = html_module.escape(mode_label)
+
+                html = f"""
+<div class='ha-logcard'>
+  <div class='ha-logtop'>
+    <div>
+      <div class='ha-email'>{email_html}</div>
+      <div class='ha-time'>🕒 {when_html}</div>
+    </div>
+    <div class='ha-badges'>
+      <span class='ha-badge'>{level_html}</span>
+      <span class='ha-badge'>{mode_html}</span>
+      <span class='ha-badge ok'>✅ {score}/{quiz_len} · {pct}%</span>
+      <span class='ha-badge bad'>❌ {wrong}</span>
+    </div>
+  </div>
+  <div class='ha-row'>
+    <div class='ha-mini'><div class='k'>문항</div><div class='v'>{quiz_len}</div></div>
+    <div class='ha-mini'><div class='k'>정답</div><div class='v'>{score}</div></div>
+    <div class='ha-mini'><div class='k'>오답</div><div class='v'>{wrong}</div></div>
+    <div class='ha-ring' style='--p:{pct}%;'><div>{pct}%</div></div>
+  </div>
+</div>
+"""
+                st.markdown(html, unsafe_allow_html=True)
+
+            st.markdown('</div>', unsafe_allow_html=True)
+
+            st.caption("※ '관리자 작업 로그(플랜 변경 이력)'까지 원하시면, 별도 admin_audit_logs 테이블/RPC를 추가해 붙일 수 있습니다.")
+            st.markdown("</div>", unsafe_allow_html=True)
+
+    with tab_backup:
+        st.markdown('<div class="ha-section"><div class="ha-title">백업 · 버전</div><div class="ha-sub">현재 핵심 파일을 ZIP으로 백업합니다.</div>', unsafe_allow_html=True)
+        tag = st.text_input("버전 태그", value="stable", key="admin_backup_tag")
+        if st.button("백업 ZIP 만들기", type="primary", key="admin_backup_make"):
+            try:
+                data, fname = _admin_make_backup_zip(tag)
+                st.download_button("다운로드", data=data, file_name=fname, mime="application/zip", key="admin_backup_dl")
+                st.success("백업 ZIP 생성 완료!")
+            except Exception as e:
+                st.error("백업 생성 실패")
+                st.exception(e)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+try:
+    action = st.query_params.get("action")
+    p = st.query_params.get("p")
+except Exception:
+    action, p = None, None
+
+if action == "logout":
+    hub_logout()
+
+if isinstance(p, str) and p:
+    allowed = {"home", "word", "kanji", "talk", "my", "reminder"}
+    if st.session_state.get("is_admin"):
+        allowed.add("admin")
+    if p in allowed:
+        st.session_state["hub_page"] = p
+
+page = st.session_state.get("hub_page", "home")
+core.render_top_nav(active=page)
+
+# ✅ Plan pill should sit right under the top nav (reduces top whitespace)
+render_plan_pill()
+
+if page == "admin":
+    if not st.session_state.get("is_admin"):
+        st.warning("관리자만 접근할 수 있습니다.")
+        st.stop()
+    render_admin_dashboard(sb_authed)
+    st.stop()
+
+if page == "home":
+    # ✅ Home Hub: dashboard view
+    render_home_dashboard(sb_authed, user)
+elif page == "my":
+    # ✅ 마이페이지: 홈 허브에서는 관리자 메시지(받은 메시지) 영역을 숨깁니다.
+    # - 메시지 탭은 mypage 내부에 이미 있으므로 중복 노출 방지
+    st.session_state['HUB_MODE'] = True
+    run_module('mypage')
+    st.stop()
+
+elif page == "reminder":
+    render_reminder_settings(sb_authed, user)
+    st.stop()
+
+elif page == "word":
+    st.session_state["hub_target"] = "word"
+    st.session_state['HUB_MODE'] = True
+    run_module('hotena_basic')
+    try:
+        progress_all = st.session_state.get('progress_all', {}) or {}
+        core.render_naver_talk_fab(enabled=bool(progress_all.get('naver_talk_fab_enabled', False)))
+    except Exception:
+        pass
+elif page == "kanji":
+    st.session_state["hub_target"] = "kanji"
+    st.session_state['HUB_MODE'] = True
+    run_module('app')
+    try:
+        progress_all = st.session_state.get('progress_all', {}) or {}
+        core.render_naver_talk_fab(enabled=bool(progress_all.get('naver_talk_fab_enabled', False)))
+    except Exception:
+        pass
+elif page == "talk":
+    st.session_state["hub_target"] = "talk"
+    run_module('talk')
+    try:
+        progress_all = st.session_state.get('progress_all', {}) or {}
+        core.render_naver_talk_fab(enabled=bool(progress_all.get('naver_talk_fab_enabled', False)))
+    except Exception:
+        pass
+else:
+    # ✅ Fallback: unknown page -> go home
+    st.session_state["hub_page"] = "home"
+    render_home_dashboard(sb_authed, user)
+
+
+# ✅ Always render bottom-right '맨 위로' shortcut
+try:
+    render_float_top_anchor_button()
+except Exception:
+    pass
