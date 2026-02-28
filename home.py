@@ -23,7 +23,7 @@ def _inject_jp_font_once():
         return
     st.session_state["_jp_font_injected"] = True
     st.markdown(
-        """
+        f"""
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
 html, body, [class*="css"]  {
@@ -1639,6 +1639,18 @@ sb_authed = st.session_state.get("sb_authed")
 
 if not user:
     # --- Pretty login card (Hub) ---
+
+    # 캐릭터(우측) — 로컬 assets/hatena_sensei.png가 있으면 로그인 카드 헤더에 노출
+    _char_src = ""
+    try:
+        from pathlib import Path
+        import base64 as _b64
+        _p = Path("assets/hatena_sensei.png")
+        if _p.exists():
+            _char_src = "data:image/png;base64," + _b64.b64encode(_p.read_bytes()).decode("utf-8")
+    except Exception:
+        _char_src = ""
+
     st.markdown(
         """
 <style>
@@ -1657,6 +1669,14 @@ if not user:
 .ha-login-head{
   display:flex; align-items:center; gap:10px;
   margin-bottom: 10px;
+}
+.ha-login-char{
+  margin-left:auto;
+  width: 54px; height: 54px;
+  border-radius: 16px;
+  object-fit: cover;
+  border: 1px solid rgba(0,0,0,0.08);
+  background: rgba(0,0,0,0.02);
 }
 .ha-login-logo{
   width: 40px; height: 40px; border-radius: 14px;
@@ -1688,6 +1708,7 @@ if not user:
         <b>하테나</b>
         <div>단어 · 한자 · 회화 루틴을 한 곳에서</div>
       </div>
+      {f'<img class="ha-login-char" src="{_char_src}" />' if _char_src else ''}
     </div>
     <div class="ha-login-note">계정을 만들면 학습 기록이 저장되고, 기기/브라우저가 달라도 이어서 할 수 있어요.</div>
   </div>
