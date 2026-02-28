@@ -12,7 +12,6 @@ import base64
 from cryptography.fernet import Fernet
 from datetime import date, datetime, timedelta, timezone
 import streamlit as st
-import landing
 import core
 import streamlit.components.v1 as components
 
@@ -1639,42 +1638,46 @@ user = st.session_state.get("user")
 sb_authed = st.session_state.get("sb_authed")
 
 if not user:
-    # ✅ Landing-style login (full-screen hero)
-    email, pw, mode, submit = landing.landing_ui(assets_dir='assets')
+    st.subheader("로그인")
+    with st.form("login_form", clear_on_submit=False):
+        email = st.text_input("이메일", key="hub_email")
+        pw = st.text_input("비밀번호", type="password", key="hub_pw")
+        mode = st.radio("모드", ["로그인", "회원가입"], horizontal=True)
+        submit = st.form_submit_button("확인", use_container_width=True)
 
     if submit:
         if not email or not pw:
-            st.error('이메일/비밀번호를 입력해 주세요.')
+            st.error("이메일/비밀번호를 입력해 주세요.")
             st.stop()
         try:
-            if mode == '로그인':
-                res = sb.auth.sign_in_with_password({'email': email, 'password': pw})
+            if mode == "로그인":
+                res = sb.auth.sign_in_with_password({"email": email, "password": pw})
             else:
-                res = sb.auth.sign_up({'email': email, 'password': pw})
+                res = sb.auth.sign_up({"email": email, "password": pw})
 
-            if getattr(res, 'session', None) and getattr(res.session, 'access_token', None):
-                st.session_state['user'] = res.user
-                st.session_state['access_token'] = res.session.access_token
-                st.session_state['refresh_token'] = res.session.refresh_token
-                cookies['access_token'] = res.session.access_token
-                cookies['refresh_token'] = res.session.refresh_token
+            if getattr(res, "session", None) and getattr(res.session, "access_token", None):
+                st.session_state["user"] = res.user
+                st.session_state["access_token"] = res.session.access_token
+                st.session_state["refresh_token"] = res.session.refresh_token
+                cookies["access_token"] = res.session.access_token
+                cookies["refresh_token"] = res.session.refresh_token
                 _cookies_save_once_per_run()
 
-                # ✅ persist encrypted tokens for refresh-proof login (existing behavior)
+                # ✅ persist encrypted tokens for refresh-proof login
                 try:
-                    st.query_params['rt'] = _enc(res.session.refresh_token)
-                    st.query_params['at'] = _enc(res.session.access_token)
-                    _js_set_localstorage('hotena_rt', st.query_params.get('rt',''))
-                    _js_set_localstorage('hotena_at', st.query_params.get('at',''))
+                    st.query_params["rt"] = _enc(res.session.refresh_token)
+                    st.query_params["at"] = _enc(res.session.access_token)
+                    _js_set_localstorage("hotena_rt", st.query_params.get("rt",""))
+                    _js_set_localstorage("hotena_at", st.query_params.get("at",""))
                 except Exception:
                     pass
 
-                st.success('로그인 완료!')
+                st.success("로그인 완료!")
                 st.rerun()
             else:
-                st.warning('이메일 인증이 필요할 수 있습니다. (Supabase 설정에 따라 다름)')
+                st.warning("이메일 인증이 필요할 수 있습니다. (Supabase 설정에 따라 다름)")
         except Exception as e:
-            st.error('로그인/가입 실패')
+            st.error("로그인/가입 실패")
             st.code(str(e))
     st.stop()
 
