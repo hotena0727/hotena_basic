@@ -1658,20 +1658,25 @@ if not user:
 .h-login-ment .sub{
   margin-top:4px; font-size:.96rem; opacity:.82;
 }
-.h-login-card{
-  width:min(520px, 94vw);
+/* login card (bordered container) */
+div[data-testid="stVerticalBlockBorderWrapper"]{
+  max-width:520px;
+  margin-left:auto;
+  margin-right:auto;
   background: rgba(255,255,255,0.88);
   border: 1px solid rgba(0,0,0,0.10);
   border-radius: 18px;
-  padding: 22px 22px 18px 22px;
   box-shadow: 0 18px 55px rgba(0,0,0,0.08);
 }
-.h-login-card input{
+div[data-testid="stVerticalBlockBorderWrapper"] > div{
+  padding: 18px 18px 14px 18px;
+}
+div[data-testid="stVerticalBlockBorderWrapper"] input{
   height:46px !important;
   border-radius:12px !important;
   border:1px solid rgba(0,0,0,0.10) !important;
 }
-.h-login-card button[kind="primary"]{
+div[data-testid="stVerticalBlockBorderWrapper"] button[kind="primary"]{
   height:48px !important;
   border-radius:12px !important;
   font-weight:900 !important;
@@ -1689,26 +1694,32 @@ if not user:
     _cand = ["assets/hotena_sensei.png", "assets/character.png", "assets/hatena_sensei.png"]
     _img = next((p for p in _cand if Path(p).exists()), None)
 
-    st.markdown('<div class="h-login-wrap">', unsafe_allow_html=True)
-    if _img:
-        st.image(_img, width=320)
-    st.markdown(
-        """
+    
+    # layout: center column to keep balance (login screen only)
+    _outer = st.columns([1, 2, 1])
+    with _outer[1]:
+        # character (optional) – centered
+        if _img:
+            _img_cols = st.columns([1, 1, 1])
+            with _img_cols[1]:
+                st.image(_img, width=220)
+
+        st.markdown(
+            '''
 <div class="h-login-ment">
   <div class="main">틀려도 괜찮아요.<br/>오늘도 함께 말해봅시다.</div>
   <div class="sub">짧게, 자주, 확실하게.</div>
 </div>
-""",
-        unsafe_allow_html=True,
-    )
+''',
+            unsafe_allow_html=True,
+        )
 
-    st.markdown('<div class="h-login-card">', unsafe_allow_html=True)
-    with st.form("login_form", clear_on_submit=False):
-        email = st.text_input("이메일", key="hub_email")
-        pw = st.text_input("비밀번호", type="password", key="hub_pw")
-        mode = st.radio("모드", ["로그인", "회원가입"], horizontal=True)
-        submit = st.form_submit_button("확인", use_container_width=True)
-    st.markdown("</div></div>", unsafe_allow_html=True)
+        with st.container(border=True):
+            with st.form("login_form", clear_on_submit=False):
+                email = st.text_input("이메일", key="hub_email")
+                pw = st.text_input("비밀번호", type="password", key="hub_pw")
+                mode = st.radio("모드", ["로그인", "회원가입"], horizontal=True)
+                submit = st.form_submit_button("확인", use_container_width=True)
 
     if submit:
         if not email or not pw:
