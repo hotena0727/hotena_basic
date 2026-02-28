@@ -1695,7 +1695,48 @@ if not user:
             .block-container{ padding-left: 1.0rem !important; padding-right: 1.0rem !important; }
             section.main > div { padding-top: 0.85rem; }
           }
-        </style>
+        
+          /* ✅ login hero layout */
+          .hotena-wrap{
+            max-width:1120px;
+            margin:0 auto;
+            padding:1.1rem 1.1rem;
+            border-radius:26px;
+            background: rgba(255,255,255,0.55);
+            border: 1px solid rgba(0,0,0,0.06);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.06);
+            backdrop-filter: blur(6px);
+          }
+          .hotena-login-max{
+            max-width:540px;
+            margin-left:auto;
+          }
+          .hotena-mini-list{
+            margin-top:0.75rem;
+            display:flex;
+            flex-direction:column;
+            gap:0.4rem;
+            font-size:0.95rem;
+            opacity:0.9;
+          }
+          .hotena-mini-item{
+            display:flex;
+            gap:0.5rem;
+            align-items:flex-start;
+          }
+          .hotena-dot{
+            width:18px; height:18px;
+            display:inline-flex;
+            align-items:center;
+            justify-content:center;
+            border-radius:6px;
+            background: rgba(46, 204, 113, 0.14);
+            border:1px solid rgba(46, 204, 113, 0.28);
+            font-size:0.85rem;
+            line-height:1;
+            margin-top:2px;
+          }
+</style>
 
         """,
         unsafe_allow_html=True,
@@ -1727,11 +1768,16 @@ if not user:
             st.image(str(_char_path), width=260)
         st.markdown('<div class="hotena-h1">하테나쌤과 함께<br/>오늘도 한 세트만 시작해요</div>', unsafe_allow_html=True)
         st.markdown('<div class="hotena-lead hotena-muted">틀려도 괜찮아요. 짧게, 자주, 확실하게.</div>', unsafe_allow_html=True)
-        st.markdown("✅ **듣기 → 말하기 → 피드백** 흐름으로 바로 시작", unsafe_allow_html=True)
-        st.markdown("✅ **하루 1세트**면 충분해요 (꾸준함이 승부)", unsafe_allow_html=True)
-        st.markdown("✅ 로그인만 하면 **홈허브로 바로 이동**", unsafe_allow_html=True)
+        st.markdown(
+            """<div class="hotena-mini-list">
+              <div class="hotena-mini-item"><span class="hotena-dot">✓</span><span><b>하루 1세트</b>만 해도 충분해요. 짧게, 자주, 확실하게.</span></div>
+              <div class="hotena-mini-item"><span class="hotena-dot">✓</span><span>로그인하면 바로 <b>홈허브</b>로 이동해요.</span></div>
+            </div>""",
+            unsafe_allow_html=True,
+        )
 
     with right:
+        st.markdown('<div class="hotena-login-max">', unsafe_allow_html=True)
         with st.container(border=True):
             st.markdown('<div class="hotena-card-title">시작하기</div>', unsafe_allow_html=True)
             st.markdown('<div class="hotena-card-sub">로그인 후 바로 홈허브로 이동합니다.</div>', unsafe_allow_html=True)
@@ -1740,6 +1786,9 @@ if not user:
                 pw = st.text_input("비밀번호", type="password", key="hub_pw")
                 mode = st.radio("모드", ["로그인", "회원가입"], horizontal=True)
                 submit = st.form_submit_button("확인", use_container_width=True)
+
+        st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
         if submit:
             if not email or not pw:
