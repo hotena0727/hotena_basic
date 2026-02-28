@@ -1630,20 +1630,122 @@ REMINDER_MESSAGES = [
 st.session_state["REMINDER_MESSAGES"] = REMINDER_MESSAGES
 
 # ============================================================
-# ✅ UI: Login (single)
+# ✅ UI: Landing + Login (single)
+# - First screen acts as a landing page with Hatena-sensei skin
+# - Keep auth logic identical; only improve visuals/UX
 # ============================================================
 refresh_session_from_cookie_if_needed(force=False)
 
 user = st.session_state.get("user")
 sb_authed = st.session_state.get("sb_authed")
 
-if not user:
-    st.subheader("로그인")
-    with st.form("login_form", clear_on_submit=False):
-        email = st.text_input("이메일", key="hub_email")
-        pw = st.text_input("비밀번호", type="password", key="hub_pw")
-        mode = st.radio("모드", ["로그인", "회원가입"], horizontal=True)
-        submit = st.form_submit_button("확인", use_container_width=True)
+def render_login_landing() -> None:
+    """Landing-style login screen (no auth logic changes)."""
+    LANDING_IMG = BASE_DIR / "assets" / "landing.png"
+
+    st.markdown(
+        """
+<style>
+  .hl-hero{
+    border: 1px solid rgba(49,51,63,0.12);
+    border-radius: 22px;
+    padding: 18px 18px 14px;
+    background: linear-gradient(180deg, rgba(245,247,251,0.88), rgba(255,255,255,0.55));
+    box-shadow: 0 18px 38px rgba(0,0,0,0.08);
+    overflow:hidden;
+  }
+  .hl-title{
+    font-size: 1.55rem;
+    font-weight: 900;
+    margin: 0 0 6px 0;
+    line-height: 1.18;
+    letter-spacing: -0.2px;
+  }
+  .hl-sub{
+    font-size: .98rem;
+    opacity: .72;
+    margin: 0 0 14px 0;
+  }
+  .hl-badges{display:flex; flex-wrap:wrap; gap:8px; margin: 10px 0 0;}
+  .hl-badge{
+    display:inline-flex; align-items:center; gap:6px;
+    padding: .26rem .55rem;
+    border-radius: 999px;
+    border: 1px solid rgba(0,0,0,0.10);
+    background: rgba(255,255,255,0.65);
+    font-size: .88rem;
+    opacity: .92;
+    white-space: nowrap;
+  }
+  .hl-card{
+    border: 1px solid rgba(49,51,63,0.12);
+    border-radius: 22px;
+    padding: 16px 16px 12px;
+    background: rgba(255,255,255,0.80);
+    box-shadow: 0 16px 34px rgba(0,0,0,0.08);
+  }
+  .hl-card h3{
+    margin: 0 0 6px 0;
+    font-size: 1.05rem;
+    font-weight: 850;
+  }
+  .hl-help{
+    margin-top: 8px;
+    font-size: .86rem;
+    opacity: .65;
+    line-height: 1.4;
+  }
+  @media (max-width: 640px){
+    .hl-title{font-size: 1.38rem;}
+    .hl-hero{padding: 16px 14px 12px;}
+    .hl-card{padding: 14px 12px 10px;}
+  }
+</style>
+""",
+        unsafe_allow_html=True,
+    )
+
+    left, right = st.columns([1.25, 1.0], vertical_alignment="top")
+
+    with left:
+        st.markdown('<div class="hl-hero">', unsafe_allow_html=True)
+        st.markdown('<div class="hl-title">하테나쌤과 함께<br>하루 5분, 회화 루틴</div>', unsafe_allow_html=True)
+        st.markdown('<div class="hl-sub">짧게, 자주, 확실하게. 오늘도 한 세트만 시작해요.</div>', unsafe_allow_html=True)
+
+        if LANDING_IMG.exists():
+            st.image(str(LANDING_IMG), use_container_width=True, caption=None)
+        else:
+            st.info("assets/landing.png 를 추가하면, 여기에서 하테나쌤 스킨 이미지가 바로 보여요🙂")
+
+        st.markdown(
+            """
+<div class="hl-badges">
+  <span class="hl-badge">🎧 듣기</span>
+  <span class="hl-badge">🎙️ 말하기</span>
+  <span class="hl-badge">🧠 스마트코치</span>
+  <span class="hl-badge">✅ 오늘의 루틴</span>
+</div>
+""",
+            unsafe_allow_html=True,
+        )
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    with right:
+        st.markdown('<div class="hl-card">', unsafe_allow_html=True)
+        st.markdown("<h3>시작하기</h3>", unsafe_allow_html=True)
+        st.caption("로그인 후 바로 홈 허브로 이동합니다.")
+
+        with st.form("login_form", clear_on_submit=False):
+            email = st.text_input("이메일", key="hub_email")
+            pw = st.text_input("비밀번호", type="password", key="hub_pw")
+            mode = st.radio("모드", ["로그인", "회원가입"], horizontal=True)
+            submit = st.form_submit_button("확인", use_container_width=True)
+
+        st.markdown(
+            '<div class="hl-help">* 회원가입 후 이메일 인증이 필요할 수 있어요.<br>* 비밀번호는 6자 이상을 권장합니다.</div>',
+            unsafe_allow_html=True,
+        )
+        st.markdown("</div>", unsafe_allow_html=True)
 
     if submit:
         if not email or not pw:
@@ -1663,7 +1765,6 @@ if not user:
                 cookies["refresh_token"] = res.session.refresh_token
                 _cookies_save_once_per_run()
 
-                # ✅ persist encrypted tokens for refresh-proof login
                 try:
                     st.query_params["rt"] = _enc(res.session.refresh_token)
                     st.query_params["at"] = _enc(res.session.access_token)
@@ -1672,14 +1773,19 @@ if not user:
                 except Exception:
                     pass
 
-                st.success("로그인 완료!")
+                st.success("로그인 완료! 바로 시작해볼까요 🙂")
                 st.rerun()
             else:
                 st.warning("이메일 인증이 필요할 수 있습니다. (Supabase 설정에 따라 다름)")
         except Exception as e:
             st.error("로그인/가입 실패")
             st.code(str(e))
+        st.stop()
+
+if not user:
+    render_login_landing()
     st.stop()
+
 
 # logged in
 sb_authed = get_authed_sb()
