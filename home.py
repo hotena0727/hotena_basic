@@ -1674,52 +1674,70 @@ if not user:
           .hotena-dot span{font-size:13px;}
           /* Make form button full width nicely */
           div[data-testid="stForm"] button[kind="primary"]{width:100%;}
-        </style>
+        
+    .hotena-checks{margin-top:12px;display:flex;flex-direction:column;gap:10px;}
+    .hotena-check{display:flex;align-items:flex-start;gap:10px;font-size:0.98rem;opacity:.92;}
+    .hotena-checkmark{width:20px;height:20px;display:inline-flex;align-items:center;justify-content:center;border-radius:999px;background:rgba(42,157,143,.12);font-weight:800;}
+    .hotena-note{margin-top:12px;font-size:0.88rem;opacity:.78;line-height:1.55;}
+</style>
         """,
         unsafe_allow_html=True,
     )
 
-    c1, c2 = st.columns([1.05, 1.0], gap="large")
+    
+c1, c2 = st.columns([0.95, 1.05], gap="large")
 
-    with c1:
-        # Optional character image (if exists)
-        _char_candidates = [
-            Path("assets/hatena_teacher.png"),
-            Path("assets/hatena_ssam.png"),
-            Path("assets/character.png"),
-            Path("assets/character.png"),
-        ]
-        _char_path = next((pp for pp in _char_candidates if pp.exists()), None)
-        if _char_path:
-            try:
-                st.image(str(_char_path), width=150)
-            except Exception:
-                pass
+# LEFT: message only (no character outside)
+with c1:
+    st.markdown('<div class="hotena-left">', unsafe_allow_html=True)
+    st.markdown('<div class="hotena-badge"><span class="hotena-dot"></span> 매일 5분 · 회화 루틴</div>', unsafe_allow_html=True)
+    st.markdown("## 하테나쌤과 함께\n오늘도 한 세트만 시작해요")
+    st.caption("틀려도 괜찮아요. 짧게, 자주, 확실하게.")
+    st.markdown(
+        '''
+        <div class="hotena-checks">
+          <div class="hotena-check"><span class="hotena-checkmark">✓</span><span>하루 1세트만 해도 충분해요.</span></div>
+          <div class="hotena-check"><span class="hotena-checkmark">✓</span><span>로그인하면 홈허브로 바로 이동해요.</span></div>
+        </div>
+        ''',
+        unsafe_allow_html=True
+    )
+    st.markdown("</div>", unsafe_allow_html=True)
 
-        st.markdown('<div class="hotena-badge">💬 매일 5분 · 회화 루틴</div>', unsafe_allow_html=True)
-        st.markdown('<div class="hotena-h1">하테나쌤과 함께<br/>오늘도 한 세트만 시작해요</div>', unsafe_allow_html=True)
-        st.markdown('<div class="hotena-sub">틀려도 괜찮아요. 짧게, 자주, 확실하게.</div>', unsafe_allow_html=True)
+# RIGHT: card with form + character inside (Option A)
+with c2:
+    st.markdown('<div class="hotena-card">', unsafe_allow_html=True)
 
-        st.markdown(
-            """
-            <ul class="hotena-ul">
-              <li class="hotena-li"><div class="hotena-dot"><span>✓</span></div><div>하루 1세트면 충분해요. (꾸준함이 승부)</div></li>
-              <li class="hotena-li"><div class="hotena-dot"><span>✓</span></div><div>로그인만 하면 바로 홈허브로 이동해요.</div></li>
-            </ul>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    with c2:
-        st.markdown('<div class="hotena-card">', unsafe_allow_html=True)
+    top_l, top_r = st.columns([1.0, 0.75], gap="medium")
+    with top_l:
         st.markdown("### 시작하기")
         st.caption("로그인 후 바로 홈허브로 이동합니다.")
-        with st.form("login_form", clear_on_submit=False):
-            email = st.text_input("이메일", key="hub_email")
-            pw = st.text_input("비밀번호", type="password", key="hub_pw")
-            mode = st.radio("모드", ["로그인", "회원가입"], horizontal=True, key="hub_mode")
-            submit = st.form_submit_button("확인", use_container_width=True)
-        st.markdown("</div>", unsafe_allow_html=True)
+    with top_r:
+        # character inside the card
+        try:
+            st.image(str(character_path), width=170)
+        except Exception:
+            pass
+
+    st.markdown("<div style='height:10px'></div>", unsafe_allow_html=True)
+
+    with st.form("login_form", clear_on_submit=False):
+        email = st.text_input("이메일", placeholder="you@example.com")
+        pw = st.text_input("비밀번호", type="password", placeholder="비밀번호")
+        mode = st.radio("모드", ["로그인", "회원가입"], horizontal=True)
+        submit = st.form_submit_button("확인", use_container_width=True)
+
+    st.markdown(
+        '''
+        <div class="hotena-note">
+          • 회원가입 후 이메일 인증이 필요할 수 있어요.<br/>
+          • 비밀번호는 6자 이상을 권장합니다.
+        </div>
+        ''',
+        unsafe_allow_html=True
+    )
+
+    st.markdown("</div>", unsafe_allow_html=True)
 
     if submit:
         if not email or not pw:
