@@ -329,7 +329,9 @@ div[data-testid="stMetric"]{
 """,
     unsafe_allow_html=True,
 )
-st.session_state["_page_config_set"] = True  # children should not call set_page_config
+
+    st.session_state["_top_compact_css_applied"] = True
+st..session_state["_page_config_set"] = True  # children should not call set_page_config
 
 BASE_DIR = Path(__file__).resolve().parent
 
@@ -1638,36 +1640,75 @@ user = st.session_state.get("user")
 sb_authed = st.session_state.get("sb_authed")
 
 if not user:
-
-    # ✅ 로그인 화면: 하테나쌤 캐릭터(투명 PNG) 1장 노출
-    try:
-        _candidate_chars = [
-            "assets/hotena_sensei.png",
-            "assets/character.png",
-            "assets/hatena_sensei.png",
-        ]
-        _char_path = next((p for p in _candidate_chars if Path(p).exists()), None)
-        if _char_path:
-            st.markdown(
-                """
+    # ✅ Login-only skin (card) + Hatena-sensei character
+    st.markdown(
+        """
 <style>
-.hotena-login-hero { display:flex; justify-content:center; margin: .35rem 0 .15rem; }
+/* login-only card skin */
+.h-login-wrap{
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:12px; padding-top: 0.25rem; padding-bottom: 0.35rem;
+}
+.h-login-ment{
+  text-align:center; line-height:1.35;
+}
+.h-login-ment .main{
+  font-size:1.15rem; font-weight:900;
+}
+.h-login-ment .sub{
+  margin-top:4px; font-size:.96rem; opacity:.82;
+}
+.h-login-card{
+  width:min(520px, 94vw);
+  background: rgba(255,255,255,0.88);
+  border: 1px solid rgba(0,0,0,0.10);
+  border-radius: 18px;
+  padding: 22px 22px 18px 22px;
+  box-shadow: 0 18px 55px rgba(0,0,0,0.08);
+}
+.h-login-card input{
+  height:46px !important;
+  border-radius:12px !important;
+  border:1px solid rgba(0,0,0,0.10) !important;
+}
+.h-login-card button[kind="primary"]{
+  height:48px !important;
+  border-radius:12px !important;
+  font-weight:900 !important;
+  border:1px solid rgba(0,0,0,0.10) !important;
+  background: rgba(255,255,255,0.92) !important;
+  color: rgba(0,0,0,0.85) !important;
+  box-shadow: 0 12px 26px rgba(0,0,0,0.07) !important;
+}
 </style>
 """,
-                unsafe_allow_html=True,
-            )
-            _c1, _c2, _c3 = st.columns([1, 2, 1])
-            with _c2:
-                st.image(_char_path, use_container_width=True)
-    except Exception:
-        pass
+        unsafe_allow_html=True,
+    )
 
-    st.subheader("로그인")
+    # character (optional)
+    _cand = ["assets/hotena_sensei.png", "assets/character.png", "assets/hatena_sensei.png"]
+    _img = next((p for p in _cand if Path(p).exists()), None)
+
+    st.markdown('<div class="h-login-wrap">', unsafe_allow_html=True)
+    if _img:
+        st.image(_img, width=320)
+    st.markdown(
+        """
+<div class="h-login-ment">
+  <div class="main">틀려도 괜찮아요.<br/>오늘도 함께 말해봅시다.</div>
+  <div class="sub">짧게, 자주, 확실하게.</div>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
+
+    st.markdown('<div class="h-login-card">', unsafe_allow_html=True)
     with st.form("login_form", clear_on_submit=False):
         email = st.text_input("이메일", key="hub_email")
         pw = st.text_input("비밀번호", type="password", key="hub_pw")
         mode = st.radio("모드", ["로그인", "회원가입"], horizontal=True)
         submit = st.form_submit_button("확인", use_container_width=True)
+    st.markdown("</div></div>", unsafe_allow_html=True)
 
     if submit:
         if not email or not pw:
