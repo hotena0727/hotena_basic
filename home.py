@@ -1541,7 +1541,15 @@ def fire_in_app_reminder_if_enabled(user):
     except Exception:
         delay_ms = 0
 
-    msg = json.dumps(daily_message(str(user.id)))
+    # ✅ safe uid extraction (user may be dict / object)
+    uid = getattr(user, 'id', None)
+    if uid is None and isinstance(user, dict):
+        uid = user.get('id') or (user.get('user') or {}).get('id')
+    if uid is None:
+        uid = getattr(getattr(user, 'user', None), 'id', None)
+    if not uid:
+        return
+    msg = json.dumps(daily_message(str(uid)))
     components.html(
         f"""
 <script>
