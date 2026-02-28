@@ -2185,16 +2185,21 @@ if submitted:
 # ✅ 말하기 녹음(선택)
         # - PRO: 녹음 가능
         # - FREE: PRO 안내 카드 노출
+        # ✅ 녹음 위젯이 간헐적으로 꼬이는 환경(모바일/브라우저) 대비: 문제(qid)마다 key nonce를 바꿔 새 위젯으로 렌더
+        if st.session_state.get("_talk_audio_nonce_qid") != str(qid):
+            st.session_state["_talk_audio_nonce"] = int(st.session_state.get("_talk_audio_nonce") or 0) + 1
+            st.session_state["_talk_audio_nonce_qid"] = str(qid)
+        _audio_nonce = int(st.session_state.get("_talk_audio_nonce") or 0)
         _audio = None
         if IS_PRO:
-            _audio = st.audio_input("🎤 (선택) 내 발음을 녹음하고 들어보세요", key=f"{qid}_record")
+            _audio = st.audio_input("🎤 (선택) 내 발음을 녹음하고 들어보세요", key=f"{qid}_record_{_audio_nonce}")
             if _audio is not None:
                 st.audio(_audio)
         else:
             remr = _free_record_remaining()
             if remr > 0:
                 st.caption(f"FREE 녹음 남은 횟수: {remr}/{FREE_RECORD_QUOTA} (오늘 기준)")
-                _audio = st.audio_input("🎤 (무료) 내 발음을 녹음하고 들어보세요", key=f"{qid}_record_free")
+                _audio = st.audio_input("🎤 (무료) 내 발음을 녹음하고 들어보세요", key=f"{qid}_record_free_{_audio_nonce}")
                 if _audio is not None:
                     _use_free_record_once()
                     st.audio(_audio)
