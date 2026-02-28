@@ -22,8 +22,8 @@ def _inject_jp_font_once():
     if st.session_state.get("_jp_font_injected", False):
         return
     st.session_state["_jp_font_injected"] = True
-    st.markdown(
-        f"""
+        _char_img = f'<img class="ha-login-char" src="{_char_src}" />' if _char_src else ''
+    _login_html = """
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
 html, body, [class*="css"]  {
@@ -62,7 +62,10 @@ html, body, [class*="css"]  {
 }
 
 </style>
-""",
+"""
+    _login_html = _login_html.replace("__CHAR_IMG__", _char_img)
+    st.markdown(
+        _login_html,
         unsafe_allow_html=True,
     )
 
