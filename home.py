@@ -12,6 +12,7 @@ import base64
 from cryptography.fernet import Fernet
 from datetime import date, datetime, timedelta, timezone
 import streamlit as st
+import landing
 import core
 import streamlit.components.v1 as components
 
@@ -1638,11 +1639,10 @@ user = st.session_state.get("user")
 sb_authed = st.session_state.get("sb_authed")
 
 if not user:
-    # ✅ Landing login page (separate module)
-    import landing
-    email, pw, mode, submitted = landing.landing_ui(assets_dir='assets')
+    # ✅ Landing-style login (full-screen hero)
+    email, pw, mode, submit = landing.landing_ui(assets_dir='assets')
 
-    if submitted:
+    if submit:
         if not email or not pw:
             st.error('이메일/비밀번호를 입력해 주세요.')
             st.stop()
@@ -1660,7 +1660,7 @@ if not user:
                 cookies['refresh_token'] = res.session.refresh_token
                 _cookies_save_once_per_run()
 
-                # ✅ persist encrypted tokens for refresh-proof login (best-effort)
+                # ✅ persist encrypted tokens for refresh-proof login (existing behavior)
                 try:
                     st.query_params['rt'] = _enc(res.session.refresh_token)
                     st.query_params['at'] = _enc(res.session.access_token)
@@ -1669,6 +1669,7 @@ if not user:
                 except Exception:
                     pass
 
+                st.success('로그인 완료!')
                 st.rerun()
             else:
                 st.warning('이메일 인증이 필요할 수 있습니다. (Supabase 설정에 따라 다름)')
