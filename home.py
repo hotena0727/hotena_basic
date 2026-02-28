@@ -1641,53 +1641,62 @@ if not user:
     # --- Login landing skin (light, minimal, cohesive) ---
     st.markdown(
         """
+        
         <style>
-          /* Make the login page feel like a landing page */
-          .stApp {
-            background:
-              radial-gradient(1200px 800px at 20% 10%, rgba(255, 214, 199, .55), rgba(255,255,255,0) 60%),
-              radial-gradient(900px 700px at 85% 35%, rgba(205, 226, 255, .55), rgba(255,255,255,0) 55%),
-              linear-gradient(180deg, rgba(255,245,240,.95), rgba(255,255,255,1) 55%);
+          /* Page background */
+          html, body, [data-testid="stAppViewContainer"]{
+            background: radial-gradient(1200px 600px at 15% 20%, rgba(255,236,230,.85), rgba(255,255,255,1)) ,
+                        radial-gradient(900px 520px at 85% 10%, rgba(226,240,255,.70), rgba(255,255,255,0));
           }
-          header, footer { visibility: hidden; height: 0px; }
-          section.main > div { padding-top: 1.4rem; padding-bottom: 2.0rem; }
-          /* Soften Streamlit default form/card */
-          div[data-testid="stForm"] {
-            background: rgba(255,255,255,.78) !important;
-            border: 1px solid rgba(0,0,0,.08) !important;
-            border-radius: 18px !important;
-            padding: 18px 18px 10px 18px !important;
-            box-shadow: 0 18px 40px rgba(0,0,0,.06) !important;
-            backdrop-filter: blur(10px);
+          section.main > div { padding-top: 1.1rem; }
+          /* tighten overall container and center */
+          .block-container{
+            max-width: 1180px !important;
+            padding-left: 1.5rem !important;
+            padding-right: 1.5rem !important;
           }
-          /* Inputs */
-          div[data-baseweb="input"] input {
-            border-radius: 12px !important;
+
+          /* Input and button aesthetics */
+          [data-testid="stTextInput"] input, [data-testid="stTextInput"] textarea,
+          [data-testid="stPassword"] input{
+            border-radius: 14px !important;
+            padding-top: 0.7rem !important;
+            padding-bottom: 0.7rem !important;
           }
-          /* Button */
+          [data-testid="stRadio"] label{ font-weight: 700; }
           button[kind="primary"] {
-            border-radius: 12px !important;
-            padding-top: 0.6rem !important;
-            padding-bottom: 0.6rem !important;
-            font-weight: 700 !important;
+            border-radius: 14px !important;
+            padding-top: 0.72rem !important;
+            padding-bottom: 0.72rem !important;
+            font-weight: 800 !important;
           }
+
           /* Small pill */
           .hotena-pill{
             display:inline-flex; align-items:center; gap:.45rem;
-            padding:.35rem .65rem; border-radius:999px;
-            background: rgba(255,255,255,.72);
+            padding:.38rem .70rem; border-radius:999px;
+            background: rgba(255,255,255,.76);
             border: 1px solid rgba(0,0,0,.08);
-            font-size:.92rem; font-weight:600;
-            box-shadow: 0 10px 20px rgba(0,0,0,.04);
+            font-size:.94rem; font-weight:650;
+            box-shadow: 0 14px 28px rgba(0,0,0,.05);
           }
-          .hotena-muted{ opacity:.80; }
-          .hotena-h1{ font-size:2.0rem; font-weight:900; line-height:1.15; margin:.55rem 0 .35rem 0;}
-          .hotena-lead{ font-size:1.04rem; margin:0 0 .75rem 0; }
+          .hotena-muted{ opacity:.82; }
+
+          /* Typography */
+          .hotena-h1{ font-size:2.28rem; font-weight:950; line-height:1.12; margin:.65rem 0 .40rem 0; letter-spacing:-0.02em;}
+          .hotena-lead{ font-size:1.06rem; margin:0 0 .80rem 0; }
+
+          /* Make the right login card feel like part of the same layout */
+          .hotena-card-title{ font-size:1.85rem; font-weight:900; margin:0 0 .15rem 0; }
+          .hotena-card-sub{ margin:0 0 .80rem 0; opacity:.78; }
+
           @media (max-width: 900px){
-            .hotena-h1{ font-size:1.6rem; }
-            section.main > div { padding-top: 0.9rem; }
+            .hotena-h1{ font-size:1.72rem; }
+            .block-container{ padding-left: 1.0rem !important; padding-right: 1.0rem !important; }
+            section.main > div { padding-top: 0.85rem; }
           }
         </style>
+
         """,
         unsafe_allow_html=True,
     )
@@ -1710,12 +1719,12 @@ if not user:
     except Exception:
         _char_path = None
 
-    left, right = st.columns([1.05, 1.0], gap="large")
+    left, right = st.columns([1.0, 1.15], gap="medium")
 
     with left:
         st.markdown('<div class="hotena-pill">💬 <span class="hotena-muted">매일 5분 · 회화 루틴</span></div>', unsafe_allow_html=True)
         if _char_path is not None:
-            st.image(str(_char_path), width=230)
+            st.image(str(_char_path), width=260)
         st.markdown('<div class="hotena-h1">하테나쌤과 함께<br/>오늘도 한 세트만 시작해요</div>', unsafe_allow_html=True)
         st.markdown('<div class="hotena-lead hotena-muted">틀려도 괜찮아요. 짧게, 자주, 확실하게.</div>', unsafe_allow_html=True)
         st.markdown("✅ **듣기 → 말하기 → 피드백** 흐름으로 바로 시작", unsafe_allow_html=True)
@@ -1723,13 +1732,14 @@ if not user:
         st.markdown("✅ 로그인만 하면 **홈허브로 바로 이동**", unsafe_allow_html=True)
 
     with right:
-        st.markdown("### 시작하기")
-        st.caption("로그인 후 바로 홈허브로 이동합니다.")
-        with st.form("login_form", clear_on_submit=False):
-            email = st.text_input("이메일", key="hub_email")
-            pw = st.text_input("비밀번호", type="password", key="hub_pw")
-            mode = st.radio("모드", ["로그인", "회원가입"], horizontal=True)
-            submit = st.form_submit_button("확인", use_container_width=True)
+        with st.container(border=True):
+            st.markdown('<div class="hotena-card-title">시작하기</div>', unsafe_allow_html=True)
+            st.markdown('<div class="hotena-card-sub">로그인 후 바로 홈허브로 이동합니다.</div>', unsafe_allow_html=True)
+            with st.form("login_form", clear_on_submit=False):
+                email = st.text_input("이메일", key="hub_email")
+                pw = st.text_input("비밀번호", type="password", key="hub_pw")
+                mode = st.radio("모드", ["로그인", "회원가입"], horizontal=True)
+                submit = st.form_submit_button("확인", use_container_width=True)
 
         if submit:
             if not email or not pw:
