@@ -1638,85 +1638,104 @@ user = st.session_state.get("user")
 sb_authed = st.session_state.get("sb_authed")
 
 if not user:
-    # === HOTENA_LOGIN_FINAL_B_V1 (brand-first, professional) ===
-    import os
-    st.markdown('''<style>
-    .stApp { background: linear-gradient(180deg, #f3f4f6 0%, #ffffff 70%); }
-    .block-container { max-width: 1040px !important; padding-top: 5.4rem !important; padding-bottom: 2.2rem !important; }
-    [data-testid="stHeader"], [data-testid="stToolbar"], #MainMenu, footer { visibility:hidden !important; height:0 !important; }
-    .hotena-brand { text-align:center; margin: 0 auto 2.2rem auto; }
-    .hotena-brand h1 { margin:0; font-size:2.2rem; font-weight:900; letter-spacing:-0.03em; color:#111827; line-height:1.08; }
-    .hotena-brand p  { margin:.35rem 0 0 0; font-size:.95rem; opacity:.55; color:#111827; }
-    .hotena-card-title { font-size:1.15rem; font-weight:800; color:#111827; margin: 0 0 1.0rem 0; }
-    div[data-testid="stForm"] {
-      max-width: 680px !important; margin: 0 auto !important;
-      border: 1px solid rgba(0,0,0,.08) !important;
-      border-radius: 16px !important;
-      padding: 28px 28px 18px 28px !important;
-      background: rgba(255,255,255,.92) !important;
-      box-shadow: 0 12px 30px rgba(0,0,0,.06) !important;
-    }
-    div[data-testid="stTextInput"] input { height: 48px !important; border-radius: 12px !important; }
-    button[kind="primary"] { height: 46px !important; border-radius: 12px !important; font-weight:800 !important; }
-    
-    /* Layout harmony for login row */
-    div[data-testid="stHorizontalBlock"]{align-items:flex-end; column-gap:32px !important;}
-    .hotena-char-spacer{height:clamp(40px,6vh,120px);}
-</style>''', unsafe_allow_html=True)
-    st.markdown('<div class="hotena-brand"><h1>하테나일본어</h1></div>', unsafe_allow_html=True)
-    st.subheader("로그인")
-    # === HOTENA_LOGIN_COLUMNS_V1 ===
-    col_login, col_char = st.columns([1.3, 0.7], gap="medium")
-    with col_login:
+    # ============================
+    # ✅ Login screen (clean + cohesive)
+    # ============================
+    st.markdown(
+        """
+<style>
+/* --- page base --- */
+section.main > div {background: linear-gradient(135deg, #f7fafc 0%, #ffffff 55%, #f6f9ff 100%);}
+
+/* reduce default top padding a bit (only affects this page because we stop()) */
+.block-container {padding-top: 2.0rem; padding-bottom: 2.5rem; max-width: 1200px;}
+
+/* --- layout --- */
+#hotena-login-wrap {max-width: 1120px; margin: 0 auto;}
+#hotena-login-wrap .hotena-row div[data-testid="stHorizontalBlock"]{gap: 22px; align-items: flex-end;}
+#hotena-login-wrap div[data-testid="column"]{display:flex; flex-direction:column;}
+
+/* --- brand --- */
+.hotena-brand {font-size: 2.05rem; font-weight: 900; letter-spacing: -0.02em; margin: 0 0 14px 0; color: rgba(20,23,28,.92);}
+
+/* --- card --- */
+.hotena-card {background: rgba(255,255,255,.85); border: 1px solid rgba(0,0,0,.08); border-radius: 18px; padding: 18px 18px 14px 18px; box-shadow: 0 14px 40px rgba(0,0,0,.08);}
+.hotena-card div[data-testid="stForm"]{border: none; padding: 0;}
+
+/* make inputs look a bit softer */
+.hotena-card input, .hotena-card textarea {border-radius: 12px !important;}
+.hotena-card .stRadio [role="radiogroup"]{gap: 14px;}
+.hotena-card button[kind="primary"], .hotena-card button {border-radius: 12px !important;}
+
+/* --- figure --- */
+.hotena-figure {display:flex; align-items:flex-end; justify-content:center; height:100%;}
+.hotena-figure img {max-width: 280px; width: 100%; height: auto;}
+
+/* --- responsive --- */
+@media (max-width: 900px){
+  #hotena-login-wrap .hotena-row div[data-testid="stHorizontalBlock"]{gap: 12px;}
+  .hotena-brand {font-size: 1.75rem;}
+  .hotena-figure img {max-width: 220px;}
+}
+@media (max-width: 720px){
+  .block-container {padding-top: 1.2rem;}
+  #hotena-login-wrap .hotena-row div[data-testid="stHorizontalBlock"]{flex-direction: column; align-items: stretch;}
+  .hotena-figure {justify-content:flex-start; padding-left: 6px; margin-top: 8px;}
+}
+</style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    st.markdown('<div id="hotena-login-wrap">', unsafe_allow_html=True)
+    st.markdown('<div class="hotena-row">', unsafe_allow_html=True)
+
+    colL, colR = st.columns([1.35, 0.65], gap="small")
+
+    with colL:
+        st.markdown('<div class="hotena-brand">하테나일본어</div>', unsafe_allow_html=True)
+        st.markdown('<div class="hotena-card">', unsafe_allow_html=True)
+
         with st.form("login_form", clear_on_submit=False):
             email = st.text_input("이메일", key="hub_email")
             pw = st.text_input("비밀번호", type="password", key="hub_pw")
             mode = st.radio("모드", ["로그인", "회원가입"], horizontal=True)
-            submit = st.form_submit_button("로그인", use_container_width=True)
+            submit = st.form_submit_button("로그인" if mode == "로그인" else "회원가입", use_container_width=True)
 
-    with col_char:
-        st.markdown('<div class="hotena-char-spacer"></div>', unsafe_allow_html=True)
-        _p = os.path.join('assets','hotena_sensei.png')
-        if os.path.exists(_p):
-            st.image(_p, use_container_width=True)
-        else:
-            st.empty()
-    if submit:
-        if not email or not pw:
-            st.error("이메일/비밀번호를 입력해 주세요.")
-            st.stop()
+        st.markdown("</div>", unsafe_allow_html=True)
+
+        if submit:
+            if not email or not pw:
+                st.error("이메일/비밀번호를 입력해 주세요.")
+                st.stop()
+            try:
+                if mode == "로그인":
+                    res = sb.auth.sign_in_with_password({"email": email, "password": pw})
+                else:
+                    res = sb.auth.sign_up({"email": email, "password": pw})
+
+                if getattr(res, "session", None) and getattr(res.session, "access_token", None):
+                    st.session_state["user"] = res.user
+                    st.session_state["access_token"] = res.session.access_token
+                    st.session_state["refresh_token"] = res.session.refresh_token
+                    cookies["access_token"] = res.session.access_token
+                    cookies["refresh_token"] = res.session.refresh_token
+                    st.rerun()
+                else:
+                    st.error("로그인/회원가입에 실패했습니다. 이메일 인증이 필요할 수 있어요.")
+            except Exception as e:
+                st.error(f"로그인/회원가입 오류: {e}")
+
+    with colR:
+        st.markdown('<div class="hotena-figure">', unsafe_allow_html=True)
         try:
-            if mode == "로그인":
-                res = sb.auth.sign_in_with_password({"email": email, "password": pw})
-            else:
-                res = sb.auth.sign_up({"email": email, "password": pw})
+            st.image("assets/hotena_sensei.png", use_container_width=True)
+        except Exception:
+            pass
+        st.markdown("</div>", unsafe_allow_html=True)
 
-            if getattr(res, "session", None) and getattr(res.session, "access_token", None):
-                st.session_state["user"] = res.user
-                st.session_state["access_token"] = res.session.access_token
-                st.session_state["refresh_token"] = res.session.refresh_token
-                cookies["access_token"] = res.session.access_token
-                cookies["refresh_token"] = res.session.refresh_token
-                _cookies_save_once_per_run()
-
-                # ✅ persist encrypted tokens for refresh-proof login
-                try:
-                    st.query_params["rt"] = _enc(res.session.refresh_token)
-                    st.query_params["at"] = _enc(res.session.access_token)
-                    _js_set_localstorage("hotena_rt", st.query_params.get("rt",""))
-                    _js_set_localstorage("hotena_at", st.query_params.get("at",""))
-                except Exception:
-                    pass
-
-                st.success("로그인 완료!")
-                st.rerun()
-            else:
-                st.warning("이메일 인증이 필요할 수 있습니다. (Supabase 설정에 따라 다름)")
-        except Exception as e:
-            st.error("로그인/가입 실패")
-            st.code(str(e))
+    st.markdown("</div></div>", unsafe_allow_html=True)  # close row + wrap
     st.stop()
-
 # logged in
 sb_authed = get_authed_sb()
 user = st.session_state.get("user")
