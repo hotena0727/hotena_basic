@@ -1,5 +1,4 @@
-
-# landing.py - Hotena Landing (fullscreen hero) v2 (assets_dir compatible)
+# landing.py - Hotena Landing (fullscreen hero) v3 (no-scroll on PC)
 from __future__ import annotations
 
 import base64
@@ -26,7 +25,7 @@ def landing_ui(
     """
     ASSETS_DIR = Path(assets_dir)
 
-    # NOTE: If home.py already called set_page_config, Streamlit may warn; it's OK.
+    # If home.py already called set_page_config, Streamlit may warn; it's fine.
     try:
         st.set_page_config(page_title="Hotena", layout="wide")
     except Exception:
@@ -36,12 +35,11 @@ def landing_ui(
     bg64 = _b64(bg_path)
     bg_css = ""
     if bg64:
-        # ✅ show more "ground/cloud" initially: bias background to bottom
         bg_css = f"""
         .stApp {{
             background-image: url('data:image/png;base64,{bg64}');
             background-size: cover;
-            background-position: center 82%;
+            background-position: center 84%;
             background-repeat: no-repeat;
         }}
         """
@@ -49,7 +47,11 @@ def landing_ui(
     st.markdown(
         f"""
 <style>
-html, body {{ height: 100%; }}
+html, body {{
+  height: 100%;
+  margin: 0 !important;
+  padding: 0 !important;
+}}
 
 /* hide streamlit chrome */
 [data-testid="stHeader"], [data-testid="stToolbar"], #MainMenu, footer {{
@@ -59,10 +61,8 @@ html, body {{ height: 100%; }}
 
 /* remove container padding */
 .block-container {{
-  padding-top: 0rem !important;
-  padding-bottom: 0rem !important;
-  padding-left: 0rem !important;
-  padding-right: 0rem !important;
+  padding: 0 !important;
+  margin: 0 !important;
   max-width: 100% !important;
 }}
 
@@ -73,22 +73,25 @@ html, body {{ height: 100%; }}
 
 {bg_css}
 
-/* landing hero */
+/* ---- Landing layout ---- */
 .landing-wrapper {{
-  min-height: 100vh;
+  height: 100vh;                 /* exact viewport height */
+  overflow: hidden;              /* prevent scroll by wrapper */
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: clamp(18px, 4vh, 56px) clamp(14px, 4vw, 72px);
+  padding: clamp(14px, 2.6vh, 40px) clamp(14px, 3.2vw, 64px);
   box-sizing: border-box;
+  position: relative;
 }}
+
 .landing-inner {{
   width: 100%;
   max-width: 1240px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 56px;
+  gap: 52px;
 }}
 
 .hero-copy h1 {{
@@ -98,49 +101,86 @@ html, body {{ height: 100%; }}
   letter-spacing: -0.02em;
 }}
 .hero-copy p {{
-  margin: 0 0 18px 0;
+  margin: 0 0 16px 0;
   font-size: 1.05rem;
   opacity: .85;
 }}
 
 .login-card {{
   width: min(520px, 92vw);
-  background: rgba(255,255,255,0.74);
+  background: rgba(255,255,255,0.72);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   border: 1px solid rgba(0,0,0,0.10);
   border-radius: 20px;
-  padding: 26px 26px 20px 26px;
+  padding: 24px 24px 18px 24px;
   box-shadow: 0 18px 50px rgba(0,0,0,0.08);
 }}
 .login-topbar {{
-  height: 16px;
+  height: 14px;
   border-radius: 999px;
   background: rgba(255,255,255,0.55);
   border: 1px solid rgba(0,0,0,0.06);
-  margin-bottom: 16px;
+  margin-bottom: 14px;
 }}
 
+/* notes pinned inside hero so height doesn't grow */
+.landing-notes {{
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 10px;
+  width: min(1240px, calc(100vw - 24px));
+  opacity: .74;
+  font-size: .92rem;
+}}
+.landing-notes ul {{
+  margin: 0;
+  padding-left: 18px;
+}}
+
+/* mobile */
 @media (max-width: 980px) {{
+  .landing-wrapper {{
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+    padding-bottom: 22px;
+  }}
   .landing-inner {{
     flex-direction: column;
-    gap: 26px;
+    gap: 22px;
     text-align: center;
   }}
   .login-card {{
     width: min(560px, 94vw);
   }}
+  .landing-notes {{
+    position: static;
+    transform: none;
+    left: auto;
+    bottom: auto;
+    width: min(560px, 94vw);
+    margin: 6px auto 0 auto;
+  }}
 }}
 
+/* hard stop scrolling on desktop: Streamlit sometimes scrolls a container */
 @media (min-width: 981px) {{
-  body {{ overflow: hidden; }}
+  body, html {{
+    overflow: hidden !important;
+  }}
+  [data-testid="stAppViewContainer"] {{
+    overflow: hidden !important;
+  }}
 }}
 </style>
 """,
         unsafe_allow_html=True,
     )
 
-    st.markdown('<div class="landing-wrapper"><div class="landing-inner">', unsafe_allow_html=True)
+    st.markdown('<div class="landing-wrapper">', unsafe_allow_html=True)
+    st.markdown('<div class="landing-inner">', unsafe_allow_html=True)
 
     left, right = st.columns([1.05, 1.0], gap="large")
 
@@ -173,12 +213,12 @@ html, body {{ height: 100%; }}
 
         st.markdown("</div>", unsafe_allow_html=True)
 
-    st.markdown("</div></div>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)  # landing-inner
 
     st.markdown(
         """
-<div style="max-width:1240px;margin: 10px auto 0 auto; padding: 0 18px; opacity:.75; font-size:.92rem;">
-  <ul style="margin:0; padding-left: 18px;">
+<div class="landing-notes">
+  <ul>
     <li>회원가입 후 이메일 인증이 필요할 수 있어요.</li>
     <li>비밀번호는 6자 이상을 권장합니다.</li>
   </ul>
@@ -186,5 +226,7 @@ html, body {{ height: 100%; }}
 """,
         unsafe_allow_html=True,
     )
+
+    st.markdown("</div>", unsafe_allow_html=True)  # landing-wrapper
 
     return email, password, mode, submitted
