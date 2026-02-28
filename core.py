@@ -789,3 +789,86 @@ def render_top_nav(active: str = "home") -> None:
 
     st.markdown(css, unsafe_allow_html=True)
     st.markdown(html, unsafe_allow_html=True)
+
+# ============================================================
+# ✅ SFX (Sound Effects) — shared tiny UX feedback sounds
+# - session-level ON/OFF (default ON)
+# - Use: play_sfx("correct"|"wrong"|"reward"|"click")
+# ============================================================
+
+def is_sfx_enabled(default: bool = True) -> bool:
+    """Return whether SFX is enabled (session-level)."""
+    return bool(st.session_state.get("sfx_enabled", default))
+
+def set_sfx_enabled(enabled: bool) -> None:
+    """Enable/disable SFX (session-level)."""
+    st.session_state["sfx_enabled"] = bool(enabled)
+
+# Tiny embedded WAVs (base64). No external assets needed.
+# ============================================================
+# ✅ SFX (tiny WAVs generated at runtime to avoid huge base64 blobs)
+# - 16-bit PCM mono, 22050Hz
+# ============================================================
+import base64
+import io
+import math
+import struct
+import wave
+
+def _sfx__wav_bytes_from_tones(tones, framerate: int = 22050) -> bytes:
+    """Generate a small WAV (PCM16 mono) from tone segments.
+    tones: list of (freq_hz, seconds, volume_0_1). freq_hz==0 => silence
+    """
+    frames = bytearray()
+    for freq, secs, vol in tones:
+        n = max(0, int(secs * framerate))
+        if n <= 0:
+            continue
+        if freq <= 0:
+            # silence
+            frames.extend(b"\x00\x00" * n)
+            continue
+        amp = int(32767 * max(0.0, min(1.0, float(vol))))
+        w = 2.0 * math.pi * float(freq) / float(framerate)
+        for i in range(n):
+            v = int(amp * math.sin(w * i))
+            frames.extend(struct.pack("<h", v))
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as wf:
+        wf.setnchannels(1)
+        wf.setsampwidth(2)
+        wf.setframerate(framerate)
+        wf.writeframes(bytes(frames))
+    return buf.getvalue()
+
+def _sfx__wav_b64(tones) -> str:
+    return base64.b64encode(_sfx__wav_bytes_from_tones(tones)).decode("ascii")
+
+# Pre-generate once (module import time)
+_SFX_WAV_B64 = {
+    # quick UI click
+    "click": _sfx__wav_b64([(1200, 0.020, 0.35), (0, 0.010, 0.0)]),
+    # correct: two bright beeps
+    "correct": _sfx__wav_b64([(880, 0.050, 0.45), (0, 0.015, 0.0), (1320, 0.060, 0.45)]),
+    # wrong: one low dull beep
+    "wrong": _sfx__wav_b64([(220, 0.120, 0.45)]),
+    # reward: simple 3-note arpeggio
+    "reward": _sfx__wav_b64([(660, 0.050, 0.45), (0, 0.010, 0.0), (880, 0.050, 0.45), (0, 0.010, 0.0), (1320, 0.070, 0.45)]),
+}
+
+def play_sfx(name: str) -> None:
+    """Play a short SFX (best effort)."""
+    if not is_sfx_enabled(True):
+        return
+    b64 = _SFX_WAV_B64.get(str(name).strip().lower())
+    if not b64:
+        return
+    try:
+        components.html(
+            f"""<audio autoplay>
+  <source src="data:audio/wav;base64,{b64}" type="audio/wav">
+</audio>""",
+            height=0,
+        )
+    except Exception:
+        return
