@@ -1639,30 +1639,30 @@ sb_authed = st.session_state.get("sb_authed")
 
 if not user:
 
-    # === HOTENA_LOGIN_CLEAN_V3_TITLE_CHAR_SAFE ===
+    # === HOTENA_LOGIN_CLEAN_V4_TITLE_CHAR_SAFE (fixed braces) ===
 
     import base64, os
 
     _HERO_MAX = 640  # ✅ form width ~2/3
 
-    _CHAR_PATH = os.path.join("assets", "hotena_sensei.png")
+    _CHAR_PATH = os.path.join('assets', 'hotena_sensei.png')
 
-    _char_uri = ""
+    _char_uri = ''
 
     try:
 
         if os.path.exists(_CHAR_PATH):
 
-            _b = open(_CHAR_PATH, "rb").read()
+            _b = open(_CHAR_PATH, 'rb').read()
 
-            _char_uri = "data:image/png;base64," + base64.b64encode(_b).decode("utf-8")
+            _char_uri = 'data:image/png;base64,' + base64.b64encode(_b).decode('utf-8')
 
     except Exception:
 
-        _char_uri = ""
+        _char_uri = ''
 
 
-    st.markdown(f"""<style>
+    _css = '''
 
     .stApp {
 
@@ -1691,7 +1691,7 @@ if not user:
 
     .hotena-hero {
 
-      max-width: {_HERO_MAX}px;
+      max-width: __HERO__px;
 
       margin: 0 auto 1.0rem auto;
 
@@ -1752,7 +1752,7 @@ if not user:
 
     div[data-testid="stForm"] {
 
-      max-width: {_HERO_MAX}px !important;
+      max-width: __HERO__px !important;
 
       margin: 0 auto !important;
 
@@ -1793,14 +1793,16 @@ if not user:
 
     div[role="radiogroup"] { gap: 10px; }
 
-    </style>""", unsafe_allow_html=True)
+    '''
 
+    _css = _css.replace('__HERO__', str(_HERO_MAX))
 
-    # ✅ Safe HTML composition (no backslashes / no indentation traps)
+    st.markdown('<style>' + _css + '</style>', unsafe_allow_html=True)
+
 
     _img_html = f'<img src="{_char_uri}" alt="hotena_sensei"/>' if _char_uri else ''
 
-    _title_html = f"""
+    _title_html = f'''
 
     <div class="hotena-hero">
 
@@ -1816,7 +1818,7 @@ if not user:
 
     </div>
 
-    """
+    '''
 
     st.markdown(_title_html, unsafe_allow_html=True)
     with st.form("login_form", clear_on_submit=False):
