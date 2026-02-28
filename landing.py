@@ -1,12 +1,10 @@
 
-# landing.py - Hotena Landing (fullscreen hero) v1
+# landing.py - Hotena Landing (fullscreen hero) v2 (assets_dir compatible)
 from __future__ import annotations
 
 import base64
 from pathlib import Path
 import streamlit as st
-
-ASSETS_DIR = Path("assets")
 
 def _b64(path: Path) -> str:
     try:
@@ -16,15 +14,23 @@ def _b64(path: Path) -> str:
 
 def landing_ui(
     *,
+    assets_dir: str | Path = "assets",
     title: str = "시작하기",
     subtitle: str = "로그인 후 바로 홈허브로 이동합니다.",
     show_mode_toggle: bool = True,
     default_mode: str = "로그인",  # or "회원가입"
 ):
-    """Fullscreen landing UI.
+    """Fullscreen landing UI (Hotena).
+    Compatible with home.py calling: landing_ui(assets_dir='assets')
     Returns: (email, password, mode, submitted)
     """
-    st.set_page_config(page_title="Hotena", layout="wide")
+    ASSETS_DIR = Path(assets_dir)
+
+    # NOTE: If home.py already called set_page_config, Streamlit may warn; it's OK.
+    try:
+        st.set_page_config(page_title="Hotena", layout="wide")
+    except Exception:
+        pass
 
     bg_path = ASSETS_DIR / "landing_bg.png"
     bg64 = _b64(bg_path)
@@ -35,7 +41,7 @@ def landing_ui(
         .stApp {{
             background-image: url('data:image/png;base64,{bg64}');
             background-size: cover;
-            background-position: center 78%;
+            background-position: center 82%;
             background-repeat: no-repeat;
         }}
         """
@@ -43,14 +49,15 @@ def landing_ui(
     st.markdown(
         f"""
 <style>
-/* ---- kill Streamlit chrome & default paddings ---- */
 html, body {{ height: 100%; }}
-/* header/toolbars */
+
+/* hide streamlit chrome */
 [data-testid="stHeader"], [data-testid="stToolbar"], #MainMenu, footer {{
   visibility: hidden !important;
   height: 0 !important;
 }}
-/* main container padding + max width */
+
+/* remove container padding */
 .block-container {{
   padding-top: 0rem !important;
   padding-bottom: 0rem !important;
@@ -58,7 +65,7 @@ html, body {{ height: 100%; }}
   padding-right: 0rem !important;
   max-width: 100% !important;
 }}
-/* sometimes Streamlit injects extra space; hard reset */
+
 [data-testid="stAppViewContainer"] {{
   padding: 0 !important;
   margin: 0 !important;
@@ -66,7 +73,7 @@ html, body {{ height: 100%; }}
 
 {bg_css}
 
-/* ---- Landing layout ---- */
+/* landing hero */
 .landing-wrapper {{
   min-height: 100vh;
   display: flex;
@@ -75,7 +82,6 @@ html, body {{ height: 100%; }}
   padding: clamp(18px, 4vh, 56px) clamp(14px, 4vw, 72px);
   box-sizing: border-box;
 }}
-
 .landing-inner {{
   width: 100%;
   max-width: 1240px;
@@ -107,7 +113,6 @@ html, body {{ height: 100%; }}
   padding: 26px 26px 20px 26px;
   box-shadow: 0 18px 50px rgba(0,0,0,0.08);
 }}
-
 .login-topbar {{
   height: 16px;
   border-radius: 999px;
@@ -127,11 +132,8 @@ html, body {{ height: 100%; }}
   }}
 }}
 
-/* avoid scroll-jitter on desktop */
 @media (min-width: 981px) {{
-  body {{
-    overflow: hidden;
-  }}
+  body {{ overflow: hidden; }}
 }}
 </style>
 """,
@@ -152,7 +154,7 @@ html, body {{ height: 100%; }}
         if sensei_path.exists():
             st.image(str(sensei_path), width=420)
         else:
-            st.info("assets/hotena_sensei.png 파일이 없습니다.")
+            st.info(f"{sensei_path.as_posix()} 파일이 없습니다.")
 
     with right:
         st.markdown('<div class="login-card">', unsafe_allow_html=True)
