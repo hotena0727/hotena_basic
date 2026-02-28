@@ -1676,37 +1676,6 @@ if not user:
             st.error('로그인/가입 실패')
             st.code(str(e))
     st.stop()
-        try:
-            if mode == "로그인":
-                res = sb.auth.sign_in_with_password({"email": email, "password": pw})
-            else:
-                res = sb.auth.sign_up({"email": email, "password": pw})
-
-            if getattr(res, "session", None) and getattr(res.session, "access_token", None):
-                st.session_state["user"] = res.user
-                st.session_state["access_token"] = res.session.access_token
-                st.session_state["refresh_token"] = res.session.refresh_token
-                cookies["access_token"] = res.session.access_token
-                cookies["refresh_token"] = res.session.refresh_token
-                _cookies_save_once_per_run()
-
-                # ✅ persist encrypted tokens for refresh-proof login
-                try:
-                    st.query_params["rt"] = _enc(res.session.refresh_token)
-                    st.query_params["at"] = _enc(res.session.access_token)
-                    _js_set_localstorage("hotena_rt", st.query_params.get("rt",""))
-                    _js_set_localstorage("hotena_at", st.query_params.get("at",""))
-                except Exception:
-                    pass
-
-                st.success("로그인 완료!")
-                st.rerun()
-            else:
-                st.warning("이메일 인증이 필요할 수 있습니다. (Supabase 설정에 따라 다름)")
-        except Exception as e:
-            st.error("로그인/가입 실패")
-            st.code(str(e))
-    st.stop()
 
 # logged in
 sb_authed = get_authed_sb()
