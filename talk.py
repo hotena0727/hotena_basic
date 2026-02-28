@@ -10,6 +10,7 @@ import hashlib
 import os
 import difflib
 import re
+import io
 
 # ============================================================
 # ✅ (선택) 한자/가나 표기 차이를 줄이기 위한 히라가나 정규화
@@ -2194,7 +2195,17 @@ if submitted:
         if IS_PRO:
             _audio = st.audio_input("🎤 (선택) 내 발음을 녹음하고 들어보세요", key=f"{qid}_record_{_audio_nonce}")
             if _audio is not None:
-                st.audio(_audio)
+                # 🔧 audio_input 반환 객체를 그대로 st.audio에 넘기면(스트림 포인터/재렌더링 영향)
+                # 일부 환경에서 'An error has occurred, please try again.'가 뜰 수 있어
+                # bytes로 복사해서 재생/후속 처리에 재사용합니다.
+                _rec_bytes_key = f"{qid}__rec_bytes"
+                try:
+                    _ab = _audio.getvalue() if hasattr(_audio, "getvalue") else _audio.read()
+                except Exception:
+                    _ab = None
+                if _ab:
+                    st.session_state[_rec_bytes_key] = _ab
+                    st.audio(_ab, format="audio/wav")
         else:
             remr = _free_record_remaining()
             if remr > 0:
@@ -2237,6 +2248,14 @@ if submitted:
             st.session_state.pop(f"talk_pron_lasthash_{qid}", None)
 
         audio_obj = locals().get("_audio", None)
+        # bytes를 session_state에 저장해두었다면(BytesIO로 감싸서) 이후 STT/채점에서 안정적으로 사용
+        _rec_bytes_key = f"{qid}__rec_bytes"
+        _ab = st.session_state.get(_rec_bytes_key)
+        if _ab:
+            try:
+                audio_obj = io.BytesIO(_ab)
+            except Exception:
+                pass
 
         # ✅ 녹음 '전'에는 결과/점수 표시 및 자동 계산을 절대 하지 않기
         _peek = b""
