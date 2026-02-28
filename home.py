@@ -329,7 +329,6 @@ div[data-testid="stMetric"]{
 """,
     unsafe_allow_html=True,
 )
-st.session_state["_top_compact_css_applied"] = True
 st.session_state["_page_config_set"] = True  # children should not call set_page_config
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -1639,18 +1638,27 @@ user = st.session_state.get("user")
 sb_authed = st.session_state.get("sb_authed")
 
 if not user:
-    # ✅ Login screen character (place your PNG in assets/hotena_sensei.png or assets/character.png)
+
+    # ✅ 로그인 화면: 하테나쌤 캐릭터(투명 PNG) 1장 노출
     try:
-        _assets = Path(__file__).resolve().parent / 'assets'
-        _cands = [
-            _assets / 'hotena_sensei.png',
-            _assets / 'character.png',
-            _assets / 'hatena_sensei.png',
+        _candidate_chars = [
+            "assets/hotena_sensei.png",
+            "assets/character.png",
+            "assets/hatena_sensei.png",
         ]
-        for _p in _cands:
-            if _p.exists():
-                st.image(str(_p), use_container_width=True)
-                break
+        _char_path = next((p for p in _candidate_chars if Path(p).exists()), None)
+        if _char_path:
+            st.markdown(
+                """
+<style>
+.hotena-login-hero { display:flex; justify-content:center; margin: .35rem 0 .15rem; }
+</style>
+""",
+                unsafe_allow_html=True,
+            )
+            _c1, _c2, _c3 = st.columns([1, 2, 1])
+            with _c2:
+                st.image(_char_path, use_container_width=True)
     except Exception:
         pass
 
