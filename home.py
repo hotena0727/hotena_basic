@@ -1638,10 +1638,20 @@ user = st.session_state.get("user")
 sb_authed = st.session_state.get("sb_authed")
 
 if not user:
+    # 캐릭터(우측) — 로컬 assets/hatena_sensei.png가 있으면 로그인 카드 헤더에 노출
+    _char_src = ""
+    try:
+        from pathlib import Path
+        import base64 as _b64
+        _p = Path("assets/hotena_sensei.png")
+        if _p.exists():
+            _char_src = "data:image/png;base64," + _b64.b64encode(_p.read_bytes()).decode("utf-8")
+    except Exception:
+        _char_src = ""
 
-    # --- Pretty login card (Hub) ---
-    st.markdown(
-        """
+    _char_img = f'<img class="ha-login-char" src="{_char_src}" />' if _char_src else ""
+
+    _login_html = """
 <style>
 /* === Hotena Login (pretty card) === */
 .ha-login-bg{
@@ -1658,6 +1668,14 @@ if not user:
 .ha-login-head{
   display:flex; align-items:center; gap:10px;
   margin-bottom: 10px;
+}
+.ha-login-char{
+  margin-left:auto;
+  width: 54px; height: 54px;
+  border-radius: 16px;
+  object-fit: cover;
+  border: 1px solid rgba(0,0,0,0.08);
+  background: rgba(0,0,0,0.02);
 }
 .ha-login-logo{
   width: 40px; height: 40px; border-radius: 14px;
@@ -1680,7 +1698,39 @@ if not user:
   opacity: .70;
   margin-top: .55rem;
 }
+
+/* === SP (mobile) tweaks === */
+@media (max-width: 768px){
+  .ha-login-card{
+    padding: 16px 14px 12px;
+    border-radius: 16px;
+  }
+  .ha-login-head{
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .ha-login-logo{
+    width: 38px; height: 38px;
+    border-radius: 14px;
+    font-size: 17px;
+    flex: 0 0 auto;
+  }
+  .ha-login-ttl b{font-size:1.08rem;}
+  .ha-login-ttl div{font-size:.86rem;}
+  .ha-login-note{font-size:.84rem; margin: .08rem 0 .50rem;}
+  .ha-login-char{
+    width: 44px; height: 44px;
+    border-radius: 14px;
+    flex: 0 0 auto;
+  }
+}
+/* Ultra-small phones */
+@media (max-width: 380px){
+  .ha-login-ttl div{display:none;}
+  .ha-login-char{width: 40px; height: 40px;}
+}
 </style>
+
 <div class="ha-login-bg">
   <div class="ha-login-card">
     <div class="ha-login-head">
@@ -1689,13 +1739,16 @@ if not user:
         <b>하테나</b>
         <div>단어 · 한자 · 회화 루틴을 한 곳에서</div>
       </div>
+      __CHAR_IMG__
     </div>
     <div class="ha-login-note">계정을 만들면 학습 기록이 저장되고, 기기/브라우저가 달라도 이어서 할 수 있어요.</div>
   </div>
 </div>
-""",
-        unsafe_allow_html=True,
-    )
+"""
+
+    _login_html = _login_html.replace("__CHAR_IMG__", _char_img)
+
+    st.markdown(_login_html, unsafe_allow_html=True)
 
     def _auth_success(res):
         st.session_state["user"] = res.user
@@ -1759,10 +1812,11 @@ if not user:
                 if getattr(res, "session", None) and getattr(res.session, "access_token", None):
                     _auth_success(res)
                 else:
-                    # Some Supabase setups require email confirmation and may not return a session.
                     st.success("회원가입 요청이 완료되었습니다. 이메일 인증이 필요할 수 있어요.")
             except Exception:
                 st.error("회원가입에 실패했습니다. 이미 가입된 이메일이거나 비밀번호 조건이 맞지 않을 수 있어요.")
+
+    st.stop()
 else:
     # ✅ Fallback: unknown page -> go home
     st.session_state["hub_page"] = "home"
