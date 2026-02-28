@@ -1698,7 +1698,7 @@ if not user:
         
           /* ✅ login hero layout */
           .hotena-wrap{
-            max-width:1120px;
+            max-width:980px;
             margin:0 auto;
             padding:1.1rem 1.1rem;
             border-radius:26px;
@@ -1708,7 +1708,7 @@ if not user:
             backdrop-filter: blur(6px);
           }
           .hotena-login-max{
-            max-width:540px;
+            max-width:520px;
             margin-left:auto;
           }
           .hotena-mini-list{
