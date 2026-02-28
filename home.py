@@ -1639,11 +1639,32 @@ sb_authed = st.session_state.get("sb_authed")
 
 if not user:
 
-    # === HOTENA_LOGIN_CLEAN_SKIN_V1 (no images) ===
+    # === HOTENA_LOGIN_CLEAN_V2_TITLE_CHAR ===
 
-    st.markdown("""<style>
+    import base64, os
 
-    /* Apply only while login screen is rendered */
+    _HERO_MAX = 640  # ✅ roughly 2/3 of the previous wide login feel
+
+    _CHAR_PATH = os.path.join("assets", "hotena_sensei.png")
+
+    _char_uri = ""
+
+    try:
+
+        if os.path.exists(_CHAR_PATH):
+
+            _b = open(_CHAR_PATH, "rb").read()
+
+            _char_uri = "data:image/png;base64," + base64.b64encode(_b).decode("utf-8")
+
+    except Exception:
+
+        _char_uri = ""
+
+
+    st.markdown(f"""<style>
+
+    /* Background */
 
     .stApp {
 
@@ -1651,21 +1672,21 @@ if not user:
 
     }
 
-    /* Keep things balanced on PC */
+    /* Keep overall page reasonable on PC */
 
-    .block-container{
+    .block-container {
 
       max-width: 980px !important;
 
-      padding-top: 2.2rem !important;
+      padding-top: 2.0rem !important;
 
-      padding-bottom: 2rem !important;
+      padding-bottom: 2.0rem !important;
 
     }
 
     /* Hide Streamlit chrome */
 
-    [data-testid="stHeader"], [data-testid="stToolbar"], #MainMenu, footer{
+    [data-testid="stHeader"], [data-testid="stToolbar"], #MainMenu, footer {
 
       visibility: hidden !important;
 
@@ -1674,9 +1695,76 @@ if not user:
     }
 
 
-    /* Card look for the login form */
+    /* HERO wrapper ensures title+character length doesn't exceed subtitle line */
 
-    div[data-testid="stForm"]{
+    .hotena-hero {
+
+      max-width: {_HERO_MAX}px;
+
+      margin: 0 auto 1.0rem auto;
+
+    }
+
+    .hotena-title-row {
+
+      display: flex;
+
+      align-items: flex-end; /* ✅ baseline align */
+
+      justify-content: center;
+
+      gap: 10px;
+
+      flex-wrap: nowrap;
+
+    }
+
+    .hotena-login-title {
+
+      font-size: 2.05rem;
+
+      font-weight: 900;
+
+      letter-spacing: -0.02em;
+
+      margin: 0;
+
+      line-height: 1.05;
+
+    }
+
+    .hotena-title-row img {
+
+      height: 4.1rem; /* ✅ about 2x title size */
+
+      width: auto;
+
+      display: block;
+
+    }
+
+    .hotena-login-sub {
+
+      margin-top: .55rem;
+
+      text-align: center;
+
+      opacity: .78;
+
+      font-size: 1.02rem;
+
+      line-height: 1.45;
+
+    }
+
+
+    /* Form card: narrower (≈ 2/3) */
+
+    div[data-testid="stForm"] {
+
+      max-width: {_HERO_MAX}px !important;
+
+      margin: 0 auto !important;
 
       border: 1px solid rgba(0,0,0,.08) !important;
 
@@ -1694,40 +1782,8 @@ if not user:
 
     }
 
-    /* Typography */
 
-    .hotena-login-title{
-
-      text-align: center;
-
-      font-size: 2.05rem;
-
-      font-weight: 900;
-
-      letter-spacing: -0.02em;
-
-      margin: 0 0 .35rem 0;
-
-    }
-
-    .hotena-login-sub{
-
-      text-align: center;
-
-      opacity: .78;
-
-      margin: 0 0 1.2rem 0;
-
-      font-size: 1.02rem;
-
-      line-height: 1.45;
-
-    }
-
-
-    /* Inputs */
-
-    div[data-testid="stTextInput"] input{
+    div[data-testid="stTextInput"] input {
 
       height: 48px !important;
 
@@ -1735,9 +1791,7 @@ if not user:
 
     }
 
-    /* Button */
-
-    button[kind="primary"]{
+    button[kind="primary"] {
 
       height: 46px !important;
 
@@ -1747,16 +1801,24 @@ if not user:
 
     }
 
-    /* Make radio more compact */
-
-    div[role="radiogroup"]{ gap: 10px; }
+    div[role="radiogroup"] { gap: 10px; }
 
     </style>""", unsafe_allow_html=True)
 
 
-    st.markdown('<div class="hotena-login-title">하테나</div>', unsafe_allow_html=True)
+    # Title + character (same width wrapper as subtitle)
 
-    st.markdown('<div class="hotena-login-sub">틀려도 괜찮아요. 오늘도 함께 말해봅시다.<br/>짧게, 자주, 확실하게.</div>', unsafe_allow_html=True)
+    _title_html = '<div class="hotena-hero"><div class="hotena-title-row">' \
+
+                  + '<div class="hotena-login-title">하테나일본어</div>' \
+
+                  + (f'<img src="{_char_uri}" alt="hotena_sensei"/>' if _char_uri else '') \
+
+                  + '</div>' \
+
+                  + '<div class="hotena-login-sub">틀려도 괜찮아요. 오늘도 함께 말해봅시다.<br/>짧게, 자주, 확실하게.</div></div>'
+
+    st.markdown(_title_html, unsafe_allow_html=True)
     with st.form("login_form", clear_on_submit=False):
         email = st.text_input("이메일", key="hub_email")
         pw = st.text_input("비밀번호", type="password", key="hub_pw")
