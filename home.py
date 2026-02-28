@@ -1668,7 +1668,7 @@ if not user:
     # === HOTENA_LOGIN_COLUMNS_V1 ===
     col_login, col_char = st.columns([1.3, 0.7], gap="medium")
     with col_login:
-                with st.form("login_form", clear_on_submit=False):
+        with st.form("login_form", clear_on_submit=False):
             email = st.text_input("이메일", key="hub_email")
             pw = st.text_input("비밀번호", type="password", key="hub_pw")
             mode = st.radio("모드", ["로그인", "회원가입"], horizontal=True)
