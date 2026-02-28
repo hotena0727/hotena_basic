@@ -503,6 +503,118 @@ except Exception:
 
 
 
+
+# ============================================================
+# ✅ Daily resume (A안): tag/sub/plan 별로 '오늘 진행' 저장/복구
+# - profiles.progress['talk']['daily_state']에 저장 (일 단위)
+# - 같은 날/같은 필터(tag|sub|plan)이면 이어서 진행
+# - 다음날이면 자동으로 새로 시작
+# ============================================================
+def _talk_resume_key(tag: str, sub: str, is_pro: bool) -> str:
+    return f"{str(tag).strip().lower()}|{str(sub).strip().lower()}|{'pro' if is_pro else 'free'}"
+
+def _get_talk_daily_state_all() -> dict:
+    try:
+        prog = load_progress()
+        talk_prog = prog.get("talk") or {}
+        ds = talk_prog.get("daily_state") or {}
+        if not isinstance(ds, dict):
+            ds = {}
+        return ds
+    except Exception:
+        return {}
+
+def _set_talk_daily_state_all(ds: dict) -> None:
+    try:
+        prog = load_progress()
+        talk_prog = prog.get("talk") or {}
+        talk_prog["daily_state"] = ds if isinstance(ds, dict) else {}
+        prog["talk"] = talk_prog
+        save_progress(prog)
+    except Exception:
+        pass
+
+def _load_talk_daily_state(resume_key: str) -> dict | None:
+    try:
+        today = _kst_today_str()
+        ds = _get_talk_daily_state_all()
+        state = ds.get(resume_key)
+        if not isinstance(state, dict):
+            return None
+        if str(state.get("date") or "") != today:
+            return None
+        # normalize
+        qids = state.get("set_qids")
+        idx = state.get("idx")
+        if not isinstance(qids, list) or not qids:
+            return None
+        if idx is None:
+            idx = 0
+        try:
+            idx = int(idx)
+        except Exception:
+            idx = 0
+        return {"date": today, "set_qids": [str(x) for x in qids], "idx": idx}
+    except Exception:
+        return None
+
+def _save_talk_daily_state(resume_key: str, set_qids: list[str], idx: int) -> None:
+    try:
+        today = _kst_today_str()
+        ds = _get_talk_daily_state_all()
+        ds[resume_key] = {
+            "date": today,
+            "set_qids": [str(x) for x in (set_qids or [])],
+            "idx": int(idx),
+        }
+        _set_talk_daily_state_all(ds)
+    except Exception:
+        pass
+
+def _clear_talk_daily_state(resume_key: str) -> None:
+    try:
+        ds = _get_talk_daily_state_all()
+        if resume_key in ds:
+            ds.pop(resume_key, None)
+            _set_talk_daily_state_all(ds)
+    except Exception:
+        pass
+
+def _restore_daily_progress_if_any(resume_key: str, pool_df: pd.DataFrame) -> bool:
+    """session_state에 세트가 없을 때만 호출.
+    성공 시 True (복구 완료), 실패 시 False.
+    """
+    stt = _load_talk_daily_state(resume_key)
+    if not stt:
+        return False
+
+    # 현재 풀에 존재하는 qid만 유지(필터/CSV 변경 안전)
+    pool_qids = set(pool_df["qid"].astype(str).tolist())
+    qids = [q for q in (stt.get("set_qids") or []) if q in pool_qids]
+    if not qids:
+        return False
+
+    idx = int(stt.get("idx") or 0)
+    idx = max(0, min(idx, len(qids) - 1))
+
+    st.session_state[f"{NS}_set_qids"] = qids
+    st.session_state[f"{NS}_idx"] = idx
+    st.session_state[f"{NS}_answers"] = {qid: {"selected": None, "ok": None, "spoken": False} for qid in qids}
+    st.session_state[f"{NS}_submitted"] = False
+    return True
+
+def _persist_daily_progress(resume_key: str, set_qids: list[str], idx: int) -> None:
+    # 너무 잦은 저장을 막기 위해 해시로 간단 가드
+    try:
+        payload = {"k": resume_key, "q": list(set_qids or []), "i": int(idx)}
+        h = hashlib.md5(str(payload).encode("utf-8")).hexdigest()
+        if st.session_state.get("_talk_daily_state_hash") == h:
+            return
+        _save_talk_daily_state(resume_key, list(set_qids or []), int(idx))
+        st.session_state["_talk_daily_state_hash"] = h
+    except Exception:
+        pass
+
 # ============================================================
 # ✅ FREE quota (daily): TTS 3회 / 녹음 3회
 # - profiles.progress['talk']['free_quota'] 에 저장해서 새로고침/재로그인에도 유지
@@ -1307,17 +1419,32 @@ if _prev_fk != _cur_fk:
     st.session_state[f"{NS}_filter_key"] = _cur_fk
 pool_answers = pool_df["answer_jp"].astype(str).tolist()
 
+
 # ============================================================
 # ✅ Initialize set (10 qids) + pointer
+# - session_state가 초기화되어도 '오늘 진행'은 DB(progress)에 저장된 값으로 복구(A안)
 # ============================================================
+resume_key = _talk_resume_key(tag, sub, IS_PRO)
+
 if f"{NS}_set_qids" not in st.session_state:
-    n = min((SET_LEN if IS_PRO else FREE_SET_LEN), len(pool_df))
-    sample = pool_df.sample(n=n, replace=False).reset_index(drop=True)
-    qids = sample["qid"].astype(str).tolist()
-    st.session_state[f"{NS}_set_qids"] = qids
-    st.session_state[f"{NS}_idx"] = 0
-    st.session_state[f"{NS}_answers"] = {qid: {"selected": None, "ok": None, "spoken": False} for qid in qids}
-    st.session_state[f"{NS}_submitted"] = False
+    # 1) 오늘 진행 복구 시도
+    restored = _restore_daily_progress_if_any(resume_key, pool_df)
+
+    # 2) 복구 실패면 새 세트 생성
+    if not restored:
+        n = min((SET_LEN if IS_PRO else FREE_SET_LEN), len(pool_df))
+        sample = pool_df.sample(n=n, replace=False).reset_index(drop=True)
+        qids = sample["qid"].astype(str).tolist()
+        st.session_state[f"{NS}_set_qids"] = qids
+        st.session_state[f"{NS}_idx"] = 0
+        st.session_state[f"{NS}_answers"] = {qid: {"selected": None, "ok": None, "spoken": False} for qid in qids}
+        st.session_state[f"{NS}_submitted"] = False
+
+    # 3) 최초 진입 시점에도 저장(복구든 신규든)
+    try:
+        _persist_daily_progress(resume_key, st.session_state.get(f"{NS}_set_qids") or [], int(st.session_state.get(f"{NS}_idx") or 0))
+    except Exception:
+        pass
 
 qids: list[str] = st.session_state[f"{NS}_set_qids"]
 idx: int = int(st.session_state.get(f"{NS}_idx") or 0)
@@ -1338,6 +1465,11 @@ with p1:
 with p2:
     if st.button("🔄 새 세트", use_container_width=True, type="secondary", key=f"{NS}_new_set"):
         reset_set()
+        try:
+            _clear_talk_daily_state(resume_key)
+            _persist_daily_progress(resume_key, [], 0)
+        except Exception:
+            pass
         # st.rerun()  # Streamlit은 버튼 클릭 시 자동 rerun됩니다.
 
 # ============================================================
@@ -1384,6 +1516,10 @@ def _go_next_question():
     if nxt >= len(qids):
         nxt = 0
     st.session_state[f"{NS}_idx"] = nxt
+    try:
+        _persist_daily_progress(resume_key, qids, nxt)
+    except Exception:
+        pass
     # 상태 초기화(다음 문제)
     st.session_state[submitted_key] = False
     st.session_state.pop(sel_key, None)
@@ -1561,6 +1697,10 @@ if submitted:
     answers[qid]["selected"] = selected
     answers[qid]["ok"] = ok
     st.session_state[f"{NS}_answers"] = answers
+    try:
+        _persist_daily_progress(resume_key, qids, idx)
+    except Exception:
+        pass
 
     st.markdown("---")
     st.subheader("결과")
