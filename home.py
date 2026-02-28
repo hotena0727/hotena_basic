@@ -329,6 +329,7 @@ div[data-testid="stMetric"]{
 """,
     unsafe_allow_html=True,
 )
+st.session_state["_top_compact_css_applied"] = True
 st.session_state["_page_config_set"] = True  # children should not call set_page_config
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -1638,6 +1639,21 @@ user = st.session_state.get("user")
 sb_authed = st.session_state.get("sb_authed")
 
 if not user:
+    # ✅ Login screen character (place your PNG in assets/hotena_sensei.png or assets/character.png)
+    try:
+        _assets = Path(__file__).resolve().parent / 'assets'
+        _cands = [
+            _assets / 'hotena_sensei.png',
+            _assets / 'character.png',
+            _assets / 'hatena_sensei.png',
+        ]
+        for _p in _cands:
+            if _p.exists():
+                st.image(str(_p), use_container_width=True)
+                break
+    except Exception:
+        pass
+
     st.subheader("로그인")
     with st.form("login_form", clear_on_submit=False):
         email = st.text_input("이메일", key="hub_email")
