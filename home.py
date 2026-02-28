@@ -1640,7 +1640,7 @@ sb_authed = st.session_state.get("sb_authed")
 if not user:
     # --- Pretty login card (Hub) ---
 
-    # 캐릭터(우측) — 로컬 assets/hatena_sensei.png가 있으면 로그인 카드 헤더에 노출
+    # 캐릭터(우측) — 로컬 assets/hotena_sensei.png가 있으면 로그인 카드 헤더에 노출
     _char_src = ""
     try:
         from pathlib import Path
