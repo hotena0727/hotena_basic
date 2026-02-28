@@ -1638,135 +1638,74 @@ user = st.session_state.get("user")
 sb_authed = st.session_state.get("sb_authed")
 
 if not user:
-
-    # === HOTENA_LOGIN_SIDE_BY_SIDE_V2 ===
-
-    # 로그인 화면: PC는 2컬럼(좌: 캐릭터/멘트, 우: 로그인 카드), 모바일은 1컬럼(위→아래)
-
-    _LOGIN_SKIN_ON = True
-
-
-    if _LOGIN_SKIN_ON:
-
-        st.markdown("""<style>
-
-        /* --- login-only skin --- */
-
-        .block-container { padding-top: 1.0rem !important; padding-bottom: 1.5rem !important; }
-
-        .hotena-login-wrap { max-width: 1120px; margin: 0 auto; }
-
-        .hotena-copy h1 { margin: 0 0 .35rem 0; font-size: 2.05rem; font-weight: 900; line-height: 1.15; }
-
-        .hotena-copy p  { margin: 0; font-size: 1.02rem; opacity: .80; line-height: 1.55; }
-
-        .hotena-tagline { margin-top: .65rem; font-weight: 800; font-size: 1.25rem; }
-
-        .hotena-sub { margin-top: .25rem; font-weight: 700; opacity: .72; }
-
-        div[data-testid="stForm"] {
-
-          background: rgba(255,255,255,.92);
-
-          border: 1px solid rgba(0,0,0,.10);
-
-          border-radius: 18px;
-
-          padding: 18px 18px 8px 18px;
-
-          box-shadow: 0 18px 55px rgba(0,0,0,.08);
-
+    # ============================================================
+    # ✅ Login Landing (side-by-side) — stable HTML (no raw tag text)
+    # ============================================================
+    _ASSET_IMG = os.path.join("assets", "hotena_sensei.png")
+    st.markdown(
+        """<style>
+        /* hide default anchor spacing artifacts */
+        .block-container{padding-top:1.0rem;padding-bottom:2.0rem;max-width:1200px;}
+        /* login card */
+        .hotena-login-card{
+            background: rgba(255,255,255,0.72);
+            border: 1px solid rgba(0,0,0,0.08);
+            border-radius: 18px;
+            padding: 22px 22px 18px 22px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.06);
+            backdrop-filter: blur(10px);
         }
-
-        div[data-testid="stTextInput"] > div, div[data-testid="stPasswordInput"] > div {
-
-          border-radius: 12px !important;
-
+        .hotena-copy h1{
+            font-size: 2.0rem;
+            line-height: 1.22;
+            margin: 0 0 .55rem 0;
+            font-weight: 900;
         }
-
-        div[data-testid="stFormSubmitButton"] button {
-
-          border-radius: 12px !important;
-
-          font-weight: 800 !important;
-
-          height: 44px !important;
-
+        .hotena-copy p{
+            margin: 0;
+            font-size: 1.05rem;
+            opacity: .88;
         }
-
-        .hotena-form-col { max-width: 640px; }
-
-        @media (max-width: 820px) {
-
-          .hotena-copy h1 { font-size: 1.65rem; }
-
-          .hotena-tagline { font-size: 1.12rem; }
-
-          .hotena-form-col { max-width: 100%; }
-
+        .hotena-kicker{
+            display:inline-flex;align-items:center;gap:8px;
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: rgba(0,0,0,0.04);
+            border: 1px solid rgba(0,0,0,0.06);
+            margin: 6px 0 14px 0;
+            font-size: .92rem;
+            opacity: .9;
         }
+        /* make inputs slightly larger */
+        div[data-testid="stTextInput"] input{height: 44px;}
+        </style>""",
+        unsafe_allow_html=True
+    )
 
-        </style>""", unsafe_allow_html=True)
+    left, right = st.columns([1.05, 1.35], gap="large")
 
+    with left:
+        if os.path.exists(_ASSET_IMG):
+            st.image(_ASSET_IMG, width=260)
+        st.markdown(
+            """<div class="hotena-copy">
+                <div class="hotena-kicker">🗣️ 매일 5분 · 회화 루틴</div>
+                <h1>하테나쌤과 함께<br/>오늘도 한 세트만 시작해요</h1>
+                <p>틀려도 괜찮아요. 짧게, 자주, 확실하게.</p>
+            </div>""",
+            unsafe_allow_html=True
+        )
 
-        st.markdown('<div class="hotena-login-wrap">', unsafe_allow_html=True)
-
-        left, right = st.columns([1.05, 1.35], gap="large")
-
-
-        with left:
-
-            _img_path = None
-
-            for _cand in ["assets/hotena_sensei.png", "assets/character.png", "assets/hatena_sensei.png"]:
-
-                if os.path.exists(_cand):
-
-                    _img_path = _cand
-
-                    break
-
-            if _img_path:
-
-                st.image(_img_path, width=260)
-
-
-            st.markdown(
-
-                """<div class="hotena-copy">
-
-                    <h1>하테나쌤과 함께<br/>하루 5분, 회화 루틴</h1>
-
-                    <p>짧게, 자주, 확실하게. 오늘도 한 세트만 시작해요.</p>
-
-                    <div class="hotena-tagline">틀려도 괜찮아요.<br/>오늘도 함께 말해봅시다.</div>
-
-                    <div class="hotena-sub">짧게, 자주, 확실하게.</div>
-
-                </div>""",
-
-                unsafe_allow_html=True,
-
-            )
-
-
-        with right:
-
-            st.markdown('<div class="hotena-form-col">', unsafe_allow_html=True)
-
-            st.markdown('</div>', unsafe_allow_html=True)
-
-
+    with right:
+        st.markdown('<div class="hotena-login-card">', unsafe_allow_html=True)
+        st.markdown("### 시작하기")
+        st.caption("로그인 후 바로 홈 허브로 이동합니다.")
+        with st.form("login_form", clear_on_submit=False):
+            email = st.text_input("이메일", key="hub_email")
+            pw = st.text_input("비밀번호", type="password", key="hub_pw")
+            mode = st.radio("모드", ["로그인", "회원가입"], horizontal=True)
+            submit = st.form_submit_button("확인", use_container_width=True)
         st.markdown('</div>', unsafe_allow_html=True)
-
-        st.write("")
-
-    st.subheader("로그인")
-    with st.form("login_form", clear_on_submit=False):
-        email = st.text_input("이메일", key="hub_email")
-        pw = st.text_input("비밀번호", type="password", key="hub_pw")
-        mode = st.radio("모드", ["로그인", "회원가입"], horizontal=True)
-        submit = st.form_submit_button("확인", use_container_width=True)
 
     if submit:
         if not email or not pw:
