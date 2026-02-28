@@ -1638,192 +1638,116 @@ user = st.session_state.get("user")
 sb_authed = st.session_state.get("sb_authed")
 
 if not user:
-    # --- Login landing skin (light, minimal, cohesive) ---
+    # ============================================================
+    # ✅ Login screen (pretty / no-scroll friendly)
+    # ============================================================
     st.markdown(
         """
-        
-        <style>
-          /* Page background */
-          html, body, [data-testid="stAppViewContainer"]{
-            background: radial-gradient(1200px 600px at 15% 20%, rgba(255,236,230,.85), rgba(255,255,255,1)) ,
-                        radial-gradient(900px 520px at 85% 10%, rgba(226,240,255,.70), rgba(255,255,255,0));
-          }
-          section.main > div { padding-top: 1.1rem; }
-          /* tighten overall container and center */
-          .block-container{
-            max-width: 1180px !important;
-            padding-left: 1.5rem !important;
-            padding-right: 1.5rem !important;
-          }
-
-          /* Input and button aesthetics */
-          [data-testid="stTextInput"] input, [data-testid="stTextInput"] textarea,
-          [data-testid="stPassword"] input{
-            border-radius: 14px !important;
-            padding-top: 0.7rem !important;
-            padding-bottom: 0.7rem !important;
-          }
-          [data-testid="stRadio"] label{ font-weight: 700; }
-          button[kind="primary"] {
-            border-radius: 14px !important;
-            padding-top: 0.72rem !important;
-            padding-bottom: 0.72rem !important;
-            font-weight: 800 !important;
-          }
-
-          /* Small pill */
-          .hotena-pill{
-            display:inline-flex; align-items:center; gap:.45rem;
-            padding:.38rem .70rem; border-radius:999px;
-            background: rgba(255,255,255,.76);
-            border: 1px solid rgba(0,0,0,.08);
-            font-size:.94rem; font-weight:650;
-            box-shadow: 0 14px 28px rgba(0,0,0,.05);
-          }
-          .hotena-muted{ opacity:.82; }
-
-          /* Typography */
-          .hotena-h1{ font-size:2.28rem; font-weight:950; line-height:1.12; margin:.65rem 0 .40rem 0; letter-spacing:-0.02em;}
-          .hotena-lead{ font-size:1.06rem; margin:0 0 .80rem 0; }
-
-          /* Make the right login card feel like part of the same layout */
-          .hotena-card-title{ font-size:1.85rem; font-weight:900; margin:0 0 .15rem 0; }
-          .hotena-card-sub{ margin:0 0 .80rem 0; opacity:.78; }
-
-          @media (max-width: 900px){
-            .hotena-h1{ font-size:1.72rem; }
-            .block-container{ padding-left: 1.0rem !important; padding-right: 1.0rem !important; }
-            section.main > div { padding-top: 0.85rem; }
-          }
-        
-          /* ✅ login hero layout */
-          .hotena-wrap{
-            max-width:980px;
-            margin:0 auto;
-            padding:1.1rem 1.1rem;
-            border-radius:26px;
-            background: rgba(255,255,255,0.55);
-            border: 1px solid rgba(0,0,0,0.06);
-            box-shadow: 0 10px 30px rgba(0,0,0,0.06);
-            backdrop-filter: blur(6px);
-          }
-          .hotena-login-max{
-            max-width:520px;
-            margin-left:auto;
-          }
-          .hotena-mini-list{
-            margin-top:0.75rem;
-            display:flex;
-            flex-direction:column;
-            gap:0.4rem;
-            font-size:0.95rem;
-            opacity:0.9;
-          }
-          .hotena-mini-item{
-            display:flex;
-            gap:0.5rem;
-            align-items:flex-start;
-          }
-          .hotena-dot{
-            width:18px; height:18px;
-            display:inline-flex;
-            align-items:center;
-            justify-content:center;
-            border-radius:6px;
-            background: rgba(46, 204, 113, 0.14);
-            border:1px solid rgba(46, 204, 113, 0.28);
-            font-size:0.85rem;
-            line-height:1;
-            margin-top:2px;
-          }
+<style>
+/* --- login-only layout tweaks --- */
+section.main > div.block-container {max-width: 1200px; padding-top: 1.25rem; padding-bottom: 2.0rem;}
+/* soften the whole page */
+body {background: linear-gradient(135deg, rgba(250,244,240,0.9), rgba(255,255,255,1));}
+[data-testid="stAppViewContainer"] {background: transparent;}
+/* card */
+.hotena-login-card {border-radius: 18px; padding: 22px 22px 18px 22px; background: rgba(255,255,255,0.86); border: 1px solid rgba(0,0,0,0.08); box-shadow: 0 10px 32px rgba(0,0,0,0.06);}
+.hotena-side-card {border-radius: 18px; padding: 22px; background: rgba(255,255,255,0.55); border: 1px solid rgba(0,0,0,0.06);}
+.hotena-chip {display:inline-flex; align-items:center; gap:8px; padding:8px 12px; border-radius:999px; border:1px solid rgba(0,0,0,0.08); background: rgba(255,255,255,0.75); font-size: 0.92rem;}
+.hotena-h1 {font-size: 2.15rem; font-weight: 900; line-height: 1.15; margin: 10px 0 8px 0;}
+.hotena-sub {font-size: 1.02rem; opacity: 0.78; margin-bottom: 14px;}
+.hotena-bul {display:flex; gap:10px; align-items:flex-start; margin: 10px 0;}
+.hotena-bul .dot {width:18px; height:18px; border-radius:6px; display:inline-flex; align-items:center; justify-content:center; background: rgba(30, 160, 70, 0.12); border: 1px solid rgba(30,160,70,0.22); font-size: 12px;}
+/* tighten radio spacing on some browsers */
+div[role="radiogroup"] {gap: 12px;}
 </style>
-
-        """,
+""",
         unsafe_allow_html=True,
     )
 
-    # Find a character image if available (assets/*.png)
-    _char_path = None
-    try:
-        _assets = Path("assets")
-        if _assets.exists():
-            # prefer explicit names first
-            for name in ["hatena_sensei.png", "hotena_sensei.png", "character.png", "mascot.png"]:
-                p = _assets / name
-                if p.exists():
-                    _char_path = p
+    # --- two-column layout (swap: login LEFT, story RIGHT) ---
+    col_login, col_story = st.columns([1.05, 0.95], gap="large")
+
+    with col_login:
+        st.markdown('<div class="hotena-login-card">', unsafe_allow_html=True)
+        st.markdown("## 시작하기")
+        st.caption("로그인 후 바로 홈허브로 이동합니다.")
+
+        with st.form("login_form", clear_on_submit=False):
+            email = st.text_input("이메일", key="hub_email")
+            pw = st.text_input("비밀번호", type="password", key="hub_pw")
+            mode = st.radio("모드", ["로그인", "회원가입"], horizontal=True, key="hub_mode")
+            submit = st.form_submit_button("확인", use_container_width=True)
+
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    with col_story:
+        # pick character image if present
+        _asset_candidates = [
+            "hatena_teacher.png",
+            "hotena_teacher.png",
+            "teacher.png",
+            "character.png",
+            "hatena.png",
+        ]
+        _img_path = None
+        try:
+            for _nm in _asset_candidates:
+                _p = (Path(__file__).parent / "assets" / _nm)
+                if _p.exists():
+                    _img_path = str(_p)
                     break
-            if _char_path is None:
-                pngs = sorted([p for p in _assets.glob("*.png") if p.is_file()], key=lambda x: x.name.lower())
-                if pngs:
-                    _char_path = pngs[0]
-    except Exception:
-        _char_path = None
+        except Exception:
+            _img_path = None
 
-    left, right = st.columns([1.0, 1.15], gap="medium")
+        if _img_path:
+            st.image(_img_path, width=170)
 
-    with left:
-        st.markdown('<div class="hotena-pill">💬 <span class="hotena-muted">매일 5분 · 회화 루틴</span></div>', unsafe_allow_html=True)
-        if _char_path is not None:
-            st.image(str(_char_path), width=260)
+        st.markdown('<div class="hotena-chip">💬 <b>매일 5분 · 회화 루틴</b></div>', unsafe_allow_html=True)
         st.markdown('<div class="hotena-h1">하테나쌤과 함께<br/>오늘도 한 세트만 시작해요</div>', unsafe_allow_html=True)
-        st.markdown('<div class="hotena-lead hotena-muted">틀려도 괜찮아요. 짧게, 자주, 확실하게.</div>', unsafe_allow_html=True)
+        st.markdown('<div class="hotena-sub">틀려도 괜찮아요. 짧게, 자주, 확실하게.</div>', unsafe_allow_html=True)
+
         st.markdown(
-            """<div class="hotena-mini-list">
-              <div class="hotena-mini-item"><span class="hotena-dot">✓</span><span><b>하루 1세트</b>만 해도 충분해요. 짧게, 자주, 확실하게.</span></div>
-              <div class="hotena-mini-item"><span class="hotena-dot">✓</span><span>로그인하면 바로 <b>홈허브</b>로 이동해요.</span></div>
-            </div>""",
+            """
+<div class="hotena-bul"><span class="dot">✓</span><div><b>하루 1세트면 충분해요.</b> (꾸준함이 승부)</div></div>
+<div class="hotena-bul"><span class="dot">✓</span><div><b>로그인만 하면</b> 홈허브로 바로 이동해요.</div></div>
+""",
             unsafe_allow_html=True,
         )
 
-    with right:
-        st.markdown('<div class="hotena-login-max">', unsafe_allow_html=True)
-        with st.container(border=True):
-            st.markdown('<div class="hotena-card-title">시작하기</div>', unsafe_allow_html=True)
-            st.markdown('<div class="hotena-card-sub">로그인 후 바로 홈허브로 이동합니다.</div>', unsafe_allow_html=True)
-            with st.form("login_form", clear_on_submit=False):
-                email = st.text_input("이메일", key="hub_email")
-                pw = st.text_input("비밀번호", type="password", key="hub_pw")
-                mode = st.radio("모드", ["로그인", "회원가입"], horizontal=True)
-                submit = st.form_submit_button("확인", use_container_width=True)
+    if submit:
+        if not email or not pw:
+            st.error("이메일/비밀번호를 입력해 주세요.")
+            st.stop()
+        try:
+            if mode == "로그인":
+                res = sb.auth.sign_in_with_password({"email": email, "password": pw})
+            else:
+                res = sb.auth.sign_up({"email": email, "password": pw})
 
-        st.markdown('</div>', unsafe_allow_html=True)
-        st.markdown('</div>', unsafe_allow_html=True)
+            if getattr(res, "session", None) and getattr(res.session, "access_token", None):
+                st.session_state["user"] = res.user
+                st.session_state["access_token"] = res.session.access_token
+                st.session_state["refresh_token"] = res.session.refresh_token
+                cookies["access_token"] = res.session.access_token
+                cookies["refresh_token"] = res.session.refresh_token
+                _cookies_save_once_per_run()
 
-        if submit:
-            if not email or not pw:
-                st.error("이메일/비밀번호를 입력해 주세요.")
-                st.stop()
-            try:
-                if mode == "로그인":
-                    res = sb.auth.sign_in_with_password({"email": email, "password": pw})
-                else:
-                    res = sb.auth.sign_up({"email": email, "password": pw})
+                # ✅ persist encrypted tokens for refresh-proof login
+                try:
+                    st.query_params["rt"] = _enc(res.session.refresh_token)
+                    st.query_params["at"] = _enc(res.session.access_token)
+                    _js_set_localstorage("hotena_rt", st.query_params.get("rt",""))
+                    _js_set_localstorage("hotena_at", st.query_params.get("at",""))
+                except Exception:
+                    pass
 
-                if getattr(res, "session", None) and getattr(res.session, "access_token", None):
-                    st.session_state["user"] = res.user
-                    st.session_state["access_token"] = res.session.access_token
-                    st.session_state["refresh_token"] = res.session.refresh_token
-                    cookies["access_token"] = res.session.access_token
-                    cookies["refresh_token"] = res.session.refresh_token
-                    _cookies_save_once_per_run()
-
-                    # ✅ persist encrypted tokens for refresh-proof login
-                    try:
-                        st.query_params["rt"] = _enc(res.session.refresh_token)
-                        st.query_params["at"] = _enc(res.session.access_token)
-                        _js_set_localstorage("hotena_rt", st.query_params.get("rt", ""))
-                        _js_set_localstorage("hotena_at", st.query_params.get("at", ""))
-                    except Exception:
-                        pass
-
-                    st.success("로그인 완료!")
-                    st.rerun()
-                else:
-                    st.warning("이메일 인증이 필요할 수 있습니다. (Supabase 설정에 따라 다름)")
-            except Exception as e:
-                st.error("로그인/가입 실패")
-                st.code(str(e))
+                st.success("로그인 완료!")
+                st.rerun()
+            else:
+                st.warning("이메일 인증이 필요할 수 있습니다. (Supabase 설정에 따라 다름)")
+        except Exception as e:
+            st.error("로그인/가입 실패")
+            st.code(str(e))
     st.stop()
 
 # logged in
