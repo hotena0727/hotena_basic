@@ -1639,11 +1639,11 @@ sb_authed = st.session_state.get("sb_authed")
 
 if not user:
 
-    # === HOTENA_LOGIN_CLEAN_V2_TITLE_CHAR ===
+    # === HOTENA_LOGIN_CLEAN_V3_TITLE_CHAR_SAFE ===
 
     import base64, os
 
-    _HERO_MAX = 640  # ✅ roughly 2/3 of the previous wide login feel
+    _HERO_MAX = 640  # ✅ form width ~2/3
 
     _CHAR_PATH = os.path.join("assets", "hotena_sensei.png")
 
@@ -1664,15 +1664,11 @@ if not user:
 
     st.markdown(f"""<style>
 
-    /* Background */
-
     .stApp {
 
       background: linear-gradient(135deg, #fff6f2 0%, #ffffff 55%, #f7fbff 100%);
 
     }
-
-    /* Keep overall page reasonable on PC */
 
     .block-container {
 
@@ -1684,8 +1680,6 @@ if not user:
 
     }
 
-    /* Hide Streamlit chrome */
-
     [data-testid="stHeader"], [data-testid="stToolbar"], #MainMenu, footer {
 
       visibility: hidden !important;
@@ -1694,8 +1688,6 @@ if not user:
 
     }
 
-
-    /* HERO wrapper ensures title+character length doesn't exceed subtitle line */
 
     .hotena-hero {
 
@@ -1758,8 +1750,6 @@ if not user:
     }
 
 
-    /* Form card: narrower (≈ 2/3) */
-
     div[data-testid="stForm"] {
 
       max-width: {_HERO_MAX}px !important;
@@ -1806,17 +1796,27 @@ if not user:
     </style>""", unsafe_allow_html=True)
 
 
-    # Title + character (same width wrapper as subtitle)
+    # ✅ Safe HTML composition (no backslashes / no indentation traps)
 
-    _title_html = '<div class="hotena-hero"><div class="hotena-title-row">' \
+    _img_html = f'<img src="{_char_uri}" alt="hotena_sensei"/>' if _char_uri else ''
 
-                  + '<div class="hotena-login-title">하테나일본어</div>' \
+    _title_html = f"""
 
-                  + (f'<img src="{_char_uri}" alt="hotena_sensei"/>' if _char_uri else '') \
+    <div class="hotena-hero">
 
-                  + '</div>' \
+      <div class="hotena-title-row">
 
-                  + '<div class="hotena-login-sub">틀려도 괜찮아요. 오늘도 함께 말해봅시다.<br/>짧게, 자주, 확실하게.</div></div>'
+        <div class="hotena-login-title">하테나일본어</div>
+
+        {_img_html}
+
+      </div>
+
+      <div class="hotena-login-sub">틀려도 괜찮아요. 오늘도 함께 말해봅시다.<br/>짧게, 자주, 확실하게.</div>
+
+    </div>
+
+    """
 
     st.markdown(_title_html, unsafe_allow_html=True)
     with st.form("login_form", clear_on_submit=False):
