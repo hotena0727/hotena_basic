@@ -975,6 +975,7 @@ SUB_LABEL = {
     "daily": "일상",
     # understand 등에서 쓰는 값들
     "mixed": "혼합",
+    "confirm": "확인",
 }
 
 def _sub_label(s: str) -> str:
