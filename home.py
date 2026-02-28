@@ -16,6 +16,35 @@ import core
 import streamlit.components.v1 as components
 
 # ============================================================
+# ✅ user id helper (robust across supabase return shapes)
+# ============================================================
+def _get_user_id(user):
+    """Return user id as string or None. Handles dict/obj/nested user objects."""
+    if user is None:
+        return None
+    try:
+        # dict-like
+        if isinstance(user, dict):
+            v = user.get("id") or (user.get("user") or {}).get("id")
+            return str(v) if v else None
+        # common attributes
+        for attr in ("id", "user_id", "uid"):
+            v = getattr(user, attr, None)
+            if v:
+                return str(v)
+        # nested supabase style: user.user.id
+        u = getattr(user, "user", None)
+        if u is not None:
+            if isinstance(u, dict):
+                v = u.get("id")
+                return str(v) if v else None
+            v = getattr(u, "id", None)
+            return str(v) if v else None
+    except Exception:
+        return None
+    return None
+
+# ============================================================
 # ✅ Font: 일본식 한자(글리프) 우선 적용
 # ============================================================
 def _inject_jp_font_once():
@@ -543,9 +572,12 @@ def get_authed_sb():
 
 
 def ensure_profile(sb_authed, user):
+    uid = _get_user_id(user)
+    if not uid:
+        return
     try:
         sb_authed.table("profiles").upsert(
-            {"id": user.id, "email": getattr(user, "email", None)},
+            {"id": uid, "email": getattr(user, "email", None)},
             on_conflict="id",
         ).execute()
     except Exception:
@@ -553,6 +585,9 @@ def ensure_profile(sb_authed, user):
 
 
 def load_profile(sb_authed, user_id: str):
+    uid = _get_user_id(user)
+    if not uid:
+        return
     try:
         res = sb_authed.table("profiles").select("progress, plan, is_admin").eq("id", user_id).single().execute()
         data = res.data if res and res.data else {}
@@ -701,14 +736,17 @@ def _dots_3(done_sets: int, goal_sets: int) -> str:
 
 
 def render_home_dashboard(sb_authed, user):
+    uid = _get_user_id(user)
+    if not uid:
+        return
     """Home Hub dashboard (A++): donut + weekly heatmap + level mini bars + rows + smart CTA + compact goal gear."""
     from datetime import datetime, timezone, timedelta
 
     # ---- data ----
-    attempts_recent = fetch_recent_attempts(sb_authed, user.id, limit=500)
+    attempts_recent = fetch_recent_attempts(sb_authed, uid, limit=500)
     sm_recent = summarize_attempts(attempts_recent)
 
-    attempts_today = fetch_today_attempts(sb_authed, user.id)
+    attempts_today = fetch_today_attempts(sb_authed, uid)
     sm_today = summarize_attempts(attempts_today)
 
     daily_map = build_daily_sets_map(attempts_recent)
@@ -735,7 +773,7 @@ def render_home_dashboard(sb_authed, user):
         # close any open settings panel on day change
         st.session_state["show_goal_settings"] = False
         try:
-            save_progress(sb_authed, user.id, progress_all)
+            save_progress(sb_authed, uid, progress_all)
         except Exception:
             pass
 
@@ -1068,7 +1106,7 @@ def render_home_dashboard(sb_authed, user):
                 progress_all["hub_flow_guide_collapsed"] = bool(_set_val)
                 st.session_state["progress_all"] = progress_all
                 try:
-                    save_progress(sb_authed, user.id, progress_all)  # type: ignore[name-defined]
+                    save_progress(sb_authed, uid, progress_all)  # type: ignore[name-defined]
                 except Exception:
                     pass
             except Exception:
@@ -1083,7 +1121,7 @@ def render_home_dashboard(sb_authed, user):
             progress_all["hub_flow_guide_collapsed"] = bool(v)
             st.session_state["progress_all"] = progress_all
             try:
-                save_progress(sb_authed, user.id, progress_all)  # type: ignore[name-defined]
+                save_progress(sb_authed, uid, progress_all)  # type: ignore[name-defined]
             except Exception:
                 pass
             st.rerun()
@@ -1284,7 +1322,7 @@ def render_home_dashboard(sb_authed, user):
             if st.button("저장", use_container_width=True, key="hub_daily_goal_save"):
                 progress_all["daily_goal_sets"] = int(new_goal)
                 st.session_state["progress_all"] = progress_all
-                save_progress(sb_authed, user.id, progress_all)
+                save_progress(sb_authed, uid, progress_all)
                 st.session_state["show_goal_settings"] = False
                 st.rerun()
         with cclose:
@@ -1515,11 +1553,14 @@ def render_reminder_settings(sb_authed, user):
         progress_all["reminder"] = {"enabled": bool(enabled), "time": f"{hh:02d}:{mm:02d}"}
         progress_all['naver_talk_fab_enabled'] = (yn == 'Y')
         st.session_state["progress_all"] = progress_all
-        save_progress(sb_authed, user.id, progress_all)
+        save_progress(sb_authed, uid, progress_all)
         st.success("저장했습니다.")
 
 
 def fire_in_app_reminder_if_enabled(user):
+    uid = _get_user_id(user)
+    if not uid:
+        return
     """If reminder is enabled, schedule an in-app notification when the app is open."""
     progress_all = st.session_state.get("progress_all", {}) or {}
     rem = progress_all.get("reminder") or {}
@@ -1541,14 +1582,6 @@ def fire_in_app_reminder_if_enabled(user):
     except Exception:
         delay_ms = 0
 
-    # ✅ safe uid extraction (user may be dict / object)
-    uid = getattr(user, 'id', None)
-    if uid is None and isinstance(user, dict):
-        uid = user.get('id') or (user.get('user') or {}).get('id')
-    if uid is None:
-        uid = getattr(getattr(user, 'user', None), 'id', None)
-    if not uid:
-        return
     msg = json.dumps(daily_message(str(uid)))
     components.html(
         f"""
@@ -1646,159 +1679,54 @@ user = st.session_state.get("user")
 sb_authed = st.session_state.get("sb_authed")
 
 if not user:
-    # ============================================================
-    # ✅ Login UI (2-column layout: left = form, right = brand)
-    #   - Keep auth logic intact (email/pw/mode/submit variables)
-    # ============================================================
-    st.markdown(
-        """
-<style>
-/* --- page reset for login --- */
-section.main > div { padding-top: 1.2rem; }
-header, footer { visibility: hidden; height: 0px; }
+    st.subheader("로그인")
+    with st.form("login_form", clear_on_submit=False):
+        email = st.text_input("이메일", key="hub_email")
+        pw = st.text_input("비밀번호", type="password", key="hub_pw")
+        mode = st.radio("모드", ["로그인", "회원가입"], horizontal=True)
+        submit = st.form_submit_button("확인", use_container_width=True)
 
-/* soften background only on login screen */
-.stApp {
-  background: radial-gradient(1200px 600px at 20% 10%, rgba(255, 240, 235, .55), transparent 60%),
-              radial-gradient(1200px 600px at 85% 35%, rgba(230, 245, 255, .55), transparent 60%),
-              #ffffff;
-}
-
-/* container width */
-.hotena-login-max {
-  max-width: 1180px;
-  margin: 0 auto;
-}
-
-/* left form card */
-.hotena-card {
-  background: rgba(255,255,255,.82);
-  border: 1px solid rgba(0,0,0,.06);
-  border-radius: 18px;
-  box-shadow: 0 18px 50px rgba(0,0,0,.08);
-  padding: 22px 22px 18px 22px;
-}
-
-/* headings */
-.hotena-h2 { font-size: 1.55rem; font-weight: 900; margin: 0 0 .25rem 0; }
-.hotena-muted { color: rgba(0,0,0,.58); margin: 0 0 1rem 0; font-size: .98rem; }
-
-/* chips */
-.hotena-chip-row { display:flex; flex-wrap:wrap; gap:.55rem; margin-top: 1rem; }
-.hotena-chip {
-  display:inline-flex; align-items:center; gap:.4rem;
-  padding: .45rem .7rem;
-  border-radius: 999px;
-  border: 1px solid rgba(0,0,0,.08);
-  background: rgba(255,255,255,.68);
-  box-shadow: 0 10px 22px rgba(0,0,0,.06);
-  font-size: .92rem;
-  color: rgba(0,0,0,.72);
-}
-.hotena-chip b { color: rgba(0,0,0,.82); font-weight: 800; }
-
-/* tune input spacing */
-div[data-testid="stTextInput"] label,
-div[data-testid="stRadio"] label { font-weight: 650; }
-div[data-testid="stTextInput"] input {
-  border-radius: 12px !important;
-  background: rgba(245,247,250,.75) !important;
-}
-div[data-testid="stRadio"] { padding-top: .15rem; }
-button[kind="primary"] {
-  border-radius: 12px !important;
-  padding: .72rem 1rem !important;
-  font-weight: 800 !important;
-}
-</style>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    st.markdown('<div class="hotena-login-max">', unsafe_allow_html=True)
-
-    # 2-column layout
-    left, right = st.columns([1.02, 1.18], gap="large")
-
-    with left:
-        st.markdown('<div class="hotena-card">', unsafe_allow_html=True)
-        st.markdown('<div class="hotena-h2">시작하기</div>', unsafe_allow_html=True)
-        st.markdown('<div class="hotena-muted">로그인 후 바로 홈허브로 이동합니다.</div>', unsafe_allow_html=True)
-
-        with st.form("hub_login_form", clear_on_submit=False):
-            email = st.text_input("이메일", key="hub_email")
-            pw = st.text_input("비밀번호", type="password", key="hub_pw")
-            mode = st.radio("모드", ["로그인", "회원가입"], horizontal=True, key="hub_mode")
-            submit = st.form_submit_button("확인", use_container_width=True)
-
-        st.markdown(
-            '<div style="margin-top:.65rem; font-size:.86rem; color:rgba(0,0,0,.52);">'
-            '• 회원가입 후 이메일 인증이 필요할 수 있어요.<br/>'
-            '• 비밀번호는 6자 이상을 권장합니다.'
-            '</div>',
-            unsafe_allow_html=True,
-        )
-
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    with right:
-        st.markdown('<div style="padding-top:.25rem;">', unsafe_allow_html=True)
-        st.markdown(
-            '<div class="hotena-h2" style="font-size:1.65rem; line-height:1.2;">하테나쌤과 함께<br/>하루 5분, 회화 루틴</div>',
-            unsafe_allow_html=True,
-        )
-        st.markdown('<div class="hotena-muted">짧게, 자주, 확실하게. 오늘도 한 세트만 시작해요.</div>', unsafe_allow_html=True)
-
-        # character
+    if submit:
+        if not email or not pw:
+            st.error("이메일/비밀번호를 입력해 주세요.")
+            st.stop()
         try:
-            st.image(str(Path("assets") / "hotena_sensei.png"), width=290)
-        except Exception:
-            # if asset missing, keep layout stable
-            st.markdown('<div style="height:290px;"></div>', unsafe_allow_html=True)
+            if mode == "로그인":
+                res = sb.auth.sign_in_with_password({"email": email, "password": pw})
+            else:
+                res = sb.auth.sign_up({"email": email, "password": pw})
 
-        # feature chips
-        st.markdown(
-            """
-<div class="hotena-chip-row">
-  <span class="hotena-chip">🎧 <b>듣기</b></span>
-  <span class="hotena-chip">🗣️ <b>말하기</b></span>
-  <span class="hotena-chip">🧠 <b>스마트코치</b></span>
-  <span class="hotena-chip">✅ <b>오늘의 루틴</b></span>
-</div>
-            """,
-            unsafe_allow_html=True,
-        )
+            if getattr(res, "session", None) and getattr(res.session, "access_token", None):
+                st.session_state["user"] = res.user
+                st.session_state["access_token"] = res.session.access_token
+                st.session_state["refresh_token"] = res.session.refresh_token
+                cookies["access_token"] = res.session.access_token
+                cookies["refresh_token"] = res.session.refresh_token
+                _cookies_save_once_per_run()
 
-        st.markdown('</div>', unsafe_allow_html=True)
+                # ✅ persist encrypted tokens for refresh-proof login
+                try:
+                    st.query_params["rt"] = _enc(res.session.refresh_token)
+                    st.query_params["at"] = _enc(res.session.access_token)
+                    _js_set_localstorage("hotena_rt", st.query_params.get("rt",""))
+                    _js_set_localstorage("hotena_at", st.query_params.get("at",""))
+                except Exception:
+                    pass
 
-    st.markdown('</div>', unsafe_allow_html=True)
+                st.success("로그인 완료!")
+                st.rerun()
+            else:
+                st.warning("이메일 인증이 필요할 수 있습니다. (Supabase 설정에 따라 다름)")
+        except Exception as e:
+            st.error("로그인/가입 실패")
+            st.code(str(e))
+    st.stop()
+
+# logged in
 sb_authed = get_authed_sb()
 user = st.session_state.get("user")
-
-def _uid_from_user(_u):
-    try:
-        if _u is None:
-            return None
-        # supabase-py sometimes returns objects with `.id`, or nested `.user.id`
-        uid = getattr(_u, "id", None) or getattr(getattr(_u, "user", None), "id", None)
-        if uid:
-            return uid
-        if isinstance(_u, dict):
-            return _u.get("id") or (_u.get("user") or {}).get("id")
-    except Exception:
-        return None
-    return None
-
-_uid = _uid_from_user(user)
-
-# Only touch profile when we have a valid authenticated user id
-if sb_authed is not None and _uid:
-    try:
-        ensure_profile(sb_authed, user)
-    except Exception:
-        # non-fatal: profile may already exist or ensure step not required
-        pass
-    load_profile(sb_authed, _uid)
+ensure_profile(sb_authed, user)
+load_profile(sb_authed, uid)
 
 # ============================================================
 # 🔔 In-app reminder (no inline UI; settings live in menu -> Reminder page)
