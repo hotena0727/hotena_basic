@@ -1766,8 +1766,31 @@ button[kind="primary"] {
     st.markdown('</div>', unsafe_allow_html=True)
 sb_authed = get_authed_sb()
 user = st.session_state.get("user")
-ensure_profile(sb_authed, user)
-load_profile(sb_authed, user.id)
+
+def _uid_from_user(_u):
+    try:
+        if _u is None:
+            return None
+        # supabase-py sometimes returns objects with `.id`, or nested `.user.id`
+        uid = getattr(_u, "id", None) or getattr(getattr(_u, "user", None), "id", None)
+        if uid:
+            return uid
+        if isinstance(_u, dict):
+            return _u.get("id") or (_u.get("user") or {}).get("id")
+    except Exception:
+        return None
+    return None
+
+_uid = _uid_from_user(user)
+
+# Only touch profile when we have a valid authenticated user id
+if sb_authed is not None and _uid:
+    try:
+        ensure_profile(sb_authed, user)
+    except Exception:
+        # non-fatal: profile may already exist or ensure step not required
+        pass
+    load_profile(sb_authed, _uid)
 
 # ============================================================
 # 🔔 In-app reminder (no inline UI; settings live in menu -> Reminder page)
