@@ -1638,47 +1638,130 @@ user = st.session_state.get("user")
 sb_authed = st.session_state.get("sb_authed")
 
 if not user:
-    st.subheader("로그인")
-    with st.form("login_form", clear_on_submit=False):
-        email = st.text_input("이메일", key="hub_email")
-        pw = st.text_input("비밀번호", type="password", key="hub_pw")
-        mode = st.radio("모드", ["로그인", "회원가입"], horizontal=True)
-        submit = st.form_submit_button("확인", use_container_width=True)
+    # --- Pretty login card (Hub) ---
+    st.markdown(
+        """
+<style>
+/* === Hotena Login (pretty card) === */
+.ha-login-bg{
+  margin-top: .10rem;
+  padding: .25rem 0 .70rem;
+}
+.ha-login-card{
+  border: 1px solid rgba(49,51,63,0.14);
+  border-radius: 18px;
+  padding: 18px 16px 14px;
+  background: rgba(255,255,255,0.85);
+  box-shadow: 0 14px 38px rgba(0,0,0,0.08);
+}
+.ha-login-head{
+  display:flex; align-items:center; gap:10px;
+  margin-bottom: 10px;
+}
+.ha-login-logo{
+  width: 40px; height: 40px; border-radius: 14px;
+  display:flex; align-items:center; justify-content:center;
+  border: 1px solid rgba(0,0,0,0.08);
+  background: linear-gradient(135deg, rgba(46,124,246,0.16), rgba(0,0,0,0.02));
+  font-weight: 900;
+  font-size: 18px;
+}
+.ha-login-ttl{margin:0; line-height:1.05;}
+.ha-login-ttl b{font-size:1.18rem; font-weight: 900;}
+.ha-login-ttl div{font-size:.90rem; opacity:.72; margin-top:.10rem;}
+.ha-login-note{
+  font-size: .86rem;
+  opacity: .74;
+  margin: .10rem 0 .55rem;
+}
+.ha-login-foot{
+  font-size: .82rem;
+  opacity: .70;
+  margin-top: .55rem;
+}
+</style>
+<div class="ha-login-bg">
+  <div class="ha-login-card">
+    <div class="ha-login-head">
+      <div class="ha-login-logo">は</div>
+      <div class="ha-login-ttl">
+        <b>하테나</b>
+        <div>단어 · 한자 · 회화 루틴을 한 곳에서</div>
+      </div>
+    </div>
+    <div class="ha-login-note">계정을 만들면 학습 기록이 저장되고, 기기/브라우저가 달라도 이어서 할 수 있어요.</div>
+  </div>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
 
-    if submit:
-        if not email or not pw:
-            st.error("이메일/비밀번호를 입력해 주세요.")
-            st.stop()
+    def _auth_success(res):
+        st.session_state["user"] = res.user
+        st.session_state["access_token"] = res.session.access_token
+        st.session_state["refresh_token"] = res.session.refresh_token
+
+        # cookies
         try:
-            if mode == "로그인":
+            cookies["access_token"] = res.session.access_token
+            cookies["refresh_token"] = res.session.refresh_token
+            _cookies_save_once_per_run()
+        except Exception:
+            pass
+
+        # ✅ persist encrypted tokens for refresh-proof login
+        try:
+            st.query_params["rt"] = _enc(res.session.refresh_token)
+            st.query_params["at"] = _enc(res.session.access_token)
+            _js_set_localstorage("hotena_rt", st.query_params.get("rt", ""))
+            _js_set_localstorage("hotena_at", st.query_params.get("at", ""))
+        except Exception:
+            pass
+
+        st.rerun()
+
+    tab_login, tab_signup = st.tabs(["로그인", "회원가입"])
+
+    with tab_login:
+        with st.form("login_form_pretty", clear_on_submit=False):
+            email = st.text_input("이메일", key="hub_email", placeholder="example@email.com")
+            pw = st.text_input("비밀번호", type="password", key="hub_pw", placeholder="비밀번호")
+            submit = st.form_submit_button("로그인", use_container_width=True)
+
+        if submit:
+            if not email or not pw:
+                st.error("이메일/비밀번호를 입력해 주세요.")
+                st.stop()
+            try:
                 res = sb.auth.sign_in_with_password({"email": email, "password": pw})
-            else:
-                res = sb.auth.sign_up({"email": email, "password": pw})
+                if getattr(res, "session", None) and getattr(res.session, "access_token", None):
+                    _auth_success(res)
+                else:
+                    st.error("로그인에 실패했습니다. 이메일/비밀번호를 확인해 주세요.")
+            except Exception:
+                st.error("로그인에 실패했습니다. 이메일/비밀번호를 확인해 주세요.")
 
-            if getattr(res, "session", None) and getattr(res.session, "access_token", None):
-                st.session_state["user"] = res.user
-                st.session_state["access_token"] = res.session.access_token
-                st.session_state["refresh_token"] = res.session.refresh_token
-                cookies["access_token"] = res.session.access_token
-                cookies["refresh_token"] = res.session.refresh_token
-                _cookies_save_once_per_run()
+        st.markdown('<div class="ha-login-foot">※ 처음 이용이라면 <b>회원가입</b> 탭에서 계정을 만들어 주세요.</div>', unsafe_allow_html=True)
 
-                # ✅ persist encrypted tokens for refresh-proof login
-                try:
-                    st.query_params["rt"] = _enc(res.session.refresh_token)
-                    st.query_params["at"] = _enc(res.session.access_token)
-                    _js_set_localstorage("hotena_rt", st.query_params.get("rt",""))
-                    _js_set_localstorage("hotena_at", st.query_params.get("at",""))
-                except Exception:
-                    pass
+    with tab_signup:
+        with st.form("signup_form_pretty", clear_on_submit=False):
+            email2 = st.text_input("이메일", key="hub_email2", placeholder="example@email.com")
+            pw2 = st.text_input("비밀번호", type="password", key="hub_pw2", placeholder="비밀번호 (6자 이상 권장)")
+            submit2 = st.form_submit_button("회원가입", use_container_width=True)
 
-                st.success("로그인 완료!")
-                st.rerun()
-            else:
-                st.warning("이메일 인증이 필요할 수 있습니다. (Supabase 설정에 따라 다름)")
-        except Exception as e:
-            st.error("로그인/가입 실패")
-            st.code(str(e))
+        if submit2:
+            if not email2 or not pw2:
+                st.error("이메일/비밀번호를 입력해 주세요.")
+                st.stop()
+            try:
+                res = sb.auth.sign_up({"email": email2, "password": pw2})
+                if getattr(res, "session", None) and getattr(res.session, "access_token", None):
+                    _auth_success(res)
+                else:
+                    st.success("회원가입 요청이 완료되었습니다. 이메일 인증이 필요할 수 있어요.")
+            except Exception:
+                st.error("회원가입에 실패했습니다. 이미 가입된 이메일이거나 비밀번호 조건이 맞지 않을 수 있어요.")
+
     st.stop()
 
 # logged in
