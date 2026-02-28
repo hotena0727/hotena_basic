@@ -1,4 +1,4 @@
-# landing.py - Hotena Landing (fullscreen hero) v3 (no-scroll on PC)
+# landing.py - Hotena Landing (design-match) v4
 from __future__ import annotations
 
 import base64
@@ -14,52 +14,58 @@ def _b64(path: Path) -> str:
 def landing_ui(
     *,
     assets_dir: str | Path = "assets",
-    title: str = "시작하기",
-    subtitle: str = "로그인 후 바로 홈허브로 이동합니다.",
+    title_left: str = "하테나쌤과 함께",
+    headline: str = "하루 5분, 회화 루틴",
+    tagline: str = "짧게, 자주, 확실하게. 오늘도 한 세트만 시작해요.",
+    card_title: str = "시작하기",
+    card_subtitle: str = "로그인 후 바로 홈허브로 이동합니다.",
     show_mode_toggle: bool = True,
-    default_mode: str = "로그인",  # or "회원가입"
+    default_mode: str = "로그인",   # "회원가입"
 ):
-    """Fullscreen landing UI (Hotena).
+    """
+    Landing page UI.
     Compatible with home.py calling: landing_ui(assets_dir='assets')
     Returns: (email, password, mode, submitted)
     """
-    ASSETS_DIR = Path(assets_dir)
+    ASSETS = Path(assets_dir)
 
-    # If home.py already called set_page_config, Streamlit may warn; it's fine.
+    # Streamlit config (safe if already set)
     try:
         st.set_page_config(page_title="Hotena", layout="wide")
     except Exception:
         pass
 
-    bg_path = ASSETS_DIR / "landing_bg.png"
-    bg64 = _b64(bg_path)
+    bg64 = _b64(ASSETS / "landing_bg.png")
+    sensei_path = ASSETS / "hotena_sensei.png"
+
     bg_css = ""
     if bg64:
         bg_css = f"""
         .stApp {{
-            background-image: url('data:image/png;base64,{bg64}');
-            background-size: cover;
-            background-position: center 84%;
-            background-repeat: no-repeat;
+          background-image: url('data:image/png;base64,{bg64}');
+          background-size: cover;
+          /* ✅ keep clouds visible on first view */
+          background-position: center 82%;
+          background-repeat: no-repeat;
         }}
         """
 
     st.markdown(
         f"""
 <style>
+/* ---- hard reset ---- */
 html, body {{
   height: 100%;
   margin: 0 !important;
   padding: 0 !important;
+  overflow: hidden !important;  /* ✅ no scroll on desktop */
 }}
 
-/* hide streamlit chrome */
 [data-testid="stHeader"], [data-testid="stToolbar"], #MainMenu, footer {{
   visibility: hidden !important;
   height: 0 !important;
 }}
 
-/* remove container padding */
 .block-container {{
   padding: 0 !important;
   margin: 0 !important;
@@ -69,164 +75,246 @@ html, body {{
 [data-testid="stAppViewContainer"] {{
   padding: 0 !important;
   margin: 0 !important;
+  overflow: hidden !important;
 }}
 
 {bg_css}
 
-/* ---- Landing layout ---- */
-.landing-wrapper {{
-  height: 100vh;                 /* exact viewport height */
-  overflow: hidden;              /* prevent scroll by wrapper */
+/* ---- page frame ---- */
+.h-landing {{
+  height: 100vh;
+  width: 100vw;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: clamp(14px, 2.6vh, 40px) clamp(14px, 3.2vw, 64px);
   box-sizing: border-box;
+  padding: clamp(18px, 3vh, 42px) clamp(18px, 3.2vw, 64px);
   position: relative;
 }}
 
-.landing-inner {{
-  width: 100%;
-  max-width: 1240px;
-  display: flex;
+.h-inner {{
+  width: min(1320px, 100%);
+  display: grid;
+  grid-template-columns: 1.05fr 1fr;
+  gap: clamp(22px, 3.4vw, 54px);
   align-items: center;
-  justify-content: space-between;
-  gap: 52px;
 }}
 
-.hero-copy h1 {{
-  margin: 0 0 10px 0;
-  font-size: 2.05rem;
-  font-weight: 900;
-  letter-spacing: -0.02em;
-}}
-.hero-copy p {{
-  margin: 0 0 16px 0;
-  font-size: 1.05rem;
-  opacity: .85;
+@media (max-width: 980px) {{
+  html, body {{ overflow: auto !important; }}
+  [data-testid="stAppViewContainer"] {{ overflow: auto !important; }}
+  .h-landing {{ height: auto; min-height: 100vh; padding-bottom: 22px; }}
+  .h-inner {{ grid-template-columns: 1fr; gap: 18px; }}
 }}
 
-.login-card {{
-  width: min(520px, 92vw);
-  background: rgba(255,255,255,0.72);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(0,0,0,0.10);
-  border-radius: 20px;
-  padding: 24px 24px 18px 24px;
-  box-shadow: 0 18px 50px rgba(0,0,0,0.08);
-}}
-.login-topbar {{
-  height: 14px;
+.h-cap {{
+  height: 16px;
+  width: min(520px, 100%);
   border-radius: 999px;
-  background: rgba(255,255,255,0.55);
+  background: rgba(255,255,255,0.62);
   border: 1px solid rgba(0,0,0,0.06);
+  box-shadow: 0 10px 30px rgba(0,0,0,0.06);
   margin-bottom: 14px;
 }}
 
-/* notes pinned inside hero so height doesn't grow */
-.landing-notes {{
-  position: absolute;
-  left: 50%;
-  transform: translateX(-50%);
-  bottom: 10px;
-  width: min(1240px, calc(100vw - 24px));
-  opacity: .74;
+.h-left h1 {{
+  margin: 0;
+  font-size: clamp(34px, 3.4vw, 54px);
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  line-height: 1.06;
+}}
+.h-left h2 {{
+  margin: 10px 0 12px 0;
+  font-size: clamp(22px, 2.1vw, 32px);
+  font-weight: 900;
+  letter-spacing: -0.02em;
+  opacity: .95;
+}}
+.h-left p {{
+  margin: 0 0 18px 0;
+  font-size: 1.02rem;
+  opacity: .86;
+}}
+
+.h-sensei {{
+  margin-top: 10px;
+  width: min(460px, 92%);
+}}
+
+.h-pills {{
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 18px;
+}}
+.h-pill {{
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.70);
+  border: 1px solid rgba(0,0,0,0.08);
+  box-shadow: 0 10px 24px rgba(0,0,0,0.05);
+  font-size: .95rem;
+  opacity: .92;
+}}
+.h-dot {{
+  width: 10px;
+  height: 10px;
+  border-radius: 99px;
+  background: rgba(0,0,0,0.25);
+}}
+
+/* ---- right card ---- */
+.h-card {{
+  width: min(720px, 100%);
+  background: rgba(255,255,255,0.58);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(0,0,0,0.10);
+  border-radius: 22px;
+  padding: 26px 26px 20px 26px;
+  box-shadow: 0 22px 70px rgba(0,0,0,0.10);
+}}
+
+.h-card h3 {{
+  margin: 0 0 6px 0;
+  font-size: 1.9rem;
+  font-weight: 900;
+  letter-spacing: -0.02em;
+}}
+.h-card .sub {{
+  margin: 0 0 18px 0;
+  opacity: .78;
+  font-size: .98rem;
+}}
+
+.h-notes {{
+  margin-top: 12px;
+  opacity: .72;
   font-size: .92rem;
 }}
-.landing-notes ul {{
+.h-notes ul {{
   margin: 0;
   padding-left: 18px;
 }}
-
-/* mobile */
-@media (max-width: 980px) {{
-  .landing-wrapper {{
-    height: auto;
-    min-height: 100vh;
-    overflow: visible;
-    padding-bottom: 22px;
-  }}
-  .landing-inner {{
-    flex-direction: column;
-    gap: 22px;
-    text-align: center;
-  }}
-  .login-card {{
-    width: min(560px, 94vw);
-  }}
-  .landing-notes {{
-    position: static;
-    transform: none;
-    left: auto;
-    bottom: auto;
-    width: min(560px, 94vw);
-    margin: 6px auto 0 auto;
-  }}
+.h-notes li {{
+  margin: 6px 0;
 }}
 
-/* hard stop scrolling on desktop: Streamlit sometimes scrolls a container */
-@media (min-width: 981px) {{
-  body, html {{
-    overflow: hidden !important;
-  }}
-  [data-testid="stAppViewContainer"] {{
-    overflow: hidden !important;
-  }}
+/* ---- Streamlit widget skinning (inside card) ---- */
+.h-card [data-testid="stForm"] {{
+  padding: 0 !important;
+  border: 0 !important;
 }}
+
+.h-card label {{
+  font-weight: 700 !important;
+  opacity: .88;
+}}
+
+.h-card input {{
+  height: 46px !important;
+  border-radius: 12px !important;
+  border: 1px solid rgba(0,0,0,0.10) !important;
+  background: rgba(255,255,255,0.62) !important;
+}}
+
+.h-card input:focus {{
+  outline: none !important;
+  box-shadow: 0 0 0 3px rgba(50, 50, 50, 0.08) !important;
+}}
+
+.h-card [data-testid="stTextInput"] > div {{
+  padding: 0 !important;
+}}
+
+.h-card [data-testid="stRadio"] {{
+  padding-top: 4px;
+}}
+
+.h-card [data-testid="stRadio"] label {{
+  font-weight: 700 !important;
+}}
+
+.h-card button[kind="primary"] {{
+  height: 48px !important;
+  border-radius: 12px !important;
+  border: 1px solid rgba(0,0,0,0.10) !important;
+  background: rgba(255,255,255,0.72) !important;
+  color: rgba(0,0,0,0.84) !important;
+  font-weight: 900 !important;
+  box-shadow: 0 12px 26px rgba(0,0,0,0.08) !important;
+}}
+
+.h-card button[kind="primary"]:hover {{
+  transform: translateY(-1px);
+}}
+
 </style>
 """,
         unsafe_allow_html=True,
     )
 
-    st.markdown('<div class="landing-wrapper">', unsafe_allow_html=True)
-    st.markdown('<div class="landing-inner">', unsafe_allow_html=True)
+    # ---- layout ----
+    st.markdown('<div class="h-landing"><div class="h-inner">', unsafe_allow_html=True)
 
     left, right = st.columns([1.05, 1.0], gap="large")
 
     with left:
-        st.markdown('<div class="hero-copy">', unsafe_allow_html=True)
-        st.markdown("<h1>하테나쌤과 함께<br/>하루 5분, 회화 루틴</h1>", unsafe_allow_html=True)
-        st.markdown("<p>짧게, 자주, 확실하게. 오늘도 한 세트만 시작해요.</p>", unsafe_allow_html=True)
+        st.markdown('<div class="h-left">', unsafe_allow_html=True)
+        st.markdown('<div class="h-cap"></div>', unsafe_allow_html=True)
+        st.markdown(f"<h1>{title_left}</h1>", unsafe_allow_html=True)
+        st.markdown(f"<h2>{headline}</h2>", unsafe_allow_html=True)
+        st.markdown(f"<p>{tagline}</p>", unsafe_allow_html=True)
+
+        if sensei_path.exists():
+            st.image(str(sensei_path), width=430)
+        else:
+            st.warning(f"assets/hotena_sensei.png 파일이 없습니다: {sensei_path.as_posix()}")
+
+        st.markdown(
+            """
+<div class="h-pills">
+  <div class="h-pill"><span class="h-dot"></span> 듣기</div>
+  <div class="h-pill"><span class="h-dot"></span> 말하기</div>
+  <div class="h-pill"><span class="h-dot"></span> 스마트코치</div>
+  <div class="h-pill"><span class="h-dot"></span> 오늘의 루틴</div>
+</div>
+""",
+            unsafe_allow_html=True,
+        )
         st.markdown("</div>", unsafe_allow_html=True)
 
-        sensei_path = ASSETS_DIR / "hotena_sensei.png"
-        if sensei_path.exists():
-            st.image(str(sensei_path), width=420)
-        else:
-            st.info(f"{sensei_path.as_posix()} 파일이 없습니다.")
-
     with right:
-        st.markdown('<div class="login-card">', unsafe_allow_html=True)
-        st.markdown('<div class="login-topbar"></div>', unsafe_allow_html=True)
-        st.markdown(f"## {title}")
-        st.caption(subtitle)
+        st.markdown('<div class="h-card">', unsafe_allow_html=True)
+        st.markdown('<div class="h-cap"></div>', unsafe_allow_html=True)
+        st.markdown(f"<h3>{card_title}</h3>", unsafe_allow_html=True)
+        st.markdown(f'<div class="sub">{card_subtitle}</div>', unsafe_allow_html=True)
 
         with st.form("landing_login_form", clear_on_submit=False):
             email = st.text_input("이메일", key="landing_email")
             password = st.text_input("비밀번호", type="password", key="landing_pw")
+            mode = default_mode
             if show_mode_toggle:
                 mode = st.radio("모드", ["로그인", "회원가입"], horizontal=True, index=0 if default_mode=="로그인" else 1)
-            else:
-                mode = default_mode
             submitted = st.form_submit_button("확인", use_container_width=True)
 
-        st.markdown("</div>", unsafe_allow_html=True)
-
-    st.markdown("</div>", unsafe_allow_html=True)  # landing-inner
-
-    st.markdown(
-        """
-<div class="landing-notes">
+        st.markdown(
+            """
+<div class="h-notes">
   <ul>
     <li>회원가입 후 이메일 인증이 필요할 수 있어요.</li>
     <li>비밀번호는 6자 이상을 권장합니다.</li>
   </ul>
 </div>
 """,
-        unsafe_allow_html=True,
-    )
+            unsafe_allow_html=True,
+        )
+        st.markdown("</div>", unsafe_allow_html=True)
 
-    st.markdown("</div>", unsafe_allow_html=True)  # landing-wrapper
+    st.markdown("</div></div>", unsafe_allow_html=True)
 
     return email, password, mode, submitted
