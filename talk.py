@@ -2200,12 +2200,19 @@ if submitted:
                 # bytes로 복사해서 재생/후속 처리에 재사용합니다.
                 _rec_bytes_key = f"{qid}__rec_bytes"
                 try:
-                    _ab = _audio.getvalue() if hasattr(_audio, "getvalue") else _audio.read()
+                    if hasattr(_audio, "getvalue"):
+                        _ab = _audio.getvalue()
+                    else:
+                        _ab = _audio.read()
+                        if hasattr(_audio, "seek"):
+                            _audio.seek(0)  # ✅ audio_input 내부 미리보기/파형용으로 되감기
                 except Exception:
                     _ab = None
+
                 if _ab:
                     st.session_state[_rec_bytes_key] = _ab
-                    st.audio(_ab, format="audio/wav")
+                    _fmt = getattr(_audio, "type", None) or "audio/wav"
+                    st.audio(_ab, format=_fmt)  # ✅ wav 고정 말고 실제 타입 사용
         else:
             remr = _free_record_remaining()
             if remr > 0:
