@@ -1638,195 +1638,45 @@ user = st.session_state.get("user")
 sb_authed = st.session_state.get("sb_authed")
 
 if not user:
-
-    # === HOTENA_LOGIN_CLEAN_V4_TITLE_CHAR_SAFE (fixed braces) ===
-
-    import base64, os
-
-    _HERO_MAX = 640  # ✅ form width ~2/3
-
-    _CHAR_PATH = os.path.join('assets', 'hotena_sensei.png')
-
-    _char_uri = ''
-
-    try:
-
-        if os.path.exists(_CHAR_PATH):
-
-            _b = open(_CHAR_PATH, 'rb').read()
-
-            _char_uri = 'data:image/png;base64,' + base64.b64encode(_b).decode('utf-8')
-
-    except Exception:
-
-        _char_uri = ''
-
-
-    _css = '''
-
-    .stApp {
-
-      background: linear-gradient(135deg, #fff6f2 0%, #ffffff 55%, #f7fbff 100%);
-
-    }
-
-    .block-container {
-
-      max-width: 980px !important;
-
-      padding-top: 2.0rem !important;
-
-      padding-bottom: 2.0rem !important;
-
-    }
-
-    [data-testid="stHeader"], [data-testid="stToolbar"], #MainMenu, footer {
-
-      visibility: hidden !important;
-
-      height: 0 !important;
-
-    }
-
-
-    .hotena-hero {
-
-      max-width: __HERO__px;
-
-      margin: 0 auto 1.0rem auto;
-
-    }
-
-    .hotena-title-row {
-
-      display: flex;
-
-      align-items: flex-end; /* ✅ baseline align */
-
-      justify-content: center;
-
-      gap: 10px;
-
-      flex-wrap: nowrap;
-
-    }
-
-    .hotena-login-title {
-
-      font-size: 2.05rem;
-
-      font-weight: 900;
-
-      letter-spacing: -0.02em;
-
-      margin: 0;
-
-      line-height: 1.05;
-
-    }
-
-    .hotena-title-row img {
-
-      height: 4.1rem; /* ✅ about 2x title size */
-
-      width: auto;
-
-      display: block;
-
-    }
-
-    .hotena-login-sub {
-
-      margin-top: .55rem;
-
-      text-align: center;
-
-      opacity: .78;
-
-      font-size: 1.02rem;
-
-      line-height: 1.45;
-
-    }
-
-
+    # === HOTENA_LOGIN_FINAL_B_V1 (brand-first, professional) ===
+    import os
+    st.markdown('''<style>
+    .stApp { background: linear-gradient(180deg, #f3f4f6 0%, #ffffff 70%); }
+    .block-container { max-width: 1040px !important; padding-top: 5.4rem !important; padding-bottom: 2.2rem !important; }
+    [data-testid="stHeader"], [data-testid="stToolbar"], #MainMenu, footer { visibility:hidden !important; height:0 !important; }
+    .hotena-brand { text-align:center; margin: 0 auto 2.2rem auto; }
+    .hotena-brand h1 { margin:0; font-size:2.2rem; font-weight:900; letter-spacing:-0.03em; color:#111827; line-height:1.08; }
+    .hotena-brand p  { margin:.35rem 0 0 0; font-size:.95rem; opacity:.55; color:#111827; }
+    .hotena-card-title { font-size:1.15rem; font-weight:800; color:#111827; margin: 0 0 1.0rem 0; }
     div[data-testid="stForm"] {
-
-      max-width: __HERO__px !important;
-
-      margin: 0 auto !important;
-
+      max-width: 520px !important; margin: 0 auto !important;
       border: 1px solid rgba(0,0,0,.08) !important;
-
-      border-radius: 18px !important;
-
-      padding: 22px 22px 14px 22px !important;
-
-      background: rgba(255,255,255,.86) !important;
-
-      box-shadow: 0 18px 42px rgba(0,0,0,.08) !important;
-
-      backdrop-filter: blur(6px);
-
-      -webkit-backdrop-filter: blur(6px);
-
+      border-radius: 16px !important;
+      padding: 28px 28px 18px 28px !important;
+      background: rgba(255,255,255,.92) !important;
+      box-shadow: 0 12px 30px rgba(0,0,0,.06) !important;
     }
+    div[data-testid="stTextInput"] input { height: 48px !important; border-radius: 12px !important; }
+    button[kind="primary"] { height: 46px !important; border-radius: 12px !important; font-weight:800 !important; }
+    </style>''', unsafe_allow_html=True)
+    st.markdown('<div class="hotena-brand"><h1>하테나일본어</h1><p>Japanese Learning Platform</p></div>', unsafe_allow_html=True)
+    st.subheader("로그인")
+    # === HOTENA_LOGIN_COLUMNS_V1 ===
+    col_login, col_char = st.columns([1.0, 0.9], gap="large")
+    with col_login:
+        st.markdown('<div class="hotena-card-title">계정으로 시작하기</div>', unsafe_allow_html=True)
+        with st.form("login_form", clear_on_submit=False):
+            email = st.text_input("이메일", key="hub_email")
+            pw = st.text_input("비밀번호", type="password", key="hub_pw")
+            mode = st.radio("모드", ["로그인", "회원가입"], horizontal=True)
+            submit = st.form_submit_button("로그인", use_container_width=True)
 
-
-    div[data-testid="stTextInput"] input {
-
-      height: 48px !important;
-
-      border-radius: 12px !important;
-
-    }
-
-    button[kind="primary"] {
-
-      height: 46px !important;
-
-      border-radius: 12px !important;
-
-      font-weight: 900 !important;
-
-    }
-
-    div[role="radiogroup"] { gap: 10px; }
-
-    '''
-
-    _css = _css.replace('__HERO__', str(_HERO_MAX))
-
-    st.markdown('<style>' + _css + '</style>', unsafe_allow_html=True)
-
-
-    _img_html = f'<img src="{_char_uri}" alt="hotena_sensei"/>' if _char_uri else ''
-
-    _title_html = f'''
-
-    <div class="hotena-hero">
-
-      <div class="hotena-title-row">
-
-        <div class="hotena-login-title">하테나일본어</div>
-
-        {_img_html}
-
-      </div>
-
-      <div class="hotena-login-sub">틀려도 괜찮아요. 오늘도 함께 말해봅시다.<br/>짧게, 자주, 확실하게.</div>
-
-    </div>
-
-    '''
-
-    st.markdown(_title_html, unsafe_allow_html=True)
-    with st.form("login_form", clear_on_submit=False):
-        email = st.text_input("이메일", key="hub_email")
-        pw = st.text_input("비밀번호", type="password", key="hub_pw")
-        mode = st.radio("모드", ["로그인", "회원가입"], horizontal=True)
-        submit = st.form_submit_button("확인", use_container_width=True)
-
+    with col_char:
+        _p = os.path.join('assets','hotena_sensei.png')
+        if os.path.exists(_p):
+            st.image(_p, use_container_width=True)
+        else:
+            st.empty()
     if submit:
         if not email or not pw:
             st.error("이메일/비밀번호를 입력해 주세요.")
