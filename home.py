@@ -26,9 +26,41 @@ def _inject_jp_font_once():
         f"""
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
-body {
+html, body, [class*="css"]  {
   font-family: 'Noto Sans JP','Noto Sans KR','Yu Gothic','Hiragino Kaku Gothic ProN','Meiryo','Apple SD Gothic Neo',sans-serif !important;
 }
+
+/* === SP (mobile) tweaks === */
+@media (max-width: 768px){
+  .ha-login-card{
+    padding: 16px 14px 12px;
+    border-radius: 16px;
+  }
+  .ha-login-head{
+    align-items: flex-start;
+    gap: 10px;
+  }
+  .ha-login-logo{
+    width: 38px; height: 38px;
+    border-radius: 14px;
+    font-size: 17px;
+    flex: 0 0 auto;
+  }
+  .ha-login-ttl b{font-size:1.08rem;}
+  .ha-login-ttl div{font-size:.86rem;}
+  .ha-login-note{font-size:.84rem; margin: .08rem 0 .50rem;}
+  .ha-login-char{
+    width: 44px; height: 44px;
+    border-radius: 14px;
+    flex: 0 0 auto;
+  }
+}
+/* Ultra-small phones */
+@media (max-width: 380px){
+  .ha-login-ttl div{display:none;}
+  .ha-login-char{width: 40px; height: 40px;}
+}
+
 </style>
 """,
         unsafe_allow_html=True,
@@ -1645,7 +1677,7 @@ if not user:
     try:
         from pathlib import Path
         import base64 as _b64
-        _p = Path("assets/hotena_sensei.png")
+        _p = Path("assets/hatena_sensei.png")
         if _p.exists():
             _char_src = "data:image/png;base64," + _b64.b64encode(_p.read_bytes()).decode("utf-8")
     except Exception:
