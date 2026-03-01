@@ -1153,14 +1153,65 @@ def award_xp(amount: int, reason: str):
         fn(int(amount), reason)
 
 
-def _first_mismatch_hint(said: str, correct: str, max_chars: int = 2) -> str:
-    """인식 결과와 정답의 '첫 오차'를 아주 짧게 표시(1~2글자 수준).
-    - UI용 힌트라 과도한 분석/재렌더를 피하기 위해 가볍게 구성합니다.
-    - 히라가나 정규화(_norm_jp) 기준으로 비교합니다.
+def _mismatch_markup(said: str, correct: str, window: int = 5) -> str:
+    """Return small colored snippet (green=match, red=mismatch) without '정답/인식' labels.
+    - Shows about 3~5 chars around the first mismatch.
+    - Uses hiragana normalization when possible.
     """
-    a = _norm_jp(said or "")
-    b = _norm_jp(correct or "")
-    if not a or not b:
+    try:
+        a0 = (said or "").strip()
+        b0 = (correct or "").strip()
+        if not a0 or not b0:
+            return ""
+        # light normalization (hiragana + remove spaces/punct)
+        a = _to_hira(a0)
+        b = _to_hira(b0)
+        a = re.sub(r"\s+", "", a)
+        b = re.sub(r"\s+", "", b)
+        a = re.sub(r"[\u3000\u3001\u3002,\.！？!\?\-ー〜～\(\)\[\]{}\"'・]", "", a)
+        b = re.sub(r"[\u3000\u3001\u3002,\.！？!\?\-ー〜～\(\)\[\]{}\"'・]", "", b)
+        if not a or not b:
+            return ""
+
+        sm = difflib.SequenceMatcher(a=a, b=b)
+        first = None
+        for tag, i1, i2, j1, j2 in sm.get_opcodes():
+            if tag != "equal":
+                first = (i1, j1)
+                break
+        if first is None:
+            return ""
+        ic, ia = first
+        # show ~window chars around mismatch (3~5 is good)
+        w = max(3, min(int(window or 5), 5))
+        pre = 2  # show a little context before mismatch
+        cs = max(0, ic - pre)
+        as_ = max(0, ia - pre)
+        ce = min(len(b), cs + w)
+        ae = min(len(a), as_ + w)
+        b_win = b[cs:ce]
+        a_win = a[as_:ae]
+
+        # align by simple position (good enough for 3~5 chars hint)
+        L = max(len(b_win), len(a_win))
+        b_pad = b_win.ljust(L, "∅")
+        a_pad = a_win.ljust(L, "∅")
+
+        def _color_span(ch: str, ok: bool) -> str:
+            ch = ch.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+            col = "#16a34a" if ok else "#dc2626"  # green / red
+            return f"<span style='color:{col}; font-weight:700;'>{ch}</span>"
+
+        top = "".join(_color_span(b_pad[k], b_pad[k] == a_pad[k]) for k in range(L))
+        bot = "".join(_color_span(a_pad[k], b_pad[k] == a_pad[k]) for k in range(L))
+
+        return (
+            "<div style='margin-top:4px; line-height:1.25; font-size:0.92rem;'>"
+            f"<div>🎯 {top}</div>"
+            f"<div>🗣️ {bot}</div>"
+            "</div>"
+        )
+    except Exception:
         return ""
 
     sm = difflib.SequenceMatcher(a=a, b=b)
@@ -3069,13 +3120,13 @@ def _render_pron_a3cfa850():
             _scv = int(st.session_state.get(score_key) or 0)
             st.metric("점수", _scv)
 
-            # ✅ 어디가 틀렸는지(아주 짧게 1~2글자) 표시 — 점수가 100이 아닐 때만
+            # ✅ 어디가 틀렸는지(짧게 3~5글자) 색으로 표시 — 점수가 100이 아닐 때만
             _said_txt = str(st.session_state.get(text_key) or "").strip()
             _ans_txt = str(row.get("answer_jp", "") or "").strip()
             if _said_txt and _ans_txt and _scv < 100:
-                _hint = _first_mismatch_hint(_said_txt, _ans_txt, max_chars=2)
-                if _hint:
-                    st.caption(_hint)
+                _mk = _mismatch_markup(_said_txt, _ans_txt, window=5)
+                if _mk:
+                    st.markdown(_mk, unsafe_allow_html=True)
 
         st.caption("정답을 보고 2~3번 따라 말해 보세요. 녹음이 끝나면 점수가 자동으로 계산됩니다.")
         reward_key = f"{NS}_reward_ready_{qid}"
