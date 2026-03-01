@@ -1105,36 +1105,19 @@ def _safe_select(table: str, cols: str = "*", limit: int = 200, order: Optional[
 
 
 def _load_wrongs(limit: int = 400) -> Tuple[List[Dict[str, Any]], str]:
-    """오답 테이블명이 환경마다 달라질 수 있어 자동 탐색합니다.
-    - 테이블 후보를 순회하고, 컬럼 지정 조회가 실패하면 '*' 조회로 재시도합니다.
-    - 필드명이 다른 경우(alias)도 최대한 흡수합니다.
+    """오답(wrong_notes) 로드.
+
+    ✅ 규칙(고정):
+    - 테이블은 반드시 wrong_notes만 사용합니다.
+    - 다른 테이블(wrong_note/wrongs)로 자동 fallback 하지 않습니다.
+      (단어/한자/회화 분리 규칙이 흐려지고, 실제로는 회화 오답만 섞여 들어오는 문제가 생길 수 있음)
     """
-    # 1차: 흔한 컬럼 세트
-    cols1 = "id, user_id, app, pos, level, jp_word, word, term, reading, yomi, kana, meaning, meaning_kr, kr_meaning, correct_answer, correct, user_answer, answer, created_at"
-    for table in ("wrong_notes", "wrong_note", "wrongs"):
-        rows = _safe_select(table, cols=cols1, limit=limit, order="created_at", desc=True)
-        if not rows:
-            # 2차: 스키마가 달라 cols select가 실패하는 환경을 대비 → 전체 조회
-            rows = _safe_select(table, cols="*", limit=limit, order="created_at", desc=True)
-        if rows:
-            for r in rows:
-                # jp_word / word / term
-                if not r.get("jp_word"):
-                    r["jp_word"] = r.get("word") or r.get("term") or r.get("jp") or r.get("question")
-                # reading
-                if not r.get("reading"):
-                    r["reading"] = r.get("yomi") or r.get("kana") or r.get("furigana")
-                # meaning
-                if not r.get("meaning"):
-                    r["meaning"] = r.get("meaning_kr") or r.get("kr_meaning") or r.get("ko_meaning")
-                # correct / user answer
-                if "correct_answer" not in r or r.get("correct_answer") in (None, ""):
-                    r["correct_answer"] = r.get("correct_answer") or r.get("correct") or r.get("gold") or r.get("target")
-                if "user_answer" not in r or r.get("user_answer") in (None, ""):
-                    r["user_answer"] = r.get("user_answer") or r.get("answer") or r.get("pred") or r.get("user")
-            # user별 필터가 필요할 수 있음 (RLS로 처리되는 경우가 많아서 여기서는 건드리지 않음)
-            return rows, table
-    return [], "wrong_notes"
+    cols = "id, user_id, app, pos, level, jp_word, word, term, reading, yomi, kana, meaning, meaning_kr, kr_meaning, correct_answer, correct, user_answer, answer, created_at"
+    rows = _safe_select("wrong_notes", cols=cols, limit=limit, order="created_at", desc=True)
+    return (rows or [], "wrong_notes")
+
+
+
 def _load_messages(limit: int = 300) -> List[Dict[str, Any]]:
     cols = "id, user_id, title, body, created_at, read_at"
     return _safe_select("user_messages", cols=cols, limit=limit, order="created_at", desc=True)
@@ -1749,8 +1732,6 @@ def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None
 
     if not wrongs:
         st.info("아직 저장된 오답이 없습니다.")
-        if wrongs_table:
-            st.caption(f"시도한 테이블: wrong_notes → wrong_note → wrongs (현재: {wrongs_table})")
         st.markdown("</div>", unsafe_allow_html=True)
         return
 
