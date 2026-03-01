@@ -1221,7 +1221,7 @@ _POS_KEYS = {
 }
 _APP_KEYS_WORD = {"word", "words", "vocab"}
 _APP_KEYS_KANJI = {"kanji", "hanja"}
-_APP_KEYS_TALK = {"talk", "conversation", "speech"}
+_APP_KEYS_TALK = {"talk", "conversation", "speech", "lv talk", "lvtalk", "lv_talk", "talking"}
 
 def _looks_like_pos(x: Any) -> bool:
     s = str(x or "").strip().lower()
@@ -1300,36 +1300,70 @@ def _fmt_dt(s: Any) -> str:
 
 def _app_label(app: Optional[str]) -> str:
     a = (app or "").lower().strip()
+    # ✅ exact keys
     if a in _APP_KEYS_WORD:
         return "단어"
     if a in _APP_KEYS_KANJI:
         return "한자"
     if a in _APP_KEYS_TALK:
         return "회화"
-    return "단어"  # 안전: 기록은 기본 단어로 표시(‘기타’ 최소화)
+    # ✅ fuzzy keys (데이터가 'Lv talk', 'talk.py'처럼 들어오는 케이스 대응)
+    if "talk" in a or "conversation" in a:
+        return "회화"
+    if "kanji" in a or "hanja" in a:
+        return "한자"
+    if "word" in a or "vocab" in a:
+        return "단어"
+    return "단어"  # 안전 기본값
+
+def _format_level_chip(app_label: str, level_raw: str) -> str:
+    """Return HTML chip for level, or empty string if not meaningful."""
+    lv = (level_raw or "").strip()
+    if not lv:
+        return ""
+    l = lv.lower()
+    # 회화에서 level이 'talk'로 들어오는 케이스는 정보가 아니라서 숨김
+    if app_label == "회화" and l in ("talk", "lv talk", "lvtalk", "lv_talk"):
+        return ""
+    # 이미 'Lv '로 시작하면 그대로
+    if l.startswith("lv "):
+        label = lv
+    # JLPT like N3/N2
+    elif l.startswith("n") and len(l) <= 3:
+        label = f"Lv {lv.upper()}"
+    # numeric
+    elif l.isdigit():
+        label = f"Lv {lv}"
+    else:
+        # 기타 텍스트는 그대로(예: 'Talk', 'Business')
+        label = lv
+    return f'<span class="ha-chip-sm">{label}</span>'
+
 
 
 
 
 def _wrong_app_label(w: dict) -> str:
     """Map a wrong_note row to one of: 단어/한자/회화.
-    Priority: quiz_type -> app -> default(단어).
-    This must be available before any UI renders (used in top summary/week widgets).
+    Priority: quiz_type -> app -> level(보조) -> default(단어).
     """
-    try:
-        qt = (w.get("quiz_type") or w.get("type") or w.get("quiz") or "").lower().strip()
-        ap = (w.get("app") or "").lower().strip()
+    qt = (w.get("quiz_type") or w.get("type") or w.get("quiz") or "").lower().strip()
+    ap = (w.get("app") or "").lower().strip()
+    lv = (w.get("level") or "").lower().strip()
 
-        if qt in ("word", "vocab", "vocabulary"):
-            return "단어"
-        if qt in ("kanji", "hanja"):
-            return "한자"
-        if qt in ("talk", "conversation", "speech", "speaking"):
-            return "회화"
+    blob = " ".join([qt, ap, lv]).strip()
 
-        return _app_label(ap) or "단어"
-    except Exception:
+    # ✅ kanji
+    if qt in ("kanji", "hanja") or ap in _APP_KEYS_KANJI or "kanji" in blob or "hanja" in blob:
+        return "한자"
+    # ✅ talk
+    if qt in ("talk", "conversation", "speech", "lv talk", "lvtalk", "lv_talk") or ap in _APP_KEYS_TALK or "talk" in blob or "conversation" in blob:
+        return "회화"
+    # ✅ word
+    if qt in ("word", "vocab", "vocabulary") or ap in _APP_KEYS_WORD or "word" in blob or "vocab" in blob:
         return "단어"
+
+    return "단어"
 
 
 def _pos_label(pos: Optional[str]) -> Optional[str]:
@@ -2203,8 +2237,9 @@ def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None
 
     for w in chunk:
         jp = w.get("jp_word") or "-"
-        app = _app_label(w.get("app"))
-        level = w.get("level") or "-"
+        app = _wrong_app_label(w)  # ✅ 오답은 quiz_type/app/level 종합 판단
+        level_raw = str(w.get("level") or "").strip()
+        level = level_raw
         dt = _fmt_dt(w.get("created_at"))
         rep = counts.get((w.get("jp_word") or "").strip(), 0)
         header = f"{jp}" + (f" 🔥{rep}" if rep >= 3 else "")
@@ -2212,7 +2247,7 @@ def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None
             st.markdown(
                 f'<div class="ha-wrong-meta">'
                 f'<span class="ha-chip-sm">{app}</span>'
-                f'<span class="ha-chip-sm">Lv {level}</span>'
+                + _format_level_chip(app, level_raw)
                 + (f'<span class="ha-chip-sm">{w.get("reading")}</span>' if (w.get("reading") or "").strip() else "")
                 + f'</div>',
                 unsafe_allow_html=True,
