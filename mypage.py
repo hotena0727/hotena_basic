@@ -1480,46 +1480,104 @@ def _logout() -> None:
 # ---------------------------
 # Mini widget
 # ---------------------------
-def _week_counts(attempts: List[Dict[str, Any]]) -> Tuple[List[datetime], List[int]]:
+def _week_counts_by_app(attempts: List[Dict[str, Any]]) -> Tuple[List[datetime], Dict[str, List[int]]]:
+    """최근 7일 학습 횟수를 앱(단어/한자/회화)별로 집계."""
     now = datetime.now(timezone(timedelta(hours=9)))
     days = [(now - timedelta(days=i)).replace(hour=0, minute=0, second=0, microsecond=0) for i in range(6, -1, -1)]
-    counts = [0] * 7
-    for a in attempts:
+    counts = {"단어": [0]*7, "한자": [0]*7, "회화": [0]*7}
+
+    for a0 in attempts:
+        a = _normalize_attempt(a0)
         dt = _to_dt_kst(a.get("created_at"))
         if not dt:
             continue
         d0 = dt.replace(hour=0, minute=0, second=0, microsecond=0)
+        app_name = _app_label(a.get("app"))
+        if app_name not in counts:
+            # 안전: 레거시는 단어로 처리
+            app_name = "단어"
         for i, day in enumerate(days):
             if d0 == day:
-                counts[i] += 1
+                counts[app_name][i] += 1
                 break
+
     return days, counts
 
 
 def _render_week_widget(attempts: List[Dict[str, Any]]) -> None:
-    days, counts = _week_counts(attempts)
-    mx = max(counts) if counts else 0
+    days, by_app = _week_counts_by_app(attempts)
+
+    # day total + max for heat
+    totals = [by_app["단어"][i] + by_app["한자"][i] + by_app["회화"][i] for i in range(7)]
+    mx = max(totals) if totals else 0
     dow_kr = ["월", "화", "수", "목", "금", "토", "일"]
 
     blocks = []
-    for day, c in zip(days, counts):
+    for idx, day in enumerate(days):
         wd = dow_kr[day.weekday()]
+        t = totals[idx]
+        w = by_app["단어"][idx]
+        k = by_app["한자"][idx]
+        c = by_app["회화"][idx]
+
         if mx <= 0:
             bg = "rgba(30,107,255,0.06)"
             bd = "rgba(229,231,235,1)"
         else:
-            alpha = 0.08 + (0.20 * (c / mx)) if c > 0 else 0.06
+            alpha = 0.08 + (0.20 * (t / mx)) if t > 0 else 0.06
             bg = f"rgba(30,107,255,{alpha:.3f})"
-            bd = "rgba(30,107,255,0.22)" if c > 0 else "rgba(229,231,235,1)"
+            bd = "rgba(30,107,255,0.22)" if t > 0 else "rgba(229,231,235,1)"
+
+        # ✅ 앱별 표기(한눈에): 단어/한자/회화
+        sub = f"{t}회"
+        sub2 = f"단어 {w} · 한자 {k} · 회화 {c}"
+
         blocks.append(
             f"""
 <div class="ha-day" style="background:{bg}; border-color:{bd};">
   <div class="ha-day-top">{wd}</div>
   <div class="ha-day-num">{day.day}</div>
-  <div class="ha-day-sub">{c}회</div>
+  <div class="ha-day-sub">{sub}</div>
+  <div class="ha-day-sub" style="margin-top:4px; font-size:10px; line-height:1.25;">
+    {sub2}
+  </div>
 </div>
 """
         )
+
+    total = sum(totals)
+    streak = 0
+    for t in reversed(totals):
+        if t > 0:
+            streak += 1
+        else:
+            break
+
+    # header chips: total + per-app
+    total_word = sum(by_app["단어"])
+    total_kanji = sum(by_app["한자"])
+    total_talk = sum(by_app["회화"])
+
+    st.markdown(
+        f"""
+<div class="ha-week">
+  <div class="ha-week-head">
+    <div class="ha-week-title">최근 7일 학습</div>
+    <div class="ha-inline">
+      <span class="ha-chip">총 <b>{total}</b>회</span>
+      <span class="ha-chip">단어 <b>{total_word}</b></span>
+      <span class="ha-chip">한자 <b>{total_kanji}</b></span>
+      <span class="ha-chip">회화 <b>{total_talk}</b></span>
+      <span class="ha-chip">연속 <b>{streak}</b>일</span>
+    </div>
+  </div>
+  <div class="ha-week-grid">
+    {''.join(blocks)}
+  </div>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
 
     total = sum(counts)
     streak = 0
@@ -1674,15 +1732,32 @@ def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None
         st.markdown("</div>", unsafe_allow_html=True)
         return
 
-    # ✅ 오답으로 시험보기 (요청 사항)
+    # ✅ 오답으로 시험보기 (단어/한자/회화로 세분화)
     colQ1, colQ2 = st.columns([7, 3], vertical_alignment="center")
     with colQ1:
-        pass
+        st.markdown("**오답으로 시험보기**", help="단어/한자/회화 중 원하는 유형만 골라 시험을 볼 수 있어요.")
+        quiz_app = st.radio(
+            "유형",
+            options=["단어", "한자", "회화"],
+            horizontal=True,
+            label_visibility="collapsed",
+            key="myp_wrong_quiz_app",
+        )
     with colQ2:
-        quiz_n = st.selectbox("시험 문항 수", options=[5, 10, 15, 20], index=1, key="myp_wrong_quiz_n")
+        quiz_n = st.selectbox("문항 수", options=[5, 10, 15, 20], index=1, key="myp_wrong_quiz_n")
+
+    # ✅ 선택한 앱만 필터(레거시/누락은 단어로 처리)
+    def _wrong_app_label(w: Dict[str, Any]) -> str:
+        try:
+            return _app_label((w.get("app") or "").strip())
+        except Exception:
+            return "단어"
+
+    wrongs_for_quiz = [w for w in wrongs if _wrong_app_label(w) == quiz_app]
 
     if st.button("📝 오답으로 시험보기", use_container_width=True, key="myp_wrong_quiz_start"):
-        st.session_state["myp_wrong_quiz"] = _make_wrong_quiz(wrongs, n=int(quiz_n))
+        base = wrongs_for_quiz if wrongs_for_quiz else wrongs
+        st.session_state["myp_wrong_quiz"] = _make_wrong_quiz(base, n=int(quiz_n))
         st.session_state["myp_wrong_quiz_ans"] = {}
         st.session_state["myp_wrong_quiz_done"] = False
         st.rerun()
