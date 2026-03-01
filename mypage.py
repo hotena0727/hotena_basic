@@ -1325,6 +1325,54 @@ def _make_wrong_quiz(wrongs: List[Dict[str, Any]], n: int = 10) -> List[Dict[str
             "options": opts[:4],
         })
     return quiz
+
+def _build_wrong_quiz_for_app(app_label: str, wrongs_for_quiz: List[Dict[str, Any]], n: int) -> List[Dict[str, Any]]:
+    """Build quiz items for the selected app using each module's own pool, when available.
+
+    - 단어: hotena_basic.build_quiz_from_wrongs
+    - 한자: app.build_quiz_from_wrongs
+    - 회화: mypage의 간단 퀴즈(_make_wrong_quiz) fallback
+    """
+    import random, importlib
+
+    app_label = str(app_label or "").strip()
+
+    # 공통: wrongs -> [{"단어": jp_word}] 형태로 변환 (각 모듈이 기대)
+    def _to_wrong_list(ws: List[Dict[str, Any]]) -> List[Dict[str, str]]:
+        out = []
+        for w in (ws or []):
+            jp = (w.get("jp_word") or w.get("question") or "").strip()
+            if jp:
+                out.append({"단어": jp})
+        # 중복 제거(순서 유지)
+        seen = set()
+        uniq = []
+        for d in out:
+            k = d.get("단어", "")
+            if k and (k not in seen):
+                seen.add(k)
+                uniq.append(d)
+        return uniq
+
+    # ✅ 단어/한자는 각 모듈의 build_quiz_from_wrongs를 우선 사용
+    if app_label in ("단어", "한자"):
+        mod_name = "hotena_basic" if app_label == "단어" else "app"
+        try:
+            mod = importlib.import_module(mod_name)
+            fn = getattr(mod, "build_quiz_from_wrongs", None)
+            if callable(fn):
+                qtype = "meaning"  # 마이페이지 오답시험은 '뜻' 방식으로 통일
+                quiz_all = fn(_to_wrong_list(wrongs_for_quiz), qtype)
+                if isinstance(quiz_all, list) and quiz_all:
+                    random.shuffle(quiz_all)
+                    return quiz_all[: int(n)]
+        except Exception:
+            # 모듈/풀 초기화 문제 등은 fallback
+            pass
+
+    # ✅ fallback: mypage의 간단 퀴즈(뜻 기반 4지선다)
+    return _make_wrong_quiz(wrongs_for_quiz, n=int(n))
+
 def _calc_score(a: Dict[str, Any]) -> Optional[float]:
     score = a.get("score")
     if score is not None:
@@ -1730,11 +1778,15 @@ def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None
     wrongs_for_quiz = [w for w in wrongs if _wrong_app_label(w) == quiz_app]
 
     if st.button("📝 오답으로 시험보기", use_container_width=True, key="myp_wrong_quiz_start"):
-        base = wrongs_for_quiz if wrongs_for_quiz else wrongs
-        st.session_state["myp_wrong_quiz"] = _make_wrong_quiz(base, n=int(quiz_n))
-        st.session_state["myp_wrong_quiz_ans"] = {}
-        st.session_state["myp_wrong_quiz_done"] = False
-        st.rerun()
+        if not wrongs_for_quiz:
+            st.info(f"{quiz_app}에서 최근 오답이 없어요. 🙂
+
+상단 필터를 바꾸거나, 해당 훈련에서 먼저 문제를 풀어보세요.")
+        else:
+            st.session_state["myp_wrong_quiz"] = _build_wrong_quiz_for_app(quiz_app, wrongs_for_quiz, int(quiz_n))
+            st.session_state["myp_wrong_quiz_ans"] = {}
+            st.session_state["myp_wrong_quiz_done"] = False
+            st.rerun()
 
     quiz = st.session_state.get("myp_wrong_quiz") or []
     # 버튼을 눌렀는데 문제가 생성되지 않는 경우(뜻 데이터 없음 등)
