@@ -1994,7 +1994,13 @@ with p2:
             # 🎯 오늘의 자동 복습 세트 (틀린 것2 + 오래된 것2 + 랜덤1)
             c_today = st.columns([1,2])
             with c_today[0]:
-                if st.button("🎯 오늘의 복습", use_container_width=True, key=f"{NS}_today_review_btn"):
+                _today_done = _today_review_is_complete(resume_key)
+
+                if _today_done:
+
+                    st.info("오늘의 복습은 완료되었습니다. 내일 새 세트가 열립니다.")
+
+                if st.button("🎯 오늘의 복습", use_container_width=True, key=f"{NS}_today_review_btn", disabled=_today_done):
                     reset_set()
                     st.session_state[f"{NS}_mode"] = "review"
                     st.session_state[f"{NS}_review_opt"] = "today"
@@ -2015,9 +2021,9 @@ with p2:
             c_a, c_b = st.columns([1, 1])
             with c_a:
                 if st.button("복습 시작", use_container_width=True, key=f"{NS}_review_start", disabled=(_opt=="wrong" and not _has_wrong)):
+                    reset_set()
                     st.session_state[f"{NS}_mode"] = "review"
                     st.session_state[f"{NS}_review_opt"] = _opt
-                    reset_set()
                     _clear_talk_daily_state(resume_key)
                     st.rerun()
             with c_b:
@@ -2030,7 +2036,13 @@ with p2:
         with st.expander("📚 복습", expanded=False):
             c_today = st.columns([1,2])
             with c_today[0]:
-                if st.button("🎯 오늘의 복습", use_container_width=True, key=f"{NS}_today_review_btn2"):
+                _today_done = _today_review_is_complete(resume_key)
+
+                if _today_done:
+
+                    st.info("오늘의 복습은 완료되었습니다. 내일 새 세트가 열립니다.")
+
+                if st.button("🎯 오늘의 복습", use_container_width=True, key=f"{NS}_today_review_btn2", disabled=_today_done):
                     reset_set()
                     st.session_state[f"{NS}_mode"] = "review"
                     st.session_state[f"{NS}_review_opt"] = "today"
