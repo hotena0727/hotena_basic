@@ -1988,7 +1988,7 @@ def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None
     q = st.text_input("검색 (단어/뜻/발음)", value=st.session_state.get("myp_wrongs_q", ""), key="myp_wrongs_q")
     only_repeat = st.toggle("🔥 반복 오답만 보기 (3회+)", value=st.session_state.get("myp_wrongs_repeat", False), key="myp_wrongs_repeat")
     per_page = st.select_slider("표시 개수", options=[10, 20, 30, 50, 100], value=10, key="myp_wrongs_per")
-sort_mode = st.selectbox("정렬", ["최근순", "반복순", "오래된순"], index=0, key="myp_wrongs_sort")
+    sort_mode = st.selectbox("정렬", ["최근순", "반복순", "오래된순"], index=0, key="myp_wrongs_sort")
 
     def match(w: Dict[str, Any]) -> bool:
         jp = (w.get("jp_word") or "").lower()
