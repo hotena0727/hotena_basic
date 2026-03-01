@@ -141,8 +141,6 @@ import base64
 from pathlib import Path
 import streamlit as st
 
-import core
-
 def _img_to_data_uri(path: str) -> str:
     p = Path(path)
     b = p.read_bytes()
@@ -1690,19 +1688,15 @@ if submitted:
     correct = str(row.get("answer_jp", "")).strip()
     ok = (selected == correct)
 
-    # ✅ SFX(정답/오답) — 제출 직후 qid당 1회만 재생
+    # ✅ 제출 직후 SFX(정답/오답) — 문제(qid)당 1회만
     try:
-        _sfx_key = f"talk_sfx_{qid}"
-        if not st.session_state.get(_sfx_key):
-            st.session_state[_sfx_key] = True
-            try:
-                core.play_sfx_once(_sfx_key, "correct" if ok else "wrong")
-            except Exception:
-                # fallback (구버전 core)
-                try:
-                    core.play_sfx("correct" if ok else "wrong")
-                except Exception:
-                    pass
+        _sfx_guard = f"talk_sfx_{qid}"
+        if not st.session_state.get(_sfx_guard, False):
+            if hasattr(core, "play_sfx_once"):
+                core.play_sfx_once(_sfx_guard, "correct" if ok else "wrong")
+            elif hasattr(core, "play_sfx"):
+                core.play_sfx("correct" if ok else "wrong")
+            st.session_state[_sfx_guard] = True
     except Exception:
         pass
 
