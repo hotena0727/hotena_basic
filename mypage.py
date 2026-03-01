@@ -1743,26 +1743,6 @@ def _render_top_summary(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, A
             if st.button("로그아웃", use_container_width=True, key="myp_v4_logout"):
                 _logout()
 
-    st.markdown(
-        f"""
-<div class="ha-kpi">
-  <div class="ha-kpi-item">
-    <div class="ha-kpi-num">{_num(wrong_total)}</div>
-    <div class="ha-kpi-lbl">오답</div>
-  </div>
-  <div class="ha-kpi-item">
-    <div class="ha-kpi-num">{(str(avg_score) + '%') if avg_score is not None else '-'}</div>
-    <div class="ha-kpi-lbl">평균 정답률</div>
-  </div>
-  <div class="ha-kpi-item">
-    <div class="ha-kpi-num">{_num(recent_cnt)}</div>
-    <div class="ha-kpi-lbl">최근 7일 학습</div>
-  </div>
-</div>
-""",
-        unsafe_allow_html=True,
-    )
-
     st.markdown('<div style="margin-top:10px;"></div>', unsafe_allow_html=True)
     st.markdown(
         f"""
@@ -1838,6 +1818,30 @@ def _render_top_summary(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, A
         st.markdown(f"<div class='ha-kpi-item'><div class='ha-kpi-num'>{_num(week_total)}</div><div class='ha-kpi-lbl'>이번 주 풀이수</div></div>", unsafe_allow_html=True)
     with c3:
         st.markdown(f"<div class='ha-kpi-item'><div class='ha-kpi-num'>{top_wrong}</div><div class='ha-kpi-lbl'>최다 오답 유형</div></div>", unsafe_allow_html=True)
+    st.markdown('<div style="margin-top:10px;"></div>', unsafe_allow_html=True)
+
+
+    st.markdown(
+        f"""
+<div class="ha-kpi">
+  <div class="ha-kpi-item">
+    <div class="ha-kpi-num">{_num(wrong_total)}</div>
+    <div class="ha-kpi-lbl">오답</div>
+  </div>
+  <div class="ha-kpi-item">
+    <div class="ha-kpi-num">{(str(avg_score) + '%') if avg_score is not None else '-'}</div>
+    <div class="ha-kpi-lbl">평균 정답률</div>
+  </div>
+  <div class="ha-kpi-item">
+    <div class="ha-kpi-num">{_num(recent_cnt)}</div>
+    <div class="ha-kpi-lbl">최근 7일 학습</div>
+  </div>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
+
+
 
     # 추천 1줄(규칙 기반)
     rec = None
