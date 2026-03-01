@@ -2957,17 +2957,13 @@ if submitted:
             if _h and st.session_state.get(_last_hash_key) != _h:
                 st.session_state[_last_hash_key] = _h
                 st.session_state.pop(err_key, None)
-                                    # (UX) st.spinner는 완료 시 사라지면서 화면이 "번쩍"해 보일 수 있어, 고정 자리표시자로 처리합니다.
-                    _calc_ph = st.empty()
-                    _calc_ph.caption("⏳ 말하기 점수 계산 중...")
+                with st.spinner("말하기 점수 계산 중..."):
                     try:
                         _txt = _openai_transcribe_bytes(_b, mime=_mime)
                         st.session_state[text_key] = _txt
                         st.session_state[score_key] = _similarity_score(_txt, str(row.get("answer_jp", "")))
                     except Exception as _e:
                         st.session_state[err_key] = str(_e)
-                    finally:
-                        _calc_ph.empty()
 
         c_sc1, c_sc2 = st.columns([0.72, 0.28], vertical_alignment="center")
         with c_sc1:
