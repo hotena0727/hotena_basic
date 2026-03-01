@@ -1736,6 +1736,13 @@ def _render_top_summary(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, A
             if st.button("로그아웃", use_container_width=True, key="myp_v4_logout"):
                 _logout()
 
+        # 🔊 사운드 토글(마이페이지 상단)
+        _cur_sfx = core.is_sfx_enabled(True)
+        _new_sfx = st.toggle("🔊 소리", value=bool(_cur_sfx), key="myp_sfx_toggle_top")
+        if bool(_new_sfx) != bool(_cur_sfx):
+            core.set_sfx_enabled(bool(_new_sfx))
+            st.toast("사운드 설정이 저장되었습니다.")
+
     st.markdown(
         f"""
 <div class="ha-kpi">
@@ -1772,10 +1779,8 @@ def _render_top_summary(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, A
         unsafe_allow_html=True,
     )
 
-    _render_week_widget(attempts)
-
     # ============================================================
-    # ✅ 추가 리포트(3장) + 오늘의 미션 + 추천 1줄
+    # ✅ 추가 리포트(3장) + 추천 1줄(+TOP10)
     # ============================================================
     # 연속 학습일(스트릭)
     def _calc_streak(atts: List[Dict[str, Any]]) -> int:
@@ -1858,23 +1863,57 @@ def _render_top_summary(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, A
         st.markdown('<div style="height:12px;"></div>', unsafe_allow_html=True)
         st.info(rec)
 
-    # 오늘의 미션(로컬 세션)
-    today_key = datetime.now(timezone(timedelta(hours=9))).date().isoformat()
-    ms_key = f"myp_missions_{today_key}"
-    if ms_key not in st.session_state:
-        st.session_state[ms_key] = {"word": False, "kanji": False, "talk": False}
+        # 🔥 TOP10 복습 시작(반복오답 3회+ 우선, 없으면 최근오답)
+        if st.button("🔥 TOP10 복습 시작", use_container_width=True, key="myp_top10_start"):
+            # 우선순위: 반복(3회+) → 최근
+            # jp_word 기준으로 묶어 Top10 선정
+            def _dt(w):
+                return _to_dt_kst(w.get("created_at")) or datetime.min.replace(tzinfo=timezone(timedelta(hours=9)))
 
-    st.markdown("#### 🎯 오늘의 미션")
-    mcol1, mcol2, mcol3 = st.columns(3)
-    with mcol1:
-        st.session_state[ms_key]["word"] = st.checkbox("단어 5문제", value=st.session_state[ms_key]["word"], key=f"{ms_key}_w")
-    with mcol2:
-        st.session_state[ms_key]["kanji"] = st.checkbox("한자 5문제", value=st.session_state[ms_key]["kanji"], key=f"{ms_key}_k")
-    with mcol3:
-        st.session_state[ms_key]["talk"] = st.checkbox("회화 1세트", value=st.session_state[ms_key]["talk"], key=f"{ms_key}_t")
+            try:
+                from collections import defaultdict
+                groups = defaultdict(list)
+                for w in (wrongs or []):
+                    jp = (w.get("jp_word") or w.get("question") or "").strip()
+                    if jp:
+                        groups[jp].append(w)
 
-    if all(st.session_state[ms_key].values()):
-        st.success("🎉 오늘의 미션 완료! 아주 좋아요.")
+                # 반복 후보(3회+)
+                rep = []
+                for jp, ws in groups.items():
+                    if len(ws) >= 3:
+                        latest = max(ws, key=_dt)
+                        rep.append((len(ws), _dt(latest), latest))
+
+                rep.sort(key=lambda x: (-x[0], -x[1].timestamp()))
+                chosen = [t[2] for t in rep][:10]
+
+                if len(chosen) < 10:
+                    # 최근 오답으로 채우기(중복 jp 제외)
+                    used = set((w.get("jp_word") or w.get("question") or "").strip() for w in chosen)
+                    recent = sorted([w for w in (wrongs or []) if (w.get("jp_word") or w.get("question") or "").strip() and ((w.get("jp_word") or w.get("question") or "").strip() not in used)],
+                                    key=_dt, reverse=True)
+                    for w in recent:
+                        if len(chosen) >= 10:
+                            break
+                        jp = (w.get("jp_word") or w.get("question") or "").strip()
+                        if jp and jp not in used:
+                            chosen.append(w)
+                            used.add(jp)
+
+                if chosen:
+                    st.session_state["myp_wrong_quiz"] = _make_wrong_quiz(chosen, n=min(10, len(chosen)))
+                    st.session_state["myp_wrong_quiz_ans"] = {}
+                    st.session_state["myp_wrong_quiz_done"] = False
+                    st.toast("TOP10 복습을 시작합니다.")
+                    st.rerun()
+                else:
+                    st.info("아직 저장된 오답이 없습니다.")
+            except Exception:
+                st.info("오답을 불러오는 중 문제가 생겼습니다. 잠시 후 다시 시도해 주세요.")
+
+    # ✅ 최근 7일 학습(요약 카드 아래)
+    _render_week_widget(attempts)
 
     st.markdown("</div>", unsafe_allow_html=True)
 # ---------------------------
@@ -2294,17 +2333,6 @@ def _render_msgs(msgs: List[Dict[str, Any]]) -> None:
     st.markdown("</div>", unsafe_allow_html=True)  # scope
     st.markdown("</div>", unsafe_allow_html=True)  # card
 
-# ---------------------------
-# ✅ SFX (효과음) 설정 — 중앙 통제(core.py)
-# ---------------------------
-def _render_sfx_settings() -> None:
-    # 마이페이지에서만 설정 UI 제공 (다른 페이지는 core만 호출)
-    with st.expander("🔊 사운드 설정", expanded=False):
-        _cur = core.is_sfx_enabled(True)
-        _new = st.toggle("효과음 사용", value=_cur, key="myp_sfx_enabled")
-        if bool(_new) != bool(_cur):
-            core.set_sfx_enabled(bool(_new))
-            st.toast("설정이 저장되었습니다.")
 
 def render() -> None:
     _inject_css()
@@ -2317,8 +2345,6 @@ def render() -> None:
     attempts_ok = [_normalize_attempt(a) for a in attempts_ok]
 
     _render_top_summary(wrongs, attempts_ok)
-
-    _render_sfx_settings()  # ✅ 효과음 ON/OFF
 
     # ✅ 탭 방식 (요청 사항)
     tab_w, tab_r, tab_m = st.tabs(["📚 오답", "📈 기록", "📩 메시지"])
