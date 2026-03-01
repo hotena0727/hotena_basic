@@ -36,17 +36,6 @@ except Exception:
 import pandas as pd
 import streamlit as st
 
-# ============================================================
-# ✅ mic_recorder (대체 녹음 위젯)
-# - st.audio_input은 rerun 시 일부 환경에서 파형/플레이어가 'An error has occurred'로 깨질 수 있음
-# - mic_recorder는 녹음 bytes를 안정적으로 반환(Stop 시 bytes 고정)하여 STT/점수계산과 궁합이 좋음
-# ============================================================
-try:
-    from streamlit_mic_recorder import mic_recorder  # type: ignore
-except Exception:
-    mic_recorder = None  # fallback
-
-
 import core
 
 # ============================================================
@@ -2833,28 +2822,43 @@ if submitted:
                 st.button("🔒 정답 발음 확인 (PRO)", key=f"{qid}_ans_pron_lock", disabled=True, use_container_width=True)
 # ✅ 말하기 녹음(선택)
         # - PRO: 녹음 가능
-        # - FREE: 오늘 기준 3회까지 허용(기존 정책 유지)
-        #
-        # ✅ st.audio_input은 'Stop' 직후 점수 계산을 위해 rerun이 일어나면
-        #    파형/플레이어가 깨지면서 "An error has occurred, please try again."가 뜨는 환경이 있습니다.
-        # ✅ mic_recorder는 Stop 시점에 bytes가 확정되어 session_state에 고정 저장되므로,
-        #    rerun이 일어나도 녹음 데이터가 안정적으로 유지됩니다.
-        #
-        # (중요) 위젯 key는 qid 단위로 고정해야 합니다. (rerun 때마다 바뀌면 녹음이 초기화됨)
-        _rec_bytes_key = f"{qid}__rec_bytes"
-        _rec_mime_key = f"{qid}__rec_mime"
-
-        if mic_recorder is None:
-            # fallback: 기존 st.audio_input (환경에 따라 오류 가능)
-            if st.session_state.get("_talk_audio_nonce_qid") != str(qid):
-                st.session_state["_talk_audio_nonce"] = int(st.session_state.get("_talk_audio_nonce") or 0) + 1
-                st.session_state["_talk_audio_nonce_qid"] = str(qid)
-            _audio_nonce = int(st.session_state.get("_talk_audio_nonce") or 0)
-
-            _audio = None
-            if IS_PRO:
-                _audio = st.audio_input("🎤 (선택) 내 발음을 녹음하고 들어보세요", key=f"{qid}_record_{_audio_nonce}")
+        # - FREE: PRO 안내 카드 노출
+        # ✅ 녹음 위젯이 간헐적으로 꼬이는 환경(모바일/브라우저) 대비: 문제(qid)마다 key nonce를 바꿔 새 위젯으로 렌더
+        if st.session_state.get("_talk_audio_nonce_qid") != str(qid):
+            st.session_state["_talk_audio_nonce"] = int(st.session_state.get("_talk_audio_nonce") or 0) + 1
+            st.session_state["_talk_audio_nonce_qid"] = str(qid)
+        _audio_nonce = int(st.session_state.get("_talk_audio_nonce") or 0)
+        _audio = None
+        if IS_PRO:
+            _audio = st.audio_input("🎤 (선택) 내 발음을 녹음하고 들어보세요", key=f"{qid}_record_{_audio_nonce}")
+            if _audio is not None:
+                # 🔧 audio_input 반환 객체를 그대로 st.audio에 넘기면(스트림 포인터/재렌더링 영향)
+                # 일부 환경에서 'An error has occurred, please try again.'가 뜰 수 있어
+                # bytes로 복사해서 재생/후속 처리에 재사용합니다.
+                _rec_bytes_key = f"{qid}__rec_bytes"
+                try:
+                    if hasattr(_audio, "getvalue"):
+                        _ab = _audio.getvalue()
+                    else:
+                        _ab = _audio.read()
+                        if hasattr(_audio, "seek"):
+                            _audio.seek(0)  # ✅ audio_input 내부 미리보기/파형용으로 되감기
+                except Exception:
+                    _ab = None
+    
+                if _ab:
+                    st.session_state[_rec_bytes_key] = _ab
+                    _fmt = getattr(_audio, "type", None) or "audio/wav"
+                    st.audio(_ab, format=_fmt)  # ✅ wav 고정 말고 실제 타입 사용
+        else:
+            remr = _free_record_remaining()
+            if remr > 0:
+                st.caption(f"FREE 녹음 남은 횟수: {remr}/{FREE_RECORD_QUOTA} (오늘 기준)")
+                _audio = st.audio_input("🎤 (무료) 내 발음을 녹음하고 들어보세요", key=f"{qid}_record_free_{_audio_nonce}")
                 if _audio is not None:
+                    # ✅ FREE도 PRO처럼 bytes로 복사해서 안정화 (rerun 시 "error occurred" 방지)
+                    _rec_bytes_key = f"{qid}__rec_bytes"
+                    _rec_mime_key  = f"{qid}__rec_mime"
                     try:
                         if hasattr(_audio, "getvalue"):
                             _ab = _audio.getvalue()
@@ -2864,91 +2868,33 @@ if submitted:
                                 _audio.seek(0)
                     except Exception:
                         _ab = None
+
                     if _ab:
                         st.session_state[_rec_bytes_key] = _ab
                         _fmt = getattr(_audio, "type", None) or "audio/wav"
                         st.session_state[_rec_mime_key] = _fmt
                         st.audio(_ab, format=_fmt)
-            else:
-                remr = _free_record_remaining()
-                if remr > 0:
-                    st.caption(f"FREE 녹음 남은 횟수: {remr}/{FREE_RECORD_QUOTA} (오늘 기준)")
-                    _audio = st.audio_input("🎤 (무료) 내 발음을 녹음하고 들어보세요", key=f"{qid}_record_free_{_audio_nonce}")
-                    if _audio is not None:
-                        _use_free_record_once()
-                        try:
-                            if hasattr(_audio, "getvalue"):
-                                _ab = _audio.getvalue()
-                            else:
-                                _ab = _audio.read()
-                        except Exception:
-                            _ab = None
-                        if _ab:
-                            st.session_state[_rec_bytes_key] = _ab
-                            _fmt = getattr(_audio, "type", None) or "audio/wav"
-                            st.session_state[_rec_mime_key] = _fmt
-                            st.audio(_ab, format=_fmt)
-                else:
-                    st.markdown(
-                        '''
-<div style="padding:12px;border:1px solid #FFD54F;border-radius:12px;background:#FFF8E1;">
-  <div style="font-weight:800;">🎙️ 발음 녹음 기능은 PRO 전용입니다</div>
-  <div style="margin-top:6px;font-size:0.92rem;opacity:0.9;">
-    오늘의 무료 녹음 3회를 모두 사용했습니다.
-  </div>
-  <div style="margin-top:10px;">
-    <span style="background:#FFD54F;color:#000;padding:3px 10px;border-radius:10px;font-weight:900;">PRO</span>
-  </div>
-</div>
-''',
-                        unsafe_allow_html=True,
-                    )
-        else:
-            # ✅ mic_recorder 모드
-            if IS_PRO:
-                rec = mic_recorder(
-                    start_prompt="🎙️ 녹음 시작",
-                    stop_prompt="⏹️ 정지",
-                    just_once=False,
-                    key=f"{qid}__mic",
-                )
-                if rec and isinstance(rec, dict) and rec.get("bytes"):
-                    st.session_state[_rec_bytes_key] = rec.get("bytes")
-                    st.session_state[_rec_mime_key] = rec.get("format") or "audio/wav"
-            else:
-                remr = _free_record_remaining()
-                if remr > 0:
-                    st.caption(f"FREE 녹음 남은 횟수: {remr}/{FREE_RECORD_QUOTA} (오늘 기준)")
-                    rec = mic_recorder(
-                        start_prompt="🎙️ (무료) 녹음 시작",
-                        stop_prompt="⏹️ 정지",
-                        just_once=False,
-                        key=f"{qid}__mic_free",
-                    )
-                    if rec and isinstance(rec, dict) and rec.get("bytes"):
-                        _use_free_record_once()
-                        st.session_state[_rec_bytes_key] = rec.get("bytes")
-                        st.session_state[_rec_mime_key] = rec.get("format") or "audio/wav"
-                else:
-                    st.markdown(
-                        '''
-<div style="padding:12px;border:1px solid #FFD54F;border-radius:12px;background:#FFF8E1;">
-  <div style="font-weight:800;">🎙️ 발음 녹음 기능은 PRO 전용입니다</div>
-  <div style="margin-top:6px;font-size:0.92rem;opacity:0.9;">
-    오늘의 무료 녹음 3회를 모두 사용했습니다.
-  </div>
-  <div style="margin-top:10px;">
-    <span style="background:#FFD54F;color:#000;padding:3px 10px;border-radius:10px;font-weight:900;">PRO</span>
-  </div>
-</div>
-''',
-                        unsafe_allow_html=True,
-                    )
 
-            # ✅ 녹음이 있으면 파형/플레이어는 bytes 기반으로 "고정"해서 보여줍니다.
-            _ab = st.session_state.get(_rec_bytes_key)
-            if _ab:
-                st.audio(_ab, format=st.session_state.get(_rec_mime_key) or "audio/wav")
+                        # ✅ 무료 차감은 "새 녹음" 1회만
+                        _use_key = f"{qid}__free_rec_used_{_audio_nonce}"
+                        if not st.session_state.get(_use_key, False):
+                            _use_free_record_once()
+                            st.session_state[_use_key] = True
+            else:
+                st.markdown(
+                    '''
+<div style="padding:12px;border:1px solid #FFD54F;border-radius:12px;background:#FFF8E1;">
+  <div style="font-weight:800;">🎙️ 발음 녹음 기능은 PRO 전용입니다</div>
+  <div style="margin-top:6px;font-size:0.92rem;opacity:0.9;">
+    오늘의 무료 녹음 3회를 모두 사용했습니다.
+  </div>
+  <div style="margin-top:10px;">
+    <span style="background:#FFD54F;color:#000;padding:3px 10px;border-radius:10px;font-weight:900;">PRO</span>
+  </div>
+</div>
+''',
+                    unsafe_allow_html=True,
+                )
 
         # ✅ 말하기 점수 (A안: 서버 STT 기반) — 제출 후/버튼 클릭 시에만 실행
         # - 보기 선택 단계에는 영향을 주지 않습니다.
@@ -3096,10 +3042,7 @@ if submitted:
 
         if st.session_state.get(score_key) is not None:
             st.metric("점수", int(st.session_state.get(score_key) or 0))
-
-            # ✅ 1회 자동 rerun: 파형/플레이어를 먼저 고정해서 보여준 뒤, 다음 run에서 점수 계산
-            if 'need_autorun' in locals() and need_autorun:
-                st.rerun()
+            # ✅ (비활성) 녹음 직후 추가 rerun은 일부 브라우저에서 녹음 UI 오류를 유발할 수 있어 제거했습니다.
 
         st.caption("정답을 보고 2~3번 따라 말해 보세요. 녹음이 끝나면 점수가 자동으로 계산됩니다.")
         reward_key = f"{NS}_reward_ready_{qid}"
