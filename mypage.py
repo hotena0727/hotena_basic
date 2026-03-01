@@ -2217,7 +2217,7 @@ def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None
                 + f'</div>',
                 unsafe_allow_html=True,
             )
-                        ca = w.get("correct_answer") or "-"
+            ca = w.get("correct_answer") or "-"
             ua = w.get("user_answer") or "-"
             meaning = w.get("meaning") or "-"
             st.markdown(f"**정답** {ca}  ·  **내답** {ua}")
