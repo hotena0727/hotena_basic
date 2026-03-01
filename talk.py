@@ -2852,6 +2852,9 @@ if submitted:
                     _fmt = getattr(_audio, "type", None) or "audio/wav"
                     st.session_state[_rec_mime_key] = _fmt
                     st.audio(_ab, format=_fmt)  # ✅ wav 고정 말고 실제 타입 사용
+                    # ✅ 정지 직후 rerun에서 audio_input 미리보기(파형) 재렌더 충돌을 피하기 위해
+                    #    다음 run에서는 '새 key'로 녹음기를 다시 마운트합니다(녹음기는 그대로 보이되, 직전 미리보기는 재사용하지 않음).
+                    st.session_state["_talk_audio_nonce"] = int(st.session_state.get("_talk_audio_nonce") or 0) + 1
         else:
             remr = _free_record_remaining()
             if remr > 0:
@@ -2877,6 +2880,9 @@ if submitted:
                         _fmt = getattr(_audio, "type", None) or "audio/wav"
                         st.session_state[_rec_mime_key] = _fmt
                         st.audio(_ab, format=_fmt)
+                        # ✅ 정지 직후 rerun에서 audio_input 미리보기(파형) 재렌더 충돌을 피하기 위해
+                        #    다음 run에서는 '새 key'로 녹음기를 다시 마운트합니다(녹음기는 그대로 보이되, 직전 미리보기는 재사용하지 않음).
+                        st.session_state["_talk_audio_nonce"] = int(st.session_state.get("_talk_audio_nonce") or 0) + 1
             else:
                 st.markdown(
                     '''
