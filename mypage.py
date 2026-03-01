@@ -112,6 +112,24 @@ div.block-container > div:first-child{
   margin: 2px 0 8px 0;
 }
 
+
+
+.ha-hero-pill{
+  height:10px;
+  border-radius:999px;
+  background: rgba(0,0,0,0.07);
+  overflow:hidden;
+  border: 1px solid var(--ha-line);
+  margin: 2px 0 12px 0;
+}
+.ha-hero-pill::after{
+  content:"";
+  display:block;
+  height:100%;
+  width:38%;
+  background: rgba(30,107,255,0.22);
+}
+
 .ha-topbar {
   display:flex;
   align-items:center;
@@ -1577,6 +1595,8 @@ def _render_top_summary(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, A
     pct = min(100, round((month_cnt / goal) * 100, 0)) if goal else 0
 
     st.markdown('<div class="ha-top">', unsafe_allow_html=True)
+    st.markdown('<div class="ha-hero-pill"></div>', unsafe_allow_html=True)
+
     st.markdown(
         """
 <div class="ha-topbar">
