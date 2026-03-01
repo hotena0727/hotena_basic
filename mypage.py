@@ -1751,12 +1751,8 @@ def _render_top_summary(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, A
             _new_sfx = st.toggle("🔊", value=_cur_sfx, key="myp_sfx_toggle", label_visibility="collapsed")
             core.set_sfx_enabled(bool(_new_sfx))
         with cLbl:
-            st.markdown(
-                f"<div style='display:flex; align-items:center; gap:10px; white-space:nowrap;'>"
-                f"<span style='font-weight:800;'>🔊 소리</span>"
-                f"</div>",
-                unsafe_allow_html=True,
-            )
+            # (UI) 소리 텍스트 제거: 아이콘 토글만 유지
+            pass
 
     with actR:
         # 오른쪽 정렬(스페이서 + 버튼 2개)
