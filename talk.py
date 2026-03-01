@@ -184,6 +184,7 @@ def hotena_title(icon_path: str, title: str, size_px: int = 56, gap_px: int = 6,
 
 import ai_tutor
 
+import core
 # ============================================================
 # ✅ wrong_notes debug helper
 # ============================================================
@@ -1687,6 +1688,16 @@ if submitted:
     correct = str(row.get("answer_jp", "")).strip()
     ok = (selected == correct)
 
+# ✅ SFX (정답/오답) — 제출 1회당 1번만 재생 (Streamlit rerun 중복 방지)
+try:
+    _sfx_key = f"talk_sfx_{qid}"
+    if hasattr(core, "play_sfx_once"):
+        core.play_sfx_once(_sfx_key, "correct" if ok else "wrong")
+    else:
+        core.play_sfx("correct" if ok else "wrong")
+except Exception:
+    pass
+
     # ✅ 최근 2턴 저장(정답 제출 직후 1회만)
     try:
         snap_key = f"talk_turn_saved_{qid}"
@@ -1705,10 +1716,7 @@ if submitted:
 
 
     # ============================================================
-        # (safety) ok 기본값 — 제출 전 NameError 방지
-    ok = True
-
-# ✅ 오답 상세 저장 (wrong_notes) — 회화도 '단어/정답/내답' 기록
+    # ✅ 오답 상세 저장 (wrong_notes) — 회화도 '단어/정답/내답' 기록
     # ============================================================
     if not ok:
         try:
@@ -2224,7 +2232,24 @@ if submitted:
                 _audio = st.audio_input("🎤 (무료) 내 발음을 녹음하고 들어보세요", key=f"{qid}_record_free_{_audio_nonce}")
                 if _audio is not None:
                     _use_free_record_once()
-                    st.audio(_audio)
+                    # 🔧 audio_input 반환 객체를 그대로 st.audio에 넘기면(스트림 포인터/재렌더링 영향)
+                    # 일부 환경에서 'An error has occurred, please try again.'가 뜰 수 있어
+                    # bytes로 복사해서 재생/후속 처리에 재사용합니다.
+                    _rec_bytes_key = f"{qid}__rec_bytes"
+                    try:
+                        if hasattr(_audio, "getvalue"):
+                            _ab = _audio.getvalue()
+                        else:
+                            _ab = _audio.read()
+                            if hasattr(_audio, "seek"):
+                                _audio.seek(0)  # ✅ audio_input 내부 미리보기/파형용으로 되감기
+                    except Exception:
+                        _ab = None
+
+                    if _ab:
+                        st.session_state[_rec_bytes_key] = _ab
+                        _fmt = getattr(_audio, "type", None) or "audio/wav"
+                        st.audio(_ab, format=_fmt)  # ✅ wav 고정 말고 실제 타입 사용
             else:
                 st.markdown(
                     '''
