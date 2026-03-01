@@ -996,6 +996,13 @@ div.block-container > div:first-child{
 
 /* Prevent top action buttons from wrapping */
 div.stButton > button { white-space: nowrap !important; }
+
+
+/* Top actions (SOUND / 홈 / 로그아웃) */
+.ha-top-actions{ display:flex; justify-content:flex-end; align-items:center; }
+.ha-top-actions button{ border-radius:14px !important; padding:8px 12px !important; font-weight:700 !important; white-space:nowrap !important; }
+.ha-top-actions [data-testid="stToggle"]{ transform: scale(0.95); transform-origin:right center; }
+.ha-top-actions .ha-sound-pill{ display:inline-flex; align-items:center; gap:8px; padding:8px 12px; border-radius:14px; border:1px solid rgba(20,23,28,0.10); background:rgba(255,255,255,0.85); white-space:nowrap; }
 </style>"""
     css = css.replace("__BLUE__", str(HATENA_BLUE))
     st.markdown(css, unsafe_allow_html=True)
@@ -1731,6 +1738,7 @@ def _render_top_summary(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, A
 
     colA, colB = st.columns([7, 3], vertical_alignment="center")
     with colB:
+        st.markdown('<div class="ha-top-actions">', unsafe_allow_html=True)
         # ✅ 사운드 토글을 홈/로그아웃 라인에 "이웃"하게 배치
         # ✅ 상단 우측 액션(홈/로그아웃) + 사운드 토글을 한 줄에 깔끔하게 배치
         # - 모바일/좁은 폭에서 글자가 두 줄로 깨지지 않게: 버튼은 내용폭 렌더(줄바꿈 없음)
@@ -1747,7 +1755,7 @@ def _render_top_summary(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, A
             _new_sfx = st.toggle("🔊", value=_cur_sfx, key="myp_sfx_toggle", label_visibility="collapsed")
             core.set_sfx_enabled(bool(_new_sfx))
             st.markdown(
-                f"<div style='display:inline-flex; gap:8px; align-items:center; white-space:nowrap;'>"
+                f"<div class='ha-sound-pill'>"
                 f"<span style='font-weight:700; letter-spacing:0.2px;'>SOUND</span>"
                 f"<span style='font-size:0.95rem; opacity:0.8; font-weight:700;'>{'ON' if _new_sfx else 'OFF'}</span>"
                 f"</div>",
@@ -1761,6 +1769,7 @@ def _render_top_summary(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, A
         with c_logout:
             if st.button("🚪 로그아웃", key="myp_v4_logout", use_container_width=True):
                 _logout()
+        st.markdown('</div>', unsafe_allow_html=True)
     st.markdown(
         f"""
 <div class="ha-row">
@@ -1827,17 +1836,27 @@ def _render_top_summary(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, A
             wc[lb] += 1
     top_wrong = max(wc.items(), key=lambda x: x[1])[0] if any(wc.values()) else "-"
 
-    st.markdown('<div style="margin-top:10px;"></div>', unsafe_allow_html=True)
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        st.markdown(f"<div class='ha-kpi-item'><div class='ha-kpi-num'>{_num(streak)}</div><div class='ha-kpi-lbl'>연속 학습일</div></div>", unsafe_allow_html=True)
-    with c2:
-        st.markdown(f"<div class='ha-kpi-item'><div class='ha-kpi-num'>{_num(week_total)}</div><div class='ha-kpi-lbl'>이번 주 풀이수</div></div>", unsafe_allow_html=True)
-    with c3:
-        st.markdown(f"<div class='ha-kpi-item'><div class='ha-kpi-num'>{top_wrong}</div><div class='ha-kpi-lbl'>최다 오답 유형</div></div>", unsafe_allow_html=True)
-    st.markdown('<div style="margin-top:10px;"></div>', unsafe_allow_html=True)
-
-
+    st.markdown(
+        f"""
+<div style=\"margin-top:10px;\"></div>
+<div class=\"ha-kpi ha-kpi--report\">
+  <div class=\"ha-kpi-item\">
+    <div class=\"ha-kpi-num\">{_num(streak)}</div>
+    <div class=\"ha-kpi-lbl\">연속 학습일</div>
+  </div>
+  <div class=\"ha-kpi-item\">
+    <div class=\"ha-kpi-num\">{_num(week_total)}</div>
+    <div class=\"ha-kpi-lbl\">이번 주 풀이수</div>
+  </div>
+  <div class=\"ha-kpi-item\">
+    <div class=\"ha-kpi-num\">{top_wrong}</div>
+    <div class=\"ha-kpi-lbl\">최다 오답 유형</div>
+  </div>
+</div>
+<div style=\"margin-top:10px;\"></div>
+""",
+        unsafe_allow_html=True,
+    )
     st.markdown(
         f"""
 <div class="ha-kpi">
