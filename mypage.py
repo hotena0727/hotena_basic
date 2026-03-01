@@ -1774,7 +1774,7 @@ def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None
 
     cprev, cmid, cnext = st.columns([1, 4, 1], vertical_alignment="center")
     with cprev:
-        if st.button("◀", use_container_width=True, key="myp_wrongs_prev", disabled=(page <= 1)):
+        if st.button("◀", key="myp_wrongs_prev", disabled=(page <= 1)):
             st.session_state["myp_wrongs_page"] = page - 1
             st.rerun()
     with cmid:
@@ -1785,7 +1785,7 @@ def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None
             unsafe_allow_html=True,
         )
     with cnext:
-        if st.button("▶", use_container_width=True, key="myp_wrongs_next", disabled=(page >= max_page)):
+        if st.button("▶", key="myp_wrongs_next", disabled=(page >= max_page)):
             st.session_state["myp_wrongs_page"] = page + 1
             st.rerun()
 
