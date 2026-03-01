@@ -1731,7 +1731,19 @@ def _render_top_summary(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, A
 
 
     # ✅ 상단 액션바: (좌) 소리 토글  (우) 홈/로그아웃 — 한 줄 정렬(PC/모바일)
-    actL, actR = st.columns([5.2, 4.8], vertical_alignment="center")
+    # ✅ 상단 액션바 버튼(홈/로그아웃) PC 잘림 방지: 패딩/폰트 약간 축소
+    st.markdown("""
+    <style>
+    /* 상단 액션바 근처 버튼을 조금 더 컴팩트하게 */
+    div[data-testid="stButton"] > button {
+        padding: 0.35rem 0.8rem;
+        font-size: 0.95rem;
+        white-space: nowrap;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+    actL, actR = st.columns([4.6, 5.4], vertical_alignment="center")
     with actL:
         cT, cLbl = st.columns([1.2, 8.8], gap="small", vertical_alignment="center")
         with cT:
@@ -1749,14 +1761,14 @@ def _render_top_summary(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, A
 
     with actR:
         # 오른쪽 정렬(스페이서 + 버튼 2개)
-        sp, b1, b2 = st.columns([3.8, 2.2, 4.0], gap="small", vertical_alignment="center")
+        sp, b1, b2 = st.columns([4.6, 2.0, 4.4], gap="small", vertical_alignment="center")
         with sp:
             st.markdown("<div></div>", unsafe_allow_html=True)
         with b1:
             if st.button("🏠 홈", key="myp_v4_home", use_container_width=False):
                 _go_home()
         with b2:
-            if st.button("🚪 로그아웃", key="myp_v4_logout", use_container_width=True):
+            if st.button("🚪 로그아웃", key="myp_v4_logout", use_container_width=False):
                 _logout()
 
     st.markdown(
