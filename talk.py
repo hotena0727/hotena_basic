@@ -1640,25 +1640,40 @@ if st.session_state.get(review_opt_key) not in ("random", "oldest", "mixed", "wr
 def _make_review_qids(pool_df_: pd.DataFrame, resume_key_: str, opt: str, n_: int) -> list[str]:
     # 1) 틀린 것 우선: 오답 누적(wrong)에서 뽑기
     if opt == "wrong":
+
         wm = _get_wrong_map(resume_key_)
-        wrong_ids = [str(q) for q in wm.keys()]
-        if not wrong_ids:
-            # 오답이 없으면 랜덤
-            return pool_df_.sample(n=min(n_, len(pool_df_)), replace=False)["qid"].astype(str).tolist()
+        if not isinstance(wm, dict):
+            wm = {}
 
-        base = pool_df_[pool_df_["qid"].astype(str).isin(set(wrong_ids))].copy()
+        # wrong 정책:
+        # - 오답이 없으면 빈 리스트(=UI에서 시작 버튼 비활성/안내)
+        # - 오답이 많으면: 최근/누적을 기준으로 상위 20개만 추려서 세트 구성
+        items = []
+        for qid, v in wm.items():
+            vv = v or {}
+            cnt = int(vv.get("cnt") or 0)
+            last = str(vv.get("last") or "")
+            items.append((str(qid), cnt, last))
+
+        if not items:
+            return []
+
+        # 1) 누적횟수 높은 것 우선, 2) 최근 오답 우선(last desc)
+        items.sort(key=lambda t: (t[1], t[2]), reverse=True)
+
+        # 상위 20개만 사용 (너무 많아졌을 때 부담 줄이기)
+        items = items[:20]
+        selected_ids = [qid for (qid, _, _) in items]
+
+        base = pool_df_[pool_df_["qid"].astype(str).isin(set(selected_ids))].copy()
         if base.empty:
-            return pool_df_.sample(n=min(n_, len(pool_df_)), replace=False)["qid"].astype(str).tolist()
+            return []
 
-        # 오래된 오답부터(마지막 오답일 기준)
-        def _wdt(q):
-            v = wm.get(str(q)) or {}
-            ds = str(v.get("last") or "")
-            return ds or "9999-12-31"
-        base["__wdt__"] = base["qid"].astype(str).map(_wdt)
-        base = base.sort_values("__wdt__", ascending=True).reset_index(drop=True)
+        # items 순서를 유지(=우선순위 유지)하면서 최대 n_개로 자르기
+        order = {qid: i for i, qid in enumerate(selected_ids)}
+        base["__worder__"] = base["qid"].astype(str).map(lambda q: order.get(str(q), 10**9))
+        base = base.sort_values("__worder__", ascending=True).reset_index(drop=True)
         return base.head(min(n_, len(base)))["qid"].astype(str).tolist()
-
     # 2) 기존 복습: mastery에서 뽑기(랜덤/오래된/혼합)
     m = _get_mastered_map(resume_key_)
     mastered = list(m.keys())
@@ -1845,9 +1860,12 @@ with p2:
                 format_func=lambda x: {"wrong":"틀린 것", "random":"랜덤", "oldest":"오래된 것", "mixed":"혼합(오래된+랜덤)"}[x],
                 key=f"{NS}_review_opt_ui",
             )
+            _has_wrong = bool(_get_wrong_map(resume_key))
+            if _opt == "wrong" and not _has_wrong:
+                st.info("틀린 문제가 아직 없어요. 먼저 학습 모드에서 몇 개 틀려보시면, 여기에서 오답만 모아서 복습할 수 있어요.")
             c_a, c_b = st.columns([1, 1])
             with c_a:
-                if st.button("복습 시작", use_container_width=True, key=f"{NS}_review_start"):
+                if st.button("복습 시작", use_container_width=True, key=f"{NS}_review_start", disabled=(_opt=="wrong" and not _has_wrong)):
                     st.session_state[f"{NS}_mode"] = "review"
                     st.session_state[f"{NS}_review_opt"] = _opt
                     reset_set()
@@ -1867,7 +1885,7 @@ with p2:
                 format_func=lambda x: {"wrong":"틀린 것", "random":"랜덤", "oldest":"오래된 것", "mixed":"혼합(오래된+랜덤)"}[x],
                 key=f"{NS}_review_opt_ui",
             )
-            if st.button("복습 시작", use_container_width=True, key=f"{NS}_review_start"):
+            if st.button("복습 시작", use_container_width=True, key=f"{NS}_review_start", disabled=(_opt=="wrong" and not _has_wrong)):
                 st.session_state[f"{NS}_mode"] = "review"
                 st.session_state[f"{NS}_review_opt"] = _opt
                 reset_set()
