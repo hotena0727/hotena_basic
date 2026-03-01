@@ -994,18 +994,8 @@ div.block-container > div:first-child{
 }
 
 
-
-/* ✅ Top-right actions: compact buttons (only affects MyPage because CSS is injected here) */
-div.stButton > button{
-  padding: 0.38rem 0.75rem !important;
-  border-radius: 999px !important;
-}
-@media (max-width: 720px){
-  div.stButton > button{
-    padding: 0.44rem 0.9rem !important;
-  }
-}
-
+/* Prevent top action buttons from wrapping */
+div.stButton > button { white-space: nowrap !important; }
 </style>"""
     css = css.replace("__BLUE__", str(HATENA_BLUE))
     st.markdown(css, unsafe_allow_html=True)
@@ -1739,39 +1729,38 @@ def _render_top_summary(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, A
         unsafe_allow_html=True,
     )
 
-    colA, colB = st.columns([6.2, 3.8], vertical_alignment="center")
-    with colB:
-        # ✅ 사운드 토글을 홈/로그아웃 라인에 "이웃"하게 배치
-        # ✅ 상단 우측 액션(홈/로그아웃) + 사운드 토글을 한 줄에 깔끔하게 배치
-        # - 모바일/좁은 폭에서 글자가 두 줄로 깨지지 않게: 버튼은 내용폭 렌더(줄바꿈 없음)
-        # ✅ 상단: SOUND(ON/OFF) + 홈/로그아웃 (한 줄 유지)
-        # - 라디오(ON/OFF)로 상태가 명확하게 보이게
-        # - 버튼/라벨 줄바꿈 방지(CSS white-space:nowrap 적용)
-        # ✅ 상단: SOUND 토글 + 홈/로그아웃 (한 줄 유지)
-        # - 라디오 대신 토글 + ON/OFF 텍스트로 더 컴팩트하게
-        # - 좁은 폭에서도 버튼이 줄바꿈되지 않도록(white-space:nowrap)
-        c_sound, c_home, c_logout = st.columns([1.35, 1.15, 1.35], gap="small", vertical_alignment="center")
 
-        with c_sound:
+    # ✅ 상단 액션바: (좌) 소리 토글  (우) 홈/로그아웃 — 한 줄 정렬(PC/모바일)
+    actL, actR = st.columns([5.6, 4.4], vertical_alignment="center")
+    with actL:
+        cT, cLbl = st.columns([1.2, 8.8], gap="small", vertical_alignment="center")
+        with cT:
             _cur_sfx = bool(core.is_sfx_enabled(True))
             _new_sfx = st.toggle("🔊", value=_cur_sfx, key="myp_sfx_toggle", label_visibility="collapsed")
             core.set_sfx_enabled(bool(_new_sfx))
+        with cLbl:
             st.markdown(
-                f"<div style='display:inline-flex; gap:6px; align-items:center;'>"
-                f"<span style='font-weight:800; font-size:0.9rem;'>SOUND</span>"
-                f"<span class='ha-badge' style='padding:2px 8px; font-size:12px;'>{'ON' if _new_sfx else 'OFF'}</span>"
+                f"<div style='display:flex; align-items:center; gap:10px; white-space:nowrap;'>"
+                f"<span style='font-weight:800;'>🔊 소리</span>"
+                f"<span style='font-size:0.95rem; opacity:0.75; font-weight:800;'>{'ON' if _new_sfx else 'OFF'}</span>"
                 f"</div>",
                 unsafe_allow_html=True,
             )
 
-        with c_home:
-            if st.button("🏠 홈", key="myp_v4_home", use_container_width=False):
+    with actR:
+        # 오른쪽 정렬(스페이서 + 버튼 2개)
+        sp, b1, b2 = st.columns([2.2, 1.3, 1.5], gap="small", vertical_alignment="center")
+        with sp:
+            st.markdown("<div></div>", unsafe_allow_html=True)
+        with b1:
+            if st.button("🏠 홈", key="myp_v4_home", use_container_width=True):
                 _go_home()
-
-        with c_logout:
-            if st.button("🚪 로그아웃", key="myp_v4_logout", use_container_width=False):
+        with b2:
+            if st.button("🚪 로그아웃", key="myp_v4_logout", use_container_width=True):
                 _logout()
+
     st.markdown(
+
         f"""
 <div class="ha-row">
   <div class="ha-inline">
