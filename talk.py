@@ -2296,10 +2296,10 @@ if submitted:
 
                     if _ab:
                         st.session_state[_rec_bytes_key] = _ab
-                        _rec_mime_key = f\"{qid}__rec_mime\"
-                    _fmt = getattr(_audio, \"type\", None) or \"audio/wav\"
-                    st.session_state[_rec_mime_key] = _fmt
-                    st.audio(_ab, format=_fmt)  # ✅ wav 고정 말고 실제 타입 사용
+                        _rec_mime_key = f"{qid}__rec_mime"
+                        _fmt = getattr(_audio, "type", None) or "audio/wav"
+                        st.session_state[_rec_mime_key] = _fmt
+                        st.audio(_ab, format=_fmt)  # ✅ wav 고정 말고 실제 타입 사용
             else:
                 st.markdown(
                     '''
