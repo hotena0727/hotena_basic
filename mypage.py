@@ -6,6 +6,8 @@ from typing import Any, Dict, List, Optional, Tuple
 import streamlit as st
 import streamlit.components.v1 as components
 
+import core  # ✅ 중앙 효과음(SFX) 설정/재생
+
 # ============================================================
 # ✅ MyPage (Redesign v4 • Fix labels • CTA works • app+pos robust)
 # - (1) "기타, Lv noun" 문제 해결:
@@ -1945,6 +1947,19 @@ def _render_msgs(msgs: List[Dict[str, Any]]) -> None:
 
     st.markdown("</div>", unsafe_allow_html=True)  # scope
     st.markdown("</div>", unsafe_allow_html=True)  # card
+
+# ---------------------------
+# ✅ SFX (효과음) 설정 — 중앙 통제(core.py)
+# ---------------------------
+def _render_sfx_settings() -> None:
+    # 마이페이지에서만 설정 UI 제공 (다른 페이지는 core만 호출)
+    with st.expander("🔊 사운드 설정", expanded=False):
+        _cur = core.is_sfx_enabled(True)
+        _new = st.toggle("효과음 사용", value=_cur, key="myp_sfx_enabled")
+        if bool(_new) != bool(_cur):
+            core.set_sfx_enabled(bool(_new))
+            st.toast("설정이 저장되었습니다.")
+
 def render() -> None:
     _inject_css()
     _wrap_start()
@@ -1956,6 +1971,8 @@ def render() -> None:
     attempts_ok = [_normalize_attempt(a) for a in attempts_ok]
 
     _render_top_summary(wrongs, attempts_ok)
+
+    _render_sfx_settings()  # ✅ 효과음 ON/OFF
 
     # ✅ 탭 방식 (요청 사항)
     tab_w, tab_r, tab_m = st.tabs(["📚 오답", "📈 기록", "📩 메시지"])
