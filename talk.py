@@ -773,32 +773,56 @@ def _levenshtein(a: str, b: str) -> int:
         prev = cur
     return prev[-1]
 
-def _similarity_score(a: str, b: str, gate: float = 0.15, floor_to_zero: int = 15) -> int:
-    """발음 점수(0~100):
-    1) 2글자 bigram 겹침이 너무 적으면(완전 다른 문장) 0점
-    2) 편집거리(순서 포함) 기반 점수
-    3) 너무 낮은 점수는 0으로 정리(선택)
+def _lcs_ratio(a: str, b: str) -> float:
+    """순서 기반 LCS 비율(0~1).
+    분모는 정답(b)의 길이로 두어, '정답을 얼마나 순서대로 재현했는지'를 본다.
+    """
+    if not a or not b:
+        return 0.0
+    n, m = len(a), len(b)
+    prev = [0] * (m + 1)
+    for i in range(1, n + 1):
+        cur = [0] * (m + 1)
+        ca = a[i - 1]
+        for j in range(1, m + 1):
+            if ca == b[j - 1]:
+                cur[j] = prev[j - 1] + 1
+            else:
+                cur[j] = cur[j - 1] if cur[j - 1] >= prev[j] else prev[j]
+        prev = cur
+    lcs_len = prev[m]
+    return lcs_len / max(1, len(b))
+
+def _similarity_score(a: str, b: str, lcs_gate: float = 0.35, floor_to_zero: int = 30) -> int:
+    """발음 점수(0~100)
+
+    1) 순서 기반 LCS 게이트 35% 미만이면 바로 0점
+    2) 통과한 경우에만 레벤슈타인(편집거리) 점수 계산
+    3) 30점 미만은 다시 0점
+
+    기대 동작:
+    - 완전 다른 말 → 0점
+    - 조금 비슷 → 0~30
+    - 거의 맞음 → 70~100
     """
     a2, b2 = _norm_jp(a), _norm_jp(b)
     if not a2 or not b2:
         return 0
 
-    # 1) 완전 다른 문장 차단
-    ba = _bigrams(b2)
-    if ba:
-        overlap = len(_bigrams(a2) & ba) / max(1, len(ba))
-        if overlap < gate:
-            return 0
+    # 1) LCS gate (order-aware)
+    if _lcs_ratio(a2, b2) < float(lcs_gate):
+        return 0
 
-    # 2) 순서 기반 점수(편집거리)
+    # 2) Levenshtein-based score (order-aware)
     dist = _levenshtein(a2, b2)
     max_len = max(len(a2), len(b2))
     score = int(round(100 * (1 - dist / max_len)))
 
-    # 3) 바닥값 정리
+    # 3) floor cut
     if score < int(floor_to_zero):
         return 0
     return max(0, min(100, score))
+
 
 def _openai_transcribe_bytes(audio_bytes: bytes, mime: str = "audio/wav") -> str:
     # OpenAI Python SDK (new) 사용. 없으면 예외로 안내.
