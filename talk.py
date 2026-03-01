@@ -2587,9 +2587,15 @@ if submitted:
             if explain_kr:
                 st.markdown("<div style='margin-top:-18px'></div>", unsafe_allow_html=True)
                 st.info("💡 하테나쌤 원포인트 일본어\n\n" + explain_kr)
+                _nv = _jp_native_variant(str(row.get("answer_jp","") or ""))
+                if _nv:
+                    st.caption("💬 일본인 버전: " + _nv)
             elif hint:
                 st.markdown("<div style='margin-top:-18px'></div>", unsafe_allow_html=True)
                 st.info("💡 하테나쌤 원포인트 일본어\n\n" + hint)
+                _nv = _jp_native_variant(str(row.get("answer_jp","") or ""))
+                if _nv:
+                    st.caption("💬 일본인 버전: " + _nv)
             else:
                 st.markdown("<div style='margin-top:-18px'></div>", unsafe_allow_html=True)
                 st.info(
@@ -2597,6 +2603,9 @@ if submitted:
                     "포인트: 상황에서 ‘요청/사과/확인/거절’ 중 무엇인지 먼저 잡고, "
                     "그에 맞는 톤(정중/캐주얼)을 고르면 실수가 줄어듭니다."
                 )
+                _nv = _jp_native_variant(str(row.get("answer_jp","") or ""))
+                if _nv:
+                    st.caption("💬 일본인 버전: " + _nv)
 
             # ------------------------------------
             # 🤖 스마트 코치
@@ -2819,81 +2828,37 @@ if submitted:
             st.session_state["_talk_audio_nonce"] = int(st.session_state.get("_talk_audio_nonce") or 0) + 1
             st.session_state["_talk_audio_nonce_qid"] = str(qid)
         _audio_nonce = int(st.session_state.get("_talk_audio_nonce") or 0)
-        # ✅ 녹음 위젯 안정화: 녹음이 한번 완료(정지)되면 audio_input 위젯을 숨기고(bytes 플레이어만 표시)
-        # - audio_input을 렌더링한 채로 STT 등 무거운 처리를 하면 일부 환경에서
-        #   'An error has occurred, please try again.'가 뜨는 경우가 있어, 완료 후엔 위젯을 잠깁니다.
-        _rec_bytes_key = f"{qid}__rec_bytes"
-        _rec_mime_key  = f"{qid}__rec_mime"
-        _rec_lock_key  = f"{qid}__rec_locked"
-        if _rec_lock_key not in st.session_state:
-            st.session_state[_rec_lock_key] = False
-
         _audio = None
         if IS_PRO:
-            # 이미 녹음이 완료된 상태면 audio_input 대신 플레이어만 표시(에러 방지)
-            if st.session_state.get(_rec_lock_key) and st.session_state.get(_rec_bytes_key):
-                st.audio(st.session_state.get(_rec_bytes_key), format=st.session_state.get(_rec_mime_key) or "audio/wav")
-                if st.button("🔁 다시 녹음", key=f"{qid}_re_record_pro", use_container_width=True):
-                    st.session_state[_rec_bytes_key] = None
-                    st.session_state[_rec_mime_key] = None
-                    st.session_state[_rec_lock_key] = False
-                    st.session_state["_talk_audio_nonce"] = int(st.session_state.get("_talk_audio_nonce") or 0) + 1
-                    st.session_state["_talk_audio_nonce_qid"] = str(qid)
-                    st.rerun()
-            else:
-                _audio = st.audio_input("🎤 (선택) 내 발음을 녹음하고 들어보세요", key=f"{qid}_record_{_audio_nonce}")
-                if _audio is not None:
-                    # bytes로 복사해서 재생/후속 처리에 재사용합니다.
+            _audio = st.audio_input("🎤 (선택) 내 발음을 녹음하고 들어보세요", key=f"{qid}_record_{_audio_nonce}")
+            if _audio is not None:
+                # 🔧 audio_input 반환 객체를 그대로 st.audio에 넘기면(스트림 포인터/재렌더링 영향)
+                # 일부 환경에서 'An error has occurred, please try again.'가 뜰 수 있어
+                # bytes로 복사해서 재생/후속 처리에 재사용합니다.
+                _rec_bytes_key = f"{qid}__rec_bytes"
+                try:
+                    if hasattr(_audio, "getvalue"):
+                        _ab = _audio.getvalue()
+                    else:
+                        _ab = _audio.read()
+                        if hasattr(_audio, "seek"):
+                            _audio.seek(0)  # ✅ audio_input 내부 미리보기/파형용으로 되감기
+                except Exception:
                     _ab = None
-                    try:
-                        if hasattr(_audio, "getvalue"):
-                            _ab = _audio.getvalue()
-                        elif isinstance(_audio, (bytes, bytearray)):
-                            _ab = bytes(_audio)
-                    except Exception:
-                        _ab = None
-
-                    if _ab:
-                        st.session_state[_rec_bytes_key] = _ab
-                        _fmt = getattr(_audio, "type", None) or "audio/wav"
-                        st.session_state[_rec_mime_key] = _fmt
-                        st.session_state[_rec_lock_key] = True
-                        st.audio(_ab, format=_fmt)  # ✅ 실제 타입 사용
-
+    
+                if _ab:
+                    st.session_state[_rec_bytes_key] = _ab
+                    _fmt = getattr(_audio, "type", None) or "audio/wav"
+                    st.audio(_ab, format=_fmt)  # ✅ wav 고정 말고 실제 타입 사용
         else:
             remr = _free_record_remaining()
             if remr > 0:
                 st.caption(f"FREE 녹음 남은 횟수: {remr}/{FREE_RECORD_QUOTA} (오늘 기준)")
-                if st.session_state.get(_rec_lock_key) and st.session_state.get(_rec_bytes_key):
-                    st.audio(st.session_state.get(_rec_bytes_key), format=st.session_state.get(_rec_mime_key) or "audio/wav")
-                    if st.button("🔁 다시 녹음", key=f"{qid}_re_record_free", use_container_width=True):
-                        st.session_state[_rec_bytes_key] = None
-                        st.session_state[_rec_mime_key] = None
-                        st.session_state[_rec_lock_key] = False
-                        st.session_state["_talk_audio_nonce"] = int(st.session_state.get("_talk_audio_nonce") or 0) + 1
-                        st.session_state["_talk_audio_nonce_qid"] = str(qid)
-                        st.rerun()
-                else:
-                    _audio = st.audio_input("🎤 (무료) 내 발음을 녹음하고 들어보세요", key=f"{qid}_record_free_{_audio_nonce}")
-                    if _audio is not None:
-                        _use_free_record_once()
-                        _ab = None
-                        try:
-                            if hasattr(_audio, "getvalue"):
-                                _ab = _audio.getvalue()
-                            elif isinstance(_audio, (bytes, bytearray)):
-                                _ab = bytes(_audio)
-                        except Exception:
-                            _ab = None
-
-                        if _ab:
-                            st.session_state[_rec_bytes_key] = _ab
-                            _fmt = getattr(_audio, "type", None) or "audio/wav"
-                            st.session_state[_rec_mime_key] = _fmt
-                            st.session_state[_rec_lock_key] = True
-                            st.audio(_ab, format=_fmt)
+                _audio = st.audio_input("🎤 (무료) 내 발음을 녹음하고 들어보세요", key=f"{qid}_record_free_{_audio_nonce}")
+                if _audio is not None:
+                    _use_free_record_once()
+                    st.audio(_audio)
             else:
-
                 st.markdown(
                     '''
 <div style="padding:12px;border:1px solid #FFD54F;border-radius:12px;background:#FFF8E1;">
