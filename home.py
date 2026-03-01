@@ -3168,6 +3168,9 @@ elif page == "reminder":
 elif page == "word":
     st.session_state["hub_target"] = "word"
     st.session_state['HUB_MODE'] = True
+    # ✅ HUB에서 각 훈련 모듈의 자체 라우터(st.session_state.page)가 화면을 바꿔치기하지 않도록 고정
+    st.session_state["page"] = "quiz"
+    st.session_state["current_page"] = "quiz"
     run_module('hotena_basic')
     try:
         progress_all = st.session_state.get('progress_all', {}) or {}
@@ -3177,6 +3180,9 @@ elif page == "word":
 elif page == "kanji":
     st.session_state["hub_target"] = "kanji"
     st.session_state['HUB_MODE'] = True
+    # ✅ HUB 라우팅 고정
+    st.session_state["page"] = "quiz"
+    st.session_state["current_page"] = "quiz"
     run_module('app')
     try:
         progress_all = st.session_state.get('progress_all', {}) or {}
@@ -3185,6 +3191,10 @@ elif page == "kanji":
         pass
 elif page == "talk":
     st.session_state["hub_target"] = "talk"
+    st.session_state['HUB_MODE'] = True
+    # ✅ HUB 라우팅 고정
+    st.session_state["page"] = "quiz"
+    st.session_state["current_page"] = "quiz"
     run_module('talk')
     try:
         progress_all = st.session_state.get('progress_all', {}) or {}
@@ -3194,6 +3204,8 @@ elif page == "talk":
 else:
     # ✅ Fallback: unknown page -> go home
     st.session_state["hub_page"] = "home"
+    st.session_state["page"] = "home"
+    st.session_state["current_page"] = "home"
     render_home_dashboard(sb_authed, user)
 
 
