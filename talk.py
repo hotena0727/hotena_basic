@@ -2269,9 +2269,7 @@ if submitted:
 
                 if _ab:
                     st.session_state[_rec_bytes_key] = _ab
-                    _rec_mime_key = f"{qid}__rec_mime"
                     _fmt = getattr(_audio, "type", None) or "audio/wav"
-                    st.session_state[_rec_mime_key] = _fmt
                     st.audio(_ab, format=_fmt)  # ✅ wav 고정 말고 실제 타입 사용
         else:
             remr = _free_record_remaining()
@@ -2296,9 +2294,7 @@ if submitted:
 
                     if _ab:
                         st.session_state[_rec_bytes_key] = _ab
-                        _rec_mime_key = f"{qid}__rec_mime"
                         _fmt = getattr(_audio, "type", None) or "audio/wav"
-                        st.session_state[_rec_mime_key] = _fmt
                         st.audio(_ab, format=_fmt)  # ✅ wav 고정 말고 실제 타입 사용
             else:
                 st.markdown(
@@ -2375,14 +2371,16 @@ if submitted:
             st.session_state.pop(_last_hash_key, None)
 
         # ✅ 자동 점수 계산 (녹음이 새로 들어왔을 때 1회만)
-        # - 오디오 스트림/포인터를 직접 read()하면 일부 환경에서 플레이어가 깨질 수 있어
-        #   반드시 session_state에 저장해 둔 bytes를 기준으로 해시/채점을 수행합니다.
+        # - 보기 선택 단계/리런에 영향 없도록, 오디오 해시가 바뀐 경우에만 실행합니다.
         if has_audio:
             try:
-                _rec_bytes_key = f"{qid}__rec_bytes"
-                _rec_mime_key = f"{qid}__rec_mime"
-                _b = st.session_state.get(_rec_bytes_key) or b""
-                _mime = st.session_state.get(_rec_mime_key) or "audio/wav"
+                _b = b""
+                _mime = "audio/wav"
+                _mime = getattr(audio_obj, "type", None) or "audio/wav"
+                if hasattr(audio_obj, "getvalue"):
+                    _b = audio_obj.getvalue()
+                elif hasattr(audio_obj, "read"):
+                    _b = audio_obj.read()
                 _h = hashlib.sha1(_b).hexdigest() if _b else ""
             except Exception:
                 _b, _mime, _h = b"", "audio/wav", ""
