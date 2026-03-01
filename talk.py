@@ -3108,6 +3108,19 @@ def _render_pron_a3cfa850():
                         _txt = _openai_transcribe_bytes(_b, mime=_mime)
                         st.session_state[text_key] = _txt
                         st.session_state[score_key] = _similarity_score(_txt, str(row.get("answer_jp", "")))
+                        # ✅ 발음 100점 SFX (qid+오디오 해시당 1회만)
+                        try:
+                            _pron_score = st.session_state.get(score_key)
+                            if isinstance(_pron_score, (int, float)) and _pron_score >= 100:
+                                _psfx_guard = f"talk_pron_sfx_{qid}_{_h}"
+                                if not st.session_state.get(_psfx_guard, False):
+                                    if hasattr(core, "play_sfx_once"):
+                                        core.play_sfx_once(_psfx_guard, "correct")
+                                    elif hasattr(core, "play_sfx"):
+                                        core.play_sfx("correct")
+                                    st.session_state[_psfx_guard] = True
+                        except Exception:
+                            pass
                     except Exception as _e:
                         st.session_state[err_key] = str(_e)
 
