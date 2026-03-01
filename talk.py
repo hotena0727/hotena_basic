@@ -736,6 +736,89 @@ def _reset_mastery(resume_key: str) -> None:
     except Exception:
         pass
 
+
+# ============================================================
+# ✅ Wrong progress (오답 누적: "틀린 것 우선 복습" 용)
+# - profiles.progress['talk']['wrong'][resume_key] 에 저장
+# - { qid(str): {"last":"YYYY-MM-DD","cnt":int} } 형태
+# - legacy(list/set) 형식도 자동 호환
+# ============================================================
+def _get_talk_wrong_all() -> dict:
+    try:
+        prog = load_progress()
+        talk_prog = prog.get("talk") or {}
+        wrong = talk_prog.get("wrong") or {}
+        return wrong if isinstance(wrong, dict) else {}
+    except Exception:
+        return {}
+
+def _set_talk_wrong_all(wrong: dict) -> None:
+    try:
+        prog = load_progress()
+        talk_prog = prog.get("talk") or {}
+        talk_prog["wrong"] = wrong if isinstance(wrong, dict) else {}
+        prog["talk"] = talk_prog
+        save_progress(prog)
+    except Exception:
+        pass
+
+def _get_wrong_map(resume_key: str) -> dict:
+    raw_all = _get_talk_wrong_all()
+    raw = raw_all.get(resume_key) or {}
+    # legacy list/set -> dict with cnt=1
+    if isinstance(raw, (list, set, tuple)):
+        today = _kst_today_str()
+        raw = {str(q): {"last": today, "cnt": 1} for q in list(raw)}
+    if not isinstance(raw, dict):
+        raw = {}
+    norm: dict = {}
+    for k, v in raw.items():
+        if k is None:
+            continue
+        q = str(k)
+        if isinstance(v, dict):
+            last = str(v.get("last") or "")
+            cnt = int(v.get("cnt") or 1)
+        else:
+            # v가 날짜 문자열로만 들어온 경우
+            last = str(v or "")
+            cnt = 1
+        norm[q] = {"last": last, "cnt": cnt}
+    return norm
+
+def _mark_wrong(resume_key: str, qid: str) -> None:
+    try:
+        wrong_all = _get_talk_wrong_all()
+        m = _get_wrong_map(resume_key)
+        qid = str(qid)
+        cur = m.get(qid) or {"last": "", "cnt": 0}
+        m[qid] = {"last": _kst_today_str(), "cnt": int(cur.get("cnt") or 0) + 1}
+        wrong_all[resume_key] = m
+        _set_talk_wrong_all(wrong_all)
+    except Exception:
+        pass
+
+def _clear_wrong(resume_key: str, qid: str) -> None:
+    try:
+        wrong_all = _get_talk_wrong_all()
+        m = _get_wrong_map(resume_key)
+        qid = str(qid)
+        if qid in m:
+            m.pop(qid, None)
+            wrong_all[resume_key] = m
+            _set_talk_wrong_all(wrong_all)
+    except Exception:
+        pass
+
+def _reset_wrong(resume_key: str) -> None:
+    try:
+        wrong_all = _get_talk_wrong_all()
+        if resume_key in wrong_all:
+            wrong_all.pop(resume_key, None)
+            _set_talk_wrong_all(wrong_all)
+    except Exception:
+        pass
+
 # ✅ FREE quota (daily): TTS 3회 / 녹음 3회
 # - profiles.progress['talk']['free_quota'] 에 저장해서 새로고침/재로그인에도 유지
 # ============================================================
@@ -1551,10 +1634,32 @@ mode_key = f"{NS}_mode"
 review_opt_key = f"{NS}_review_opt"
 if st.session_state.get(mode_key) not in ("learn", "review"):
     st.session_state[mode_key] = "learn"
-if st.session_state.get(review_opt_key) not in ("random", "oldest", "mixed"):
+if st.session_state.get(review_opt_key) not in ("random", "oldest", "mixed", "wrong"):
     st.session_state[review_opt_key] = "random"
 
 def _make_review_qids(pool_df_: pd.DataFrame, resume_key_: str, opt: str, n_: int) -> list[str]:
+    # 1) 틀린 것 우선: 오답 누적(wrong)에서 뽑기
+    if opt == "wrong":
+        wm = _get_wrong_map(resume_key_)
+        wrong_ids = [str(q) for q in wm.keys()]
+        if not wrong_ids:
+            # 오답이 없으면 랜덤
+            return pool_df_.sample(n=min(n_, len(pool_df_)), replace=False)["qid"].astype(str).tolist()
+
+        base = pool_df_[pool_df_["qid"].astype(str).isin(set(wrong_ids))].copy()
+        if base.empty:
+            return pool_df_.sample(n=min(n_, len(pool_df_)), replace=False)["qid"].astype(str).tolist()
+
+        # 오래된 오답부터(마지막 오답일 기준)
+        def _wdt(q):
+            v = wm.get(str(q)) or {}
+            ds = str(v.get("last") or "")
+            return ds or "9999-12-31"
+        base["__wdt__"] = base["qid"].astype(str).map(_wdt)
+        base = base.sort_values("__wdt__", ascending=True).reset_index(drop=True)
+        return base.head(min(n_, len(base)))["qid"].astype(str).tolist()
+
+    # 2) 기존 복습: mastery에서 뽑기(랜덤/오래된/혼합)
     m = _get_mastered_map(resume_key_)
     mastered = list(m.keys())
     if not mastered:
@@ -1609,21 +1714,22 @@ if f"{NS}_set_qids" not in st.session_state:
                 c1, c2, c3 = st.columns([1,1,1])
                 with c1:
                     if st.button("📚 복습(랜덤)", use_container_width=True, key=f"{NS}_review_random"):
-                        reset_set()
                         st.session_state[mode_key] = "review"
                         st.session_state[review_opt_key] = "random"
+                        reset_set()
                         _clear_talk_daily_state(resume_key)
                         st.rerun()
                 with c2:
                     if st.button("🕒 복습(오래된)", use_container_width=True, key=f"{NS}_review_oldest"):
-                        reset_set()
                         st.session_state[mode_key] = "review"
                         st.session_state[review_opt_key] = "oldest"
+                        reset_set()
                         _clear_talk_daily_state(resume_key)
                         st.rerun()
                 with c3:
                     if st.button("🔁 진도 초기화", use_container_width=True, key=f"{NS}_reset_mastery"):
                         _reset_mastery(resume_key)
+                        _reset_wrong(resume_key)
                         reset_set()
                         _clear_talk_daily_state(resume_key)
                         st.session_state[mode_key] = "learn"
@@ -1682,7 +1788,7 @@ _badges = []
 if is_done:
     _badges.append('<span class="ha-talk-badge ha-talk-badge-ok">✅ 완료</span>')
 if mode == "review":
-    _opt_label = {"random": "랜덤", "oldest": "오래된 것", "mixed": "혼합"}        .get(str(review_opt), str(review_opt))
+    _opt_label = {"wrong":"틀린 것", "random":"랜덤", "oldest":"오래된 것", "mixed":"혼합"}        .get(str(review_opt), str(review_opt))
     _badges.append(f'<span class="ha-talk-badge ha-talk-badge-review">🧠 복습 중 · {_opt_label}</span>')
 
 st.markdown(
@@ -1735,18 +1841,21 @@ with p2:
         with st.popover("📚 복습", use_container_width=True):
             _opt = st.radio(
                 "복습 방식",
-                options=["random", "oldest", "mixed"],
-                format_func=lambda x: {"random":"랜덤", "oldest":"오래된 것", "mixed":"혼합(오래된+랜덤)"}[x],
+                options=["wrong", "random", "oldest", "mixed"],
+                format_func=lambda x: {"wrong":"틀린 것", "random":"랜덤", "oldest":"오래된 것", "mixed":"혼합(오래된+랜덤)"}[x],
                 key=f"{NS}_review_opt_ui",
             )
             c_a, c_b = st.columns([1, 1])
             with c_a:
                 if st.button("복습 시작", use_container_width=True, key=f"{NS}_review_start"):
-                    reset_set()
                     st.session_state[f"{NS}_mode"] = "review"
                     st.session_state[f"{NS}_review_opt"] = _opt
+                    reset_set()
                     _clear_talk_daily_state(resume_key)
                     st.rerun()
+            with c_b:
+                if st.button("학습 모드", use_container_width=True, key=f"{NS}_learn_mode"):
+                    st.session_state[f"{NS}_mode"] = "learn"
                     reset_set()
                     _clear_talk_daily_state(resume_key)
                     st.rerun()
@@ -1754,8 +1863,8 @@ with p2:
         with st.expander("📚 복습", expanded=False):
             _opt = st.radio(
                 "복습 방식",
-                options=["random", "oldest", "mixed"],
-                format_func=lambda x: {"random":"랜덤", "oldest":"오래된 것", "mixed":"혼합(오래된+랜덤)"}[x],
+                options=["wrong", "random", "oldest", "mixed"],
+                format_func=lambda x: {"wrong":"틀린 것", "random":"랜덤", "oldest":"오래된 것", "mixed":"혼합(오래된+랜덤)"}[x],
                 key=f"{NS}_review_opt_ui",
             )
             if st.button("복습 시작", use_container_width=True, key=f"{NS}_review_start"):
@@ -1765,8 +1874,8 @@ with p2:
                 _clear_talk_daily_state(resume_key)
                 st.rerun()
             if st.button("학습 모드", use_container_width=True, key=f"{NS}_learn_mode"):
-                reset_set()
                 st.session_state[f"{NS}_mode"] = "learn"
+                reset_set()
                 _clear_talk_daily_state(resume_key)
                 st.rerun()
 
@@ -2002,6 +2111,14 @@ if submitted:
     if ok:
         try:
             _mark_mastered(resume_key, str(qid))
+            # 정답으로 맞춘 건 오답 목록에서 제거(있다면)
+            _clear_wrong(resume_key, str(qid))
+        except Exception:
+            pass
+    else:
+        # 오답 누적(틀린 것 우선 복습용)
+        try:
+            _mark_wrong(resume_key, str(qid))
         except Exception:
             pass
 
