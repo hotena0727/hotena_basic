@@ -1609,16 +1609,16 @@ if f"{NS}_set_qids" not in st.session_state:
                 c1, c2, c3 = st.columns([1,1,1])
                 with c1:
                     if st.button("📚 복습(랜덤)", use_container_width=True, key=f"{NS}_review_random"):
+                        reset_set()
                         st.session_state[mode_key] = "review"
                         st.session_state[review_opt_key] = "random"
-                        reset_set()
                         _clear_talk_daily_state(resume_key)
                         st.rerun()
                 with c2:
                     if st.button("🕒 복습(오래된)", use_container_width=True, key=f"{NS}_review_oldest"):
+                        reset_set()
                         st.session_state[mode_key] = "review"
                         st.session_state[review_opt_key] = "oldest"
-                        reset_set()
                         _clear_talk_daily_state(resume_key)
                         st.rerun()
                 with c3:
@@ -1665,9 +1665,8 @@ answers = st.session_state.get(f"{NS}_answers") or {}
 
 # ============================================================
 # ✅ Progress header (진도형)
-#   - 1) 전체 진도(누적 mastery): 항상 표시 + ✅완료/🧠복습중 배지
-#   - 2) 복습 모드일 때는 "복습 세트 진행" 바를 추가로 표시
-#   - 3) 우측은 '새 세트' + '복습' 컨트롤 유지
+#   - 1) 전체 진도(누적 mastery): 항상 표시
+#   - 2) 복습 모드일 때만 '복습 진행' 바 표시 (학습 모드에서는 바 1개로 단순화)
 # ============================================================
 mode = st.session_state.get(mode_key) or "learn"
 review_opt = st.session_state.get(review_opt_key) or "random"
@@ -1679,59 +1678,46 @@ remain_cnt = max(0, total_cnt - mastered_cnt)
 pct = int(round((mastered_cnt / total_cnt) * 100)) if total_cnt > 0 else 0
 is_done = (total_cnt > 0 and mastered_cnt >= total_cnt)
 
-# 배지(✅ 완료 / 🧠 복습 중)
 _badges = []
 if is_done:
     _badges.append('<span class="ha-talk-badge ha-talk-badge-ok">✅ 완료</span>')
 if mode == "review":
-    _opt_label = {"random": "랜덤", "oldest": "오래된 것", "mixed": "혼합"}.get(str(review_opt), str(review_opt))
+    _opt_label = {"random": "랜덤", "oldest": "오래된 것", "mixed": "혼합"}        .get(str(review_opt), str(review_opt))
     _badges.append(f'<span class="ha-talk-badge ha-talk-badge-review">🧠 복습 중 · {_opt_label}</span>')
 
-# CSS는 1회만
-_css_key = f"{NS}_prog_css_injected"
-if not st.session_state.get(_css_key, False):
-    st.markdown(
-        """
-        <style>
-          .ha-talk-prog-wrap{display:flex; flex-direction:column; gap:6px; margin:2px 0 6px 0;}
-          .ha-talk-prog-top{display:flex; align-items:center; justify-content:space-between; gap:10px;}
-          .ha-talk-prog-title{font-weight:900; font-size:0.98rem;}
-          .ha-talk-prog-sub{opacity:.75; font-size:.86rem; font-weight:700;}
-          .ha-talk-badges{display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;}
-          .ha-talk-badge{display:inline-flex; align-items:center; gap:6px; padding:3px 8px; border-radius:999px;
-            font-size:.82rem; font-weight:900; border:1px solid rgba(0,0,0,10); background:rgba(0,0,0,04);}
-          .ha-talk-badge-ok{background:rgba(46, 204, 113, .10);}
-          .ha-talk-badge-review{background:rgba(52, 152, 219, .10);}
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
-    st.session_state[_css_key] = True
+st.markdown(
+    """
+    <style>
+      .ha-talk-prog-wrap{display:flex; flex-direction:column; gap:6px; margin:2px 0 6px 0;}
+      .ha-talk-prog-top{display:flex; align-items:center; justify-content:space-between; gap:10px;}
+      .ha-talk-prog-title{font-weight:900; font-size:0.98rem;}
+      .ha-talk-prog-sub{opacity:.75; font-size:.86rem; font-weight:700;}
+      .ha-talk-badges{display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;}
+      .ha-talk-badge{display:inline-flex; align-items:center; gap:6px; padding:3px 8px; border-radius:999px;
+        font-size:.82rem; font-weight:900; border:1px solid rgba(0,0,0,.10); background:rgba(0,0,0,.04);}
+      .ha-talk-badge-ok{background:rgba(46, 204, 113, .10);}
+      .ha-talk-badge-review{background:rgba(52, 152, 219, .10);}
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
-# 우측 버튼들과 함께, 좌측에 진도 정보를 더 명확하게 표시
-p1, p2 = st.columns([1.55, 0.65], vertical_alignment="center")
+p1, p2 = st.columns([1.6, 0.6], vertical_alignment="center")
 with p1:
-    _title = f"📈 진도 {mastered_cnt}/{total_cnt} (남은 {remain_cnt}) · {pct}%"
     st.markdown(
         f"""
-        <div class="ha-talk-prog-wrap">
-          <div class="ha-talk-prog-top">
-            <div class="ha-talk-prog-title">{_title}</div>
-            <div class="ha-talk-badges">{''.join(_badges)}</div>
+        <div class='ha-talk-prog-wrap'>
+          <div class='ha-talk-prog-top'>
+            <div>
+              <div class='ha-talk-prog-title'>📈 진도 {mastered_cnt}/{total_cnt} <span class='ha-talk-prog-sub'>(남은 {remain_cnt}) · {pct}%</span></div>
+            </div>
+            <div class='ha-talk-badges'>{''.join(_badges)}</div>
           </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
-    st.progress(0.0 if total_cnt <= 0 else min(max(mastered_cnt / total_cnt, 0.0), 1.0))
-
-    # ✅ 세트 진행(학습/복습)
-    if mode == "review":
-        _rprog = (idx + 1) / max(1, len(qids))
-        st.progress(_rprog)
-        st.caption(f"복습 진행: {idx+1}/{len(qids)}")
-    else:
-        st.caption(f"세트 진행: {idx+1}/{len(qids)}")
+    st.progress((mastered_cnt / total_cnt) if total_cnt > 0 else 0.0)
 
 with p2:
     if st.button("🔄 새 세트", use_container_width=True, type="secondary", key=f"{NS}_new_set"):
@@ -1741,6 +1727,7 @@ with p2:
             _persist_daily_progress(resume_key, [], 0)
         except Exception:
             pass
+        # st.rerun()  # Streamlit은 버튼 클릭 시 자동 rerun됩니다.
 
     # 📚 복습(진도형): 언제든 복습 모드로 전환 가능
     _popover = getattr(st, "popover", None)
@@ -1755,14 +1742,11 @@ with p2:
             c_a, c_b = st.columns([1, 1])
             with c_a:
                 if st.button("복습 시작", use_container_width=True, key=f"{NS}_review_start"):
+                    reset_set()
                     st.session_state[f"{NS}_mode"] = "review"
                     st.session_state[f"{NS}_review_opt"] = _opt
-                    reset_set()
                     _clear_talk_daily_state(resume_key)
                     st.rerun()
-            with c_b:
-                if st.button("학습 모드", use_container_width=True, key=f"{NS}_learn_mode"):
-                    st.session_state[f"{NS}_mode"] = "learn"
                     reset_set()
                     _clear_talk_daily_state(resume_key)
                     st.rerun()
@@ -1781,10 +1765,19 @@ with p2:
                 _clear_talk_daily_state(resume_key)
                 st.rerun()
             if st.button("학습 모드", use_container_width=True, key=f"{NS}_learn_mode"):
-                st.session_state[f"{NS}_mode"] = "learn"
                 reset_set()
+                st.session_state[f"{NS}_mode"] = "learn"
                 _clear_talk_daily_state(resume_key)
                 st.rerun()
+
+
+# ✅ 세트 진행(학습/복습)
+if mode == "review":
+    _rprog = (idx + 1) / max(1, len(qids))
+    st.progress(_rprog)
+    st.caption(f"복습 진행: {idx+1}/{len(qids)}")
+else:
+    st.caption(f"세트 진행: {idx+1}/{len(qids)}")
 
 # ============================================================
 # ✅ Current question
