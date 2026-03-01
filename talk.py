@@ -1602,6 +1602,9 @@ if f"{NS}_set_qids" not in st.session_state:
         if remain_df.empty:
             with st.container(border=True):
                 st.success("🎉 이 코스는 모두 완료했습니다.")
+                # ✅ 방금 마지막 문제에서 넘어온 경우: '다른 유형 선택' 안내를 더 명확히
+                if st.session_state.pop(f"{NS}_just_completed", False):
+                    st.info("이제 다른 유형을 선택해서 다음 코스로 넘어가 보세요. (원하면 아래에서 복습/초기화도 가능해요.)")
                 st.caption("복습을 시작하거나, 진도를 초기화해서 처음부터 다시 학습할 수 있어요.")
                 c1, c2, c3 = st.columns([1,1,1])
                 with c1:
@@ -1766,13 +1769,38 @@ submitted = bool(st.session_state.get(submitted_key))
 # ============================================================
 def _go_next_question():
     nxt = idx + 1
+
+    # ✅ 마지막 문제까지 풀고 '다음'을 누르면 1번으로 돌아가지 않고
+    #    완료 화면(다른 유형 선택/복습/초기화)로 자연스럽게 유도합니다.
     if nxt >= len(qids):
-        nxt = 0
+        # 다음 rerun에서 remain_df 체크가 돌도록 세트 키를 제거
+        st.session_state[f"{NS}_just_completed"] = True
+
+        for _k in (f"{NS}_set_qids", f"{NS}_idx", f"{NS}_answers", f"{NS}_qid"):
+            st.session_state.pop(_k, None)
+
+        # 오늘 진행도 더 이상 이어붙지 않게 정리(완료 상태는 mastery에 남음)
+        try:
+            _clear_talk_daily_state(resume_key)
+            _persist_daily_progress(resume_key, [], 0)
+        except Exception:
+            pass
+
+        # 현재 문제 위젯 상태도 정리
+        st.session_state[submitted_key] = False
+        st.session_state.pop(sel_key, None)
+        st.session_state.pop(f"{NS}_radio_{qid}", None)
+        st.session_state.pop(f"{NS}_speak_done_{qid}", None)
+        st.session_state.pop(f"{NS}_reward_ready_{qid}", None)
+        st.rerun()
+
+    # 일반적인 다음 문제 이동
     st.session_state[f"{NS}_idx"] = nxt
     try:
         _persist_daily_progress(resume_key, qids, nxt)
     except Exception:
         pass
+
     # 상태 초기화(다음 문제)
     st.session_state[submitted_key] = False
     st.session_state.pop(sel_key, None)
