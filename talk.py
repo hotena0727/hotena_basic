@@ -440,34 +440,11 @@ LEVEL_LABELS = {"n5": "N5", "n4": "N4", "n3": "N3"}
 # ✅ Progress I/O (profiles.progress)
 # ============================================================
 
-def _get_profiles_client():
-    """Return authed Supabase client for profiles.progress I/O (RLS-safe)."""
-    try:
-        sb_authed = core.get_authed_sb(force_refresh=False)
-    except Exception:
-        sb_authed = None
-    if sb_authed is not None:
-        return sb_authed
-    # fallback to local helper (best effort)
-    try:
-        return get_authed_sb()
-    except Exception:
-        return None
-
-
 def load_progress() -> dict:
-    """Load profiles.progress into session cache."""
     if isinstance(st.session_state.get("progress_all"), dict):
         return st.session_state["progress_all"]
-
-    sb_authed = _get_profiles_client()
-    if sb_authed is None or not USER_ID:
-        prog = {}
-        st.session_state["progress_all"] = prog
-        return prog
-
     try:
-        resp = sb_authed.table("profiles").select("progress").eq("id", USER_ID).single().execute()
+        resp = sb.table("profiles").select("progress").eq("id", USER_ID).single().execute()
         prog = (getattr(resp, "data", None) or {}).get("progress") or {}
         if not isinstance(prog, dict):
             prog = {}
@@ -480,16 +457,9 @@ def load_progress() -> dict:
 
 
 def save_progress(progress_all: dict):
-    """Persist profiles.progress (best effort)."""
     st.session_state["progress_all"] = progress_all
-
-    sb_authed = _get_profiles_client()
-    if sb_authed is None or not USER_ID:
-        return
-
     try:
-        # update is sufficient when profiles row exists
-        sb_authed.table("profiles").update({"progress": progress_all}).eq("id", USER_ID).execute()
+        sb.table("profiles").update({"progress": progress_all}).eq("id", USER_ID).execute()
     except Exception:
         pass
 # ============================================================
@@ -1575,6 +1545,23 @@ pool_answers = pool_df["answer_jp"].astype(str).tolist()
 # - session_state가 초기화되어도 '오늘 진행'은 DB(progress)에 저장된 값으로 복구(A안)
 # ============================================================
 resume_key = _talk_resume_key(tag, sub, IS_PRO)
+
+# ============================================================
+# ✅ 진도 표시(Progress bar)
+# - profiles.progress['talk']['mastery'][resume_key] 기반
+# - 학습/복습 모드 공통으로 표시
+# ============================================================
+try:
+    _mmap = _get_mastered_map(resume_key)
+    _done = len(_mmap) if isinstance(_mmap, dict) else 0
+    _total = int(len(pool_df)) if 'pool_df' in globals() else 0
+    if _total > 0:
+        _ratio = max(0.0, min(1.0, _done / float(_total)))
+        st.caption(f"📈 진도 {_done} / {_total} (남은 {_total - _done})")
+        st.progress(_ratio)
+except Exception:
+    pass
+
 
 # ✅ 학습 모드/복습 모드
 mode_key = f"{NS}_mode"
