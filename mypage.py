@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional, Tuple
 
+
+import time
 import streamlit as st
 import streamlit.components.v1 as components
 
@@ -38,6 +40,34 @@ def _sb() -> Any:
     return sb
 
 
+
+
+# ---------------------------
+# Speed helpers (session cache)
+# ---------------------------
+def _get_cached(key: str, ttl_sec: int, loader):
+    """세션 TTL 캐시.
+    Streamlit은 어떤 위젯 액션에도 전체 rerun이 발생합니다.
+    ✅ rerun은 피할 수 없으니, rerun 때 DB 조회/무거운 연산을 최소화합니다.
+    """
+    now = time.time()
+    item = st.session_state.get(key)
+    if isinstance(item, dict) and "t" in item and "v" in item:
+        try:
+            if (now - float(item["t"])) < ttl_sec:
+                return item["v"]
+        except Exception:
+            pass
+    v = loader()
+    st.session_state[key] = {"t": now, "v": v}
+    return v
+
+def _invalidate_cached(*keys: str) -> None:
+    for k in keys:
+        try:
+            st.session_state.pop(k, None)
+        except Exception:
+            pass
 # ---------------------------
 # UI / CSS
 # ---------------------------
@@ -2437,6 +2467,7 @@ def _render_msgs(msgs: List[Dict[str, Any]]) -> None:
                     try:
                         sb.table("user_messages").update({"read_at": datetime.utcnow().isoformat()}).eq("id", mid).execute()
                         st.success("읽음 처리 완료")
+                        _invalidate_cached("myp_cache_msgs")
                         st.rerun()
                     except Exception:
                         st.warning("읽음 처리에 실패했습니다. (RLS 확인)")
@@ -2452,9 +2483,9 @@ def render() -> None:
     _inject_css()
     _wrap_start()
 
-    wrongs, wrongs_table = _load_wrongs(limit=400)
-    msgs = _load_messages(limit=300)
-    attempts, attempts_status = _load_attempts(limit=500)
+    wrongs, wrongs_table = _get_cached("myp_cache_wrongs", 30, lambda: _load_wrongs(limit=400))
+    msgs = _get_cached("myp_cache_msgs", 30, lambda: _load_messages(limit=300))
+    attempts, attempts_status = _get_cached("myp_cache_attempts", 30, lambda: _load_attempts(limit=500))
     attempts_ok = attempts if attempts_status == "ok" else []
     attempts_ok = [_normalize_attempt(a) for a in attempts_ok]
 
