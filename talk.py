@@ -35,6 +35,7 @@ except Exception:
         return s or ""
 import pandas as pd
 import streamlit as st
+import core
 
 # ============================================================
 # ✅ 오늘의 회화 레벨 게이지(일일 완료 카운트) + 일본인 버전(간단 변환)
@@ -1686,6 +1687,18 @@ with st.container(border=True):
 if submitted:
     correct = str(row.get("answer_jp", "")).strip()
     ok = (selected == correct)
+
+    # ✅ SFX: 정답/오답 효과음(제출 1회당 1번만)
+    try:
+        _sfx_name = "correct" if ok else "wrong"
+        _sfx_key = f"talk_submit_{qid}"
+        if hasattr(core, "play_sfx_once"):
+            core.play_sfx_once(_sfx_key, _sfx_name)
+        else:
+            core.play_sfx(_sfx_name)
+    except Exception:
+        pass
+
 
     # ✅ 최근 2턴 저장(정답 제출 직후 1회만)
     try:

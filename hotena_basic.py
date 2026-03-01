@@ -33,6 +33,7 @@ import pandas as pd
 import streamlit as st
 
 
+import core
 # ============================================================
 # OK wrong_notes debug helper
 # ============================================================
@@ -1289,63 +1290,37 @@ def get_available_quiz_types_for_pos(pos_group: str) -> list[str]:
     return base
 
 # ============================================================
-# OK SOUND
+# ✅ SFX (효과음) — 중앙 통제: core.py
+# - 토글: st.session_state.sfx_enabled (기본 ON)
+# - 재생: core.play_sfx("correct"|"wrong"|"reward"|"click")
+# - 제출 후 1회: core.play_sfx_once(key, name)
 # ============================================================
-def _audio_autoplay_data_uri(mime: str, b: bytes):
-    b64 = base64.b64encode(b).decode("utf-8")
-    st.markdown(
-        f"""
-        <audio autoplay>
-          <source src="data:{mime};base64,{b64}">
-        </audio>
-        """,
-        unsafe_allow_html=True
-    )
-
-def play_sound_file(path: str):
-    try:
-        p = (BASE_DIR / path).resolve() if not str(path).startswith("/") else Path(path)
-        if not p.exists():
-            if is_admin():
-                st.warning(f"[SOUND] 파일 없음: {p}")
-            return
-        data = p.read_bytes()
-        mime = "audio/mpeg" if str(p).lower().endswith(".mp3") else "audio/wav"
-        _audio_autoplay_data_uri(mime, data)
-    except Exception as e:
-        if is_admin():
-            st.error("[SOUND] 재생 실패")
-            st.exception(e)
 
 def render_sound_toggle():
-    # OK Hub mode: sound toggle is rendered in home.py (plan pill)
+    # Hub mode: sound toggle is rendered in home.py (plan pill)
     if st.session_state.get("HUB_MODE", False):
         return
 
+    # 기존 호환: sound_enabled 유지(다른 코드가 참조할 수 있음)
     if "sound_enabled" not in st.session_state:
-        st.session_state.sound_enabled = False
+        st.session_state.sound_enabled = core.is_sfx_enabled(True)
 
     c1, c2, c3 = st.columns([1.4, 4.6, 4.0], vertical_alignment="center")
     with c1:
-        st.session_state.sound_enabled = st.toggle("🔊", value=st.session_state.sound_enabled, label_visibility="collapsed")
+        v = st.toggle("🔊", value=bool(st.session_state.sound_enabled), label_visibility="collapsed")
+        st.session_state.sound_enabled = bool(v)
+        core.set_sfx_enabled(bool(v))
     with c2:
-        st.caption("소리 " + ("ON" if st.session_state.sound_enabled else "OFF"))
+        st.caption("소리 " + ("ON" if core.is_sfx_enabled(True) else "OFF"))
     with c3:
-        if st.session_state.sound_enabled:
+        if core.is_sfx_enabled(True):
             if st.button("🔈 테스트", use_container_width=True, key="btn_sound_test"):
-                play_sound_file("assets/correct.mp3")
+                core.play_sfx("click")
 
 def sfx(event: str):
-    if not st.session_state.get("sound_enabled", False):
-        return
-    mp = {
-        "correct": "assets/correct.mp3",
-        "wrong":   "assets/wrong.mp3",
-        "perfect": "assets/perfect.mp3",
-    }
-    path = mp.get(event)
-    if path:
-        play_sound_file(path)
+    """Backward-compat wrapper (perfect/correct/wrong)."""
+    mp = {"perfect": "reward", "correct": "correct", "wrong": "wrong"}
+    core.play_sfx(mp.get(str(event).strip().lower(), "click"))
 
 # ============================================================
 # OK TTS (브라우저 Web Speech API) - 일본어 발음 버튼용
@@ -3629,15 +3604,17 @@ if st.session_state.submitted:
         add_free_used(quiz_len)  # 보통 10
         st.session_state.free_limit_applied_this_attempt = True
 
-    ratio = score / quiz_len if quiz_len else 0.0
+    
+ratio = score / quiz_len if quiz_len else 0.0
 
-    if ratio == 1:
-        sfx("perfect")
-    elif ratio >= 0.7:
-        sfx("correct")
-    else:
-        sfx("wrong")
-
+# OK 점수 기반 SFX (제출 직후 1회) — core.py에서 중앙 통제
+_sfx_key = f"word_submit__{int(st.session_state.get('quiz_version', 0) or 0)}"
+if ratio == 1:
+    core.play_sfx_once(_sfx_key, "reward")
+elif ratio >= 0.7:
+    core.play_sfx_once(_sfx_key, "correct")
+else:
+    core.play_sfx_once(_sfx_key, "wrong")
     if ratio == 1:
         st.balloons()
         st.success("🎉 완벽해요! 전부 정답입니다.")

@@ -872,3 +872,16 @@ def play_sfx(name: str) -> None:
         )
     except Exception:
         return
+
+
+def play_sfx_once(key: str, name: str) -> None:
+    """Play SFX only once per given key (guards Streamlit reruns).
+
+    Example:
+        play_sfx_once(f"submit__{quiz_version}", "correct")
+    """
+    k = f"_sfx_once__{str(key)}__{str(name).strip().lower()}"
+    if st.session_state.get(k):
+        return
+    st.session_state[k] = True
+    play_sfx(name)

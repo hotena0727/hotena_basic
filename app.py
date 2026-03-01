@@ -6,6 +6,7 @@ import random
 import pandas as pd
 import streamlit as st
 
+import core
 # -------------------------------
 # OK 한자 헤더 중복 방지 플래그
 # -------------------------------
@@ -64,206 +65,40 @@ st.session_state["_page_config_set"] = True
 # ============================================================
 # OK [SOUND] 사운드 유틸 (모바일 자동재생 정책 대응)
 # ============================================================
-def _audio_autoplay_data_uri(mime: str, b: bytes):
-    b64 = base64.b64encode(b).decode("utf-8")
-    # autoplay는 막힐 수 있음. 그래도 "사용자 클릭 직후"엔 성공률이 올라감
-    st.markdown(
-        f"""
-        <audio autoplay>
-          <source src="data:{mime};base64,{b64}">
-        </audio>
-        """,
-        unsafe_allow_html=True
-    )
-
-def play_sound_file(path: str):
-    """assets/*.mp3 or *.wav 파일 재생 (디버그 가능)"""
-    try:
-        p = (BASE_DIR / path).resolve() if not str(path).startswith("/") else Path(path)
-        if not p.exists():
-            # OK 조용히 삼키지 말고, 관리자만 보이게라도 표시
-            if is_admin():
-                st.warning(f"[SOUND] 파일 없음: {p}")
-            return
-
-        data = p.read_bytes()
-        mime = "audio/mpeg" if str(p).lower().endswith(".mp3") else "audio/wav"
-        _audio_autoplay_data_uri(mime, data)
-
-    except Exception as e:
-        if is_admin():
-            st.error("[SOUND] 재생 실패")
-            st.exception(e)
+# ============================================================
+# ✅ SFX (효과음) — 중앙 통제: core.py
+# - 토글: st.session_state.sfx_enabled (기본 ON)
+# - 재생: core.play_sfx("correct"|"wrong"|"reward"|"click")
+# - 제출 후 1회: core.play_sfx_once(key, name)
+# ============================================================
 
 def render_sound_toggle():
-    """
-    OK 핵심:
-    - 토글 클릭에 st.rerun()을 걸면 '사용자 제스처'가 끊겨서 소리가 더 안 남
-    - 대신 토글은 상태만 바꾸고,
-      사용자가 '테스트 재생' 버튼을 눌러 브라우저에 오디오 허용을 "한 번" 해주게 함
-    """
-    # OK Hub mode: sound toggle is rendered in home.py (plan pill)
+    # Hub mode: sound toggle is rendered in home.py (plan pill)
     if st.session_state.get("HUB_MODE", False):
         return
 
+    # 기존 호환: sound_enabled 유지(다른 코드가 참조할 수 있음)
     if "sound_enabled" not in st.session_state:
-        st.session_state.sound_enabled = False
+        st.session_state.sound_enabled = core.is_sfx_enabled(True)
 
     c1, c2, c3 = st.columns([1.4, 4.6, 4.0], vertical_alignment="center")
-
     with c1:
-        st.session_state.sound_enabled = st.toggle("🔊", value=st.session_state.sound_enabled, label_visibility="collapsed")
-
+        v = st.toggle("🔊", value=bool(st.session_state.sound_enabled), label_visibility="collapsed")
+        st.session_state.sound_enabled = bool(v)
+        core.set_sfx_enabled(bool(v))
     with c2:
-        st.caption("소리 " + ("ON" if st.session_state.sound_enabled else "OFF"))
-
+        st.caption("소리 " + ("ON" if core.is_sfx_enabled(True) else "OFF"))
     with c3:
-        # OK 사용자 클릭으로 한 번 재생(권한/허용 트리거)
-        if st.session_state.sound_enabled:
+        # 사용자 클릭으로 한 번 재생(권한/허용 트리거)
+        if core.is_sfx_enabled(True):
             if st.button("🔈 테스트", use_container_width=True, key="btn_sound_test"):
-                play_sound_file("assets/correct.mp3")
+                core.play_sfx("click")
 
 def sfx(event: str):
-    """
-    event:
-      - "correct" : 정답
-      - "wrong"   : 오답
-      - "perfect" : 100점
-    """
-    if not st.session_state.get("sound_enabled", False):
-        return
+    """Backward-compat wrapper (perfect/correct/wrong)."""
+    mp = {"perfect": "reward", "correct": "correct", "wrong": "wrong"}
+    core.play_sfx(mp.get(str(event).strip().lower(), "click"))
 
-    mp = {
-        "correct": "assets/correct.mp3",
-        "wrong":   "assets/wrong.mp3",
-        "perfect": "assets/perfect.mp3",
-    }
-    path = mp.get(event)
-    if path:
-        play_sound_file(path)
-
-# ============================================================
-# OK Streamlit 기본 설정 (최상단)
-# ============================================================
-st.markdown("""
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Kosugi+Maru&family=Noto+Sans+JP:wght@400;500;700;800&display=swap" rel="stylesheet">
-
-<style>
-:root{ --jp-rounded: "Noto Sans JP","Kosugi Maru","Hiragino Sans","Yu Gothic","Meiryo",sans-serif; }
-.jp, .jp *{ font-family: var(--jp-rounded) !important; line-height:1.7; letter-spacing:.2px; }
-
-div[data-testid="stRadio"] * ,
-div[data-baseweb="radio"] * ,
-label[data-baseweb="radio"] * {
-  font-family: var(--jp-rounded) !important;
-}
-
-/* 헤더 여백 */
-div[data-testid="stMarkdownContainer"] h3,
-div[data-testid="stMarkdownContainer"] h2,
-div[data-testid="stMarkdownContainer"] h3,
-div[data-testid="stMarkdownContainer"] h4{
-  margin-top: 10px !important;
-  margin-bottom: 8px !important;
-}
-
-/* 버튼 기본 */
-div.stButton > button {
-  padding: 6px 10px !important;
-  font-size: 13px !important;
-  line-height: 1.1 !important;
-  white-space: nowrap !important;
-}
-
-/* 상단 환영바 */
-.headbar{
-  display:flex;
-  align-items:flex-end;
-  justify-content:space-between;
-  gap:12px;
-  margin: 10px 0 16px 0;
-}
-.headtitle{
-  font-size:34px;
-  font-weight:900;
-  line-height:1.15;
-  white-space: nowrap;
-}
-.headhello{
-  font-size: 13px;
-  font-weight:700;
-  opacity:.88;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 52%;
-}
-.headhello .mail{
-  font-weight:600;
-  opacity:.75;
-  margin-left:8px;
-}
-
-@media (max-width: 480px){
-  div[data-baseweb="button-group"] button{
-    padding: 9px 12px !important;
-    font-size: 14px !important;
-  }
-  .headhello .mail{ display:none !important; }
-  .headhello{ font-size:11px; }
-  .headtitle{ font-size:24px; }
-}
-
-/* ====== 레벨 버튼 카드 스타일 ====== */
-.qtypewrap div.stButton > button{
-  height: 46px !important;
-  border-radius: 14px !important;
-  font-weight: 900 !important;
-  font-size: 14px !important;
-  border: 1px solid rgba(120,120,120,0.22) !important;
-  background: rgba(255,255,255,0.04) !important;
-  box-shadow: none !important;
-  transition: transform .08s ease, box-shadow .08s ease, filter .08s ease;
-}
-.qtypewrap div.stButton > button:hover{
-  transform: translateY(-1px);
-  box-shadow: 0 12px 26px rgba(0,0,0,0.12) !important;
-  filter: brightness(1.02);
-}
-
-/* 캡션(레벨 안내) */
-.qtype_hint{
-  font-size: 15px;
-  opacity: .70;
-  margin-top: 2px;
-  margin-bottom: 10px;
-  line-height: 1.2;
-}
-
-/* OK divider 전역 hr 마진은 위험하니 '래퍼'로만 쓰는 걸 권장
-   아래 전역 hr은 주석 처리 추천
-*/
-/*
-hr{
-  margin: 3px 0 14px 0 !important;
-}
-*/
-.tight-divider hr{
-  margin: 6px 0 10px 0 !important;
-}
-/* OK Q번호(subheader) 아래 간격만 줄이기 */
-div[data-testid="stMarkdownContainer"] h3{
-  margin-bottom: 4px !important;
-}
-</style>
-""", unsafe_allow_html=True)
-
-# ============================================================
-# OK [D] Scroll Top Anchor + Helpers
-# ============================================================
-st.markdown('<div id="__TOP__"></div>', unsafe_allow_html=True)
 
 def scroll_to_top(nonce: int = 0):
     components.html(
@@ -2448,11 +2283,15 @@ def render_kanji_hub(HUB_MODE: bool = False):
         st.success(f"점수: {score} / {quiz_len}")
         ratio = score / quiz_len if quiz_len else 0
 
-        # OK 점수 기반 SFX (제출 직후 1회)
-        if ratio == 1:
-            sfx("perfect")
-        elif ratio < 1:
-            sfx("wrong")  # (부분오답이 있으면 '삐~' 한 번)
+        
+# OK 점수 기반 SFX (제출 직후 1회) — core.py에서 중앙 통제
+_sfx_key = f"word_submit__{int(st.session_state.get('quiz_version', 0) or 0)}"
+if ratio == 1:
+    core.play_sfx_once(_sfx_key, "reward")
+elif ratio >= 0.7:
+    core.play_sfx_once(_sfx_key, "correct")
+else:
+    core.play_sfx_once(_sfx_key, "wrong")
     
         if ratio == 1:
             st.balloons()
