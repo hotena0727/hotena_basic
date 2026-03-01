@@ -1005,6 +1005,28 @@ def _norm_jp(s: str) -> str:
     s = _to_hira(s)
     return s
 
+def _norm_jp_loose(s: str) -> str:
+    """점수 보정용 느슨한 정규화.
+    - 작은 문자/장음/촉음 등 STT 흔들림을 완화해 '과도한 감점'을 줄임.
+    (최종 점수는 strict+loose 혼합으로 계산)
+    """
+    s = _norm_jp(s)
+    if not s:
+        return s
+    # 장음 기호 제거(음성 인식에서 자주 빠짐/흔들림)
+    s = s.replace("ー", "")
+    # 촉음 っ 제거(완전 삭제가 아니라 완화용)
+    s = s.replace("っ", "")
+    # 작은 ゃゅょぁぃぅぇぉ を 큰 글자로 완화
+    small_map = str.maketrans({
+        "ゃ":"や","ゅ":"ゆ","ょ":"よ",
+        "ぁ":"あ","ぃ":"い","ぅ":"う","ぇ":"え","ぉ":"お",
+        "ゎ":"わ",
+    })
+    s = s.translate(small_map)
+    return s
+
+
 def _bigrams(s: str) -> set[str]:
     return {s[i:i+2] for i in range(len(s)-1)} if len(s) >= 2 else set()
 
@@ -1028,28 +1050,46 @@ def _levenshtein(a: str, b: str) -> int:
     return prev[-1]
 
 def _similarity_score(a: str, b: str, gate: float = 0.15, floor_to_zero: int = 15) -> int:
-    """발음 점수(0~100):
-    1) 2글자 bigram 겹침이 너무 적으면(완전 다른 문장) 0점
-    2) 편집거리(순서 포함) 기반 점수
-    3) 너무 낮은 점수는 0으로 정리(선택)
+    """발음 점수(0~100).
+
+    ✅ 유지하는 원칙
+    - '완전 다른 문장'은 0점(gate)
+    - 순서(워드/글자 순)를 반영한 편집거리 기반
+
+    ✅ 개선점
+    - STT가 흔들리기 쉬운 요소(장음/촉음/작은문자 등)로 '과도하게' 깎이지 않도록
+      strict 점수 + loose(완화) 점수를 혼합해 최종 점수를 만듦.
     """
-    a2, b2 = _norm_jp(a), _norm_jp(b)
-    if not a2 or not b2:
+    a_strict, b_strict = _norm_jp(a), _norm_jp(b)
+    if not a_strict or not b_strict:
         return 0
 
-    # 1) 완전 다른 문장 차단
-    ba = _bigrams(b2)
-    if ba:
-        overlap = len(_bigrams(a2) & ba) / max(1, len(ba))
+    a_loose, b_loose = _norm_jp_loose(a), _norm_jp_loose(b)
+
+    # 1) 완전 다른 문장 차단(느슨한 기준으로 gate 적용: '다른데도 억지로 점수' 방지)
+    bb = _bigrams(b_loose) if b_loose else set()
+    if bb:
+        overlap = len(_bigrams(a_loose) & bb) / max(1, len(bb))
         if overlap < gate:
             return 0
 
-    # 2) 순서 기반 점수(편집거리)
-    dist = _levenshtein(a2, b2)
-    max_len = max(len(a2), len(b2))
-    score = int(round(100 * (1 - dist / max_len)))
+    # 2) strict 점수(기본)
+    dist_s = _levenshtein(a_strict, b_strict)
+    max_len_s = max(len(a_strict), len(b_strict)) or 1
+    score_s = 100 * (1 - dist_s / max_len_s)
 
-    # 3) 바닥값 정리
+    # 3) loose 점수(완화)
+    if a_loose and b_loose:
+        dist_l = _levenshtein(a_loose, b_loose)
+        max_len_l = max(len(a_loose), len(b_loose)) or 1
+        score_l = 100 * (1 - dist_l / max_len_l)
+    else:
+        score_l = score_s
+
+    # 4) 혼합(엄격 75% + 완화 25%)
+    score = int(round(0.75 * score_s + 0.25 * score_l))
+
+    # 5) 바닥값 정리
     if score < int(floor_to_zero):
         return 0
     return max(0, min(100, score))
@@ -1111,6 +1151,34 @@ def award_xp(amount: int, reason: str):
     fn = st.session_state.get("hub_award_xp")
     if callable(fn):
         fn(int(amount), reason)
+
+
+def _first_mismatch_hint(said: str, correct: str, max_chars: int = 2) -> str:
+    """인식 결과와 정답의 '첫 오차'를 아주 짧게 표시(1~2글자 수준).
+    - UI용 힌트라 과도한 분석/재렌더를 피하기 위해 가볍게 구성합니다.
+    - 히라가나 정규화(_norm_jp) 기준으로 비교합니다.
+    """
+    a = _norm_jp(said or "")
+    b = _norm_jp(correct or "")
+    if not a or not b:
+        return ""
+
+    sm = difflib.SequenceMatcher(a=a, b=b)
+    for tag, i1, i2, j1, j2 in sm.get_opcodes():
+        if tag == "equal":
+            continue
+        exp = b[i1:i2]
+        got = a[j1:j2]
+        # 너무 길면 잘라서 표시
+        if len(exp) > max_chars:
+            exp = exp[:max_chars] + "…"
+        if len(got) > max_chars:
+            got = got[:max_chars] + "…"
+        # 공백/빈 문자열 대비
+        exp = exp or "∅"
+        got = got or "∅"
+        return f"차이(앞부분): 정답 {exp} → 인식 {got}"
+    return ""
 
 
 # ============================================================
@@ -2998,7 +3066,16 @@ def _render_pron_a3cfa850():
             st.write(str(st.session_state.get(text_key)))
 
         if st.session_state.get(score_key) is not None:
-            st.metric("점수", int(st.session_state.get(score_key) or 0))
+            _scv = int(st.session_state.get(score_key) or 0)
+            st.metric("점수", _scv)
+
+            # ✅ 어디가 틀렸는지(아주 짧게 1~2글자) 표시 — 점수가 100이 아닐 때만
+            _said_txt = str(st.session_state.get(text_key) or "").strip()
+            _ans_txt = str(row.get("answer_jp", "") or "").strip()
+            if _said_txt and _ans_txt and _scv < 100:
+                _hint = _first_mismatch_hint(_said_txt, _ans_txt, max_chars=2)
+                if _hint:
+                    st.caption(_hint)
 
         st.caption("정답을 보고 2~3번 따라 말해 보세요. 녹음이 끝나면 점수가 자동으로 계산됩니다.")
         reward_key = f"{NS}_reward_ready_{qid}"
