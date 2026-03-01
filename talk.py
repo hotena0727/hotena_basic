@@ -2857,7 +2857,21 @@ if submitted:
                 _audio = st.audio_input("🎤 (무료) 내 발음을 녹음하고 들어보세요", key=f"{qid}_record_free_{_audio_nonce}")
                 if _audio is not None:
                     _use_free_record_once()
-                    st.audio(_audio)
+                    # 🔧 FREE도 PRO와 동일하게 bytes로 복사해서 재생/후속 처리에 재사용
+                    _rec_bytes_key = f"{qid}__rec_bytes"
+                    try:
+                        if hasattr(_audio, "getvalue"):
+                            _ab = _audio.getvalue()
+                        else:
+                            _ab = _audio.read()
+                            if hasattr(_audio, "seek"):
+                                _audio.seek(0)
+                    except Exception:
+                        _ab = None
+                    if _ab:
+                        st.session_state[_rec_bytes_key] = _ab
+                        _fmt = getattr(_audio, "type", None) or "audio/wav"
+                        st.audio(_ab, format=_fmt)
             else:
                 st.markdown(
                     '''
@@ -2954,16 +2968,34 @@ if submitted:
                 st.session_state.pop(err_key, None)
                 st.session_state.pop(_last_hash_key, None)
 
-            if _h and st.session_state.get(_last_hash_key) != _h:
-                st.session_state[_last_hash_key] = _h
-                st.session_state.pop(err_key, None)
-                with st.spinner("말하기 점수 계산 중..."):
-                    try:
-                        _txt = _openai_transcribe_bytes(_b, mime=_mime)
-                        st.session_state[text_key] = _txt
-                        st.session_state[score_key] = _similarity_score(_txt, str(row.get("answer_jp", "")))
-                    except Exception as _e:
-                        st.session_state[err_key] = str(_e)
+            # ✅ (UX) 녹음 정지 직후: 먼저 파형/플레이어를 고정해서 보여주고,
+            #    다음 rerun에서 STT/점수 계산을 수행(전체 화면 번쩍임 최소화)
+            _pending_hash_key = f"talk_pron_pending_{qid}"
+            _pending_rerun_key = f"talk_pron_pending_rerun_{qid}"
+            need_autorun = False
+
+            # 1) 새 녹음(hash)이 들어왔는데 아직 계산 전이면: pending 표시만 하고 1회 rerun 예약
+            if _h and st.session_state.get(_last_hash_key) != _h and not st.session_state.get(_pending_rerun_key, False):
+                st.session_state[_pending_hash_key] = _h
+                st.session_state[_pending_rerun_key] = True
+                need_autorun = True
+
+            # 2) pending 상태(바로 다음 rerun)에서 실제 계산
+            elif _h and st.session_state.get(_last_hash_key) != _h and st.session_state.get(_pending_rerun_key, False):
+                if st.session_state.get(_pending_hash_key) == _h:
+                    st.session_state[_last_hash_key] = _h
+                    st.session_state.pop(err_key, None)
+                    with st.spinner("말하기 점수 계산 중..."):
+                        try:
+                            _txt = _openai_transcribe_bytes(_b, mime=_mime)
+                            st.session_state[text_key] = _txt
+                            st.session_state[score_key] = _similarity_score(_txt, str(row.get("answer_jp", "")))
+                        except Exception as _e:
+                            st.session_state[err_key] = str(_e)
+                    # 계산 완료(또는 실패) 후 pending 해제
+                    st.session_state.pop(_pending_hash_key, None)
+                    st.session_state.pop(_pending_rerun_key, None)
+
 
         c_sc1, c_sc2 = st.columns([0.72, 0.28], vertical_alignment="center")
         with c_sc1:
@@ -3002,6 +3034,10 @@ if submitted:
 
         if st.session_state.get(score_key) is not None:
             st.metric("점수", int(st.session_state.get(score_key) or 0))
+
+            # ✅ 1회 자동 rerun: 파형/플레이어를 먼저 고정해서 보여준 뒤, 다음 run에서 점수 계산
+            if 'need_autorun' in locals() and need_autorun:
+                st.rerun()
 
         st.caption("정답을 보고 2~3번 따라 말해 보세요. 녹음이 끝나면 점수가 자동으로 계산됩니다.")
         reward_key = f"{NS}_reward_ready_{qid}"
