@@ -1749,7 +1749,7 @@ def _render_top_summary(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, A
 
     with actR:
         # 오른쪽 정렬(스페이서 + 버튼 2개)
-        sp, b1, b2 = st.columns([4.8, 1.2, 4.0], gap="small", vertical_alignment="center")
+        sp, b1, b2 = st.columns([3.8, 2.7, 3.5], gap="small", vertical_alignment="center")
         with sp:
             st.markdown("<div></div>", unsafe_allow_html=True)
         with b1:
