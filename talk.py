@@ -2856,8 +2856,30 @@ if submitted:
                 st.caption(f"FREE 녹음 남은 횟수: {remr}/{FREE_RECORD_QUOTA} (오늘 기준)")
                 _audio = st.audio_input("🎤 (무료) 내 발음을 녹음하고 들어보세요", key=f"{qid}_record_free_{_audio_nonce}")
                 if _audio is not None:
-                    _use_free_record_once()
-                    st.audio(_audio)
+                    # ✅ FREE도 PRO처럼 bytes로 복사해서 안정화 (rerun 시 "error occurred" 방지)
+                    _rec_bytes_key = f"{qid}__rec_bytes"
+                    _rec_mime_key  = f"{qid}__rec_mime"
+                    try:
+                        if hasattr(_audio, "getvalue"):
+                            _ab = _audio.getvalue()
+                        else:
+                            _ab = _audio.read()
+                            if hasattr(_audio, "seek"):
+                                _audio.seek(0)
+                    except Exception:
+                        _ab = None
+
+                    if _ab:
+                        st.session_state[_rec_bytes_key] = _ab
+                        _fmt = getattr(_audio, "type", None) or "audio/wav"
+                        st.session_state[_rec_mime_key] = _fmt
+                        st.audio(_ab, format=_fmt)
+
+                        # ✅ 무료 차감은 "새 녹음" 1회만
+                        _use_key = f"{qid}__free_rec_used_{_audio_nonce}"
+                        if not st.session_state.get(_use_key, False):
+                            _use_free_record_once()
+                            st.session_state[_use_key] = True
             else:
                 st.markdown(
                     '''
@@ -3020,10 +3042,7 @@ if submitted:
 
         if st.session_state.get(score_key) is not None:
             st.metric("점수", int(st.session_state.get(score_key) or 0))
-
-            # ✅ 1회 자동 rerun: 파형/플레이어를 먼저 고정해서 보여준 뒤, 다음 run에서 점수 계산
-            if 'need_autorun' in locals() and need_autorun:
-                st.rerun()
+            # ✅ (비활성) 녹음 직후 추가 rerun은 일부 브라우저에서 녹음 UI 오류를 유발할 수 있어 제거했습니다.
 
         st.caption("정답을 보고 2~3번 따라 말해 보세요. 녹음이 끝나면 점수가 자동으로 계산됩니다.")
         reward_key = f"{NS}_reward_ready_{qid}"
