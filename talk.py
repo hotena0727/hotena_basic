@@ -2778,7 +2778,7 @@ def _speak_no_player(text: str) -> None:
     except Exception:
         pass
 
-if submitted:
+def _render_pron_a3cfa850():
     with st.container(border=True):
         total_cnt = len(qids)
         current_no = idx + 1
@@ -2820,7 +2820,7 @@ if submitted:
                         _speak_no_player(_ans_txt)
             else:
                 st.button("🔒 정답 발음 확인 (PRO)", key=f"{qid}_ans_pron_lock", disabled=True, use_container_width=True)
-# ✅ 말하기 녹음(선택)
+        # ✅ 말하기 녹음(선택)
         # - PRO: 녹음 가능
         # - FREE: PRO 안내 카드 노출
         # ✅ 녹음 위젯이 간헐적으로 꼬이는 환경(모바일/브라우저) 대비: 문제(qid)마다 key nonce를 바꿔 새 위젯으로 렌더
@@ -3054,14 +3054,21 @@ if submitted:
 
             if st.button("➡️ 다음 문제 풀기", use_container_width=True, key=f"{NS}_go_next_after_reward_{qid}"):
                 _go_next_question()
-# st.rerun()  # Streamlit은 버튼 클릭 시 자동 rerun됩니다.
+        # st.rerun()  # Streamlit은 버튼 클릭 시 자동 rerun됩니다.
 
 
 
-# ============================================================
-# ✅ 우측 하단 바로가기(FAB): 제출 후 "다음 문제" 빠른 이동
-# - Streamlit 위젯 클릭 rerun을 피하기 위해, queryparam 방식으로 트리거
-# ============================================================
+        # ============================================================
+        # ✅ 우측 하단 바로가기(FAB): 제출 후 "다음 문제" 빠른 이동
+        # - Streamlit 위젯 클릭 rerun을 피하기 위해, queryparam 방식으로 트리거
+        # ============================================================
+
+# ✅ Pronunciation block isolation: use st.fragment if available to avoid whole-page flicker on record/stop
+if hasattr(st, 'fragment'):
+    _render_pron_a3cfa850 = st.fragment(_render_pron_a3cfa850)
+
+if submitted:
+    _render_pron_a3cfa850()
 def _render_talk_fab_next():
     if not submitted:
         return
