@@ -2848,7 +2848,9 @@ if submitted:
     
                 if _ab:
                     st.session_state[_rec_bytes_key] = _ab
+                    _rec_mime_key = f"{qid}__rec_mime"
                     _fmt = getattr(_audio, "type", None) or "audio/wav"
+                    st.session_state[_rec_mime_key] = _fmt
                     st.audio(_ab, format=_fmt)  # ✅ wav 고정 말고 실제 타입 사용
         else:
             remr = _free_record_remaining()
@@ -2856,9 +2858,9 @@ if submitted:
                 st.caption(f"FREE 녹음 남은 횟수: {remr}/{FREE_RECORD_QUOTA} (오늘 기준)")
                 _audio = st.audio_input("🎤 (무료) 내 발음을 녹음하고 들어보세요", key=f"{qid}_record_free_{_audio_nonce}")
                 if _audio is not None:
-                    # ✅ FREE도 PRO처럼 bytes로 복사해서 안정화 (rerun 시 "error occurred" 방지)
+                    _use_free_record_once()
+                    # 🔧 FREE도 PRO와 동일하게 bytes 복사 + format 자동으로 통일
                     _rec_bytes_key = f"{qid}__rec_bytes"
-                    _rec_mime_key  = f"{qid}__rec_mime"
                     try:
                         if hasattr(_audio, "getvalue"):
                             _ab = _audio.getvalue()
@@ -2871,15 +2873,10 @@ if submitted:
 
                     if _ab:
                         st.session_state[_rec_bytes_key] = _ab
+                        _rec_mime_key = f"{qid}__rec_mime"
                         _fmt = getattr(_audio, "type", None) or "audio/wav"
                         st.session_state[_rec_mime_key] = _fmt
                         st.audio(_ab, format=_fmt)
-
-                        # ✅ 무료 차감은 "새 녹음" 1회만
-                        _use_key = f"{qid}__free_rec_used_{_audio_nonce}"
-                        if not st.session_state.get(_use_key, False):
-                            _use_free_record_once()
-                            st.session_state[_use_key] = True
             else:
                 st.markdown(
                     '''
@@ -2976,24 +2973,15 @@ if submitted:
                 st.session_state.pop(err_key, None)
                 st.session_state.pop(_last_hash_key, None)
 
-            # ✅ (안정) 녹음 정지 직후에 바로 STT를 때리면,
-            #    일부 브라우저(특히 크롬/안드)에서 recorder 컴포넌트가 아직 '파일 finalize' 중이라
-            #    파형이 고정되었다가도 "An error has occurred, please try again."가 뜨는 경우가 있습니다.
-            #    그래서 아래 순서를 강제합니다.
-            #    1) bytes + mime을 session_state에 먼저 고정 저장
-            #    2) st.audio로 파형/플레이어를 먼저 렌더
-            #    3) 아주 짧은 딜레이(0.4s) 후 STT/점수 계산
-            #    ✅ UI(녹음기)는 유지, '다시 녹음' 버튼으로 바꾸지 않습니다.
-            import time as _time
+            # ✅ (UX) 녹음 정지 직후: Streamlit은 위젯 이벤트(정지/업로드)마다 '전체 rerun'이 기본 동작입니다.
+            #    여기서 st.rerun()을 추가로 호출하면(=2회 연속 rerun) 일부 브라우저에서 audio_input 미리보기가 깨지며
+            #    'An error has occurred, please try again.'가 뜨는 경우가 있어요.
+            #    그래서: '정지로 발생한 1회 rerun' 안에서 바로 STT/점수 계산을 끝내고, 추가 rerun은 하지 않습니다.
+
             if _h and st.session_state.get(_last_hash_key) != _h:
                 st.session_state[_last_hash_key] = _h
                 st.session_state.pop(err_key, None)
-                # recorder finalize 안정화 대기(짧게)
-                try:
-                    _time.sleep(0.4)
-                except Exception:
-                    pass
-                with st.spinner("말하기 점수 계산 중..."):
+                with st.spinner("말하기 점수 계산 중."):
                     try:
                         _txt = _openai_transcribe_bytes(_b, mime=_mime)
                         st.session_state[text_key] = _txt
@@ -3013,10 +3001,12 @@ if submitted:
 
         if do_calc:
             try:
-                b = b""
-                mime = "audio/wav"
-                if audio_obj is not None:
-                    mime = getattr(audio_obj, "type", None) or "audio/wav"
+                _rec_bytes_key = f"{qid}__rec_bytes"
+                _rec_mime_key = f"{qid}__rec_mime"
+                b = st.session_state.get(_rec_bytes_key) or b""
+                mime = st.session_state.get(_rec_mime_key) or "audio/wav"
+                if (not b) and (audio_obj is not None):
+                    mime = getattr(audio_obj, "type", None) or mime
                     if hasattr(audio_obj, "getvalue"):
                         b = audio_obj.getvalue()
                     elif hasattr(audio_obj, "read"):
@@ -3038,7 +3028,6 @@ if submitted:
 
         if st.session_state.get(score_key) is not None:
             st.metric("점수", int(st.session_state.get(score_key) or 0))
-            # ✅ (비활성) 녹음 직후 추가 rerun은 일부 브라우저에서 녹음 UI 오류를 유발할 수 있어 제거했습니다.
 
         st.caption("정답을 보고 2~3번 따라 말해 보세요. 녹음이 끝나면 점수가 자동으로 계산됩니다.")
         reward_key = f"{NS}_reward_ready_{qid}"
