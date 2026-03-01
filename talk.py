@@ -1638,6 +1638,43 @@ if st.session_state.get(review_opt_key) not in ("random", "oldest", "mixed", "wr
     st.session_state[review_opt_key] = "random"
 
 def _make_review_qids(pool_df_: pd.DataFrame, resume_key_: str, opt: str, n_: int) -> list[str]:
+    # 0) 🎯 오늘의 복습: 틀린 것2 + 오래된 것2 + 랜덤(나머지)
+    if opt == "today":
+        n_target = max(1, int(n_ or 5))
+        chosen: list[str] = []
+        pool_ids = pool_df_["qid"].astype(str).tolist()
+        pool_set = set(pool_ids)
+        # (a) 틀린 것 우선 2개
+        wm = _get_wrong_map(resume_key_)
+        items = []
+        for qid, v in (wm or {}).items():
+            if str(qid) not in pool_set:
+                continue
+            vv = v or {}
+            cnt = int(vv.get("cnt") or 0)
+            last = str(vv.get("last") or "")
+            items.append((str(qid), cnt, last))
+        items.sort(key=lambda t: (t[1], t[2]), reverse=True)
+        for qid, _, _ in items[:2]:
+            if qid not in chosen:
+                chosen.append(qid)
+        # (b) 오래된 것 2개 (mastery 기준)
+        mm = _get_mastered_map(resume_key_)
+        mastered = [q for q in list(mm.keys()) if q in pool_set and q not in chosen]
+        if mastered:
+            mastered.sort(key=lambda q: (mm.get(str(q)) or "9999-12-31"))
+            for q in mastered[:2]:
+                if q not in chosen:
+                    chosen.append(str(q))
+        # (c) 랜덤 채우기
+        remain = [q for q in pool_ids if q not in set(chosen)]
+        need = max(0, n_target - len(chosen))
+        if need > 0 and remain:
+            import random as _rnd
+            _rnd.shuffle(remain)
+            chosen.extend(remain[:need])
+        return chosen[:min(n_target, len(chosen))]
+
     # 1) 틀린 것 우선: 오답 누적(wrong)에서 뽑기
     if opt == "wrong":
 
@@ -1729,16 +1766,16 @@ if f"{NS}_set_qids" not in st.session_state:
                 c1, c2, c3 = st.columns([1,1,1])
                 with c1:
                     if st.button("📚 복습(랜덤)", use_container_width=True, key=f"{NS}_review_random"):
+                        reset_set()
                         st.session_state[mode_key] = "review"
                         st.session_state[review_opt_key] = "random"
-                        reset_set()
                         _clear_talk_daily_state(resume_key)
                         st.rerun()
                 with c2:
                     if st.button("🕒 복습(오래된)", use_container_width=True, key=f"{NS}_review_oldest"):
+                        reset_set()
                         st.session_state[mode_key] = "review"
                         st.session_state[review_opt_key] = "oldest"
-                        reset_set()
                         _clear_talk_daily_state(resume_key)
                         st.rerun()
                 with c3:
@@ -1767,7 +1804,12 @@ if f"{NS}_set_qids" not in st.session_state:
     else:
         # review mode
         opt = st.session_state.get(review_opt_key) or "random"
-        n = min((SET_LEN if IS_PRO else FREE_SET_LEN), len(pool_df))
+        n_base = (SET_LEN if IS_PRO else FREE_SET_LEN)
+        # 🎯 오늘의 복습: 기본 5문제(요금제/풀 크기에 맞게 조정)
+        if opt == "today":
+            n = min(5, n_base, len(pool_df))
+        else:
+            n = min(n_base, len(pool_df))
         qids = _make_review_qids(pool_df, resume_key, opt, n)
         st.session_state[f"{NS}_set_qids"] = qids
         st.session_state[f"{NS}_idx"] = 0
@@ -1803,7 +1845,7 @@ _badges = []
 if is_done:
     _badges.append('<span class="ha-talk-badge ha-talk-badge-ok">✅ 완료</span>')
 if mode == "review":
-    _opt_label = {"wrong":"틀린 것", "random":"랜덤", "oldest":"오래된 것", "mixed":"혼합"}        .get(str(review_opt), str(review_opt))
+    _opt_label = {"wrong":"틀린 것", "random":"랜덤", "oldest":"오래된 것", "mixed":"혼합", "today":"오늘의 복습"}        .get(str(review_opt), str(review_opt))
     _badges.append(f'<span class="ha-talk-badge ha-talk-badge-review">🧠 복습 중 · {_opt_label}</span>')
 
 st.markdown(
@@ -1854,10 +1896,22 @@ with p2:
     _popover = getattr(st, "popover", None)
     if callable(_popover):
         with st.popover("📚 복습", use_container_width=True):
+            # 🎯 오늘의 자동 복습 세트 (틀린 것2 + 오래된 것2 + 랜덤1)
+            c_today = st.columns([1,2])
+            with c_today[0]:
+                if st.button("🎯 오늘의 복습", use_container_width=True, key=f"{NS}_today_review_btn"):
+                    reset_set()
+                    st.session_state[f"{NS}_mode"] = "review"
+                    st.session_state[f"{NS}_review_opt"] = "today"
+                    _clear_talk_daily_state(resume_key)
+                    st.rerun()
+            with c_today[1]:
+                st.caption("틀린 것·오래된 것·랜덤을 섞어 5문제로 자동 구성합니다.")
+
             _opt = st.radio(
                 "복습 방식",
-                options=["wrong", "random", "oldest", "mixed"],
-                format_func=lambda x: {"wrong":"틀린 것", "random":"랜덤", "oldest":"오래된 것", "mixed":"혼합(오래된+랜덤)"}[x],
+                options=["today","wrong","random","oldest","mixed"],
+                format_func=lambda x: {"today":"오늘의 복습","wrong":"틀린 것", "random":"랜덤", "oldest":"오래된 것", "mixed":"혼합(오래된+랜덤)"}[x],
                 key=f"{NS}_review_opt_ui",
             )
             _has_wrong = bool(_get_wrong_map(resume_key))
@@ -1873,16 +1927,27 @@ with p2:
                     st.rerun()
             with c_b:
                 if st.button("학습 모드", use_container_width=True, key=f"{NS}_learn_mode"):
-                    st.session_state[f"{NS}_mode"] = "learn"
                     reset_set()
+                    st.session_state[f"{NS}_mode"] = "learn"
                     _clear_talk_daily_state(resume_key)
                     st.rerun()
     else:
         with st.expander("📚 복습", expanded=False):
+            c_today = st.columns([1,2])
+            with c_today[0]:
+                if st.button("🎯 오늘의 복습", use_container_width=True, key=f"{NS}_today_review_btn2"):
+                    reset_set()
+                    st.session_state[f"{NS}_mode"] = "review"
+                    st.session_state[f"{NS}_review_opt"] = "today"
+                    _clear_talk_daily_state(resume_key)
+                    st.rerun()
+            with c_today[1]:
+                st.caption("틀린 것·오래된 것·랜덤을 섞어 5문제로 자동 구성합니다.")
+
             _opt = st.radio(
                 "복습 방식",
-                options=["wrong", "random", "oldest", "mixed"],
-                format_func=lambda x: {"wrong":"틀린 것", "random":"랜덤", "oldest":"오래된 것", "mixed":"혼합(오래된+랜덤)"}[x],
+                options=["today","wrong","random","oldest","mixed"],
+                format_func=lambda x: {"today":"오늘의 복습","wrong":"틀린 것", "random":"랜덤", "oldest":"오래된 것", "mixed":"혼합(오래된+랜덤)"}[x],
                 key=f"{NS}_review_opt_ui",
             )
             if st.button("복습 시작", use_container_width=True, key=f"{NS}_review_start", disabled=(_opt=="wrong" and not _has_wrong)):
@@ -1892,8 +1957,8 @@ with p2:
                 _clear_talk_daily_state(resume_key)
                 st.rerun()
             if st.button("학습 모드", use_container_width=True, key=f"{NS}_learn_mode"):
-                st.session_state[f"{NS}_mode"] = "learn"
                 reset_set()
+                st.session_state[f"{NS}_mode"] = "learn"
                 _clear_talk_daily_state(resume_key)
                 st.rerun()
 
