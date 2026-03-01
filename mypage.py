@@ -1931,7 +1931,7 @@ def _render_top_summary(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, A
 # ---------------------------
 def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None:
     st.markdown('<div class="ha-section">', unsafe_allow_html=True)
-    st.markdown('<div class="ha-title">📚 오답</div><div class="ha-sub">앱 필터(칩) + 검색 + 반복오답 토글 + 접힘 목록.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="ha-title">📚 오답</div><div class="ha-sub">앱 선택 + 검색 + 반복오답 토글 + 접힘 목록.</div>', unsafe_allow_html=True)
 
     if not wrongs:
         st.info("아직 저장된 오답이 없습니다.")
@@ -2056,12 +2056,20 @@ def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None
         k = (w.get("jp_word") or "").strip()
         if k:
             counts[k] = counts.get(k, 0) + 1
-
-    app_selected = _render_filter_chips("앱 필터", "myp_wrongs_app")
+    # 앱 선택(전체/단어/한자/회화) + 정렬/표시개수는 아래에서 구성
     q = st.text_input("검색 (단어/뜻/발음)", value=st.session_state.get("myp_wrongs_q", ""), key="myp_wrongs_q")
     only_repeat = st.toggle("🔥 반복 오답만 보기 (3회+)", value=st.session_state.get("myp_wrongs_repeat", False), key="myp_wrongs_repeat")
-    per_page = st.select_slider("표시 개수", options=[10, 20, 30, 50, 100], value=10, key="myp_wrongs_per")
-    sort_mode = st.selectbox("정렬", ["최근순", "반복순", "오래된순"], index=0, key="myp_wrongs_sort")
+
+    c_app, c_sort, c_per = st.columns([1.4, 1.0, 1.0], gap="small")
+    with c_app:
+        app_quick = st.radio("앱", ["전체", "단어", "한자", "회화"], horizontal=True, key="myp_wrongs_app_quick")
+    with c_sort:
+        sort_mode = st.selectbox("정렬", ["최근순", "반복순", "오래된순"], index=0, key="myp_wrongs_sort")
+    with c_per:
+        per_page = st.select_slider("표시 개수", options=[10, 20, 30, 50, 100], value=10, key="myp_wrongs_per")
+
+    # radio 결과를 기존 로직(app_selected 리스트)와 동일한 형태로 맞춤
+    app_selected = [] if app_quick == "전체" else [app_quick]
 
     def match(w: Dict[str, Any]) -> bool:
         jp = (w.get("jp_word") or "").lower()
