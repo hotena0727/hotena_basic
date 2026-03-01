@@ -1109,12 +1109,40 @@ def _load_wrongs(limit: int = 400) -> Tuple[List[Dict[str, Any]], str]:
 
     ✅ 규칙(고정):
     - 테이블은 반드시 wrong_notes만 사용합니다.
-    - 다른 테이블(wrong_note/wrongs)로 자동 fallback 하지 않습니다.
-      (단어/한자/회화 분리 규칙이 흐려지고, 실제로는 회화 오답만 섞여 들어오는 문제가 생길 수 있음)
+    - 단, 스키마/컬럼 차이로 select(cols=...)가 실패하는 환경을 대비해
+      1) 지정 컬럼 조회 → 2) '*' 전체 조회로 1회 fallback 합니다.
     """
-    cols = "id, user_id, app, pos, level, jp_word, word, term, reading, yomi, kana, meaning, meaning_kr, kr_meaning, correct_answer, correct, user_answer, answer, created_at"
-    rows = _safe_select("wrong_notes", cols=cols, limit=limit, order="created_at", desc=True)
-    return (rows or [], "wrong_notes")
+    table = "wrong_notes"
+
+    # 1차: 우리가 기대하는 대표 컬럼 세트
+    cols1 = "id, user_id, app, pos, level, jp_word, word, term, reading, yomi, kana, meaning, meaning_kr, kr_meaning, correct_answer, correct, user_answer, answer, created_at"
+    rows = _safe_select(table, cols=cols1, limit=limit, order="created_at", desc=True)
+
+    # 2차: 컬럼 미존재/스키마 차이로 실패(=빈 배열 반환)하는 경우 전체 조회로 재시도
+    if not rows:
+        rows = _safe_select(table, cols="*", limit=limit, order="created_at", desc=True)
+
+    if rows:
+        # normalize: 다양한 스키마를 mypage가 쓰는 키로 최대한 흡수
+        for r in rows:
+            # jp_word / word / term / jp / question
+            if not r.get("jp_word"):
+                r["jp_word"] = r.get("word") or r.get("term") or r.get("jp") or r.get("question") or r.get("prompt")
+            # reading
+            if not r.get("reading"):
+                r["reading"] = r.get("yomi") or r.get("kana") or r.get("furigana") or r.get("pron") or r.get("pronunciation")
+            # meaning
+            if not r.get("meaning"):
+                r["meaning"] = r.get("meaning_kr") or r.get("kr_meaning") or r.get("ko_meaning") or r.get("meaning_jp")
+            # correct / user_answer
+            if "correct_answer" not in r or r.get("correct_answer") in (None, ""):
+                r["correct_answer"] = r.get("correct_answer") or r.get("correct") or r.get("gold") or r.get("target")
+            if "user_answer" not in r or r.get("user_answer") in (None, ""):
+                r["user_answer"] = r.get("user_answer") or r.get("answer") or r.get("pred") or r.get("user")
+
+        return rows, table
+
+    return [], table
 
 
 
