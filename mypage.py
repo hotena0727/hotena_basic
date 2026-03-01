@@ -1855,6 +1855,7 @@ def _render_top_summary(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, A
         rec = "✅ 흐름이 좋아요. 오늘은 오답 TOP10으로 마무리하면 완벽합니다."
 
     if rec:
+        st.markdown('<div style="height:12px;"></div>', unsafe_allow_html=True)
         st.info(rec)
 
     # 오늘의 미션(로컬 세션)
