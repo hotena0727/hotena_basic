@@ -812,35 +812,13 @@ def _openai_transcribe_bytes(audio_bytes: bytes, mime: str = "audio/wav") -> str
         raise RuntimeError("openai 패키지가 설치되어 있지 않습니다.") from e
 
     client = OpenAI(api_key=api_key)
-    # ✅ mime에 맞는 확장자를 붙여 파일명-포맷 불일치로 인한 STT 오동작을 줄입니다.
-    _ext_map = {
-        "audio/webm": ".webm",
-        "audio/ogg": ".ogg",
-        "audio/mpeg": ".mp3",
-        "audio/mp3": ".mp3",
-        "audio/wav": ".wav",
-        "audio/x-wav": ".wav",
-        "audio/mp4": ".m4a",
-        "audio/x-m4a": ".m4a",
-    }
-    _ext = _ext_map.get((mime or "").lower(), ".wav")
-    _fname = f"speech{_ext}"
     # 파일 객체 형태로 전달
-    file_tuple = (_fname, audio_bytes, mime)
+    file_tuple = ("speech.wav", audio_bytes, mime)
     try:
-        # ✅ 일본어 인식 안정화: 가능한 경우 language="ja"를 명시합니다.
-        try:
-            out = client.audio.transcriptions.create(
-                model=model,
-                file=file_tuple,
-                language="ja",
-            )
-        except TypeError:
-            # 구버전 SDK/호환 이슈: language 인자를 지원하지 않으면 자동 감지로 진행
-            out = client.audio.transcriptions.create(
-                model=model,
-                file=file_tuple,
-            )
+        out = client.audio.transcriptions.create(
+            model=model,
+            file=file_tuple,
+        )
         # SDK 버전에 따라 text 속성/문자열 반환이 다를 수 있어 안전 처리
         txt = getattr(out, "text", None)
         if isinstance(txt, str) and txt.strip():
