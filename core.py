@@ -11,6 +11,7 @@ from __future__ import annotations
 import os
 import base64
 import hashlib
+import json
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Optional, Tuple
 
@@ -856,85 +857,105 @@ _SFX_WAV_B64 = {
     "reward": _sfx__wav_b64([(660, 0.050, 0.45), (0, 0.010, 0.0), (880, 0.050, 0.45), (0, 0.010, 0.0), (1320, 0.070, 0.45)]),
 }
 
+def _sfx_base_url() -> str:
+    """Base URL for external SFX files (mp3).
+
+    Priority: env/secrets SFX_BASE_URL -> default Hotena CDN path.
+    """
+    base = (get_cfg("SFX_BASE_URL") or "").strip()
+    if not base:
+        base = "https://hotena.com/hotena/app/mp3/sfx/"
+    if not base.endswith("/"):
+        base += "/"
+    return base
+
+def _sfx_url(name: str) -> str:
+    nm = str(name).strip().lower()
+    # Allow custom filenames via env/secrets if needed later; for now, use {name}.mp3
+    return _sfx_base_url() + f"{nm}.mp3"
+
 def play_sfx(name: str) -> None:
     """Play a short SFX (best effort).
-    Priority:
-      1) External MP3 at SFX_BASE_URL (if mapped)
-      2) Fallback to embedded WAV (base64) already defined in _SFX_WAV_B64
-    NOTE: We must avoid double-play. Fallback triggers ONLY on MP3 load error.
+
+    1) Try external mp3 at SFX_BASE_URL (default: https://hotena.com/hotena/app/mp3/sfx/)
+    2) Fallback to built-in base64 wav (always available).
     """
     if not is_sfx_enabled(True):
         return
 
-    key = str(name).strip().lower()
-    b64 = _SFX_WAV_B64.get(key)
-    if not b64 and key not in SFX_MP3_FILES:
-        return
-
-    # Build mp3 url if mapped
-    fn = SFX_MP3_FILES.get(key)
-    mp3_url = (SFX_BASE_URL.rstrip("/") + "/" + fn) if fn else ""
-
-    # Unique element id per call to avoid Streamlit rerun caching
-    _uid = "ha_sfx_" + str(int(time.time() * 1000)) + "_" + "".join(random.choice("abcdef0123456789") for _ in range(6))
+    nm = str(name).strip().lower()
+    b64 = _SFX_WAV_B64.get(nm)
+    # We still try remote even if b64 is missing; but keep a hard fallback only if we have b64.
+    url = _sfx_url(nm)
 
     try:
+        src1 = json.dumps(url)
+        src2 = json.dumps(f"data:audio/wav;base64,{b64}") if b64 else "null"
+
+        # Use JS so we can fallback if the mp3 fails to load/play.
         components.html(
             f"""
-<audio id="{_uid}" preload="auto" playsinline></audio>
 <script>
 (function() {{
-  const a = document.getElementById("{_uid}");
-  if (!a) return;
+  try {{
+    var a = new Audio();
+    a.preload = 'auto';
+    var src1 = {src1};
+    var src2 = {src2};
 
-  const mp3 = {mp3_url!r};
-  const wav = "data:audio/wav;base64,{b64 or ""}";
+    var triedFallback = false;
+    function playFallback() {{
+      if (triedFallback) return;
+      triedFallback = true;
+      if (!src2 || src2 === null) return;
+      try {{
+        a.src = src2;
+        a.currentTime = 0;
+        var p2 = a.play();
+        if (p2 && p2.catch) p2.catch(function(){{}});
+      }} catch(e) {{}}
+    }}
 
-  let triedFallback = false;
+    a.addEventListener('error', function(){{ playFallback(); }}, {{ once: true }});
 
-  function safePlay() {{
-    try {{
-      a.currentTime = 0;
-      const p = a.play();
-      if (p && p.catch) p.catch(function(){{}});
-    }} catch(e) {{}}
-  }}
-
-  a.onerror = function() {{
-    if (triedFallback) return;
-    triedFallback = true;
-    if (!wav || wav.length < 30) return;
-    a.src = wav;
-    // give browser a tick to load the data URL
-    setTimeout(safePlay, 0);
-  }};
-
-  // Try mp3 first if provided; otherwise play wav immediately
-  if (mp3) {{
-    a.src = mp3;
-    // attempt play soon after setting src; if blocked, user gesture should allow on submit click
-    setTimeout(safePlay, 0);
-  }} else if (wav) {{
-    a.src = wav;
-    setTimeout(safePlay, 0);
-  }}
+    // Try remote first
+    a.src = src1;
+    a.currentTime = 0;
+    var p = a.play();
+    if (p && p.catch) {{
+      p.catch(function(){{ playFallback(); }});
+    }}
+  }} catch(e) {{}}
 }})();
 </script>
 """,
             height=0,
         )
     except Exception:
-        # As a last resort, try the old embedded wav-only behavior
-        if b64:
-            try:
-                components.html(
-                    f"""<audio autoplay>
+        # absolute fallback (no JS): base64 wav
+        if not b64:
+            return
+        try:
+            components.html(
+                f"""<audio autoplay>
   <source src="data:audio/wav;base64,{b64}" type="audio/wav">
 </audio>""",
-                    height=0,
-                )
-            except Exception:
-                return
+                height=0,
+            )
+        except Exception:
+            return
+    b64 = _SFX_WAV_B64.get(str(name).strip().lower())
+    if not b64:
+        return
+    try:
+        components.html(
+            f"""<audio autoplay>
+  <source src="data:audio/wav;base64,{b64}" type="audio/wav">
+</audio>""",
+            height=0,
+        )
+    except Exception:
+        return
 
 
 def play_sfx_once(key: str, name: str) -> None:
