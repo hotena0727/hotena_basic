@@ -2976,34 +2976,30 @@ if submitted:
                 st.session_state.pop(err_key, None)
                 st.session_state.pop(_last_hash_key, None)
 
-            # ✅ (UX) 녹음 정지 직후: 먼저 파형/플레이어를 고정해서 보여주고,
-            #    다음 rerun에서 STT/점수 계산을 수행(전체 화면 번쩍임 최소화)
-            _pending_hash_key = f"talk_pron_pending_{qid}"
-            _pending_rerun_key = f"talk_pron_pending_rerun_{qid}"
-            need_autorun = False
-
-            # 1) 새 녹음(hash)이 들어왔는데 아직 계산 전이면: pending 표시만 하고 1회 rerun 예약
-            if _h and st.session_state.get(_last_hash_key) != _h and not st.session_state.get(_pending_rerun_key, False):
-                st.session_state[_pending_hash_key] = _h
-                st.session_state[_pending_rerun_key] = True
-                need_autorun = True
-
-            # 2) pending 상태(바로 다음 rerun)에서 실제 계산
-            if _h and st.session_state.get(_last_hash_key) != _h and st.session_state.get(_pending_rerun_key, False):
-                if st.session_state.get(_pending_hash_key) == _h:
-                    st.session_state[_last_hash_key] = _h
-                    st.session_state.pop(err_key, None)
-                    with st.spinner("말하기 점수 계산 중..."):
-                        try:
-                            _txt = _openai_transcribe_bytes(_b, mime=_mime)
-                            st.session_state[text_key] = _txt
-                            st.session_state[score_key] = _similarity_score(_txt, str(row.get("answer_jp", "")))
-                        except Exception as _e:
-                            st.session_state[err_key] = str(_e)
-                    # 계산 완료(또는 실패) 후 pending 해제
-                    st.session_state.pop(_pending_hash_key, None)
-                    st.session_state.pop(_pending_rerun_key, None)
-
+            # ✅ (안정) 녹음 정지 직후에 바로 STT를 때리면,
+            #    일부 브라우저(특히 크롬/안드)에서 recorder 컴포넌트가 아직 '파일 finalize' 중이라
+            #    파형이 고정되었다가도 "An error has occurred, please try again."가 뜨는 경우가 있습니다.
+            #    그래서 아래 순서를 강제합니다.
+            #    1) bytes + mime을 session_state에 먼저 고정 저장
+            #    2) st.audio로 파형/플레이어를 먼저 렌더
+            #    3) 아주 짧은 딜레이(0.4s) 후 STT/점수 계산
+            #    ✅ UI(녹음기)는 유지, '다시 녹음' 버튼으로 바꾸지 않습니다.
+            import time as _time
+            if _h and st.session_state.get(_last_hash_key) != _h:
+                st.session_state[_last_hash_key] = _h
+                st.session_state.pop(err_key, None)
+                # recorder finalize 안정화 대기(짧게)
+                try:
+                    _time.sleep(0.4)
+                except Exception:
+                    pass
+                with st.spinner("말하기 점수 계산 중..."):
+                    try:
+                        _txt = _openai_transcribe_bytes(_b, mime=_mime)
+                        st.session_state[text_key] = _txt
+                        st.session_state[score_key] = _similarity_score(_txt, str(row.get("answer_jp", "")))
+                    except Exception as _e:
+                        st.session_state[err_key] = str(_e)
 
         c_sc1, c_sc2 = st.columns([0.72, 0.28], vertical_alignment="center")
         with c_sc1:
