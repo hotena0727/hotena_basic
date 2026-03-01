@@ -372,7 +372,7 @@ div.block-container > div:first-child{
 /* ✅ extra breathing room so expanded body never touches the outer (card) border */
 .ha-card .ha-msg-scope{padding:0 0 16px 0;}
 .ha-card .ha-msg-scope div[data-testid="stExpander"] .streamlit-expanderContent{
-  padding:14px 14px 32px 14px !important; /* stronger */
+  padding:4px 12px 8px 12px !important; /* compact */
 }
 
 
@@ -400,6 +400,27 @@ div.block-container > div:first-child{
 }
 
 .ha-msg-scope{margin-top:6px;}
+
+/* ========= 메시지 리스트(밀도/카드형) ========= */
+.ha-msg-scope div[data-testid="stExpander"]{
+  margin: 0 0 6px 0 !important;
+}
+.ha-msg-scope div[data-testid="stExpander"] > details{
+  border: 1px solid var(--ha-line) !important;
+  border-radius: 14px !important;
+  background: var(--ha-bg) !important;
+  box-shadow: none !important;
+}
+.ha-msg-scope div[data-testid="stExpander"] summary{
+  padding: 7px 12px !important;
+}
+.ha-msg-scope div[data-testid="stExpander"] div[role="region"]{
+  padding: 4px 12px 8px 12px !important;
+}
+.ha-card .ha-msg-scope{
+  padding: 0 0 10px 0 !important;
+  margin-top: 6px !important;
+}
 /* remove expander outer box completely */
 .ha-msg-scope div[data-testid="stExpander"]{
   border:0 !important;
@@ -1850,7 +1871,7 @@ def _render_top_summary(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, A
     
 /* ========= 오답 리스트(미니멀/밀도) ========= */
 .ha-wronglist div[data-testid="stExpander"]{
-  margin: 0 0 10px 0 !important; /* 카드 간격 */
+  margin: 0 0 6px 0 !important; /* 카드 간격(압축) */
 }
 .ha-wronglist div[data-testid="stExpander"] details{
   border: 1px solid var(--ha-line) !important;
@@ -1859,10 +1880,10 @@ def _render_top_summary(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, A
   box-shadow: none !important;
 }
 .ha-wronglist div[data-testid="stExpander"] summary{
-  padding: 8px 14px !important;
+  padding: 7px 12px !important;
 }
 .ha-wronglist div[data-testid="stExpander"] div[role="region"]{
-  padding: 4px 14px 10px 14px !important;
+  padding: 4px 12px 8px 12px !important;
 }
 </style>
     """, unsafe_allow_html=True)
