@@ -1579,32 +1579,6 @@ def _render_week_widget(attempts: List[Dict[str, Any]]) -> None:
         unsafe_allow_html=True,
     )
 
-    total = sum(counts)
-    streak = 0
-    for c in reversed(counts):
-        if c > 0:
-            streak += 1
-        else:
-            break
-
-    st.markdown(
-        f"""
-<div class="ha-week">
-  <div class="ha-week-head">
-    <div class="ha-week-title">최근 7일 학습</div>
-    <div class="ha-inline">
-      <span class="ha-chip">총 <b>{total}</b>회</span>
-      <span class="ha-chip">연속 <b>{streak}</b>일</span>
-    </div>
-  </div>
-  <div class="ha-week-grid">
-    {''.join(blocks)}
-  </div>
-</div>
-""",
-        unsafe_allow_html=True,
-    )
-
 
 def _render_filter_chips(title: str, key: str) -> List[str]:
     options = ["단어", "한자", "회화"]
