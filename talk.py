@@ -668,70 +668,74 @@ def _persist_daily_progress(resume_key: str, set_qids: list[str], idx: int) -> N
     except Exception:
         pass
 
-
 # ============================================================
-# ✅ Mastery progress (진도형): tag/sub/plan 별 '완료(qid)' 누적 저장
-# - profiles.progress['talk']['mastery'][resume_key]에 저장
-# - 형태: { qid: 'YYYY-MM-DD', ... }
-# - 구버전(list[str])도 자동 호환
+# ============================================================
+# ✅ Mastery progress (진도형 누적)
+# - profiles.progress['talk']['mastery'][resume_key] 에 저장
+# - { qid(str): 'YYYY-MM-DD' } 형태로 누적
+# - 기존(list) 저장 형식도 자동 호환
 # ============================================================
 def _get_talk_mastery_all() -> dict:
     try:
         prog = load_progress()
         talk_prog = prog.get("talk") or {}
-        ms = talk_prog.get("mastery") or {}
-        return ms if isinstance(ms, dict) else {}
+        mastery = talk_prog.get("mastery") or {}
+        return mastery if isinstance(mastery, dict) else {}
     except Exception:
         return {}
 
-def _set_talk_mastery_all(ms: dict) -> None:
+def _set_talk_mastery_all(mastery: dict) -> None:
     try:
         prog = load_progress()
         talk_prog = prog.get("talk") or {}
-        talk_prog["mastery"] = ms if isinstance(ms, dict) else {}
+        talk_prog["mastery"] = mastery if isinstance(mastery, dict) else {}
         prog["talk"] = talk_prog
         save_progress(prog)
     except Exception:
         pass
 
-def _get_mastery_map(resume_key: str) -> dict:
-    ms_all = _get_talk_mastery_all()
-    v = ms_all.get(resume_key)
-    if isinstance(v, dict):
-        out = {}
-        for k, d in v.items():
-            if k is None:
-                continue
-            out[str(k)] = str(d or "")
-        return out
-    if isinstance(v, list):
-        out = {str(q): "" for q in v if q is not None}
-        ms_all[resume_key] = out
-        _set_talk_mastery_all(ms_all)
-        return out
-    return {}
+def _get_mastered_map(resume_key: str) -> dict:
+    """returns dict[qid]=date_str"""
+    mastery = _get_talk_mastery_all()
+    raw = mastery.get(resume_key) or {}
+    # legacy list -> map
+    if isinstance(raw, list):
+        today = _kst_today_str()
+        raw = {str(q): today for q in raw}
+    if not isinstance(raw, dict):
+        raw = {}
+    # normalize keys/values
+    norm = {}
+    for k,v in raw.items():
+        if k is None:
+            continue
+        ks = str(k)
+        vs = str(v) if v else ""
+        norm[ks] = vs
+    return norm
 
 def _mark_mastered(resume_key: str, qid: str) -> None:
     try:
-        today = _kst_today_str()
-        ms_all = _get_talk_mastery_all()
-        mp = _get_mastery_map(resume_key)
-        mp[str(qid)] = today
-        ms_all[resume_key] = mp
-        _set_talk_mastery_all(ms_all)
+        mastery = _get_talk_mastery_all()
+        m = _get_mastered_map(resume_key)
+        qid = str(qid)
+        if qid in m:
+            return
+        m[qid] = _kst_today_str()
+        mastery[resume_key] = m
+        _set_talk_mastery_all(mastery)
     except Exception:
         pass
 
-def _clear_mastery(resume_key: str) -> None:
+def _reset_mastery(resume_key: str) -> None:
     try:
-        ms_all = _get_talk_mastery_all()
-        if resume_key in ms_all:
-            ms_all.pop(resume_key, None)
-            _set_talk_mastery_all(ms_all)
+        mastery = _get_talk_mastery_all()
+        if resume_key in mastery:
+            mastery.pop(resume_key, None)
+            _set_talk_mastery_all(mastery)
     except Exception:
         pass
 
-# ============================================================
 # ✅ FREE quota (daily): TTS 3회 / 녹음 3회
 # - profiles.progress['talk']['free_quota'] 에 저장해서 새로고침/재로그인에도 유지
 # ============================================================
@@ -1542,46 +1546,105 @@ pool_answers = pool_df["answer_jp"].astype(str).tolist()
 # ============================================================
 resume_key = _talk_resume_key(tag, sub, IS_PRO)
 
+# ✅ 학습 모드/복습 모드
+mode_key = f"{NS}_mode"
+review_opt_key = f"{NS}_review_opt"
+if st.session_state.get(mode_key) not in ("learn", "review"):
+    st.session_state[mode_key] = "learn"
+if st.session_state.get(review_opt_key) not in ("random", "oldest", "mixed"):
+    st.session_state[review_opt_key] = "random"
+
+def _make_review_qids(pool_df_: pd.DataFrame, resume_key_: str, opt: str, n_: int) -> list[str]:
+    m = _get_mastered_map(resume_key_)
+    mastered = list(m.keys())
+    if not mastered:
+        # mastered가 없으면 그냥 랜덤
+        return pool_df_.sample(n=min(n_, len(pool_df_)), replace=False)["qid"].astype(str).tolist()
+
+    base = pool_df_[pool_df_["qid"].astype(str).isin(set(mastered))].copy()
+    if base.empty:
+        return pool_df_.sample(n=min(n_, len(pool_df_)), replace=False)["qid"].astype(str).tolist()
+
+    if opt == "random":
+        return base.sample(n=min(n_, len(base)), replace=False)["qid"].astype(str).tolist()
+
+    # oldest / mixed: 날짜 기준 정렬
+    def _dt(q):
+        ds = m.get(str(q)) or ""
+        return ds or "9999-12-31"
+    base["__dt__"] = base["qid"].astype(str).map(_dt)
+    base = base.sort_values("__dt__", ascending=True).reset_index(drop=True)
+
+    if opt == "oldest":
+        return base.head(min(n_, len(base)))["qid"].astype(str).tolist()
+
+    # mixed
+    n_old = max(1, int(round(n_ * 0.7)))
+    old_part = base.head(min(n_old, len(base)))["qid"].astype(str).tolist()
+    remain = base[~base["qid"].astype(str).isin(set(old_part))]
+    n_rand = max(0, n_ - len(old_part))
+    rand_part = []
+    if n_rand > 0 and not remain.empty:
+        rand_part = remain.sample(n=min(n_rand, len(remain)), replace=False)["qid"].astype(str).tolist()
+    return old_part + rand_part
+
+
 if f"{NS}_set_qids" not in st.session_state:
+    # 0) 진도형(learn)일 때는 mastered 제외한 남은 문제로만 구성
+    mode = st.session_state.get(mode_key) or "learn"
+    mastered_map = _get_mastered_map(resume_key)
+    mastered_set = set(mastered_map.keys())
 
-    # ✅ 진도형: 이미 완료한 qid는 학습 모드에서 제외
-    mastery_map = _get_mastery_map(resume_key)
-    mastered_qids = set(mastery_map.keys())
+    if mode == "learn":
+        remain_df = pool_df[~pool_df["qid"].astype(str).isin(mastered_set)].reset_index(drop=True)
 
-    remaining_df = pool_df
-    if mastered_qids:
-        try:
-            remaining_df = pool_df[~pool_df["qid"].astype(str).isin(mastered_qids)].reset_index(drop=True)
-        except Exception:
-            remaining_df = pool_df
+        # ✅ 전부 완료 → 완료 화면 + 복습/리셋 버튼
+        if remain_df.empty:
+            with st.container(border=True):
+                st.success("🎉 이 코스는 모두 완료했습니다.")
+                st.caption("복습을 시작하거나, 진도를 초기화해서 처음부터 다시 학습할 수 있어요.")
+                c1, c2, c3 = st.columns([1,1,1])
+                with c1:
+                    if st.button("📚 복습(랜덤)", use_container_width=True, key=f"{NS}_review_random"):
+                        st.session_state[mode_key] = "review"
+                        st.session_state[review_opt_key] = "random"
+                        reset_set()
+                        _clear_talk_daily_state(resume_key)
+                        st.rerun()
+                with c2:
+                    if st.button("🕒 복습(오래된)", use_container_width=True, key=f"{NS}_review_oldest"):
+                        st.session_state[mode_key] = "review"
+                        st.session_state[review_opt_key] = "oldest"
+                        reset_set()
+                        _clear_talk_daily_state(resume_key)
+                        st.rerun()
+                with c3:
+                    if st.button("🔁 진도 초기화", use_container_width=True, key=f"{NS}_reset_mastery"):
+                        _reset_mastery(resume_key)
+                        reset_set()
+                        _clear_talk_daily_state(resume_key)
+                        st.session_state[mode_key] = "learn"
+                        st.rerun()
+            st.stop()
 
-    # 남은 문제가 없으면 '모두 완료' 화면
-    if len(remaining_df) == 0:
-        with st.container(border=True):
-            st.markdown("### ✅ 모두 완료했습니다")
-            st.caption("학습 모드에서 모든 문장을 완료했습니다.")
-            c1, c2 = st.columns(2)
-            with c1:
-                if st.button("🔁 진도 초기화", use_container_width=True, key=f"{NS}_reset_mastery"):
-                    _clear_mastery(resume_key)
-                    _clear_talk_daily_state(resume_key)
-                    reset_set()
-                    st.rerun()
-            with c2:
-                if st.button("🔄 새 세트", use_container_width=True, key=f"{NS}_new_set_from_done"):
-                    _clear_talk_daily_state(resume_key)
-                    reset_set()
-                    st.rerun()
-        st.stop()
+        # 1) 오늘 진행 복구 시도(남은 풀 기준으로만)
+        restored = _restore_daily_progress_if_any(resume_key, remain_df)
 
-    # 1) 오늘 진행 복구 시도
-    restored = _restore_daily_progress_if_any(resume_key, remaining_df)
+        # 2) 복구 실패면 새 세트 생성(남은 풀에서 샘플)
+        if not restored:
+            n = min((SET_LEN if IS_PRO else FREE_SET_LEN), len(remain_df))
+            sample = remain_df.sample(n=n, replace=False).reset_index(drop=True)
+            qids = sample["qid"].astype(str).tolist()
+            st.session_state[f"{NS}_set_qids"] = qids
+            st.session_state[f"{NS}_idx"] = 0
+            st.session_state[f"{NS}_answers"] = {qid: {"selected": None, "ok": None, "spoken": False} for qid in qids}
+            st.session_state[f"{NS}_submitted"] = False
 
-    # 2) 복구 실패면 새 세트 생성
-    if not restored:
-        n = min((SET_LEN if IS_PRO else FREE_SET_LEN), len(remaining_df))
-        sample = remaining_df.sample(n=n, replace=False).reset_index(drop=True)
-        qids = sample["qid"].astype(str).tolist()
+    else:
+        # review mode
+        opt = st.session_state.get(review_opt_key) or "random"
+        n = min((SET_LEN if IS_PRO else FREE_SET_LEN), len(pool_df))
+        qids = _make_review_qids(pool_df, resume_key, opt, n)
         st.session_state[f"{NS}_set_qids"] = qids
         st.session_state[f"{NS}_idx"] = 0
         st.session_state[f"{NS}_answers"] = {qid: {"selected": None, "ok": None, "spoken": False} for qid in qids}
@@ -1592,7 +1655,6 @@ if f"{NS}_set_qids" not in st.session_state:
         _persist_daily_progress(resume_key, st.session_state.get(f"{NS}_set_qids") or [], int(st.session_state.get(f"{NS}_idx") or 0))
     except Exception:
         pass
-
 qids: list[str] = st.session_state[f"{NS}_set_qids"]
 idx: int = int(st.session_state.get(f"{NS}_idx") or 0)
 idx = max(0, min(idx, len(qids) - 1))
@@ -1618,6 +1680,50 @@ with p2:
         except Exception:
             pass
         # st.rerun()  # Streamlit은 버튼 클릭 시 자동 rerun됩니다.
+
+    # 📚 복습(진도형): 언제든 복습 모드로 전환 가능
+    _popover = getattr(st, "popover", None)
+    if callable(_popover):
+        with st.popover("📚 복습", use_container_width=True):
+            _opt = st.radio(
+                "복습 방식",
+                options=["random", "oldest", "mixed"],
+                format_func=lambda x: {"random":"랜덤", "oldest":"오래된 것", "mixed":"혼합(오래된+랜덤)"}[x],
+                key=f"{NS}_review_opt_ui",
+            )
+            c_a, c_b = st.columns([1, 1])
+            with c_a:
+                if st.button("복습 시작", use_container_width=True, key=f"{NS}_review_start"):
+                    st.session_state[f"{NS}_mode"] = "review"
+                    st.session_state[f"{NS}_review_opt"] = _opt
+                    reset_set()
+                    _clear_talk_daily_state(resume_key)
+                    st.rerun()
+            with c_b:
+                if st.button("학습 모드", use_container_width=True, key=f"{NS}_learn_mode"):
+                    st.session_state[f"{NS}_mode"] = "learn"
+                    reset_set()
+                    _clear_talk_daily_state(resume_key)
+                    st.rerun()
+    else:
+        with st.expander("📚 복습", expanded=False):
+            _opt = st.radio(
+                "복습 방식",
+                options=["random", "oldest", "mixed"],
+                format_func=lambda x: {"random":"랜덤", "oldest":"오래된 것", "mixed":"혼합(오래된+랜덤)"}[x],
+                key=f"{NS}_review_opt_ui",
+            )
+            if st.button("복습 시작", use_container_width=True, key=f"{NS}_review_start"):
+                st.session_state[f"{NS}_mode"] = "review"
+                st.session_state[f"{NS}_review_opt"] = _opt
+                reset_set()
+                _clear_talk_daily_state(resume_key)
+                st.rerun()
+            if st.button("학습 모드", use_container_width=True, key=f"{NS}_learn_mode"):
+                st.session_state[f"{NS}_mode"] = "learn"
+                reset_set()
+                _clear_talk_daily_state(resume_key)
+                st.rerun()
 
 # ============================================================
 # ✅ Current question
@@ -1782,11 +1888,6 @@ if submitted:
     correct = str(row.get("answer_jp", "")).strip()
     ok = (selected == correct)
 
-    # ✅ 진도형: 정답이면 완료로 누적 저장
-    if ok:
-        _mark_mastered(resume_key, str(qid))
-
-
     # ✅ 제출 직후 SFX(정답/오답) — 문제(qid)당 1회만
     try:
         _sfx_guard = f"talk_sfx_{qid}"
@@ -1818,6 +1919,13 @@ if submitted:
 
 
     # ============================================================
+    # ✅ 진도형 누적: 정답이면 mastered로 기록(로그인/재접속에도 유지)
+    if ok:
+        try:
+            _mark_mastered(resume_key, str(qid))
+        except Exception:
+            pass
+
     # ✅ 오답 상세 저장 (wrong_notes) — 회화도 '단어/정답/내답' 기록
     # ============================================================
     if not ok:
