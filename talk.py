@@ -1780,9 +1780,8 @@ if submitted:
     _goal = 7
     _done = _get_today_speech_done()
     _ratio = min(1.0, (_done / _goal) if _goal else 0.0)
-
-    if not st.session_state.get("_talk_mission_css", False):
-        st.markdown("""
+    # ✅ Mission card CSS는 rerun마다 다시 주입해야 레이아웃이 유지됩니다.
+    st.markdown("""
 <style>
 .talk-mission-wrap{
   display:flex; align-items:center; justify-content:space-between;
@@ -1811,8 +1810,6 @@ if submitted:
 .talk-count-unit{font-size:.82rem; opacity:.85; font-weight:700; margin-top:2px;}
 </style>
 """, unsafe_allow_html=True)
-        st.session_state["_talk_mission_css"] = True
-
     st.markdown(
         f"""
         <div class=\"talk-mission-wrap\">
