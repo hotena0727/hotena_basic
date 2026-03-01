@@ -1750,6 +1750,108 @@ def _render_top_summary(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, A
     )
 
     _render_week_widget(attempts)
+
+    # ============================================================
+    # ✅ 추가 리포트(3장) + 오늘의 미션 + 추천 1줄
+    # ============================================================
+    # 연속 학습일(스트릭)
+    def _calc_streak(atts: List[Dict[str, Any]]) -> int:
+        days = set()
+        for a in (atts or []):
+            d = _to_dt_kst(a.get("created_at"))
+            if d:
+                days.add(d.date())
+        if not days:
+            return 0
+        today = datetime.now(timezone(timedelta(hours=9))).date()
+        streak = 0
+        cur = today
+        while cur in days:
+            streak += 1
+            cur = cur - timedelta(days=1)
+        return streak
+
+    streak = _calc_streak(attempts)
+
+    # 이번 주 총 풀이수(앱별)
+    def _app_key_from_attempt(a: Dict[str, Any]) -> str:
+        ap = (a.get("app") or a.get("quiz_type") or a.get("type") or "").lower().strip()
+        if ap in ("word", "vocab", "vocabulary"):
+            return "단어"
+        if ap in ("kanji", "hanja"):
+            return "한자"
+        if ap in ("talk", "conversation", "speech", "speaking"):
+            return "회화"
+        return _app_label(ap) or "단어"
+
+    week_start = (datetime.now(timezone(timedelta(hours=9))) - timedelta(days=6)).date()
+    wk = {"단어": 0, "한자": 0, "회화": 0}
+    for a in attempts:
+        d = _to_dt_kst(a.get("created_at"))
+        if d and d.date() >= week_start:
+            k = _app_key_from_attempt(a)
+            if k in wk:
+                wk[k] += 1
+    week_total = sum(wk.values())
+
+    # 가장 많이 틀린 유형(오답 기반)
+    wc = {"단어": 0, "한자": 0, "회화": 0}
+    for w in (wrongs or []):
+        lb = _wrong_app_label(w)
+        if lb in wc:
+            wc[lb] += 1
+    top_wrong = max(wc.items(), key=lambda x: x[1])[0] if any(wc.values()) else "-"
+
+    st.markdown('<div style="margin-top:10px;"></div>', unsafe_allow_html=True)
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.markdown(f"<div class='ha-kpi-item'><div class='ha-kpi-num'>{_num(streak)}</div><div class='ha-kpi-lbl'>연속 학습일</div></div>", unsafe_allow_html=True)
+    with c2:
+        st.markdown(f"<div class='ha-kpi-item'><div class='ha-kpi-num'>{_num(week_total)}</div><div class='ha-kpi-lbl'>이번 주 풀이수</div></div>", unsafe_allow_html=True)
+    with c3:
+        st.markdown(f"<div class='ha-kpi-item'><div class='ha-kpi-num'>{top_wrong}</div><div class='ha-kpi-lbl'>최다 오답 유형</div></div>", unsafe_allow_html=True)
+
+    # 추천 1줄(규칙 기반)
+    rec = None
+    # 반복오답(3회+)가 많으면 TOP10 추천
+    try:
+        from collections import Counter
+        _cc = Counter([(w.get("jp_word") or "").strip() for w in (wrongs or []) if (w.get("jp_word") or "").strip()])
+        rep3 = sum(1 for k,v in _cc.items() if v >= 3)
+    except Exception:
+        rep3 = 0
+    if rep3 >= 5:
+        rec = "🔥 반복 오답이 쌓였어요. 오늘은 TOP10 복습부터 가볍게 정리해볼까요?"
+    elif wk.get("회화", 0) == 0:
+        rec = "🗣 이번 주 회화가 0회예요. 회화 1세트만 해도 감이 확 살아납니다."
+    elif wk.get("단어", 0) == 0:
+        rec = "📚 이번 주 단어 풀이가 0회예요. 단어 5문제만 풀어도 루틴이 유지돼요."
+    elif wk.get("한자", 0) == 0:
+        rec = "🈶 이번 주 한자 풀이가 0회예요. 한자 5문제만 가볍게!"
+    else:
+        rec = "✅ 흐름이 좋아요. 오늘은 오답 TOP10으로 마무리하면 완벽합니다."
+
+    if rec:
+        st.info(rec)
+
+    # 오늘의 미션(로컬 세션)
+    today_key = datetime.now(timezone(timedelta(hours=9))).date().isoformat()
+    ms_key = f"myp_missions_{today_key}"
+    if ms_key not in st.session_state:
+        st.session_state[ms_key] = {"word": False, "kanji": False, "talk": False}
+
+    st.markdown("#### 🎯 오늘의 미션")
+    mcol1, mcol2, mcol3 = st.columns(3)
+    with mcol1:
+        st.session_state[ms_key]["word"] = st.checkbox("단어 5문제", value=st.session_state[ms_key]["word"], key=f"{ms_key}_w")
+    with mcol2:
+        st.session_state[ms_key]["kanji"] = st.checkbox("한자 5문제", value=st.session_state[ms_key]["kanji"], key=f"{ms_key}_k")
+    with mcol3:
+        st.session_state[ms_key]["talk"] = st.checkbox("회화 1세트", value=st.session_state[ms_key]["talk"], key=f"{ms_key}_t")
+
+    if all(st.session_state[ms_key].values()):
+        st.success("🎉 오늘의 미션 완료! 아주 좋아요.")
+
     st.markdown("</div>", unsafe_allow_html=True)
 # ---------------------------
 # Views
@@ -1886,6 +1988,7 @@ def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None
     q = st.text_input("검색 (단어/뜻/발음)", value=st.session_state.get("myp_wrongs_q", ""), key="myp_wrongs_q")
     only_repeat = st.toggle("🔥 반복 오답만 보기 (3회+)", value=st.session_state.get("myp_wrongs_repeat", False), key="myp_wrongs_repeat")
     per_page = st.select_slider("표시 개수", options=[10, 20, 30, 50, 100], value=10, key="myp_wrongs_per")
+sort_mode = st.selectbox("정렬", ["최근순", "반복순", "오래된순"], index=0, key="myp_wrongs_sort")
 
     def match(w: Dict[str, Any]) -> bool:
         jp = (w.get("jp_word") or "").lower()
@@ -1903,6 +2006,16 @@ def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None
 
     
     filtered = [w for w in wrongs if match(w)]
+    # ✅ 정렬
+    def _ca(w):
+        return _to_dt_kst(w.get("created_at")) or datetime(1970,1,1,tzinfo=timezone(timedelta(hours=9)))
+    if sort_mode == "오래된순":
+        filtered = sorted(filtered, key=_ca)  # asc
+    elif sort_mode == "반복순":
+        filtered = sorted(filtered, key=lambda w: (-(counts.get((w.get("jp_word") or "").strip(), 0)), _ca(w)), reverse=False)
+    else:
+        filtered = sorted(filtered, key=_ca, reverse=True)
+
     repeat_cnt = sum(1 for w in filtered if counts.get((w.get("jp_word") or "").strip(), 0) >= 3)
 
     # ✅ "더 보기" 리스트 시그니처 (필터/검색/표시개수 변경 시 표시 개수 리셋)
@@ -1911,6 +2024,7 @@ def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None
         str(q or "").strip().lower(),
         bool(only_repeat),
         int(per_page),
+        str(sort_mode),
     )
     if st.session_state.get("myp_wrongs_sig") != _sig:
         st.session_state["myp_wrongs_sig"] = _sig
@@ -1962,7 +2076,23 @@ def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None
     else:
         st.caption("끝까지 다 봤어요 🙂")
 
-    st.markdown("</div>", unsafe_allow_html=True)
+    
+    # ✅ 회화: 내 문장 모아보기(최근 20개)
+    with st.expander("🗣 내 문장 모아보기 (최근 20개)", expanded=False):
+        talk_lines = []
+        for w in (wrongs or []):
+            if _wrong_app_label(w) == "회화":
+                ua = (w.get("user_answer") or w.get("answer") or "").strip()
+                if ua:
+                    talk_lines.append(ua)
+        talk_lines = talk_lines[:20]
+        if not talk_lines:
+            st.caption("저장된 회화 문장이 아직 없습니다.")
+        else:
+            for i, line in enumerate(talk_lines, start=1):
+                st.markdown(f"{i}. {line}")
+
+st.markdown("</div>", unsafe_allow_html=True)
 
 
 def _render_records(attempts: List[Dict[str, Any]], attempts_status: str) -> None:
