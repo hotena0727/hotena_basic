@@ -935,27 +935,7 @@ def play_sfx(name: str) -> None:
         # absolute fallback (no JS): base64 wav
         if not b64:
             return
-        try:
-            components.html(
-                f"""<audio autoplay>
-  <source src="data:audio/wav;base64,{b64}" type="audio/wav">
-</audio>""",
-                height=0,
-            )
-        except Exception:
-            return
-    b64 = _SFX_WAV_B64.get(str(name).strip().lower())
-    if not b64:
-        return
-    try:
-        components.html(
-            f"""<audio autoplay>
-  <source src="data:audio/wav;base64,{b64}" type="audio/wav">
-</audio>""",
-            height=0,
-        )
-    except Exception:
-        return
+
 
 
 def play_sfx_once(key: str, name: str) -> None:
