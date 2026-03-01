@@ -2380,6 +2380,11 @@ if submitted:
                 if hasattr(audio_obj, "getvalue"):
                     _b = audio_obj.getvalue()
                 elif hasattr(audio_obj, "read"):
+                    try:
+                        if hasattr(audio_obj, "seek"):
+                            audio_obj.seek(0)
+                    except Exception:
+                        pass
                     _b = audio_obj.read()
                 _h = hashlib.sha1(_b).hexdigest() if _b else ""
             except Exception:
@@ -2393,15 +2398,25 @@ if submitted:
                 st.session_state.pop(_last_hash_key, None)
 
             if _h and st.session_state.get(_last_hash_key) != _h:
+                # ✅ (중요) 녹음이 새로 들어왔을 때 1회만 계산
                 st.session_state[_last_hash_key] = _h
                 st.session_state.pop(err_key, None)
-                with st.spinner("말하기 점수 계산 중..."):
+
+                # ✅ 계산 중에도 플레이어(파형/정지 상태)가 먼저 보이도록 placeholder로 진행상태 표시
+                _calc_ph = st.empty()
+                _calc_ph.info("말하기 점수 계산 중...")
+
+                try:
+                    _txt = _openai_transcribe_bytes(_b, mime=_mime)
+                    st.session_state[text_key] = _txt
+                    st.session_state[score_key] = _similarity_score(_txt, str(row.get("answer_jp", "")))
+                except Exception as _e:
+                    st.session_state[err_key] = str(_e)
+                finally:
                     try:
-                        _txt = _openai_transcribe_bytes(_b, mime=_mime)
-                        st.session_state[text_key] = _txt
-                        st.session_state[score_key] = _similarity_score(_txt, str(row.get("answer_jp", "")))
-                    except Exception as _e:
-                        st.session_state[err_key] = str(_e)
+                        _calc_ph.empty()
+                    except Exception:
+                        pass
 
         c_sc1, c_sc2 = st.columns([0.72, 0.28], vertical_alignment="center")
         with c_sc1:
