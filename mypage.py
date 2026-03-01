@@ -1777,10 +1777,23 @@ def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None
     with colQ2:
         quiz_n = st.selectbox("문항 수", options=[5, 10, 15, 20], index=1, key="myp_wrong_quiz_n")
 
-    # ✅ 선택한 앱만 필터(레거시/누락은 단어로 처리)
+    # ✅ 선택한 앱만 필터 (app / quiz_type 둘 다 지원)
+    # - hotena_basic.py: quiz_type='word' (app 컬럼이 없는 경우가 많음)
+    # - talk.py: quiz_type='talk'
+    # - 일부 스키마: app='word'/'kanji'/'talk' 등
     def _wrong_app_label(w: Dict[str, Any]) -> str:
         try:
-            return _app_label((w.get("app") or "").strip())
+            qt = (w.get("quiz_type") or w.get("type") or w.get("quiz") or "").lower().strip()
+            ap = (w.get("app") or "").lower().strip()
+            # quiz_type 우선
+            if qt in ("word", "vocab", "vocabulary"):
+                return "단어"
+            if qt in ("kanji",):
+                return "한자"
+            if qt in ("talk", "conversation", "speaking"):
+                return "회화"
+            # app fallback
+            return _app_label(ap)
         except Exception:
             return "단어"
 
