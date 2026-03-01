@@ -1687,27 +1687,6 @@ if submitted:
     correct = str(row.get("answer_jp", "")).strip()
     ok = (selected == correct)
 
-# ===============================
-# ✅ 제출 직후 안내 (복구)
-# - 발음 체크(녹음) 섹션 전에 표시
-# ===============================
-try:
-    with st.container(border=True):
-        if ok:
-            st.success("✅ 정답입니다.")
-        else:
-            st.error("❌ 오답입니다.")
-
-        # FREE 녹음 남은 횟수 안내 (오늘 기준)
-        try:
-            if not IS_PRO:
-                remr = _free_record_remaining()
-                st.caption(f"FREE 녹음 남은 횟수: {remr}/{FREE_RECORD_QUOTA} (오늘 기준)")
-        except Exception:
-            pass
-except Exception:
-    pass
-
     # ✅ 최근 2턴 저장(정답 제출 직후 1회만)
     try:
         snap_key = f"talk_turn_saved_{qid}"
@@ -1726,7 +1705,10 @@ except Exception:
 
 
     # ============================================================
-    # ✅ 오답 상세 저장 (wrong_notes) — 회화도 '단어/정답/내답' 기록
+        # (safety) ok 기본값 — 제출 전 NameError 방지
+    ok = True
+
+# ✅ 오답 상세 저장 (wrong_notes) — 회화도 '단어/정답/내답' 기록
     # ============================================================
     if not ok:
         try:
