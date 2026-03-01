@@ -4,5 +4,6 @@ pandas
 supabase
 python-dotenv
 streamlit-cookies-manager
+streamlit-mic-recorder
 openai>=1.30.0
 pykakasi
