@@ -184,7 +184,6 @@ def hotena_title(icon_path: str, title: str, size_px: int = 56, gap_px: int = 6,
 
 import ai_tutor
 
-import core
 # ============================================================
 # ✅ wrong_notes debug helper
 # ============================================================
@@ -773,56 +772,32 @@ def _levenshtein(a: str, b: str) -> int:
         prev = cur
     return prev[-1]
 
-def _lcs_ratio(a: str, b: str) -> float:
-    """순서 기반 LCS 비율(0~1).
-    분모는 정답(b)의 길이로 두어, '정답을 얼마나 순서대로 재현했는지'를 본다.
-    """
-    if not a or not b:
-        return 0.0
-    n, m = len(a), len(b)
-    prev = [0] * (m + 1)
-    for i in range(1, n + 1):
-        cur = [0] * (m + 1)
-        ca = a[i - 1]
-        for j in range(1, m + 1):
-            if ca == b[j - 1]:
-                cur[j] = prev[j - 1] + 1
-            else:
-                cur[j] = cur[j - 1] if cur[j - 1] >= prev[j] else prev[j]
-        prev = cur
-    lcs_len = prev[m]
-    return lcs_len / max(1, len(b))
-
-def _similarity_score(a: str, b: str, lcs_gate: float = 0.35, floor_to_zero: int = 30) -> int:
-    """발음 점수(0~100)
-
-    1) 순서 기반 LCS 게이트 35% 미만이면 바로 0점
-    2) 통과한 경우에만 레벤슈타인(편집거리) 점수 계산
-    3) 30점 미만은 다시 0점
-
-    기대 동작:
-    - 완전 다른 말 → 0점
-    - 조금 비슷 → 0~30
-    - 거의 맞음 → 70~100
+def _similarity_score(a: str, b: str, gate: float = 0.15, floor_to_zero: int = 15) -> int:
+    """발음 점수(0~100):
+    1) 2글자 bigram 겹침이 너무 적으면(완전 다른 문장) 0점
+    2) 편집거리(순서 포함) 기반 점수
+    3) 너무 낮은 점수는 0으로 정리(선택)
     """
     a2, b2 = _norm_jp(a), _norm_jp(b)
     if not a2 or not b2:
         return 0
 
-    # 1) LCS gate (order-aware)
-    if _lcs_ratio(a2, b2) < float(lcs_gate):
-        return 0
+    # 1) 완전 다른 문장 차단
+    ba = _bigrams(b2)
+    if ba:
+        overlap = len(_bigrams(a2) & ba) / max(1, len(ba))
+        if overlap < gate:
+            return 0
 
-    # 2) Levenshtein-based score (order-aware)
+    # 2) 순서 기반 점수(편집거리)
     dist = _levenshtein(a2, b2)
     max_len = max(len(a2), len(b2))
     score = int(round(100 * (1 - dist / max_len)))
 
-    # 3) floor cut
+    # 3) 바닥값 정리
     if score < int(floor_to_zero):
         return 0
     return max(0, min(100, score))
-
 
 def _openai_transcribe_bytes(audio_bytes: bytes, mime: str = "audio/wav") -> str:
     # OpenAI Python SDK (new) 사용. 없으면 예외로 안내.
@@ -836,35 +811,13 @@ def _openai_transcribe_bytes(audio_bytes: bytes, mime: str = "audio/wav") -> str
         raise RuntimeError("openai 패키지가 설치되어 있지 않습니다.") from e
 
     client = OpenAI(api_key=api_key)
-    # ✅ mime에 맞는 확장자를 붙여 파일명-포맷 불일치로 인한 STT 오동작을 줄입니다.
-    _ext_map = {
-        "audio/webm": ".webm",
-        "audio/ogg": ".ogg",
-        "audio/mpeg": ".mp3",
-        "audio/mp3": ".mp3",
-        "audio/wav": ".wav",
-        "audio/x-wav": ".wav",
-        "audio/mp4": ".m4a",
-        "audio/x-m4a": ".m4a",
-    }
-    _ext = _ext_map.get((mime or "").lower(), ".wav")
-    _fname = f"speech{_ext}"
     # 파일 객체 형태로 전달
-    file_tuple = (_fname, audio_bytes, mime)
+    file_tuple = ("speech.wav", audio_bytes, mime)
     try:
-        # ✅ 일본어 인식 안정화: 가능한 경우 language="ja"를 명시합니다.
-        try:
-            out = client.audio.transcriptions.create(
-                model=model,
-                file=file_tuple,
-                language="ja",
-            )
-        except TypeError:
-            # 구버전 SDK/호환 이슈: language 인자를 지원하지 않으면 자동 감지로 진행
-            out = client.audio.transcriptions.create(
-                model=model,
-                file=file_tuple,
-            )
+        out = client.audio.transcriptions.create(
+            model=model,
+            file=file_tuple,
+        )
         # SDK 버전에 따라 text 속성/문자열 반환이 다를 수 있어 안전 처리
         txt = getattr(out, "text", None)
         if isinstance(txt, str) and txt.strip():
@@ -1021,7 +974,6 @@ SUB_LABEL = {
     "basic": "기본",
     "daily": "일상",
     # understand 등에서 쓰는 값들
-    "confirm": "확인",    
     "mixed": "혼합",
 }
 
@@ -1734,16 +1686,6 @@ if submitted:
     correct = str(row.get("answer_jp", "")).strip()
     ok = (selected == correct)
 
-    # ✅ SFX (정답/오답) — 제출 1회당 1번만 재생 (Streamlit rerun 중복 방지)
-    try:
-        _sfx_key = f"talk_sfx_{qid}"
-        if hasattr(core, "play_sfx_once"):
-            core.play_sfx_once(_sfx_key, "correct" if ok else "wrong")
-        else:
-            core.play_sfx("correct" if ok else "wrong")
-    except Exception:
-        pass
-
     # ✅ 최근 2턴 저장(정답 제출 직후 1회만)
     try:
         snap_key = f"talk_turn_saved_{qid}"
@@ -2258,30 +2200,12 @@ if submitted:
                 # bytes로 복사해서 재생/후속 처리에 재사용합니다.
                 _rec_bytes_key = f"{qid}__rec_bytes"
                 try:
-                    if hasattr(_audio, "getvalue"):
-                        _ab = _audio.getvalue()
-                        # ✅ 일부 환경에서는 getvalue()도 내부 포인터를 움직일 수 있어,
-                        # audio_input 파형/미리듣기용으로 안전하게 되감기
-                        if hasattr(_audio, "seek"):
-                            _audio.seek(0)
-                    else:
-                        _ab = _audio.read()
-                        if hasattr(_audio, "seek"):
-                            _audio.seek(0)  # ✅ audio_input 내부 미리보기/파형용으로 되감기
+                    _ab = _audio.getvalue() if hasattr(_audio, "getvalue") else _audio.read()
                 except Exception:
                     _ab = None
-
                 if _ab:
                     st.session_state[_rec_bytes_key] = _ab
-                    _fmt = getattr(_audio, "type", None) or "audio/wav"
-                    _fmt = (_fmt or "audio/wav").split(";")[0].strip().lower()
-                    if _fmt == "video/webm":
-                        _fmt = "audio/webm"
-                    if _fmt in ("audio/x-wav", "audio/wave"):
-                        _fmt = "audio/wav"
-                    if not _fmt.startswith("audio/"):
-                        _fmt = "audio/wav"
-                    st.audio(_ab, format=_fmt)  # ✅ 실제 타입 기반(정규화)
+                    st.audio(_ab, format="audio/wav")
         else:
             remr = _free_record_remaining()
             if remr > 0:
@@ -2289,35 +2213,7 @@ if submitted:
                 _audio = st.audio_input("🎤 (무료) 내 발음을 녹음하고 들어보세요", key=f"{qid}_record_free_{_audio_nonce}")
                 if _audio is not None:
                     _use_free_record_once()
-                    # 🔧 audio_input 반환 객체를 그대로 st.audio에 넘기면(스트림 포인터/재렌더링 영향)
-                    # 일부 환경에서 'An error has occurred, please try again.'가 뜰 수 있어
-                    # bytes로 복사해서 재생/후속 처리에 재사용합니다.
-                    _rec_bytes_key = f"{qid}__rec_bytes"
-                    try:
-                        if hasattr(_audio, "getvalue"):
-                            _ab = _audio.getvalue()
-                            # ✅ 일부 환경에서는 getvalue()도 내부 포인터를 움직일 수 있어,
-                            # audio_input 파형/미리듣기용으로 안전하게 되감기
-                            if hasattr(_audio, "seek"):
-                                _audio.seek(0)
-                        else:
-                            _ab = _audio.read()
-                            if hasattr(_audio, "seek"):
-                                _audio.seek(0)  # ✅ audio_input 내부 미리보기/파형용으로 되감기
-                    except Exception:
-                        _ab = None
-
-                    if _ab:
-                        st.session_state[_rec_bytes_key] = _ab
-                        _fmt = getattr(_audio, "type", None) or "audio/wav"
-                    _fmt = (_fmt or "audio/wav").split(";")[0].strip().lower()
-                    if _fmt == "video/webm":
-                        _fmt = "audio/webm"
-                    if _fmt in ("audio/x-wav", "audio/wave"):
-                        _fmt = "audio/wav"
-                    if not _fmt.startswith("audio/"):
-                        _fmt = "audio/wav"
-                    st.audio(_ab, format=_fmt)  # ✅ 실제 타입 기반(정규화)
+                    st.audio(_audio)
             else:
                 st.markdown(
                     '''
@@ -2399,20 +2295,6 @@ if submitted:
                 _b = b""
                 _mime = "audio/wav"
                 _mime = getattr(audio_obj, "type", None) or "audio/wav"
-                mime = (mime or "audio/wav").split(";")[0].strip().lower()
-                if mime == "video/webm":
-                    mime = "audio/webm"
-                if mime in ("audio/x-wav","audio/wave"):
-                    mime = "audio/wav"
-                if not mime.startswith("audio/"):
-                    mime = "audio/wav"
-                _mime = (_mime or "audio/wav").split(";")[0].strip().lower()
-                if _mime == "video/webm":
-                    _mime = "audio/webm"
-                if _mime in ("audio/x-wav","audio/wave"):
-                    _mime = "audio/wav"
-                if not _mime.startswith("audio/"):
-                    _mime = "audio/wav"
                 if hasattr(audio_obj, "getvalue"):
                     _b = audio_obj.getvalue()
                 elif hasattr(audio_obj, "read"):
