@@ -1779,7 +1779,7 @@ def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None
 
     # ✅ 상단 요약 칩(한 줄 정렬): 총 / 반복오답 / 표시
     st.markdown(
-        f'<div class="ha-meta" style="margin-top:0;">'
+        f'<div class="ha-meta" style="margin-top:0; margin-bottom:12px;">'
         f'<span class="ha-chip">총 <b>{_num(len(filtered))}</b>개</span>'
         f'<span class="ha-chip">반복 오답 <b>{_num(repeat_cnt)}</b>개</span>'
         f'<span class="ha-chip">표시 <b>{_num(show_n)}</b> / <b>{_num(len(filtered))}</b></span>'
