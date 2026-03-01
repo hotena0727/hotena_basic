@@ -2060,15 +2060,31 @@ def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None
     q = st.text_input("검색 (단어/뜻/발음)", value=st.session_state.get("myp_wrongs_q", ""), key="myp_wrongs_q")
     only_repeat = st.toggle("🔥 반복 오답만 보기 (3회+)", value=st.session_state.get("myp_wrongs_repeat", False), key="myp_wrongs_repeat")
 
-    c_app, c_sort, c_per = st.columns([1.4, 1.0, 1.0], gap="small")
-    with c_app:
-        app_quick = st.radio("앱", ["전체", "단어", "한자", "회화"], horizontal=True, key="myp_wrongs_app_quick")
+    # ✅ 앱 필터(버튼 그룹) — 한 줄 고정(줄바꿈 방지)
+    if "myp_wrongs_app_quick" not in st.session_state:
+        st.session_state["myp_wrongs_app_quick"] = "전체"
+    _app_now = st.session_state.get("myp_wrongs_app_quick", "전체")
+
+    b1, b2, b3, b4 = st.columns(4, gap="small")
+    def _app_btn(label: str, col):
+        selected = (_app_now == label)
+        if col.button(label, use_container_width=True, type=("primary" if selected else "secondary"), key=f"myp_wrongs_appbtn_{label}"):
+            st.session_state["myp_wrongs_app_quick"] = label
+            st.rerun()
+
+    _app_btn("전체", b1)
+    _app_btn("단어", b2)
+    _app_btn("한자", b3)
+    _app_btn("회화", b4)
+
+    # ✅ 정렬 + 표시개수 (앱 버튼 아래로 내려서 깔끔하게)
+    c_sort, c_per = st.columns([1, 1], gap="small")
     with c_sort:
         sort_mode = st.selectbox("정렬", ["최근순", "반복순", "오래된순"], index=0, key="myp_wrongs_sort")
     with c_per:
         per_page = st.select_slider("표시 개수", options=[10, 20, 30, 50, 100], value=10, key="myp_wrongs_per")
 
-    # radio 결과를 기존 로직(app_selected 리스트)와 동일한 형태로 맞춤
+    app_quick = st.session_state.get("myp_wrongs_app_quick", "전체")
     app_selected = [] if app_quick == "전체" else [app_quick]
 
     def match(w: Dict[str, Any]) -> bool:
@@ -2081,12 +2097,20 @@ def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None
                 return False
         if only_repeat and counts.get((w.get("jp_word") or "").strip(), 0) < 3:
             return False
-        if app_selected and _app_label(w.get("app")) not in app_selected:
+        if app_selected and _wrong_app_label(w) not in app_selected:
             return False
         return True
 
     
     filtered = [w for w in wrongs if match(w)]
+    if not filtered:
+        if app_quick != "전체":
+            st.info(f"{app_quick}에서 조건에 맞는 오답이 없습니다. 🙂")
+        else:
+            st.info("조건에 맞는 오답이 없습니다. 🙂")
+        st.markdown("</div>", unsafe_allow_html=True)
+        return
+
     # ✅ 정렬
     def _ca(w):
         return _to_dt_kst(w.get("created_at")) or datetime(1970,1,1,tzinfo=timezone(timedelta(hours=9)))
