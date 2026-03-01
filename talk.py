@@ -762,6 +762,129 @@ def _set_talk_wrong_all(wrong: dict) -> None:
     except Exception:
         pass
 
+# ============================================================
+# ✅ '오늘의 복습' 세트 고정 저장 (하루 1세트)
+# - profiles.progress['talk']['today_review'][resume_key]에 저장
+#   { "date": "YYYY-MM-DD", "qids": [...], "done": {qid: "YYYY-MM-DD", ... } }
+# ============================================================
+def _get_talk_today_review_all() -> dict:
+    try:
+        prog = load_progress()
+        talk_prog = prog.get("talk") or {}
+        tr = talk_prog.get("today_review") or {}
+        return tr if isinstance(tr, dict) else {}
+    except Exception:
+        return {}
+
+def _set_talk_today_review_all(tr_all: dict) -> None:
+    try:
+        prog = load_progress()
+        talk_prog = prog.get("talk") or {}
+        talk_prog["today_review"] = tr_all if isinstance(tr_all, dict) else {}
+        prog["talk"] = talk_prog
+        save_progress(prog)
+    except Exception:
+        pass
+
+def _get_today_review_entry(resume_key: str) -> dict:
+    all_ = _get_talk_today_review_all()
+    ent = all_.get(resume_key) or {}
+    return ent if isinstance(ent, dict) else {}
+
+def _set_today_review_entry(resume_key: str, ent: dict) -> None:
+    all_ = _get_talk_today_review_all()
+    all_[resume_key] = ent if isinstance(ent, dict) else {}
+    _set_talk_today_review_all(all_)
+
+def _today_review_is_complete(resume_key: str) -> bool:
+    ent = _get_today_review_entry(resume_key)
+    qids = ent.get("qids") or []
+    done = ent.get("done") or {}
+    if not isinstance(qids, list):
+        return False
+    if not isinstance(done, dict):
+        done = {}
+    return (len(qids) > 0 and len(done) >= len(qids))
+
+def _today_review_mark_done(resume_key: str, qid: str) -> None:
+    try:
+        today = _kst_today_str()
+        ent = _get_today_review_entry(resume_key)
+        if (ent.get("date") or "") != today:
+            return
+        qids = ent.get("qids") or []
+        if qid not in [str(x) for x in qids]:
+            return
+        done = ent.get("done") or {}
+        if not isinstance(done, dict):
+            done = {}
+        done[str(qid)] = today
+        ent["done"] = done
+        _set_today_review_entry(resume_key, ent)
+    except Exception:
+        pass
+
+def _ensure_today_review_set(resume_key: str, pool_ids: list[str], n_target: int) -> list[str]:
+    """Return today's fixed set qids; create once per day."""
+    today = _kst_today_str()
+    ent = _get_today_review_entry(resume_key)
+
+    qids = ent.get("qids") if isinstance(ent, dict) else None
+    if isinstance(qids, list) and ent.get("date") == today:
+        pool_set = set(map(str, pool_ids))
+        kept = [str(q) for q in qids if str(q) in pool_set]
+        if len(kept) == len(qids) and len(kept) > 0:
+            return kept
+
+    pool_set = set(map(str, pool_ids))
+    n_target = max(1, int(n_target or 5))
+    chosen: list[str] = []
+
+    # (a) 틀린 것 우선 2개 (cnt desc, last desc)
+    wm = _get_wrong_map(resume_key)
+    items = []
+    for qid, v in (wm or {}).items():
+        qid = str(qid)
+        if qid not in pool_set:
+            continue
+        vv = v or {}
+        cnt = int(vv.get("cnt") or 0)
+        last = str(vv.get("last") or "")
+        items.append((qid, cnt, last))
+    items.sort(key=lambda x: (-x[1], x[2]), reverse=False)
+    for qid, *_ in items[:2]:
+        if qid not in chosen:
+            chosen.append(qid)
+
+    # (b) 오래된 것 2개 (mastery date asc)
+    mm = _get_mastered_map(resume_key)
+    old_items = []
+    for qid, d in (mm or {}).items():
+        qid = str(qid)
+        if qid in chosen:
+            continue
+        if qid not in pool_set:
+            continue
+        old_items.append((qid, str(d or "")))
+    old_items.sort(key=lambda x: x[1])
+    for qid, _d in old_items[:2]:
+        if qid not in chosen:
+            chosen.append(qid)
+
+    # (c) 랜덤으로 나머지 채움 (seeded: user_id+resume_key+today)
+    remain = [q for q in map(str, pool_ids) if q in pool_set and q not in chosen]
+    seed_src = f"{USER_ID}|{resume_key}|{today}"
+    seed = int(hashlib.md5(seed_src.encode('utf-8')).hexdigest()[:8], 16)
+    rng = random.Random(seed)
+    rng.shuffle(remain)
+    need = max(0, min(n_target, len(pool_ids)) - len(chosen))
+    chosen.extend(remain[:need])
+
+    ent_new = {"date": today, "qids": chosen, "done": {}}
+    _set_today_review_entry(resume_key, ent_new)
+    return chosen
+
+
 def _get_wrong_map(resume_key: str) -> dict:
     raw_all = _get_talk_wrong_all()
     raw = raw_all.get(resume_key) or {}
@@ -1634,46 +1757,16 @@ mode_key = f"{NS}_mode"
 review_opt_key = f"{NS}_review_opt"
 if st.session_state.get(mode_key) not in ("learn", "review"):
     st.session_state[mode_key] = "learn"
-if st.session_state.get(review_opt_key) not in ("random", "oldest", "mixed", "wrong"):
+if st.session_state.get(review_opt_key) not in ("random", "oldest", "mixed", "wrong", "today"):
     st.session_state[review_opt_key] = "random"
 
 def _make_review_qids(pool_df_: pd.DataFrame, resume_key_: str, opt: str, n_: int) -> list[str]:
     # 0) 🎯 오늘의 복습: 틀린 것2 + 오래된 것2 + 랜덤(나머지)
     if opt == "today":
         n_target = max(1, int(n_ or 5))
-        chosen: list[str] = []
         pool_ids = pool_df_["qid"].astype(str).tolist()
-        pool_set = set(pool_ids)
-        # (a) 틀린 것 우선 2개
-        wm = _get_wrong_map(resume_key_)
-        items = []
-        for qid, v in (wm or {}).items():
-            if str(qid) not in pool_set:
-                continue
-            vv = v or {}
-            cnt = int(vv.get("cnt") or 0)
-            last = str(vv.get("last") or "")
-            items.append((str(qid), cnt, last))
-        items.sort(key=lambda t: (t[1], t[2]), reverse=True)
-        for qid, _, _ in items[:2]:
-            if qid not in chosen:
-                chosen.append(qid)
-        # (b) 오래된 것 2개 (mastery 기준)
-        mm = _get_mastered_map(resume_key_)
-        mastered = [q for q in list(mm.keys()) if q in pool_set and q not in chosen]
-        if mastered:
-            mastered.sort(key=lambda q: (mm.get(str(q)) or "9999-12-31"))
-            for q in mastered[:2]:
-                if q not in chosen:
-                    chosen.append(str(q))
-        # (c) 랜덤 채우기
-        remain = [q for q in pool_ids if q not in set(chosen)]
-        need = max(0, n_target - len(chosen))
-        if need > 0 and remain:
-            import random as _rnd
-            _rnd.shuffle(remain)
-            chosen.extend(remain[:need])
-        return chosen[:min(n_target, len(chosen))]
+        return _ensure_today_review_set(resume_key_, pool_ids, n_target)
+
 
     # 1) 틀린 것 우선: 오답 누적(wrong)에서 뽑기
     if opt == "wrong":
@@ -1847,6 +1940,8 @@ if is_done:
 if mode == "review":
     _opt_label = {"wrong":"틀린 것", "random":"랜덤", "oldest":"오래된 것", "mixed":"혼합", "today":"오늘의 복습"}        .get(str(review_opt), str(review_opt))
     _badges.append(f'<span class="ha-talk-badge ha-talk-badge-review">🧠 복습 중 · {_opt_label}</span>')
+    if str(review_opt) == "today" and _today_review_is_complete(resume_key):
+        _badges.append('<span class="ha-talk-badge ha-talk-badge-ok">✅ 오늘의 복습 완료</span>')
 
 st.markdown(
     """
@@ -2205,7 +2300,15 @@ if submitted:
         except Exception:
             pass
 
-    # ✅ 오답 상세 저장 (wrong_notes) — 회화도 '단어/정답/내답' 기록
+    
+    # ✅ 오늘의 복습(하루 1세트 고정): 시도한 문제를 done으로 기록
+    try:
+        if st.session_state.get(mode_key) == "review" and st.session_state.get(review_opt_key) == "today":
+            _today_review_mark_done(resume_key, str(qid))
+    except Exception:
+        pass
+
+# ✅ 오답 상세 저장 (wrong_notes) — 회화도 '단어/정답/내답' 기록
     # ============================================================
     if not ok:
         try:
