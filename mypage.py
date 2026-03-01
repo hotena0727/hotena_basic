@@ -1276,6 +1276,29 @@ def _app_label(app: Optional[str]) -> str:
     return "단어"  # 안전: 기록은 기본 단어로 표시(‘기타’ 최소화)
 
 
+
+
+def _wrong_app_label(w: dict) -> str:
+    """Map a wrong_note row to one of: 단어/한자/회화.
+    Priority: quiz_type -> app -> default(단어).
+    This must be available before any UI renders (used in top summary/week widgets).
+    """
+    try:
+        qt = (w.get("quiz_type") or w.get("type") or w.get("quiz") or "").lower().strip()
+        ap = (w.get("app") or "").lower().strip()
+
+        if qt in ("word", "vocab", "vocabulary"):
+            return "단어"
+        if qt in ("kanji", "hanja"):
+            return "한자"
+        if qt in ("talk", "conversation", "speech", "speaking"):
+            return "회화"
+
+        return _app_label(ap) or "단어"
+    except Exception:
+        return "단어"
+
+
 def _pos_label(pos: Optional[str]) -> Optional[str]:
     p = (pos or "").strip()
     if not p:
