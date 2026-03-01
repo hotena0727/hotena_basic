@@ -1589,7 +1589,7 @@ def _render_week_widget(attempts: List[Dict[str, Any]]) -> None:
 
         # ✅ 앱별 표기(한눈에): 단어/한자/회화
         sub = f"{t}회"
-        sub2 = f"단어 {w} · 한자 {k} · 회화 {c}"
+        sub2 = f"""<div>단어 {w}</div><div>한자 {k}</div><div>회화 {c}</div>"""
 
         blocks.append(
             f"""
