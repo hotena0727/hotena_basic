@@ -39,24 +39,6 @@ import streamlit as st
 import core
 
 # ============================================================
-# ✅ SFX helper (발음 체크 정답 시 1회)
-# ============================================================
-
-def _play_pron_sfx_once(uid: str) -> None:
-    """발음 점수 100점(정답)일 때 효과음을 1회만 재생.
-    - core.play_sfx_once가 있으면 그걸 사용
-    - 없으면 core.play_sfx로 fallback
-    """
-    try:
-        if hasattr(core, "play_sfx_once"):
-            core.play_sfx_once(uid, "correct")
-        elif hasattr(core, "play_sfx"):
-            core.play_sfx("correct")
-    except Exception:
-        pass
-
-
-# ============================================================
 # ✅ 오늘의 회화 레벨 게이지(일일 완료 카운트)
 # ============================================================
 def _kst_today_str() -> str:
@@ -3094,12 +3076,6 @@ def _render_pron_a3cfa850():
                         _txt = _openai_transcribe_bytes(_b, mime=_mime)
                         st.session_state[text_key] = _txt
                         st.session_state[score_key] = _similarity_score(_txt, str(row.get("answer_jp", "")))
-                        # ✅ 발음 정답(100점) SFX 1회
-                        try:
-                            if int(st.session_state.get(score_key) or 0) >= 100:
-                                _play_pron_sfx_once(f"talk_pron_sfx_{qid}_{_h}")
-                        except Exception:
-                            pass
                     except Exception as _e:
                         st.session_state[err_key] = str(_e)
 
@@ -3128,13 +3104,6 @@ def _render_pron_a3cfa850():
                 txt = _openai_transcribe_bytes(b, mime=mime)
                 st.session_state[text_key] = txt
                 st.session_state[score_key] = _similarity_score(txt, str(row.get("answer_jp", "")))
-                # ✅ 발음 정답(100점) SFX 1회
-                try:
-                    _h2 = hashlib.sha1(b).hexdigest() if b else ""
-                    if int(st.session_state.get(score_key) or 0) >= 100 and _h2:
-                        _play_pron_sfx_once(f"talk_pron_sfx_{qid}_{_h2}")
-                except Exception:
-                    pass
                 st.session_state.pop(err_key, None)
             except Exception as e:
                 st.session_state[err_key] = str(e)
