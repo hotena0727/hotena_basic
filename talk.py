@@ -3176,15 +3176,29 @@ def _render_pron_a3cfa850():
         st.caption("정답을 보고 2~3번 따라 말해 보세요. 녹음이 끝나면 점수가 자동으로 계산됩니다.")
         reward_key = f"{NS}_reward_ready_{qid}"
         if st.button("✅ 다 했어요 (보상 받기)", use_container_width=True, key=f"{NS}_next_after"):
-            # ✅ 규칙: '녹음'을 했고, 점수가 100점일 때만 보상을 받습니다.
+            # ✅ 규칙:
+            # - '녹음'을 했고, 점수가 100점일 때만
+            # - 그리고 "보기 선택"이 정답(ok=True)일 때만 보상을 지급합니다.
             _sc = int(st.session_state.get(score_key) or 0) if st.session_state.get(score_key) is not None else 0
             _said = str(st.session_state.get(text_key) or "").strip()
-            if _said and _sc == 100:
+
+            _ok = None
+            try:
+                _am = st.session_state.get(f"{NS}_answers") or {}
+                _ok = (_am.get(qid) or {}).get("ok")
+            except Exception:
+                _ok = None
+
+            if (_ok is True) and _said and _sc == 100:
                 # ✅ 1단계: 보상만 보여주고, 다음 이동은 사용자가 명확히 누르도록 분리
                 st.session_state[reward_key] = True
                 _inc_today_speech_done(1)
             else:
-                st.warning("보상은 '녹음 + 100점'일 때만 받을 수 있어요. 지금 바로 녹음하고 100점을 만들어 보세요.")
+                # ✅ 발음 100점이라도, 문제 선택이 오답이면 보상은 지급하지 않음(정오답 판정 분리)
+                if (_ok is False) and _said and _sc == 100:
+                    st.warning("발음은 100점이지만, 문제 선택이 오답이라 보상은 지급되지 않습니다. (정답/발음은 별개로 관리돼요.)")
+                else:
+                    st.warning("보상은 '녹음 + 100점'일 때만 받을 수 있어요. 지금 바로 녹음하고 100점을 만들어 보세요.")
 
         # ✅ 보상 조건을 못 맞춰도, 다음 문제로는 넘어갈 수 있게(보상만 미지급)
         if st.button("➡️ 다음 문제로 (보상 없이)", use_container_width=True, key=f"{NS}_go_next_no_reward_{qid}"):
