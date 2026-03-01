@@ -1692,6 +1692,7 @@ def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None
                     index=opts.index(prev_ans[i]) if (i in prev_ans and prev_ans[i] in opts) else 0,
                     key=f"mq_{i}",
                     label_visibility="collapsed",
+                    disabled=bool(st.session_state.get("myp_wrong_quiz_done")),
                 )
 
             submitted = st.form_submit_button("채점하기", use_container_width=True)
@@ -1741,7 +1742,7 @@ def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None
     app_selected = _render_filter_chips("앱 필터", "myp_wrongs_app")
     q = st.text_input("검색 (단어/뜻/발음)", value=st.session_state.get("myp_wrongs_q", ""), key="myp_wrongs_q")
     only_repeat = st.toggle("🔥 반복 오답만 보기 (3회+)", value=st.session_state.get("myp_wrongs_repeat", False), key="myp_wrongs_repeat")
-    per_page = st.select_slider("표시 개수", options=[10, 20, 30, 50, 100], value=20, key="myp_wrongs_per")
+    per_page = st.select_slider("표시 개수", options=[10, 20, 30, 50, 100], value=10, key="myp_wrongs_per")
 
     def match(w: Dict[str, Any]) -> bool:
         jp = (w.get("jp_word") or "").lower()
@@ -1766,7 +1767,28 @@ def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None
     )
 
     max_page = max(1, (len(filtered) + per_page - 1) // per_page)
-    page = st.number_input("페이지", min_value=1, max_value=max_page, value=min(st.session_state.get("myp_wrongs_page", 1), max_page), step=1, key="myp_wrongs_page")
+
+    # ✅ '개발자스러운' number_input 대신: 이전/다음 + 현재/전체 표시(가벼움)
+    page = int(st.session_state.get("myp_wrongs_page", 1) or 1)
+    page = max(1, min(page, max_page))
+
+    cprev, cmid, cnext = st.columns([1, 4, 1], vertical_alignment="center")
+    with cprev:
+        if st.button("◀", use_container_width=True, key="myp_wrongs_prev", disabled=(page <= 1)):
+            st.session_state["myp_wrongs_page"] = page - 1
+            st.rerun()
+    with cmid:
+        st.markdown(
+            f'<div class="ha-meta" style="margin-top:0;">'
+            f'<span class="ha-chip">페이지 <b>{page}</b> / <b>{max_page}</b></span>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+    with cnext:
+        if st.button("▶", use_container_width=True, key="myp_wrongs_next", disabled=(page >= max_page)):
+            st.session_state["myp_wrongs_page"] = page + 1
+            st.rerun()
+
     start = (page - 1) * per_page
     chunk = filtered[start:start + per_page]
 
