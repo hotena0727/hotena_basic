@@ -1689,7 +1689,7 @@ def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None
                 st.radio(
                     "선택",
                     options=opts,
-                    index=opts.index(prev_ans[i]) if (i in prev_ans and prev_ans[i] in opts) else 0,
+                    index=opts.index(prev_ans[i]) if (i in prev_ans and prev_ans[i] in opts) else None,
                     key=f"mq_{i}",
                     label_visibility="collapsed",
                     disabled=bool(st.session_state.get("myp_wrong_quiz_done")),
@@ -1758,17 +1758,11 @@ def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None
             return False
         return True
 
+    
     filtered = [w for w in wrongs if match(w)]
     repeat_cnt = sum(1 for w in filtered if counts.get((w.get("jp_word") or "").strip(), 0) >= 3)
-    st.markdown(
-        f'<div class="ha-meta"><span class="ha-chip">총 <b>{_num(len(filtered))}</b>개</span>'
-        f'<span class="ha-chip">반복 오답 <b>{_num(repeat_cnt)}</b>개</span></div>',
-        unsafe_allow_html=True,
-    )
 
-    # ✅ 페이지네이션 제거 → "더 보기(10개 추가)" 방식
-    # - 기본 표시 개수(per_page)만큼 먼저 보여주고
-    # - 버튼을 누를 때마다 10개씩 추가로 펼칩니다.
+    # ✅ "더 보기" 리스트 시그니처 (필터/검색/표시개수 변경 시 표시 개수 리셋)
     _sig = (
         str(app_selected),
         str(q or "").strip().lower(),
@@ -1783,9 +1777,11 @@ def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None
     show_n = max(int(per_page), show_n)
     show_n = min(len(filtered), show_n)
 
-    # 상단 상태(몇 개 표시 중)
+    # ✅ 상단 요약 칩(한 줄 정렬): 총 / 반복오답 / 표시
     st.markdown(
         f'<div class="ha-meta" style="margin-top:0;">'
+        f'<span class="ha-chip">총 <b>{_num(len(filtered))}</b>개</span>'
+        f'<span class="ha-chip">반복 오답 <b>{_num(repeat_cnt)}</b>개</span>'
         f'<span class="ha-chip">표시 <b>{_num(show_n)}</b> / <b>{_num(len(filtered))}</b></span>'
         f'</div>',
         unsafe_allow_html=True,
