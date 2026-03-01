@@ -1779,9 +1779,9 @@ def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None
 
     if st.button("📝 오답으로 시험보기", use_container_width=True, key="myp_wrong_quiz_start"):
         if not wrongs_for_quiz:
-            st.info(f"{quiz_app}에서 최근 오답이 없어요. 🙂
+            st.info(f"""{quiz_app}에서 최근 오답이 없어요. 🙂
 
-상단 필터를 바꾸거나, 해당 훈련에서 먼저 문제를 풀어보세요.")
+상단 필터를 바꾸거나, 해당 훈련에서 먼저 문제를 풀어보세요.""")
         else:
             st.session_state["myp_wrong_quiz"] = _build_wrong_quiz_for_app(quiz_app, wrongs_for_quiz, int(quiz_n))
             st.session_state["myp_wrong_quiz_ans"] = {}
