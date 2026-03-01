@@ -1736,7 +1736,7 @@ def _render_top_summary(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, A
     <style>
     /* 상단 액션바 근처 버튼을 조금 더 컴팩트하게 */
     div[data-testid="stButton"] > button {
-        padding: 0.35rem 0.8rem;
+        padding: 0.4rem 1.0rem;
         font-size: 0.95rem;
         white-space: nowrap;
     }
@@ -1761,7 +1761,7 @@ def _render_top_summary(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, A
 
     with actR:
         # 오른쪽 정렬(스페이서 + 버튼 2개)
-        sp, b1, b2 = st.columns([4.6, 2.0, 4.4], gap="small", vertical_alignment="center")
+        sp, b1, b2 = st.columns([4.4, 2.6, 4.0], gap="small", vertical_alignment="center")
         with sp:
             st.markdown("<div></div>", unsafe_allow_html=True)
         with b1:
