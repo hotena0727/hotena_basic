@@ -39,7 +39,7 @@ import streamlit as st
 import core
 
 # ============================================================
-# ✅ 오늘의 회화 레벨 게이지(일일 완료 카운트) + 일본인 버전(간단 변환)
+# ✅ 오늘의 회화 레벨 게이지(일일 완료 카운트)
 # ============================================================
 def _kst_today_str() -> str:
     # 서버가 KST가 아닐 수 있으므로 +9 보정
@@ -112,26 +112,6 @@ def _inc_today_speech_done(n: int = 1) -> None:
         save_progress(prog)
     except Exception:
         pass
-
-_NATIVE_MAP = [
-    ("てもいいですか", "てもいい？"),
-    ("てもよろしいでしょうか", "てもいい？"),
-    ("でしょうか", "かな"),
-    ("お願いします", "お願い"),
-    ("ですか", "？"),
-]
-
-def _jp_native_variant(s: str) -> str:
-    t = (s or "").strip()
-    if not t:
-        return ""
-    out = t
-    for a, b in _NATIVE_MAP:
-        if a in out:
-            out = out.replace(a, b)
-    # 살짝 더 자연스럽게(너무 과하면 위험하니 최소만)
-    out = out.replace("。", "。").strip()
-    return out if out and out != t else ""
 
 
 # ============================================================
