@@ -1731,24 +1731,28 @@ def _render_top_summary(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, A
         # ✅ 사운드 토글을 홈/로그아웃 라인에 "이웃"하게 배치
         # ✅ 상단 우측 액션(홈/로그아웃) + 사운드 토글을 한 줄에 깔끔하게 배치
         # - 모바일/좁은 폭에서 글자가 두 줄로 깨지지 않게: 버튼은 내용폭 렌더(줄바꿈 없음)
-        left, right = st.columns([1.0, 3.0], gap="small")
+        # ✅ 상단: SOUND(ON/OFF) + 홈/로그아웃 (한 줄 유지)
+        # - 라디오(ON/OFF)로 상태가 명확하게 보이게
+        # - 버튼/라벨 줄바꿈 방지(CSS white-space:nowrap 적용)
+        left, right = st.columns([2.0, 2.0], gap="small")
 
         with left:
-            _cur_sfx = core.is_sfx_enabled(True)
-            _new_sfx = st.toggle("소리", value=bool(_cur_sfx), key="myp_sfx_toggle_top", label_visibility="collapsed")
+            _cur_sfx = bool(core.is_sfx_enabled(True))
+            _opt = "ON" if _cur_sfx else "OFF"
+            _sel = st.radio("SOUND", options=["ON","OFF"], index=(0 if _opt=="ON" else 1), horizontal=True, key="myp_sfx_sound_radio")
+            _new_sfx = (_sel == "ON")
             if bool(_new_sfx) != bool(_cur_sfx):
                 core.set_sfx_enabled(bool(_new_sfx))
                 st.toast("사운드 설정이 저장되었습니다.")
 
         with right:
-            b1, b2 = st.columns([1.0, 1.0], gap="small")
+            b1, b2 = st.columns([1.1, 1.3], gap="small")
             with b1:
-                if st.button("🏠 홈", key="myp_v4_home"):
+                if st.button("🏠 홈", key="myp_v4_home", use_container_width=True):
                     _go_home()
             with b2:
-                if st.button("로그아웃", key="myp_v4_logout"):
+                if st.button("로그아웃", key="myp_v4_logout", use_container_width=True):
                     _logout()
-    st.markdown('<div style="margin-top:10px;"></div>', unsafe_allow_html=True)
     st.markdown(
         f"""
 <div class="ha-row">
