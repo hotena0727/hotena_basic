@@ -856,80 +856,67 @@ _SFX_WAV_B64 = {
     "reward": _sfx__wav_b64([(660, 0.050, 0.45), (0, 0.010, 0.0), (880, 0.050, 0.45), (0, 0.010, 0.0), (1320, 0.070, 0.45)]),
 }
 
-# --- Remote mp3 SFX (URL) preference ---
-# If set, we try to play mp3 from this base URL first.
-# Example: https://hotena.com/hotena/app/mp3/sfx/
-SFX_BASE_URL = (get_cfg("HATENA_SFX_BASE_URL") or "https://hotena.com/hotena/app/mp3/sfx/").strip()
-
-# Map sfx name -> filename in SFX_BASE_URL
-SFX_MP3_FILES = {
-    "click": "click.mp3",
-    "correct": "correct.mp3",
-    "wrong": "wrong.mp3",
-    "reward": "reward.mp3",
-}
-
 def play_sfx(name: str) -> None:
     """Play a short SFX (best effort).
     Priority:
-      1) Remote mp3 URL (SFX_BASE_URL + mapped filename)
-      2) Embedded wav (base64) fallback
-    IMPORTANT: Uses a single <audio> tag and falls back on 'error' event to avoid double-play.
+      1) External MP3 at SFX_BASE_URL (if mapped)
+      2) Fallback to embedded WAV (base64) already defined in _SFX_WAV_B64
+    NOTE: We must avoid double-play. Fallback triggers ONLY on MP3 load error.
     """
     if not is_sfx_enabled(True):
         return
 
     key = str(name).strip().lower()
     b64 = _SFX_WAV_B64.get(key)
-    mp3_fn = SFX_MP3_FILES.get(key)
-
-    # If nothing matches, do nothing.
-    if (not mp3_fn) and (not b64):
+    if not b64 and key not in SFX_MP3_FILES:
         return
 
-    # Build sources
-    mp3_url = ""
-    if mp3_fn and SFX_BASE_URL:
-        mp3_url = SFX_BASE_URL.rstrip("/") + "/" + mp3_fn
+    # Build mp3 url if mapped
+    fn = SFX_MP3_FILES.get(key)
+    mp3_url = (SFX_BASE_URL.rstrip("/") + "/" + fn) if fn else ""
 
-    wav_data = f"data:audio/wav;base64,{b64}" if b64 else ""
-
-    # Unique DOM id per call to avoid collisions across reruns/iframes.
-    uid = f"ha_sfx_{key}_{hashlib.md5((key + str(datetime.utcnow().timestamp())).encode()).hexdigest()[:8]}"
+    # Unique element id per call to avoid Streamlit rerun caching
+    _uid = "ha_sfx_" + str(int(time.time() * 1000)) + "_" + "".join(random.choice("abcdef0123456789") for _ in range(6))
 
     try:
         components.html(
             f"""
-<audio id="{uid}" preload="auto"></audio>
+<audio id="{_uid}" preload="auto" playsinline></audio>
 <script>
 (function() {{
-  const a = document.getElementById("{uid}");
+  const a = document.getElementById("{_uid}");
   if (!a) return;
 
-  const mp3 = {json.dumps(mp3_url)};
-  const wav = {json.dumps(wav_data)};
+  const mp3 = {mp3_url!r};
+  const wav = "data:audio/wav;base64,{b64 or ""}";
+
+  let triedFallback = false;
 
   function safePlay() {{
     try {{
       a.currentTime = 0;
       const p = a.play();
-      if (p && p.catch) p.catch(()=>{{}});
+      if (p && p.catch) p.catch(function(){{}});
     }} catch(e) {{}}
   }}
 
-  // Fallback to embedded wav only if mp3 fails to load.
+  a.onerror = function() {{
+    if (triedFallback) return;
+    triedFallback = true;
+    if (!wav || wav.length < 30) return;
+    a.src = wav;
+    // give browser a tick to load the data URL
+    setTimeout(safePlay, 0);
+  }};
+
+  // Try mp3 first if provided; otherwise play wav immediately
   if (mp3) {{
-    a.onerror = function() {{
-      if (!wav) return;
-      a.onerror = null;
-      a.src = wav;
-      safePlay();
-    }};
     a.src = mp3;
-    safePlay();
+    // attempt play soon after setting src; if blocked, user gesture should allow on submit click
+    setTimeout(safePlay, 0);
   }} else if (wav) {{
     a.src = wav;
-    safePlay();
+    setTimeout(safePlay, 0);
   }}
 }})();
 </script>
@@ -937,7 +924,18 @@ def play_sfx(name: str) -> None:
             height=0,
         )
     except Exception:
-        return
+        # As a last resort, try the old embedded wav-only behavior
+        if b64:
+            try:
+                components.html(
+                    f"""<audio autoplay>
+  <source src="data:audio/wav;base64,{b64}" type="audio/wav">
+</audio>""",
+                    height=0,
+                )
+            except Exception:
+                return
+
 
 def play_sfx_once(key: str, name: str) -> None:
     """Play SFX only once per given key (guards Streamlit reruns).
