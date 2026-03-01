@@ -1766,31 +1766,34 @@ def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None
         unsafe_allow_html=True,
     )
 
-    max_page = max(1, (len(filtered) + per_page - 1) // per_page)
+    # ✅ 페이지네이션 제거 → "더 보기(10개 추가)" 방식
+    # - 기본 표시 개수(per_page)만큼 먼저 보여주고
+    # - 버튼을 누를 때마다 10개씩 추가로 펼칩니다.
+    _sig = (
+        str(app_selected),
+        str(q or "").strip().lower(),
+        bool(only_repeat),
+        int(per_page),
+    )
+    if st.session_state.get("myp_wrongs_sig") != _sig:
+        st.session_state["myp_wrongs_sig"] = _sig
+        st.session_state["myp_wrongs_show_n"] = int(per_page)
 
-    # ✅ '개발자스러운' number_input 대신: 이전/다음 + 현재/전체 표시(가벼움)
-    page = int(st.session_state.get("myp_wrongs_page", 1) or 1)
-    page = max(1, min(page, max_page))
+    show_n = int(st.session_state.get("myp_wrongs_show_n", per_page) or per_page)
+    show_n = max(int(per_page), show_n)
+    show_n = min(len(filtered), show_n)
 
-    cprev, cmid, cnext = st.columns([1, 4, 1], vertical_alignment="center")
-    with cprev:
-        if st.button("◀", key="myp_wrongs_prev", disabled=(page <= 1)):
-            st.session_state["myp_wrongs_page"] = page - 1
-            st.rerun()
-    with cmid:
-        st.markdown(
-            f'<div class="ha-meta" style="margin-top:0;">'
-            f'<span class="ha-chip">페이지 <b>{page}</b> / <b>{max_page}</b></span>'
-            f'</div>',
-            unsafe_allow_html=True,
-        )
-    with cnext:
-        if st.button("▶", key="myp_wrongs_next", disabled=(page >= max_page)):
-            st.session_state["myp_wrongs_page"] = page + 1
-            st.rerun()
+    # 상단 상태(몇 개 표시 중)
+    st.markdown(
+        f'<div class="ha-meta" style="margin-top:0;">'
+        f'<span class="ha-chip">표시 <b>{_num(show_n)}</b> / <b>{_num(len(filtered))}</b></span>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
 
-    start = (page - 1) * per_page
-    chunk = filtered[start:start + per_page]
+    # 표시 목록
+    chunk = filtered[:show_n]
+
 
     for w in chunk:
         jp = w.get("jp_word") or "-"
@@ -1808,6 +1811,17 @@ def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None
                 st.markdown(f"**발음**: {w.get('reading') or '-'}")
                 st.markdown(f"**뜻**: {w.get('meaning') or '-'}")
             st.caption(f"저장: {dt}")
+
+
+    # ✅ 더 보기 버튼 (10개씩 추가)
+    if show_n < len(filtered):
+        c_more1, c_more2, c_more3 = st.columns([1, 2, 1])
+        with c_more2:
+            if st.button("더 보기 (+10개)", key="myp_wrongs_more", use_container_width=True):
+                st.session_state["myp_wrongs_show_n"] = min(len(filtered), show_n + 10)
+                st.rerun()
+    else:
+        st.caption("끝까지 다 봤어요 🙂")
 
     st.markdown("</div>", unsafe_allow_html=True)
 
