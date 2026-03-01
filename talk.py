@@ -974,6 +974,7 @@ SUB_LABEL = {
     "basic": "기본",
     "daily": "일상",
     # understand 등에서 쓰는 값들
+    "confirm": "확인",    
     "mixed": "혼합",
 }
 
@@ -2208,7 +2209,7 @@ if submitted:
                             _audio.seek(0)  # ✅ audio_input 내부 미리보기/파형용으로 되감기
                 except Exception:
                     _ab = None
-    
+
                 if _ab:
                     st.session_state[_rec_bytes_key] = _ab
                     _fmt = getattr(_audio, "type", None) or "audio/wav"
