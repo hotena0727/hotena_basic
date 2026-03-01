@@ -1754,7 +1754,6 @@ def _render_top_summary(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, A
             st.markdown(
                 f"<div style='display:flex; align-items:center; gap:10px; white-space:nowrap;'>"
                 f"<span style='font-weight:800;'>🔊 소리</span>"
-                f"<span style='font-size:0.95rem; opacity:0.75; font-weight:800;'>{'ON' if _new_sfx else 'OFF'}</span>"
                 f"</div>",
                 unsafe_allow_html=True,
             )
