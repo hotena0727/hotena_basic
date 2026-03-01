@@ -36,6 +36,8 @@ except Exception:
 import pandas as pd
 import streamlit as st
 
+import core
+
 # ============================================================
 # ✅ 오늘의 회화 레벨 게이지(일일 완료 카운트) + 일본인 버전(간단 변환)
 # ============================================================
@@ -974,7 +976,6 @@ SUB_LABEL = {
     "basic": "기본",
     "daily": "일상",
     # understand 등에서 쓰는 값들
-    "confirm": "확인",    
     "mixed": "혼합",
 }
 
@@ -1687,6 +1688,19 @@ if submitted:
     correct = str(row.get("answer_jp", "")).strip()
     ok = (selected == correct)
 
+    # ✅ 제출 직후 SFX(정답/오답) — 문제(qid)당 1회만
+    try:
+        _sfx_guard = f"talk_sfx_{qid}"
+        if not st.session_state.get(_sfx_guard, False):
+            if hasattr(core, "play_sfx_once"):
+                core.play_sfx_once(_sfx_guard, "correct" if ok else "wrong")
+            elif hasattr(core, "play_sfx"):
+                core.play_sfx("correct" if ok else "wrong")
+            st.session_state[_sfx_guard] = True
+    except Exception:
+        pass
+
+
     # ✅ 최근 2턴 저장(정답 제출 직후 1회만)
     try:
         snap_key = f"talk_turn_saved_{qid}"
@@ -2209,7 +2223,7 @@ if submitted:
                             _audio.seek(0)  # ✅ audio_input 내부 미리보기/파형용으로 되감기
                 except Exception:
                     _ab = None
-
+    
                 if _ab:
                     st.session_state[_rec_bytes_key] = _ab
                     _fmt = getattr(_audio, "type", None) or "audio/wav"
