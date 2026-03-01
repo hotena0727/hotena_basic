@@ -2175,6 +2175,44 @@ def _speak_no_player(text: str) -> None:
     except Exception:
         pass
 
+
+
+# ===============================
+# ✅ 제출 결과 요약 (정답 제출 후 → 발음 체크 전에)
+# ===============================
+if submitted:
+    try:
+        _correct = str(row.get("answer_jp", "")).strip()
+        _selected = str(selected or "").strip()
+        _ok = (_selected == _correct)
+    except Exception:
+        _correct = ""
+        _selected = ""
+        _ok = False
+
+    with st.container(border=True):
+        if _ok:
+            st.success("✅ 정답입니다.")
+        else:
+            st.error("❌ 오답입니다.")
+        if _selected or _correct:
+            st.caption(f"내 답: **{_selected}**  ·  정답: **{_correct}**")
+
+        # FREE 남은 횟수 안내(있을 때만)
+        try:
+            if not IS_PRO:
+                _rem_tts = _free_tts_remaining() if callable(globals().get("_free_tts_remaining")) else None
+                _rem_rec = _free_record_remaining() if callable(globals().get("_free_record_remaining")) else None
+                parts = []
+                if _rem_tts is not None:
+                    parts.append(f"발음 {int(_rem_tts)}/{int(FREE_TTS_QUOTA)}")
+                if _rem_rec is not None:
+                    parts.append(f"녹음 {int(_rem_rec)}/{int(FREE_RECORD_QUOTA)}")
+                if parts:
+                    st.caption("무료 남은 횟수: " + " · ".join(parts))
+        except Exception:
+            pass
+
 if submitted:
     with st.container(border=True):
         total_cnt = len(qids)
