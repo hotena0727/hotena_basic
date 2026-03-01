@@ -993,6 +993,9 @@ div.block-container > div:first-child{
   margin-top: 2px !important;
 }
 
+
+/* Prevent top action buttons from wrapping */
+div.stButton > button { white-space: nowrap !important; }
 </style>"""
     css = css.replace("__BLUE__", str(HATENA_BLUE))
     st.markdown(css, unsafe_allow_html=True)
@@ -1734,25 +1737,30 @@ def _render_top_summary(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, A
         # ✅ 상단: SOUND(ON/OFF) + 홈/로그아웃 (한 줄 유지)
         # - 라디오(ON/OFF)로 상태가 명확하게 보이게
         # - 버튼/라벨 줄바꿈 방지(CSS white-space:nowrap 적용)
-        left, right = st.columns([2.0, 2.0], gap="small")
+        # ✅ 상단: SOUND 토글 + 홈/로그아웃 (한 줄 유지)
+        # - 라디오 대신 토글 + ON/OFF 텍스트로 더 컴팩트하게
+        # - 좁은 폭에서도 버튼이 줄바꿈되지 않도록(white-space:nowrap)
+        c_sound, c_home, c_logout = st.columns([1.7, 1.1, 1.4], gap="small", vertical_alignment="center")
 
-        with left:
+        with c_sound:
             _cur_sfx = bool(core.is_sfx_enabled(True))
-            _opt = "ON" if _cur_sfx else "OFF"
-            _sel = st.radio("SOUND", options=["ON","OFF"], index=(0 if _opt=="ON" else 1), horizontal=True, key="myp_sfx_sound_radio")
-            _new_sfx = (_sel == "ON")
-            if bool(_new_sfx) != bool(_cur_sfx):
-                core.set_sfx_enabled(bool(_new_sfx))
-                st.toast("사운드 설정이 저장되었습니다.")
+            _new_sfx = st.toggle("🔊", value=_cur_sfx, key="myp_sfx_toggle", label_visibility="collapsed")
+            core.set_sfx_enabled(bool(_new_sfx))
+            st.markdown(
+                f"<div style='display:inline-flex; gap:8px; align-items:center; white-space:nowrap;'>"
+                f"<span style='font-weight:700; letter-spacing:0.2px;'>SOUND</span>"
+                f"<span style='font-size:0.95rem; opacity:0.8; font-weight:700;'>{'ON' if _new_sfx else 'OFF'}</span>"
+                f"</div>",
+                unsafe_allow_html=True,
+            )
 
-        with right:
-            b1, b2 = st.columns([1.1, 1.3], gap="small")
-            with b1:
-                if st.button("🏠 홈", key="myp_v4_home", use_container_width=True):
-                    _go_home()
-            with b2:
-                if st.button("로그아웃", key="myp_v4_logout", use_container_width=True):
-                    _logout()
+        with c_home:
+            if st.button("🏠 홈", key="myp_v4_home", use_container_width=True):
+                _go_home()
+
+        with c_logout:
+            if st.button("🚪 로그아웃", key="myp_v4_logout", use_container_width=True):
+                _logout()
     st.markdown(
         f"""
 <div class="ha-row">
