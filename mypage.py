@@ -1674,35 +1674,49 @@ def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None
     if quiz:
         st.markdown('<div class="ha-card" style="padding:12px 12px;">', unsafe_allow_html=True)
         st.markdown('<div class="ha-card-title">오답 시험</div>', unsafe_allow_html=True)
-        ans = st.session_state.get("myp_wrong_quiz_ans") or {}
-        for i, qitem in enumerate(quiz, start=1):
-            title = f"**{i}. {qitem['jp_word']}**"
-            if qitem.get("reading"):
-                title += f"  _( {qitem.get('reading')} )_"
-            st.markdown(title)
-            opts = qitem["options"]
-            ans[i] = st.radio(
-                "선택",
-                options=opts,
-                index=opts.index(ans[i]) if i in ans and ans[i] in opts else 0,
-                key=f"mq_{i}",
-                label_visibility="collapsed",
-            )
-        st.session_state["myp_wrong_quiz_ans"] = ans
 
-        c1, c2 = st.columns([1, 1], gap="small")
-        with c1:
-            if st.button("채점하기", use_container_width=True, key="myp_wrong_quiz_grade"):
-                st.session_state["myp_wrong_quiz_done"] = True
-                st.rerun()
-        with c2:
-            if st.button("시험 닫기", use_container_width=True, key="myp_wrong_quiz_close"):
-                st.session_state["myp_wrong_quiz"] = []
-                st.session_state["myp_wrong_quiz_ans"] = {}
-                st.session_state["myp_wrong_quiz_done"] = False
-                st.rerun()
+        # ✅ radio 선택으로 매번 rerun 되지 않도록: 폼으로 감싸서 "채점하기" 때만 제출/채점
+        prev_ans = st.session_state.get("myp_wrong_quiz_ans") or {}
 
+        with st.form("myp_wrong_quiz_form", clear_on_submit=False):
+            for i, qitem in enumerate(quiz, start=1):
+                title = f"**{i}. {qitem['jp_word']}**"
+                if qitem.get("reading"):
+                    title += f"  _( {qitem.get('reading')} )_"
+                st.markdown(title)
+
+                opts = qitem["options"]
+                st.radio(
+                    "선택",
+                    options=opts,
+                    index=opts.index(prev_ans[i]) if (i in prev_ans and prev_ans[i] in opts) else 0,
+                    key=f"mq_{i}",
+                    label_visibility="collapsed",
+                )
+
+            submitted = st.form_submit_button("채점하기", use_container_width=True)
+
+        # ✅ 제출(채점) 버튼을 눌렀을 때만 답을 모아 저장 + done 처리
+        if submitted:
+            ans = {}
+            for i in range(1, len(quiz) + 1):
+                ans[i] = st.session_state.get(f"mq_{i}")
+            st.session_state["myp_wrong_quiz_ans"] = ans
+            st.session_state["myp_wrong_quiz_done"] = True
+            st.rerun()
+
+        # 닫기 버튼은 폼 밖(즉시 동작)
+        if st.button("시험 닫기", use_container_width=True, key="myp_wrong_quiz_close"):
+            st.session_state["myp_wrong_quiz"] = []
+            st.session_state["myp_wrong_quiz_ans"] = {}
+            st.session_state["myp_wrong_quiz_done"] = False
+            for i in range(1, len(quiz) + 1):
+                st.session_state.pop(f"mq_{i}", None)
+            st.rerun()
+
+        # ✅ 결과표시는 세션에 저장된 답으로 계산
         if st.session_state.get("myp_wrong_quiz_done"):
+            ans = st.session_state.get("myp_wrong_quiz_ans") or {}
             correct_cnt = 0
             for i, qitem in enumerate(quiz, start=1):
                 if ans.get(i) == qitem["correct"]:
@@ -1711,7 +1725,10 @@ def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None
             with st.expander("오답만 보기", expanded=False):
                 for i, qitem in enumerate(quiz, start=1):
                     if ans.get(i) != qitem["correct"]:
-                        st.markdown(f"- **{i}. {qitem['jp_word']}** → 정답: **{qitem['correct']}** / 선택: {ans.get(i)}")
+                        st.markdown(
+                            f"- **{i}. {qitem['jp_word']}** → 정답: **{qitem['correct']}** / 선택: {ans.get(i)}"
+                        )
+
         st.markdown("</div>", unsafe_allow_html=True)
         st.divider()
 
