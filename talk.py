@@ -2960,14 +2960,17 @@ if submitted:
             _pending_rerun_key = f"talk_pron_pending_rerun_{qid}"
             need_autorun = False
 
+            _prev_pending = bool(st.session_state.get(_pending_rerun_key, False))
+
             # 1) 새 녹음(hash)이 들어왔는데 아직 계산 전이면: pending 표시만 하고 1회 rerun 예약
-            if _h and st.session_state.get(_last_hash_key) != _h and not st.session_state.get(_pending_rerun_key, False):
+            #    (중요) 같은 run에서 바로 계산까지 하지 않도록, 이전 pending 상태(_prev_pending)로 분기합니다.
+            if _h and st.session_state.get(_last_hash_key) != _h and not _prev_pending:
                 st.session_state[_pending_hash_key] = _h
                 st.session_state[_pending_rerun_key] = True
                 need_autorun = True
 
             # 2) pending 상태(바로 다음 rerun)에서 실제 계산
-            if _h and st.session_state.get(_last_hash_key) != _h and st.session_state.get(_pending_rerun_key, False):
+            elif _h and st.session_state.get(_last_hash_key) != _h and _prev_pending:
                 if st.session_state.get(_pending_hash_key) == _h:
                     st.session_state[_last_hash_key] = _h
                     st.session_state.pop(err_key, None)
