@@ -1847,7 +1847,24 @@ def _render_top_summary(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, A
         font-size: 0.95rem;
         white-space: nowrap;
     }
-    </style>
+    
+/* ========= 오답 리스트(미니멀/밀도) ========= */
+.ha-wronglist div[data-testid="stExpander"]{
+  margin: 0 0 10px 0 !important; /* 카드 간격 */
+}
+.ha-wronglist div[data-testid="stExpander"] details{
+  border: 1px solid var(--ha-line) !important;
+  border-radius: 16px !important;
+  background: var(--ha-bg) !important;
+  box-shadow: none !important;
+}
+.ha-wronglist div[data-testid="stExpander"] summary{
+  padding: 10px 14px !important;
+}
+.ha-wronglist div[data-testid="stExpander"] div[role="region"]{
+  padding: 6px 14px 12px 14px !important;
+}
+</style>
     """, unsafe_allow_html=True)
 
     actL, actR = st.columns([4.6, 5.4], vertical_alignment="center")
@@ -2277,6 +2294,8 @@ def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None
 
     # 표시 목록
     chunk = filtered[:show_n]
+    st.markdown('<div class="ha-wronglist">', unsafe_allow_html=True)
+
 
 
     for w in chunk:
@@ -2301,6 +2320,8 @@ def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None
             meaning = w.get("meaning") or "-"
             st.markdown(f"**정답** {ca}  ·  **내답** {ua}")
             st.caption(f"{meaning}  ·  저장: {dt}")
+    st.markdown('</div>', unsafe_allow_html=True)
+
 
 
     # ✅ 더 보기 버튼 (10개씩 추가)
