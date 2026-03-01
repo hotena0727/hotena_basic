@@ -1846,6 +1846,10 @@ def _render_top_summary(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, A
         unsafe_allow_html=True,
     )
 
+    # ✅ 최근 7일 학습
+    _render_week_widget(attempts)
+
+
 
 
     # 추천 1줄(규칙 기반)
@@ -1920,9 +1924,6 @@ def _render_top_summary(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, A
                     st.info("아직 저장된 오답이 없습니다.")
             except Exception:
                 st.info("오답을 불러오는 중 문제가 생겼습니다. 잠시 후 다시 시도해 주세요.")
-
-    # ✅ 최근 7일 학습(요약 카드 아래)
-    _render_week_widget(attempts)
 
     st.markdown("</div>", unsafe_allow_html=True)
 # ---------------------------
