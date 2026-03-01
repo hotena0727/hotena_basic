@@ -1854,15 +1854,15 @@ def _render_top_summary(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, A
 }
 .ha-wronglist div[data-testid="stExpander"] details{
   border: 1px solid var(--ha-line) !important;
-  border-radius: 16px !important;
+  border-radius: 14px !important;
   background: var(--ha-bg) !important;
   box-shadow: none !important;
 }
 .ha-wronglist div[data-testid="stExpander"] summary{
-  padding: 10px 14px !important;
+  padding: 8px 14px !important;
 }
 .ha-wronglist div[data-testid="stExpander"] div[role="region"]{
-  padding: 6px 14px 12px 14px !important;
+  padding: 4px 14px 10px 14px !important;
 }
 </style>
     """, unsafe_allow_html=True)
@@ -2317,9 +2317,11 @@ def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None
             )
             ca = w.get("correct_answer") or "-"
             ua = w.get("user_answer") or "-"
-            meaning = w.get("meaning") or "-"
+            meaning = (w.get("meaning") or "").strip()
             st.markdown(f"**정답** {ca}  ·  **내답** {ua}")
-            st.caption(f"{meaning}  ·  저장: {dt}")
+            if meaning:
+                st.caption(meaning)
+            st.caption(f"저장 {dt}")
     st.markdown('</div>', unsafe_allow_html=True)
 
 
