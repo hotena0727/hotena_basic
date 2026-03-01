@@ -996,6 +996,36 @@ div.block-container > div:first-child{
 
 /* Prevent top action buttons from wrapping */
 div.stButton > button { white-space: nowrap !important; }
+
+/* ✅ Minimal wrong-card expander */
+div[data-testid="stExpander"]{
+  border:1px solid var(--ha-line) !important;
+  border-radius:14px !important;
+  overflow:hidden !important;
+  background: var(--ha-bg) !important;
+  margin: 10px 0 !important;
+}
+div[data-testid="stExpander"] details summary{
+  padding: 12px 14px !important;
+}
+div[data-testid="stExpander"] details summary p{
+  margin:0 !important;
+  font-weight: 700 !important;
+}
+.ha-wrong-meta{
+  display:flex; gap:8px; flex-wrap:wrap;
+  margin: 4px 0 10px 0;
+}
+.ha-chip-sm{
+  display:inline-flex; align-items:center;
+  padding:4px 10px;
+  border-radius:999px;
+  background: var(--ha-chip);
+  border:1px solid var(--ha-line);
+  font-size:12px;
+  color: var(--ha-sub);
+}
+
 </style>"""
     css = css.replace("__BLUE__", str(HATENA_BLUE))
     st.markdown(css, unsafe_allow_html=True)
@@ -2177,43 +2207,32 @@ def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None
         level = w.get("level") or "-"
         dt = _fmt_dt(w.get("created_at"))
         rep = counts.get((w.get("jp_word") or "").strip(), 0)
-        header = f"{jp}  ·  {app}  ·  Lv {level}" + (f"  ·  🔥 {rep}회" if rep >= 3 else "")
+        header = f"{jp}" + (f" 🔥{rep}" if rep >= 3 else "")
         with st.expander(header, expanded=False):
-            c1, c2 = st.columns([2, 2])
-            with c1:
-                st.markdown(f"**정답**: {w.get('correct_answer') or '-'}")
-                st.markdown(f"**내답**: {w.get('user_answer') or '-'}")
-            with c2:
-                st.markdown(f"**발음**: {w.get('reading') or '-'}")
-                st.markdown(f"**뜻**: {w.get('meaning') or '-'}")
-            st.caption(f"저장: {dt}")
+            st.markdown(
+                f'<div class="ha-wrong-meta">'
+                f'<span class="ha-chip-sm">{app}</span>'
+                f'<span class="ha-chip-sm">Lv {level}</span>'
+                + (f'<span class="ha-chip-sm">{w.get("reading")}</span>' if (w.get("reading") or "").strip() else "")
+                + f'</div>',
+                unsafe_allow_html=True,
+            )
+                        ca = w.get("correct_answer") or "-"
+            ua = w.get("user_answer") or "-"
+            meaning = w.get("meaning") or "-"
+            st.markdown(f"**정답** {ca}  ·  **내답** {ua}")
+            st.caption(f"{meaning}  ·  저장: {dt}")
 
 
     # ✅ 더 보기 버튼 (10개씩 추가)
     if show_n < len(filtered):
         c_more1, c_more2, c_more3 = st.columns([1, 2, 1])
         with c_more2:
-            if st.button("더 보기 (+10개)", key="myp_wrongs_more", use_container_width=True):
-                st.session_state["myp_wrongs_show_n"] = min(len(filtered), show_n + 10)
+            if st.button("더 보기 (+5개)", key="myp_wrongs_more", use_container_width=True):
+                st.session_state["myp_wrongs_show_n"] = min(len(filtered), show_n + 5)
                 st.rerun()
     else:
         st.caption("끝까지 다 봤어요 🙂")
-
-    
-    # ✅ 회화: 내 문장 모아보기(최근 20개)
-    with st.expander("🗣 내 문장 모아보기 (최근 20개)", expanded=False):
-        talk_lines = []
-        for w in (wrongs or []):
-            if _wrong_app_label(w) == "회화":
-                ua = (w.get("user_answer") or w.get("answer") or "").strip()
-                if ua:
-                    talk_lines.append(ua)
-        talk_lines = talk_lines[:20]
-        if not talk_lines:
-            st.caption("저장된 회화 문장이 아직 없습니다.")
-        else:
-            for i, line in enumerate(talk_lines, start=1):
-                st.markdown(f"{i}. {line}")
 
 st.markdown("</div>", unsafe_allow_html=True)
 
