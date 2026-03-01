@@ -8,6 +8,18 @@ import time
 import streamlit as st
 import streamlit.components.v1 as components
 
+
+# ============================================================
+# ✅ Fragment helper (Streamlit >= 1.33)
+# - If st.fragment is available, we use it to reduce full-page reruns/flicker.
+# - Otherwise, it's a no-op decorator for compatibility.
+def _ha_fragment(fn):
+    try:
+        frag = getattr(st, "fragment", None)
+        return frag(fn) if callable(frag) else fn
+    except Exception:
+        return fn
+
 import core  # ✅ 중앙 효과음(SFX) 설정/재생
 
 # ============================================================
@@ -1682,6 +1694,7 @@ def _week_counts_by_app(attempts: List[Dict[str, Any]]) -> Tuple[List[datetime],
 
     return days, counts
 
+@_ha_fragment
 
 def _render_week_widget(attempts: List[Dict[str, Any]]) -> None:
     days, by_app = _week_counts_by_app(attempts)
@@ -2041,6 +2054,7 @@ def _render_top_summary(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, A
 # ---------------------------
 # Views
 # ---------------------------
+@_ha_fragment
 def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None:
     st.markdown('<div class="ha-section">', unsafe_allow_html=True)
     st.markdown('<div class="ha-title">📚 오답</div><div class="ha-sub">앱 선택 + 검색 + 반복오답 토글 + 접힘 목록.</div>', unsafe_allow_html=True)
