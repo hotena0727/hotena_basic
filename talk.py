@@ -2011,8 +2011,8 @@ with p2:
 
             _opt = st.radio(
                 "복습 방식",
-                options=["today","wrong","random","oldest","mixed"],
-                format_func=lambda x: {"today":"오늘의 복습","wrong":"틀린 것", "random":"랜덤", "oldest":"오래된 것", "mixed":"혼합(오래된+랜덤)"}[x],
+                options=["wrong","random","oldest","mixed"],
+                format_func=lambda x: {"wrong":"틀린 것", "random":"랜덤", "oldest":"오래된 것", "mixed":"혼합(오래된+랜덤)"}[x],
                 key=f"{NS}_review_opt_ui",
             )
             _has_wrong = bool(_get_wrong_map(resume_key))
@@ -2053,8 +2053,8 @@ with p2:
 
             _opt = st.radio(
                 "복습 방식",
-                options=["today","wrong","random","oldest","mixed"],
-                format_func=lambda x: {"today":"오늘의 복습","wrong":"틀린 것", "random":"랜덤", "oldest":"오래된 것", "mixed":"혼합(오래된+랜덤)"}[x],
+                options=["wrong","random","oldest","mixed"],
+                format_func=lambda x: {"wrong":"틀린 것", "random":"랜덤", "oldest":"오래된 것", "mixed":"혼합(오래된+랜덤)"}[x],
                 key=f"{NS}_review_opt_ui",
             )
             if st.button("복습 시작", use_container_width=True, key=f"{NS}_review_start", disabled=(_opt=="wrong" and not _has_wrong)):
@@ -2077,6 +2077,30 @@ if mode == "review":
     st.caption(f"복습 진행: {idx+1}/{len(qids)}")
 else:
     st.caption(f"세트 진행: {idx+1}/{len(qids)}")
+
+
+# ============================================================
+# ✅ Review completion (avoid wrapping back to 1st)
+# ============================================================
+if mode == "review" and (idx is None or idx >= len(qids)):
+    with st.container(border=True):
+        st.success("✅ 복습을 완료했습니다.")
+        st.caption("학습 모드로 돌아가거나, 다른 방식으로 복습을 이어갈 수 있어요.")
+        c1, c2 = st.columns([1, 1])
+        with c1:
+            if st.button("학습 모드로", use_container_width=True, key=f"{NS}_review_done_to_learn"):
+                reset_set()
+                st.session_state[mode_key] = "learn"
+                _clear_talk_daily_state(resume_key)
+                st.rerun()
+        with c2:
+            if st.button("복습 다시", use_container_width=True, key=f"{NS}_review_done_restart"):
+                reset_set()
+                st.session_state[mode_key] = "review"
+                st.session_state[review_opt_key] = review_opt
+                _clear_talk_daily_state(resume_key)
+                st.rerun()
+    st.stop()
 
 # ============================================================
 # ✅ Current question
