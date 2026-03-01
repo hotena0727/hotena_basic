@@ -2287,18 +2287,18 @@ if submitted:
                     # bytes로 복사해서 재생/후속 처리에 재사용합니다.
                     _rec_bytes_key = f"{qid}__rec_bytes"
                     try:
-                    if hasattr(_audio, "getvalue"):
-                        _ab = _audio.getvalue()
-                        # ✅ 일부 환경에서는 getvalue()도 내부 포인터를 움직일 수 있어,
-                        # audio_input 파형/미리듣기용으로 안전하게 되감기
-                        if hasattr(_audio, "seek"):
-                            _audio.seek(0)
-                    else:
-                        _ab = _audio.read()
-                        if hasattr(_audio, "seek"):
-                            _audio.seek(0)  # ✅ audio_input 내부 미리보기/파형용으로 되감기
-                except Exception:
-                    _ab = None
+                        if hasattr(_audio, "getvalue"):
+                            _ab = _audio.getvalue()
+                            # ✅ 일부 환경에서는 getvalue()도 내부 포인터를 움직일 수 있어,
+                            # audio_input 파형/미리듣기용으로 안전하게 되감기
+                            if hasattr(_audio, "seek"):
+                                _audio.seek(0)
+                        else:
+                            _ab = _audio.read()
+                            if hasattr(_audio, "seek"):
+                                _audio.seek(0)  # ✅ audio_input 내부 미리보기/파형용으로 되감기
+                    except Exception:
+                        _ab = None
 
                     if _ab:
                         st.session_state[_rec_bytes_key] = _ab
