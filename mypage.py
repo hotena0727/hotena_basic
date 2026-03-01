@@ -175,6 +175,26 @@ div.block-container > div:first-child{
   grid-template-columns: repeat(3, 1fr);
   gap: 10px;
 }
+
+/* ✅ 버튼(홈/로그아웃/CTA 등) 통일 스타일 */
+div[data-testid="stButton"] > button{
+  border-radius: 16px !important;
+  border: 1px solid var(--ha-line) !important;
+  background: #fff !important;
+  font-weight: 800 !important;
+  padding: 10px 12px !important;
+}
+div[data-testid="stButton"] > button:hover{
+  border-color: rgba(30,107,255,0.30) !important;
+}
+div[data-testid="stButton"] > button:active{
+  transform: translateY(0.5px);
+}
+
+/* ✅ 보고서 3장(연속/이번주/최다오답)도 grid로 렌더링해 모바일 줄간격 동일화 */
+.ha-kpi-report{
+  margin-top: 10px;
+}
 .ha-kpi-item {
   border: 1px solid var(--ha-line);
   border-radius: 16px;
@@ -993,9 +1013,6 @@ div.block-container > div:first-child{
   margin-top: 2px !important;
 }
 
-
-/* Prevent top action buttons from wrapping */
-div.stButton > button { white-space: nowrap !important; }
 </style>"""
     css = css.replace("__BLUE__", str(HATENA_BLUE))
     st.markdown(css, unsafe_allow_html=True)
@@ -1731,36 +1748,42 @@ def _render_top_summary(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, A
 
     colA, colB = st.columns([7, 3], vertical_alignment="center")
     with colB:
-        # ✅ 사운드 토글을 홈/로그아웃 라인에 "이웃"하게 배치
-        # ✅ 상단 우측 액션(홈/로그아웃) + 사운드 토글을 한 줄에 깔끔하게 배치
-        # - 모바일/좁은 폭에서 글자가 두 줄로 깨지지 않게: 버튼은 내용폭 렌더(줄바꿈 없음)
-        # ✅ 상단: SOUND(ON/OFF) + 홈/로그아웃 (한 줄 유지)
-        # - 라디오(ON/OFF)로 상태가 명확하게 보이게
-        # - 버튼/라벨 줄바꿈 방지(CSS white-space:nowrap 적용)
-        # ✅ 상단: SOUND 토글 + 홈/로그아웃 (한 줄 유지)
-        # - 라디오 대신 토글 + ON/OFF 텍스트로 더 컴팩트하게
-        # - 좁은 폭에서도 버튼이 줄바꿈되지 않도록(white-space:nowrap)
-        c_sound, c_home, c_logout = st.columns([1.7, 1.1, 1.4], gap="small", vertical_alignment="center")
-
-        with c_sound:
-            _cur_sfx = bool(core.is_sfx_enabled(True))
-            _new_sfx = st.toggle("🔊", value=_cur_sfx, key="myp_sfx_toggle", label_visibility="collapsed")
-            core.set_sfx_enabled(bool(_new_sfx))
-            st.markdown(
-                f"<div style='display:inline-flex; gap:8px; align-items:center; white-space:nowrap;'>"
-                f"<span style='font-weight:700; letter-spacing:0.2px;'>SOUND</span>"
-                f"<span style='font-size:0.95rem; opacity:0.8; font-weight:700;'>{'ON' if _new_sfx else 'OFF'}</span>"
-                f"</div>",
-                unsafe_allow_html=True,
-            )
-
-        with c_home:
-            if st.button("🏠 홈", key="myp_v4_home", use_container_width=True):
+        b1, b2 = st.columns(2, gap="small")
+        with b1:
+            if st.button("🏠 홈", use_container_width=True, key="myp_v4_home"):
                 _go_home()
-
-        with c_logout:
-            if st.button("🚪 로그아웃", key="myp_v4_logout", use_container_width=True):
+        with b2:
+            if st.button("로그아웃", use_container_width=True, key="myp_v4_logout"):
                 _logout()
+
+        # 🔊 사운드 토글(마이페이지 상단)
+        _cur_sfx = core.is_sfx_enabled(True)
+        _new_sfx = st.toggle("🔊 소리", value=bool(_cur_sfx), key="myp_sfx_toggle_top")
+        if bool(_new_sfx) != bool(_cur_sfx):
+            core.set_sfx_enabled(bool(_new_sfx))
+            st.toast("사운드 설정이 저장되었습니다.")
+
+    st.markdown(
+        f"""
+<div class="ha-kpi">
+  <div class="ha-kpi-item">
+    <div class="ha-kpi-num">{_num(wrong_total)}</div>
+    <div class="ha-kpi-lbl">오답</div>
+  </div>
+  <div class="ha-kpi-item">
+    <div class="ha-kpi-num">{(str(avg_score) + '%') if avg_score is not None else '-'}</div>
+    <div class="ha-kpi-lbl">평균 정답률</div>
+  </div>
+  <div class="ha-kpi-item">
+    <div class="ha-kpi-num">{_num(recent_cnt)}</div>
+    <div class="ha-kpi-lbl">최근 7일 학습</div>
+  </div>
+</div>
+""",
+        unsafe_allow_html=True,
+    )
+
+    st.markdown('<div style="margin-top:10px;"></div>', unsafe_allow_html=True)
     st.markdown(
         f"""
 <div class="ha-row">
@@ -1827,42 +1850,27 @@ def _render_top_summary(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, A
             wc[lb] += 1
     top_wrong = max(wc.items(), key=lambda x: x[1])[0] if any(wc.values()) else "-"
 
-    st.markdown('<div style="margin-top:10px;"></div>', unsafe_allow_html=True)
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        st.markdown(f"<div class='ha-kpi-item'><div class='ha-kpi-num'>{_num(streak)}</div><div class='ha-kpi-lbl'>연속 학습일</div></div>", unsafe_allow_html=True)
-    with c2:
-        st.markdown(f"<div class='ha-kpi-item'><div class='ha-kpi-num'>{_num(week_total)}</div><div class='ha-kpi-lbl'>이번 주 풀이수</div></div>", unsafe_allow_html=True)
-    with c3:
-        st.markdown(f"<div class='ha-kpi-item'><div class='ha-kpi-num'>{top_wrong}</div><div class='ha-kpi-lbl'>최다 오답 유형</div></div>", unsafe_allow_html=True)
-    st.markdown('<div style="margin-top:10px;"></div>', unsafe_allow_html=True)
-
-
+    # ✅ 모바일에서 st.columns(3)이 세로로 쌓일 때 카드 간 간격이 거의 없어 "딱 붙어" 보임
+    #    → 상단 KPI와 동일하게 grid(.ha-kpi)로 렌더링해 간격/균형을 통일합니다.
     st.markdown(
         f"""
-<div class="ha-kpi">
+<div class="ha-kpi ha-kpi-report">
   <div class="ha-kpi-item">
-    <div class="ha-kpi-num">{_num(wrong_total)}</div>
-    <div class="ha-kpi-lbl">오답</div>
+    <div class="ha-kpi-num">{_num(streak)}</div>
+    <div class="ha-kpi-lbl">연속 학습일</div>
   </div>
   <div class="ha-kpi-item">
-    <div class="ha-kpi-num">{(str(avg_score) + '%') if avg_score is not None else '-'}</div>
-    <div class="ha-kpi-lbl">평균 정답률</div>
+    <div class="ha-kpi-num">{_num(week_total)}</div>
+    <div class="ha-kpi-lbl">이번 주 풀이수</div>
   </div>
   <div class="ha-kpi-item">
-    <div class="ha-kpi-num">{_num(recent_cnt)}</div>
-    <div class="ha-kpi-lbl">최근 7일 학습</div>
+    <div class="ha-kpi-num">{top_wrong}</div>
+    <div class="ha-kpi-lbl">최다 오답 유형</div>
   </div>
 </div>
 """,
         unsafe_allow_html=True,
     )
-
-    # ✅ 최근 7일 학습
-    _render_week_widget(attempts)
-
-
-
 
     # 추천 1줄(규칙 기반)
     rec = None
@@ -1937,13 +1945,16 @@ def _render_top_summary(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, A
             except Exception:
                 st.info("오답을 불러오는 중 문제가 생겼습니다. 잠시 후 다시 시도해 주세요.")
 
+    # ✅ 최근 7일 학습(요약 카드 아래)
+    _render_week_widget(attempts)
+
     st.markdown("</div>", unsafe_allow_html=True)
 # ---------------------------
 # Views
 # ---------------------------
 def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None:
     st.markdown('<div class="ha-section">', unsafe_allow_html=True)
-    st.markdown('<div class="ha-title">📚 오답</div><div class="ha-sub">앱 선택 + 검색 + 반복오답 토글 + 접힘 목록.</div>', unsafe_allow_html=True)
+    st.markdown('<div class="ha-title">📚 오답</div><div class="ha-sub">앱 필터(칩) + 검색 + 반복오답 토글 + 접힘 목록.</div>', unsafe_allow_html=True)
 
     if not wrongs:
         st.info("아직 저장된 오답이 없습니다.")
@@ -2068,36 +2079,12 @@ def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None
         k = (w.get("jp_word") or "").strip()
         if k:
             counts[k] = counts.get(k, 0) + 1
-    # 앱 선택(전체/단어/한자/회화) + 정렬/표시개수는 아래에서 구성
+
+    app_selected = _render_filter_chips("앱 필터", "myp_wrongs_app")
     q = st.text_input("검색 (단어/뜻/발음)", value=st.session_state.get("myp_wrongs_q", ""), key="myp_wrongs_q")
     only_repeat = st.toggle("🔥 반복 오답만 보기 (3회+)", value=st.session_state.get("myp_wrongs_repeat", False), key="myp_wrongs_repeat")
-
-    # ✅ 앱 필터(버튼 그룹) — 한 줄 고정(줄바꿈 방지)
-    if "myp_wrongs_app_quick" not in st.session_state:
-        st.session_state["myp_wrongs_app_quick"] = "전체"
-    _app_now = st.session_state.get("myp_wrongs_app_quick", "전체")
-
-    b1, b2, b3, b4 = st.columns(4, gap="small")
-    def _app_btn(label: str, col):
-        selected = (_app_now == label)
-        if col.button(label, use_container_width=True, type=("primary" if selected else "secondary"), key=f"myp_wrongs_appbtn_{label}"):
-            st.session_state["myp_wrongs_app_quick"] = label
-            st.rerun()
-
-    _app_btn("전체", b1)
-    _app_btn("단어", b2)
-    _app_btn("한자", b3)
-    _app_btn("회화", b4)
-
-    # ✅ 정렬 + 표시개수 (앱 버튼 아래로 내려서 깔끔하게)
-    c_sort, c_per = st.columns([1, 1], gap="small")
-    with c_sort:
-        sort_mode = st.selectbox("정렬", ["최근순", "반복순", "오래된순"], index=0, key="myp_wrongs_sort")
-    with c_per:
-        per_page = st.select_slider("표시 개수", options=[10, 20, 30, 50, 100], value=10, key="myp_wrongs_per")
-
-    app_quick = st.session_state.get("myp_wrongs_app_quick", "전체")
-    app_selected = [] if app_quick == "전체" else [app_quick]
+    per_page = st.select_slider("표시 개수", options=[10, 20, 30, 50, 100], value=10, key="myp_wrongs_per")
+    sort_mode = st.selectbox("정렬", ["최근순", "반복순", "오래된순"], index=0, key="myp_wrongs_sort")
 
     def match(w: Dict[str, Any]) -> bool:
         jp = (w.get("jp_word") or "").lower()
@@ -2109,20 +2096,12 @@ def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None
                 return False
         if only_repeat and counts.get((w.get("jp_word") or "").strip(), 0) < 3:
             return False
-        if app_selected and _wrong_app_label(w) not in app_selected:
+        if app_selected and _app_label(w.get("app")) not in app_selected:
             return False
         return True
 
     
     filtered = [w for w in wrongs if match(w)]
-    if not filtered:
-        if app_quick != "전체":
-            st.info(f"{app_quick}에서 조건에 맞는 오답이 없습니다. 🙂")
-        else:
-            st.info("조건에 맞는 오답이 없습니다. 🙂")
-        st.markdown("</div>", unsafe_allow_html=True)
-        return
-
     # ✅ 정렬
     def _ca(w):
         return _to_dt_kst(w.get("created_at")) or datetime(1970,1,1,tzinfo=timezone(timedelta(hours=9)))
