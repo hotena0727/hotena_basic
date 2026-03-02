@@ -47,6 +47,7 @@ def _wn_warn(msg: str):
 # OK HUB에서 호출되면 상단 중복 UI를 숨기기 위한 플래그
 HUB_MODE = st.session_state.get('HUB_MODE', False)
 import unicodedata
+from streamlit_cookies_manager import EncryptedCookieManager
 import streamlit.components.v1 as components
 from collections import Counter
 import time
@@ -649,16 +650,11 @@ if st.session_state.get("_scroll_top_once"):
     scroll_to_top(nonce=st.session_state["_scroll_top_nonce"])
 
 # ============================================================
-# OK Cookies + Supabase (Hub/core로 통일)
+# OK Cookies / Supabase (통합: core.ensure_core)
 # ============================================================
-# ✅ 쿠키/세션 복구는 core.ensure_core() 한 곳에서만 처리합니다.
 core.ensure_core(cookie_prefix="hotena_beginner_", localstorage_keys=("hotena_rt","hotena_at"))
-
 cookies = st.session_state.get("cookies")
 sb = st.session_state.get("sb")
-if cookies is None or sb is None:
-    st.error("세션 초기화에 실패했습니다. (cookies/supabase)")
-    st.stop()
 
 # ============================================================
 # OK Utils: 위젯 잔상(q_...) 제거
