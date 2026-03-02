@@ -2748,8 +2748,12 @@ if submitted:
             # ------------------------------------
             # 🤖 스마트 코치
             # ------------------------------------
-            with st.expander("🤖 원포인트 일본어가 어려우면 하테나쌤에게 물어보세요", expanded=False):
+            coach_open_key = f"talk_ai_open_{qid}"
+            coach_answer_key = f"talk_ai_answer_{qid}"
+            if coach_open_key not in st.session_state:
+                st.session_state[coach_open_key] = False
 
+            with st.expander("🤖 원포인트 일본어가 어려우면 하테나쌤에게 물어보세요", expanded=st.session_state.get(coach_open_key, False)):
                 hotena_title("assets/hotena_talk/icons_title/icon_coach_title.png", "하테나쌤 스마트 코치")
                 q_default = st.session_state.get("talk_ai_last_q") or ""
                 user_q = st.text_input(
@@ -2770,7 +2774,13 @@ if submitted:
 
                 coach_slot = st.empty()
 
+                # ✅ rerun으로 expander가 닫히지 않도록: 이전 답변이 있으면 즉시 표시
+                if st.session_state.get(coach_answer_key):
+                    st.session_state[coach_open_key] = True
+                    coach_slot.info(st.session_state.get(coach_answer_key))
+
                 if ask and str(user_q).strip():
+                    st.session_state[coach_open_key] = True
 
                     question = str(user_q).strip()
                     st.session_state["talk_ai_last_q"] = question
@@ -2859,6 +2869,7 @@ if submitted:
                                 },
                             )
 
+                        st.session_state[coach_answer_key] = ans
                         coach_slot.info(ans)# ============================================================
 # ✅ (추가) 정답 발음 확인 버튼용: 플레이어 없이 즉시 재생(JS Audio / TTS)
 # - 브라우저에 플레이어 UI가 뜨지 않게, new Audio().play()로만 재생
