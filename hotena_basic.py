@@ -412,7 +412,7 @@ div.stButton > button{
   align-items:flex-end;
   justify-content:space-between;
   gap:12px;
-  margin: 0px 0 12px 0;
+  margin: 0px 0 10px 0;
 }
 .headtitle{
   font-size:32px;
@@ -2891,7 +2891,7 @@ def render_plan_banner():
   line-height:1;
   width:fit-content;
   box-shadow:0 1px 2px rgba(0,0,0,0.04);
-  margin:0 0 10px 0; /* ✅ 아래 간격 최소화 */
+  margin:0 0 4px 0; /* ✅ 아래 간격 더 축소 */
 }
 .ha-pro-pill .ha-pro-left{ display:flex; align-items:center; gap:8px; }
 .ha-pro-pill .ha-pro-txt{ font-weight:700; opacity:0.9; }
