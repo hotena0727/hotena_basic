@@ -37,7 +37,7 @@ html, body, [class*="css"]  {
 _inject_jp_font_once()
 
 # ✅ PWA/A2HS 공통 주입 (루트: /manifest.json, /sw.js, /apple-touch-icon.png, /icon-192.png, /icon-512.png)
-core.inject_pwa_once(app_name="Hotena", theme_color="#0F6B3F")
+core.inject_pwa_once(app_name="하테나일본어", theme_color="#0F6B3F")
 
 
 
@@ -158,7 +158,7 @@ import html as html_module  # ✅ for html escaping in admin cards
 # ============================================================
 # ✅ Page Config (Hub only)
 # ============================================================
-st.set_page_config(page_title="Hotena Hub", layout="centered")
+st.set_page_config(page_title="하테나일본어", layout="centered")
 
 # ✅ Anchor for bottom-right '맨 위로' button
 st.markdown('<div id="hotena-top"></div>', unsafe_allow_html=True)

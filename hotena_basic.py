@@ -3533,22 +3533,20 @@ if st.session_state.submitted:
         st.session_state.free_limit_applied_this_attempt = True
 
     
-ratio = score / quiz_len if quiz_len else 0.0
+    ratio = score / quiz_len if quiz_len else 0.0
 
-# OK 점수 기반 SFX (제출 직후 1회) — core.py에서 중앙 통제
-_sfx_key = f"word_submit__{int(st.session_state.get('quiz_version', 0) or 0)}"
-if ratio == 1:
-    core.play_sfx_once(_sfx_key, "reward")
-elif ratio >= 0.7:
-    core.play_sfx_once(_sfx_key, "correct")
-else:
-    core.play_sfx_once(_sfx_key, "wrong")
+    # OK 점수 기반 SFX (제출 직후 1회) — core.py에서 중앙 통제
+    _sfx_key = f"word_submit__{int(st.session_state.get('quiz_version', 0) or 0)}"
+
     if ratio == 1:
+        core.play_sfx_once(_sfx_key, "reward")
         st.balloons()
         st.success("🎉 완벽해요! 전부 정답입니다.")
     elif ratio >= 0.7:
+        core.play_sfx_once(_sfx_key, "correct")
         st.info("👍 잘하고 있어요! 조금만 더 다듬으면 완벽해질 거예요.")
     else:
+        core.play_sfx_once(_sfx_key, "wrong")
         st.warning("💪 괜찮아요! 틀린 문제는 성장의 재료예요. 다시 한 번 도전해봐요.")
     sb_authed_local = get_authed_sb()
     if sb_authed_local is None:

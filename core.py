@@ -140,17 +140,17 @@ div[data-testid="stIFrame"]:has(iframe[title^="streamlit.components.v1."]) ifram
 # ============================================================
 # ✅ PWA / A2HS (Android/iOS 홈화면 추가) - ROOT assets version
 # - Expects these URLs to be served at ROOT:
-#   /manifest.json, /sw.js, /apple-touch-icon.png, /icon-192.png, /icon-512.png, /favicon.ico (optional)
+#   /app/static/pwa-manifest.json, /app/static/sw.js, /app/static/apple-touch-icon.png, /app/static/icon-192.png, /app/static/icon-512.png, /favicon.ico (optional)
 # - Safe to call multiple times; injects only once per session.
 # ============================================================
 def inject_pwa_once(
     app_name: str = "Hotena",
     theme_color: str = "#0F6B3F",
-    manifest_path: str = "/manifest.json",
-    sw_path: str = "/sw.js",
-    apple_touch_icon: str = "/apple-touch-icon.png",
-    icon_192: str = "/icon-192.png",
-    icon_512: str = "/icon-512.png",
+    manifest_path: str = "/app/static/pwa-manifest.json",
+    sw_path: str = "/app/static/sw.js",
+    apple_touch_icon: str = "/app/static/apple-touch-icon.png",
+    icon_192: str = "/app/static/icon-192.png",
+    icon_512: str = "/app/static/icon-512.png",
 ) -> None:
     try:
         if st.session_state.get("_pwa_injected", False):
