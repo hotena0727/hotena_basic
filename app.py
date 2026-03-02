@@ -352,13 +352,19 @@ if st.session_state.get("_scroll_top_once"):
     scroll_to_top(nonce=st.session_state["_scroll_top_nonce"])
 
 # ============================================================
-# ✅ Config / Cookies / Supabase anon (core single source)
-# - Hub(home.py)에서든 단독 실행이든, 항상 core.ensure_core()만 사용합니다.
-# - 페이지별로 EncryptedCookieManager를 새로 만들면(특히 password 누락 시) 기존 쿠키를 못 읽어서 '이동할 때마다 로그아웃'이 발생합니다.
+# ✅ Core bootstrap (CFG / Cookies / Supabase anon)
+# - 로그인 유지가 '이동할 때마다 풀리는' 문제의 대부분은
+#   페이지별로 cookies manager를 제각각 만들거나(특히 password/도메인 불일치),
+#   cfg가 비어있을 때 빈 password로 쿠키를 초기화하면서 발생합니다.
+# - 따라서 app.py에서는 단독으로 쿠키를 새로 만들지 않고,
+#   core.ensure_core() 하나로 통일합니다.
 # ============================================================
-CFG = core.ensure_core()
+core.ensure_core()
 cookies = st.session_state.get("cookies")
 sb = st.session_state.get("sb")
+if cookies is None or sb is None:
+    st.error("core 초기화에 실패했습니다. (cookies/sb)")
+    st.stop()
 
 # ============================================================
 # OK Supabase 연결
@@ -499,34 +505,99 @@ def start_quiz_state(quiz_list: list, qtype: str, clear_wrongs: bool = True):
         st.session_state.wrong_list = []
 
 # ============================================================
-# ✅ Auth / DB wrapper (core single source)
-# - app.py에서 별도의 refresh/clear 로직을 두면 Hub 이동 시 세션이 흔들릴 수 있어
-#   core.py의 공통 로직만 사용합니다.
+# OK JWT 만료 감지 + 세션 갱신 + DB 호출 래퍼
+# ============================================================
+# ============================================================
+# OK [H] Auth: JWT 만료 감지 + refresh + get_authed_sb
 # ============================================================
 def is_jwt_expired_error(e: Exception) -> bool:
     msg = str(e).lower()
     return ("jwt expired" in msg) or ("pgrst303" in msg)
 
 def clear_auth_everywhere():
-    # ✅ 전역 로그아웃은 core 한 곳에서만
     try:
-        core.clear_auth_everywhere()
+        cookies["access_token"] = ""
+        cookies["refresh_token"] = ""
+        cookies.save()
     except Exception:
         pass
 
+    for k in [
+        "user", "access_token", "refresh_token",
+        "login_email", "email_link_notice_shown",
+        "auth_mode", "signup_done", "last_signup_ts",
+        "page",
+        "quiz", "answers", "submitted", "wrong_list",
+        "quiz_version", "quiz_type",
+        "saved_this_attempt", "stats_saved_this_attempt",
+        "history", "wrong_counter", "total_counter",
+        "attendance_checked", "streak_count", "did_attend_today",
+        "is_admin_cached",
+        "session_stats_applied_this_attempt",
+        "mastered_words",
+        "progress_restored", "pool_ready",
+        "_sb_authed", "_sb_authed_token",
+        "excluded_wrong_words",
+        "mastery_banner_shown", "mastery_done",
+    ]:
+        st.session_state.pop(k, None)
+
 def run_db(callable_fn):
-    """DB 호출 래퍼: 만료면 1회 refresh 시도 후 rerun. 자동 쿠키삭제/세션삭제는 하지 않음."""
     try:
         return callable_fn()
     except Exception as e:
         if is_jwt_expired_error(e):
-            ok = core.core.refresh_session_from_cookie_if_needed(force=True)
+            ok = refresh_session_from_cookie_if_needed(force=True)
             if ok:
                 st.rerun()
-            # refresh 실패 → 사용자가 직접 로그인을 다시 하게 둠(쿠키는 지우지 않음)
             st.warning("세션이 만료되었습니다. 다시 로그인해 주세요.")
-            return None
+            # (자동 로그아웃/쿠키 삭제는 사용자가 로그아웃을 눌렀을 때만 수행)
+            st.rerun()
         raise
+
+def refresh_session_from_cookie_if_needed(force: bool = False) -> bool:
+    if not force and st.session_state.get("user") and st.session_state.get("access_token"):
+        return True
+
+    rt = cookies.get("refresh_token")
+    at = cookies.get("access_token")
+
+    if rt:
+        try:
+            refreshed = sb.auth.refresh_session(rt)
+            if refreshed and refreshed.session and refreshed.session.access_token:
+                st.session_state.user = refreshed.user
+                st.session_state.access_token = refreshed.session.access_token
+                st.session_state.refresh_token = refreshed.session.refresh_token
+
+                u_email = getattr(refreshed.user, "email", None)
+                if u_email:
+                    st.session_state["login_email"] = u_email.strip()
+
+                cookies["access_token"] = refreshed.session.access_token
+                cookies["refresh_token"] = refreshed.session.refresh_token
+                cookies.save()
+                return True
+        except Exception:
+            pass
+
+    if at:
+        try:
+            u = sb.auth.get_user(at)
+            user_obj = getattr(u, "user", None) or getattr(u, "data", None) or None
+            if user_obj:
+                st.session_state.user = user_obj
+                st.session_state.access_token = at
+                if rt:
+                    st.session_state.refresh_token = rt
+                u_email = getattr(user_obj, "email", None)
+                if u_email:
+                    st.session_state["login_email"] = u_email.strip()
+                return True
+        except Exception:
+            pass
+
+    return False
 
 def to_kst_naive(x):
     ts = pd.to_datetime(x, utc=True, errors="coerce")
@@ -1796,7 +1867,7 @@ def render_home():
 # ============================================================
 try:
     core.ensure_core(cookie_prefix="hotena_beginner_", localstorage_keys=("hotena_rt","hotena_at"))
-    core.core.refresh_session_from_cookie_if_needed(force=False)
+    core.refresh_session_from_cookie_if_needed(force=False)
 except Exception:
     pass
 
