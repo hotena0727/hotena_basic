@@ -35,15 +35,35 @@ except Exception:  # pragma: no cover
 # Config (env -> secrets)
 # ----------------------------
 def get_cfg(key: str) -> str:
-    """Read from env first, then st.secrets. Returns '' if missing."""
-    v = os.getenv(key)
-    if v:
-        return v
+    """Read from env first, then st.secrets safely. Returns '' if missing.
+
+    Cloud Run does not provide Streamlit secrets.toml by default, so any direct
+    st.secrets[...] access can crash. This helper prefers env vars (recommended),
+    then falls back to st.session_state cfg, then to st.secrets if available.
+    """
+    # 1) Env (Cloud Run recommended)
+    v = os.getenv(key, "")
+    if isinstance(v, str) and v.strip():
+        return v.strip()
+
+    # 2) Session cfg (optional)
     try:
-        return st.secrets[key]
+        cfg = st.session_state.get("cfg") or {}
+        v2 = cfg.get(key, "")
+        if isinstance(v2, str) and v2.strip():
+            return v2.strip()
+    except Exception:
+        pass
+
+    # 3) Streamlit secrets (only if present; must be inside try)
+    try:
+        s = st.secrets  # access may raise if secrets.toml missing
+        if hasattr(s, "get"):
+            v3 = s.get(key, "")
+            return (v3 or "") if isinstance(v3, str) else str(v3)
+        return s[key] if key in s else ""
     except Exception:
         return ""
-
 
 
 def _hide_streamlit_component_iframes() -> None:

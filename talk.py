@@ -311,12 +311,28 @@ st.markdown(
 # ============================================================
 
 def get_cfg(key: str) -> str:
+    """Config getter that never crashes when secrets.toml is missing.
+
+    Priority:
+      1) st.session_state['cfg'] (if provided)
+      2) ENV (Cloud Run recommended)
+      3) st.secrets (only if available; wrapped in try)
+    """
     cfg = st.session_state.get("cfg") or {}
     v = cfg.get(key)
-    if v:
-        return v
+    if isinstance(v, str) and v.strip():
+        return v.strip()
+
+    v_env = os.getenv(key, "")
+    if isinstance(v_env, str) and v_env.strip():
+        return v_env.strip()
+
     try:
-        return st.secrets[key]
+        s = st.secrets  # may raise if secrets.toml missing
+        if hasattr(s, "get"):
+            v2 = s.get(key, "")
+            return (v2 or "") if isinstance(v2, str) else str(v2)
+        return s[key] if key in s else ""
     except Exception:
         return ""
 
@@ -1099,7 +1115,7 @@ def _openai_transcribe_bytes(audio_bytes: bytes, mime: str = "audio/wav") -> str
     ✅ 일본어 강제(language="ja")로 중국어/기타 언어 오인식을 크게 줄입니다.
     ✅ 결과가 가나(ひらがな/カタカナ)가 거의 없으면 1회만 프롬프트를 바꿔 재시도합니다.
     """
-    api_key = (st.secrets.get("OPENAI_API_KEY", "") if hasattr(st, "secrets") else "") or os.getenv("OPENAI_API_KEY", "")
+    api_key = get_cfg("OPENAI_API_KEY")
     if not api_key:
         raise RuntimeError("OPENAI_API_KEY가 설정되어 있지 않습니다.")
     model = os.getenv("OPENAI_TRANSCRIBE_MODEL", "gpt-4o-mini-transcribe")
