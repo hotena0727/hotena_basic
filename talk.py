@@ -2749,12 +2749,11 @@ if submitted:
             # 🤖 스마트 코치
             # ------------------------------------
             coach_open_key = f"talk_ai_open_{qid}"
-coach_answer_key = f"talk_ai_answer_{qid}"
-if coach_open_key not in st.session_state:
-    st.session_state[coach_open_key] = False
+            coach_answer_key = f"talk_ai_answer_{qid}"
+            if coach_open_key not in st.session_state:
+                st.session_state[coach_open_key] = False
 
-with st.expander("🤖 원포인트 일본어가 어려우면 하테나쌤에게 물어보세요", expanded=st.session_state[coach_open_key]):
-
+            with st.expander("🤖 원포인트 일본어가 어려우면 하테나쌤에게 물어보세요", expanded=st.session_state.get(coach_open_key, False)):
                 hotena_title("assets/hotena_talk/icons_title/icon_coach_title.png", "하테나쌤 스마트 코치")
                 q_default = st.session_state.get("talk_ai_last_q") or ""
                 user_q = st.text_input(
@@ -2763,6 +2762,8 @@ with st.expander("🤖 원포인트 일본어가 어려우면 하테나쌤에게
                     key=f"talk_ai_q_{qid}",
                     placeholder="예) 더 자연스러운 표현도 있어요?",
                     label_visibility="collapsed",
+                    # ✅ 입력/포커스가 발생하면 항상 열린 상태로 고정 (rerun에도 expander 유지)
+                    on_change=lambda k=coach_open_key: st.session_state.__setitem__(k, True),
                 )
 
                 st.caption("회화 표현·뉘앙스·자연스러움 위주 질문에 최적화되어 있어요.")
@@ -2771,17 +2772,18 @@ with st.expander("🤖 원포인트 일본어가 어려우면 하테나쌤에게
                     "AI 코칭 받기 시작",
                     use_container_width=True,
                     key=f"talk_ai_ask_{qid}",
+                    # ✅ 클릭 순간에도 열린 상태를 세션에 기록 → 버튼 클릭 rerun에서 '닫힘' 방지
+                    on_click=lambda k=coach_open_key: st.session_state.__setitem__(k, True),
                 )
 
                 coach_slot = st.empty()
 
-                # ✅ keep last answer visible across reruns
-                _last = st.session_state.get(coach_answer_key)
-                if _last:
-                    coach_slot.markdown(_last)
+                # ✅ rerun으로 expander가 닫히지 않도록: 이전 답변이 있으면 즉시 표시
+                if st.session_state.get(coach_answer_key):
+                    st.session_state[coach_open_key] = True
+                    coach_slot.info(st.session_state.get(coach_answer_key))
 
                 if ask and str(user_q).strip():
-
                     st.session_state[coach_open_key] = True
 
                     question = str(user_q).strip()
