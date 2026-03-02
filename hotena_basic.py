@@ -47,6 +47,8 @@ def _wn_warn(msg: str):
 # OK HUB에서 호출되면 상단 중복 UI를 숨기기 위한 플래그
 HUB_MODE = st.session_state.get('HUB_MODE', False)
 import unicodedata
+from supabase import create_client
+from streamlit_cookies_manager import EncryptedCookieManager
 import streamlit.components.v1 as components
 from collections import Counter
 import time
@@ -63,7 +65,7 @@ st.session_state.pop("plan_cached", None)
 
 if not st.session_state.get('_page_config_set'):
     st.set_page_config(
-    page_title="왕초보 탈출 하테나일본어",
+    page_title="왕초보탈출 하테나일본어",
     page_icon="static/icon-192.png",   # 또는 "🟦"
     layout="centered",
 )
@@ -649,16 +651,63 @@ if st.session_state.get("_scroll_top_once"):
     scroll_to_top(nonce=st.session_state["_scroll_top_nonce"])
 
 # ============================================================
-# OK Cookies + Supabase (Hub/core로 통일)
+# OK Cookies + Supabase (Cloud Run env + Streamlit secrets 겸용)
 # ============================================================
-# ✅ 쿠키/세션 복구는 core.ensure_core() 한 곳에서만 처리합니다.
-core.ensure_core(cookie_prefix="hotena_beginner_", localstorage_keys=("hotena_rt","hotena_at"))
+import os
+import streamlit as st
+from streamlit_cookies_manager import EncryptedCookieManager
+from supabase import create_client
 
+def get_cfg(key: str) -> str:
+    # 0) Hub(home.py)에서 주입된 설정 우선
+    try:
+        cfg = st.session_state.get("cfg", {}) or {}
+        if key in cfg and cfg[key]:
+            return str(cfg[key])
+    except Exception:
+        pass
+    # 1) Cloud Run: 환경변수 우선
+    v = os.getenv(key)
+    if v:
+        return v
+    # 2) Streamlit Cloud: secrets
+    try:
+        return st.secrets[key]
+    except Exception:
+        return 
+
+COOKIE_PASSWORD = get_cfg("COOKIE_PASSWORD")
+SUPABASE_URL = get_cfg("SUPABASE_URL")
+SUPABASE_ANON_KEY = get_cfg("SUPABASE_ANON_KEY")
+
+# OK 필수값 체크
+missing = [k for k, v in {
+    "COOKIE_PASSWORD": COOKIE_PASSWORD,
+    "SUPABASE_URL": SUPABASE_URL,
+    "SUPABASE_ANON_KEY": SUPABASE_ANON_KEY,
+}.items() if not v]
+
+if missing:
+    st.error(f"설정값이 없습니다: {', '.join(missing)} (Cloud Run env 또는 Streamlit secrets 확인)")
+    st.stop()
+
+# OK cookies/supabase는 Hub(home.py)에서 1회 생성 후 공유합니다.
 cookies = st.session_state.get("cookies")
 sb = st.session_state.get("sb")
-if cookies is None or sb is None:
-    st.error("세션 초기화에 실패했습니다. (cookies/supabase)")
-    st.stop()
+
+if cookies is None:
+    cookies = EncryptedCookieManager(
+        prefix="hotena_beginner_",
+        password=COOKIE_PASSWORD,
+    )
+    if not cookies.ready():
+        st.info("잠깐만요! 곧 시작할게요🙂")
+        st.stop()
+    st.session_state["cookies"] = cookies
+
+if sb is None:
+    sb = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+    st.session_state["sb"] = sb
 
 # ============================================================
 # OK Utils: 위젯 잔상(q_...) 제거
@@ -786,7 +835,7 @@ def is_admin() -> bool:
         st.session_state["is_admin_cached"] = False
         return False
 
-    sb_authed_local = core.get_authed_sb()
+    sb_authed_local = get_authed_sb()
     if sb_authed_local is None:
         st.session_state["is_admin_cached"] = False
         return False
@@ -878,7 +927,7 @@ def start_quiz_state(quiz_list: list, qtype: str, clear_wrongs: bool = True):
 def mark_progress_dirty():
     st.session_state.progress_dirty = True
 
-    sb_authed_local = core.get_authed_sb()
+    sb_authed_local = get_authed_sb()
     u = st.session_state.get("user")
     if (sb_authed_local is None) or (u is None):
         return
@@ -1007,6 +1056,27 @@ def refresh_session_from_cookie_if_needed(force: bool = False) -> bool:
 
     return False
 
+def get_authed_sb():
+    if not st.session_state.get("access_token"):
+        refresh_session_from_cookie_if_needed(force=True)
+
+    token = st.session_state.get("access_token")
+    if not token:
+        return None
+
+    cached = st.session_state.get("_sb_authed")
+    cached_token = st.session_state.get("_sb_authed_token")
+
+    if cached is not None and cached_token == token:
+        return cached
+
+    sb2 = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+    sb2.postgrest.auth(token)
+
+    st.session_state["_sb_authed"] = sb2
+    st.session_state["_sb_authed_token"] = token
+    return sb2
+
 def to_kst_naive(x):
     ts = pd.to_datetime(x, utc=True, errors="coerce")
     if isinstance(ts, pd.Series):
@@ -1094,7 +1164,7 @@ def get_user_plan() -> str:
         st.session_state["plan_cached"] = "free"
         return "free"
 
-    sb_authed_local = core.get_authed_sb()
+    sb_authed_local = get_authed_sb()
     if sb_authed_local is None:
         st.session_state["plan_cached"] = "free"
         return "free"
@@ -2140,7 +2210,7 @@ def render_admin_dashboard():
         st.session_state.page = "quiz"
         st.rerun()
 
-    sb_authed_local = core.get_authed_sb()
+    sb_authed_local = get_authed_sb()
     if sb_authed_local is None:
         st.warning("세션 토큰이 없습니다. 다시 로그인해 주세요.")
         return
@@ -2180,7 +2250,7 @@ def render_my_dashboard():
         st.session_state.page = "quiz"
         st.stop()
 
-    sb_authed_local = core.get_authed_sb()
+    sb_authed_local = get_authed_sb()
     if sb_authed_local is None:
         st.warning("세션 토큰이 없습니다. 다시 로그인해 주세요.")
         return
@@ -2445,7 +2515,7 @@ def render_home():
 
     # OK (2) 오늘의 학습 리포트: 홈에서만 / 타이틀 다음, 오늘의 말 위
     try:
-        sb_authed = core.get_authed_sb()
+        sb_authed = get_authed_sb()
         user_id = getattr(u, "id", None) if u else None
         if sb_authed and user_id:
             render_today_report_db_only(sb_authed, user_id)
@@ -2721,7 +2791,7 @@ user_id = getattr(user, "id", None) if user else None
 user_email = getattr(user, "email", None) if user else None
 user_email = user_email or st.session_state.get("login_email")
 
-sb_authed = core.get_authed_sb()
+sb_authed = get_authed_sb()
 
 # OK PRO 캐시가 다른 유저에게 넘어가는 것 방지 (먼저!)
 cached_uid = st.session_state.get("plan_cached_user_id")
@@ -2770,7 +2840,7 @@ if st.session_state.get("page") != "home":
     st.markdown(
         f"""
 <div class="jp headbar">
-  <div class="headtitle">✨ 단어</div>
+  <div class="headtitle">✨ 왕초보 탈출 하테나일본어</div>
 </div>
 """,
         unsafe_allow_html=True,
@@ -2846,7 +2916,7 @@ is_locked = False
 daily_solved = 0
 
 if not is_pro():
-    sb_authed_local = core.get_authed_sb()
+    sb_authed_local = get_authed_sb()
     if sb_authed_local is not None:
         daily_solved = get_daily_solved_from_db(sb_authed_local, user_id)
         is_locked = (daily_solved >= FREE_LIMIT)
@@ -2858,7 +2928,7 @@ if is_locked:
 # OK 오늘 푼 문항 수(total) 정의: 목표 UI/DEBUG에서 공통 사용
 total = 0
 try:
-    sb_authed_local = core.get_authed_sb()
+    sb_authed_local = get_authed_sb()
     if sb_authed_local is not None and user_id:
         total = get_daily_solved_from_db(sb_authed_local, user_id)  # 오늘 푼 문항 수
 except Exception:
@@ -3489,7 +3559,7 @@ if st.session_state.submitted:
     # OK 오답 상세 저장 (wrong_notes) — 3회 이상 반복오답/Top10 복습용
     # - 홈/마이페이지에서 '단어/정답/내답' 카드 복원을 위해 필요
     rows = []
-    sb_authed = core.get_authed_sb()
+    sb_authed = get_authed_sb()
     u_id = getattr(st.session_state.get("user"), "id", None)
 
     if (not u_id) and st.session_state.get("access_token"):
@@ -3535,15 +3605,15 @@ if st.session_state.submitted:
         st.session_state.free_limit_applied_this_attempt = True
 
     
-    ratio = score / quiz_len if quiz_len else 0.0
-    
-    # OK 점수 기반 SFX (제출 직후 1회) — core.py에서 중앙 통제
-    _sfx_key = f"word_submit__{int(st.session_state.get('quiz_version', 0) or 0)}"
-    if ratio == 1:
+ratio = score / quiz_len if quiz_len else 0.0
+
+# OK 점수 기반 SFX (제출 직후 1회) — core.py에서 중앙 통제
+_sfx_key = f"word_submit__{int(st.session_state.get('quiz_version', 0) or 0)}"
+if ratio == 1:
     core.play_sfx_once(_sfx_key, "reward")
-    elif ratio >= 0.7:
+elif ratio >= 0.7:
     core.play_sfx_once(_sfx_key, "correct")
-    else:
+else:
     core.play_sfx_once(_sfx_key, "wrong")
     if ratio == 1:
         st.balloons()
@@ -3552,7 +3622,7 @@ if st.session_state.submitted:
         st.info("👍 잘하고 있어요! 조금만 더 다듬으면 완벽해질 거예요.")
     else:
         st.warning("💪 괜찮아요! 틀린 문제는 성장의 재료예요. 다시 한 번 도전해봐요.")
-    sb_authed_local = core.get_authed_sb()
+    sb_authed_local = get_authed_sb()
     if sb_authed_local is None:
         if show_post_ui:
             st.warning("DB 저장/조회용 토큰이 없습니다. 다시 로그인해 주세요.")
@@ -3574,7 +3644,7 @@ if st.session_state.submitted:
                 if show_post_ui:
                     st.warning("DB 저장에 실패했습니다. (테이블/컬럼/권한/RLS 정책 확인 필요)")
                     st.write(str(e))
-    
+
         if not st.session_state.stats_saved_this_attempt:
             try:
                 sync_answers_from_widgets()
@@ -3591,12 +3661,12 @@ if st.session_state.submitted:
                 if show_post_ui and is_admin():
                     st.error("❌ 단어 통계(bulk) 저장 실패 (RPC/정책 확인)")
                     st.exception(e)
-    
+
         try:
             save_progress_to_db(sb_authed_local, user_id)
         except Exception:
             pass
-    
+
     # ============================================================
     # OK 콤보 계산 (⚠️ 반드시 제출 후에만)
     # ============================================================
@@ -3605,20 +3675,20 @@ if st.session_state.submitted:
         picked = st.session_state.answers[idx]
         correct = q["correct_text"]
         correct_flags.append(picked == correct)
-    
+
     max_combo = compute_max_combo(correct_flags)
     render_combo_celebration(max_combo)
     render_combo_small_badge()
-    
+
     # ============================================================
     # OK 제출 후 화면 내부 "오답노트" 블록
     # ============================================================
     if st.session_state.wrong_list:
         st.subheader("❌ 오답 노트")
-    
+
     def _s(v):
         return "" if v is None else str(v)
-    
+
     def _esc(x: str) -> str:
         x = _s(x)
         return (x.replace("&", "&amp;")
@@ -3626,37 +3696,37 @@ if st.session_state.submitted:
                  .replace(">", "&gt;")
                  .replace('"', "&quot;")
                  .replace("'", "&#39;"))
-    
+
     STYLE = """
-    <style>
-    .wrong-card{
+<style>
+.wrong-card{
   border: 1px solid rgba(120,120,120,0.25);
   border-radius: 16px;
   padding: 14px 14px;
   margin-bottom: 10px;
   background: rgba(255,255,255,0.02);
-    }
-    .wrong-top{
+}
+.wrong-top{
   display:flex;
   align-items:flex-start;
   justify-content:space-between;
   gap:12px;
   margin-bottom: 8px;
-    }
-    .wrong-left{ min-width:0; }
-    .wrong-title{
+}
+.wrong-left{ min-width:0; }
+.wrong-title{
   font-weight: 900;
   font-size: 15px;
   margin-bottom: 4px;
   overflow:hidden;
   text-overflow:ellipsis;
   white-space:nowrap;
-    }
-    .wrong-sub{
+}
+.wrong-sub{
   opacity: 0.8;
   font-size: 12px;
-    }
-    .tag{
+}
+.tag{
   display:inline-flex;
   align-items:center;
   gap:6px;
@@ -3667,18 +3737,18 @@ if st.session_state.submitted:
   border: 1px solid rgba(120,120,120,0.25);
   background: rgba(255,255,255,0.03);
   white-space: nowrap;
-    }
-    .ans-row{
+}
+.ans-row{
   display:grid;
   grid-template-columns: 72px 1fr;
   gap:10px;
   margin-top:6px;
   font-size: 13px;
-    }
-    .ans-k{ opacity: 0.7; font-weight: 700; }
-    </style>
-    """
-    
+}
+.ans-k{ opacity: 0.7; font-weight: 700; }
+</style>
+"""
+
     cards = []
     for w in st.session_state.wrong_list:
         no = _s(w.get("No"))
@@ -3690,9 +3760,9 @@ if st.session_state.submitted:
         meaning = _s(w.get("뜻"))
         mode = quiz_label_map.get(w.get("유형"), _s(w.get("유형")))
         pos_label = POS_LABEL_MAP.get(w.get("품사"), _s(w.get("품사")))
-    
+
         card_html = f"""
-    <div class="jp">
+<div class="jp">
   <div class="wrong-card">
     <div class="wrong-top">
       <div class="wrong-left">
@@ -3701,55 +3771,55 @@ if st.session_state.submitted:
       </div>
       <div class="tag">오답</div>
     </div>
-    
+
     <div class="ans-row"><div class="ans-k">내 답</div><div>{_esc(picked)}</div></div>
     <div class="ans-row"><div class="ans-k">정답</div><div><b>{_esc(correct)}</b></div></div>
     <div class="ans-row"><div class="ans-k">발음</div><div>{_esc(reading)}</div></div>
     <div class="ans-row"><div class="ans-k">뜻</div><div>{_esc(meaning)}</div></div>
   </div>
-    </div>
-    """
+</div>
+"""
         cards.append(card_html)
-    
+
     def _render_cards(card_list: list[str], max_height: int = 650):
         if not card_list:
             return
         html_block = "".join(card_list)
         h = 190 * len(card_list) + 10
         h = max(190, min(h, max_height))
-    
+
         components.html(
             textwrap.dedent(f"""
-    {STYLE}
-    {html_block}
-    """),
+{STYLE}
+{html_block}
+"""),
             height=h,
         )
-    
+
     MAX_PREVIEW = 3
     preview_cards = cards[:MAX_PREVIEW]
     rest_cards = cards[MAX_PREVIEW:]
-    
+
     _render_cards(preview_cards, max_height=650)
-    
+
     if rest_cards:
         with st.expander(f"오답 더 보기 (+{len(rest_cards)}개)", expanded=False):
             _render_cards(rest_cards, max_height=900)
             
-    
-    # ============================================================
-    # OK 제출 후 하단 액션 버튼 (오답 유무와 무관하게 항상 표시)
-    # ============================================================
-    if st.session_state.get("submitted", False):
+
+# ============================================================
+# OK 제출 후 하단 액션 버튼 (오답 유무와 무관하게 항상 표시)
+# ============================================================
+if st.session_state.get("submitted", False):
     st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
-    
+
     cA, cB = st.columns(2)
     with cA:
         locked = free_limit_reached()
-    
+
         if locked:
             st.caption("🔒 오늘 무료 한도(30문항)를 모두 사용했어요.")
-    
+
         if st.button(
             "다음 10문항 시작하기",
             type="primary",
@@ -3759,9 +3829,9 @@ if st.session_state.submitted:
         ):
             if locked:
                 st.stop()
-    
+
             clear_question_widget_keys()
-    
+
             st.session_state["_counted_today"] = False
             
             new_quiz = build_quiz(st.session_state.quiz_type, st.session_state.pos_group)
@@ -3770,7 +3840,7 @@ if st.session_state.submitted:
             mark_quiz_as_seen(new_quiz, st.session_state.quiz_type, st.session_state.pos_group)
             st.session_state["_scroll_top_once"] = True
             st.rerun()
-    
+
     with cB:
         # 오답이 있을 때만 활성화(없으면 disabled)
         has_wrongs = bool(st.session_state.get("wrong_list"))
@@ -3790,7 +3860,7 @@ if st.session_state.submitted:
             start_quiz_state(retry_quiz, st.session_state.quiz_type, clear_wrongs=True)
             st.session_state["_scroll_top_once"] = True
             st.rerun()
-    
+
     show_naver_talk = (SHOW_NAVER_TALK == "N") or is_admin()
     if show_naver_talk:
         render_naver_talk()

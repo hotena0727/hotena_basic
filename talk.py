@@ -191,6 +191,8 @@ if st.session_state.get("_entered_talk"):
 
 
 import streamlit.components.v1 as components
+from supabase import create_client
+
 # ✅ MP3 base (스토리지)
 BASE_AUDIO_URL = 'https://hotena.com/hotena/app/mp3/'
 
@@ -305,21 +307,65 @@ st.markdown(
 )
 
 # ============================================================
-# ✅ Supabase client (core single source)
+# ✅ Supabase client (hub reuse)
 # ============================================================
 
+def get_cfg(key: str) -> str:
+    cfg = st.session_state.get("cfg") or {}
+    v = cfg.get(key)
+    if v:
+        return v
+    try:
+        return st.secrets[key]
+    except Exception:
+        return ""
+
+
+@st.cache_resource(show_spinner=False)
+def _make_sb(url: str, key: str):
+    return create_client(url, key)
+
 def get_sb():
-    """Supabase anon client (provided by core.py)."""
+    """Supabase client (lazy init + cached)."""
     sb = st.session_state.get("sb")
-    if sb is None:
-        core.ensure_core()
-        sb = st.session_state.get("sb")
-    if sb is None:
+    if sb is not None:
+        return sb
+    url = get_cfg("SUPABASE_URL")
+    key = get_cfg("SUPABASE_ANON_KEY")
+    if not url or not key:
         st.error("Supabase 설정이 없습니다. (SUPABASE_URL / SUPABASE_ANON_KEY)")
         st.stop()
+    sb = _make_sb(url, key)
+    st.session_state["sb"] = sb
     return sb
 
+
+def get_authed_sb():
+    # 홈허브 로그인 세션의 access_token을 사용해 PostgREST 권한 요청을 보냅니다.
+    token = st.session_state.get("access_token")
+    if not token:
+        return None
+
+    cached = st.session_state.get("_sb_authed_talk")
+    cached_token = st.session_state.get("_sb_authed_talk_token")
+    if cached is not None and cached_token == token:
+        return cached
+
+    sb2 = get_sb()
+    try:
+        # supabase-py: postgrest.auth(token)
+        sb2.postgrest.auth(token)
+    except Exception:
+        # 일부 버전은 내부 client 설정이 다를 수 있음
+        pass
+
+    st.session_state["_sb_authed_talk"] = sb2
+    st.session_state["_sb_authed_talk_token"] = token
+    return sb2
+
+
 sb = get_sb()
+
 # ============================================================
 # ✅ CSV load
 # ============================================================
@@ -2436,7 +2482,7 @@ if submitted:
             sb2 = st.session_state.get("sb_authed") or sb  # hub에서 공유되면 sb_authed 우선
             if sb2 and USER_ID:
                 q_text = (str(row.get("q_jp", "")) or str(row.get("situation_kr",""))).strip()
-                sb2 = core.get_authed_sb() or sb2
+                sb2 = get_authed_sb() or sb2
 
                 if not sb2:
 

@@ -145,6 +145,9 @@ try {{
         )
     except Exception:
         pass
+
+
+from supabase import create_client
 from streamlit_cookies_manager import EncryptedCookieManager
 import html as html_module  # ✅ for html escaping in admin cards
 
@@ -331,11 +334,87 @@ st.session_state["_page_config_set"] = True  # children should not call set_page
 BASE_DIR = Path(__file__).resolve().parent
 
 # ============================================================
-# ✅ Config / Cookies / Supabase anon (core single source)
+# ✅ Config helper (env -> secrets)
 # ============================================================
-CFG = core.ensure_core()
+def get_cfg(key: str) -> str:
+    v = os.getenv(key)
+    if v:
+        return v
+    try:
+        return st.secrets[key]
+    except Exception:
+        return ""
+
+CFG = {
+    "COOKIE_PASSWORD": get_cfg("COOKIE_PASSWORD"),
+    "SUPABASE_URL": get_cfg("SUPABASE_URL"),
+    "SUPABASE_ANON_KEY": get_cfg("SUPABASE_ANON_KEY"),
+}
+# ✅ If COOKIE_PASSWORD is not set, derive a STABLE key from SUPABASE_ANON_KEY.
+#    This prevents 'logout on refresh' caused by missing/rotating cookie password across instances.
+COOKIE_PASSWORD_FALLBACK = hashlib.sha256(CFG["SUPABASE_ANON_KEY"].encode("utf-8")).hexdigest()
+if not CFG.get("COOKIE_PASSWORD"):
+    CFG["COOKIE_PASSWORD"] = COOKIE_PASSWORD_FALLBACK
+
+st.session_state["cfg"] = CFG
+
+missing = [k for k, v in CFG.items() if not v]
+if missing:
+    st.error(f"설정값이 없습니다: {', '.join(missing)} (Cloud Run env 또는 Streamlit secrets 확인)")
+    st.stop()
+
+
+# ============================================================
+# ✅ Encrypted token helpers (defined early)
+# ============================================================
+def _fernet():
+    pw = CFG.get("COOKIE_PASSWORD", "")
+    key = base64.urlsafe_b64encode(hashlib.sha256(pw.encode("utf-8")).digest())
+    return Fernet(key)
+
+def _enc(s: str) -> str:
+    return _fernet().encrypt(s.encode("utf-8")).decode("utf-8")
+
+def _dec(token: str) -> str | None:
+    try:
+        return _fernet().decrypt(token.encode("utf-8")).decode("utf-8")
+    except Exception:
+        return None
+
+# ============================================================
+# ✅ Cookies (MUST be created only once per app run)
+# ============================================================
 cookies = st.session_state.get("cookies")
+if cookies is None:
+    cookies = EncryptedCookieManager(prefix="hotena_beginner_", password=CFG["COOKIE_PASSWORD"])
+    if not cookies.ready():
+        st.info("잠깐만요! 곧 시작할게요🙂")
+        st.stop()
+    st.session_state["cookies"] = cookies
+
+# ✅ 쿠키 컴포넌트는 같은 run에서 같은 key로 두 번 렌더링되면
+#    StreamlitDuplicateElementKey가 발생할 수 있습니다.
+#    (특히 cookies.save()를 한 run 안에서 여러 번 호출할 때)
+#    따라서 '이번 run에서 save는 1번만' 보장합니다.
+st.session_state["_cookie_save_lock"] = False
+
+def _cookies_save_once_per_run():
+    if st.session_state.get("_cookie_save_lock"):
+        return
+    st.session_state["_cookie_save_lock"] = True
+    try:
+        cookies.save()
+    except Exception:
+        # 쿠키 저장 실패는 치명적이지 않으므로 조용히 무시
+        pass
+
+# ============================================================
+# ✅ Supabase client (anon)
+# ============================================================
 sb = st.session_state.get("sb")
+if sb is None:
+    sb = create_client(CFG["SUPABASE_URL"], CFG["SUPABASE_ANON_KEY"])
+    st.session_state["sb"] = sb
 
 # ============================================================
 # ✅ Auth helpers (restore from cookies + authed client)
@@ -445,6 +524,22 @@ def refresh_session_from_cookie_if_needed(force: bool = False) -> bool:
 
     return False
 
+
+
+def get_authed_sb():
+    refresh_session_from_cookie_if_needed(force=True)
+    token = st.session_state.get("access_token")
+    if not token:
+        return None
+    cached = st.session_state.get("sb_authed")
+    cached_token = st.session_state.get("sb_authed_token")
+    if cached is not None and cached_token == token:
+        return cached
+    sb2 = create_client(CFG["SUPABASE_URL"], CFG["SUPABASE_ANON_KEY"])
+    sb2.postgrest.auth(token)
+    st.session_state["sb_authed"] = sb2
+    st.session_state["sb_authed_token"] = token
+    return sb2
 
 
 def ensure_profile(sb_authed, user):
@@ -1670,7 +1765,7 @@ if not user:
     st.stop()
 
 # logged in
-sb_authed = core.get_authed_sb()
+sb_authed = get_authed_sb()
 user = st.session_state.get("user")
 ensure_profile(sb_authed, user)
 load_profile(sb_authed, user.id)
