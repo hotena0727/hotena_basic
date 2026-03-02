@@ -639,7 +639,7 @@ def render_floating_scroll_top():
         """,
         height=1,
     )
-if not st.session_state.get("HUB_MODE", False):
+if (not st.session_state.get("HUB_MODE", False)) and (st.session_state.get("page","home") == "home"):
     if not st.session_state.get("_fab_top_injected", False):
         render_floating_scroll_top()
         st.session_state["_fab_top_injected"] = True
@@ -2874,14 +2874,36 @@ def render_plan_banner():
 
     plan = get_user_plan()
     if plan == "pro":
+        # ✅ st.success()는 기본 여백이 커서 '한자' 페이지와 간격이 달라집니다.
+        #    pill(배지) 형태로 통일합니다.
         st.markdown(
             """
-<div class="ha-pro-pill"><span class="ha-pro-ico">✨</span><span class="ha-pro-txt">PRO 이용 중입니다</span><span class="ha-pro-gear">⚙️</span></div>
 <style>
-.ha-pro-pill{display:inline-flex;align-items:center;gap:8px;padding:6px 10px;border:1px solid rgba(0,0,0,0.08);border-radius:999px;background:rgba(255,255,255,0.75);box-shadow:0 1px 4px rgba(0,0,0,0.04);font-size:12px;font-weight:700;margin:0 0 4px 0;}
-.ha-pro-ico{opacity:0.85;}
-.ha-pro-gear{margin-left:6px;opacity:0.45;filter:saturate(0.2);}
+.ha-pro-pill{
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  padding:6px 12px;
+  border:1px solid rgba(120,120,120,0.25);
+  border-radius:999px;
+  background: rgba(255,255,255,0.85);
+  box-shadow: 0 1px 0 rgba(0,0,0,0.04);
+  font-size:13px;
+  font-weight:800;
+  margin: 0 0 4px 0;
+}
+.ha-pro-pill .gear{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:20px;
+  height:20px;
+  border-radius:999px;
+  background: rgba(0,0,0,0.06);
+  font-size:12px;
+}
 </style>
+<div class="ha-pro-pill"><span>✨</span><span>PRO 이용 중입니다</span><span class="gear">⚙️</span></div>
             """,
             unsafe_allow_html=True,
         )
@@ -2897,7 +2919,7 @@ render_topcard()
 render_plan_banner()
 render_sound_toggle()
 
-if (not st.session_state.get("HUB_MODE", False)) and (st.session_state.get("page") == "home"):
+if not st.session_state.get("HUB_MODE", False):
     streak = st.session_state.get("streak_count")
     did_today = st.session_state.get("did_attend_today")
     if streak is not None:
