@@ -824,19 +824,12 @@ def require_login():
         st.markdown(
             """
 <div class="jp" style="margin: 8px 0 14px 0;">
-  <div style="
-    border:1px solid rgba(120,120,120,0.18);
-    border-radius:18px;
-    padding:16px 16px;
-    background: rgba(255,255,255,0.03);
-  ">
-    <div style="font-weight:900; font-size:22px; line-height:1.15;">
-      ✨ 한자 퀴즈
-    </div>
-    <div style="margin-top:6px; opacity:.85; font-size:13px; line-height:1.55;">
-      하루 10문항으로 가볍게 루틴을 만들어요.<br/>
-      정답은 저장되고, 오답은 다시 풀 수 있어요.
-    </div>
+  <div style="font-weight:900; font-size:22px; line-height:1.15;">
+    ✨ 한자 퀴즈
+  </div>
+  <div style="margin-top:6px; opacity:.85; font-size:13px; line-height:1.55;">
+    하루 10문항으로 가볍게 루틴을 만들어요.<br/>
+    정답은 저장되고, 오답은 다시 풀 수 있어요.
   </div>
 </div>
 """,
