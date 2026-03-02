@@ -2835,9 +2835,9 @@ if submitted:
                                 ctx_parts.append(f"정오답: {'정답' if ok else '오답'}")
                             ctx = "\n".join(ctx_parts) if isinstance(ctx_parts, list) else ""
             
-                            # ✅ talk(44) 느낌: expander 안에서 '답변 중…'을 먼저 보여주고, 같은 자리에서 갱신
-                            coach_slot.info("답변 중…")
-                            with st.spinner("하테나쌤 답변 중…"):
+                            # ✅ talk(44) 느낌: expander 안에서 같은 자리에서 로딩→답변 갱신
+                            # (중복 표시 방지: 로딩 표시는 스피너만 사용)
+                            with st.spinner("답변 중…"):
                                 ans = ai_tutor.ask_hatena(
                                     mode="talk",
                                     user_input=question,
