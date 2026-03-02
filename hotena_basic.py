@@ -2872,211 +2872,73 @@ def render_plan_banner():
     if st.session_state.get("HUB_MODE", False):
         return
 
-    plan = get_user_plan()
-    if plan == "pro":
-        # ✅ st.success는 기본 padding/margin이 커서 상단 간격이 벌어집니다.
-        #    한자 페이지와 동일하게 "pill 배지"로 표시해 간격/톤을 통일합니다.
-        st.markdown(
-            '''
-<div class="jp" style="
-  display:inline-flex;
+    def _render_pro_pill():
+        # 한자(app.py) 쪽과 동일한 느낌의 작은 pill 배지로 통일
+        if not st.session_state.get("_ha_pro_pill_css_v1", False):
+            st.markdown(
+                '''
+<style>
+/* PRO pill (match kanji page style) */
+.ha-pro-pill{
+  display:flex;
   align-items:center;
   gap:8px;
-  border:1px solid rgba(120,120,120,0.22);
-  background: rgba(255,255,255,0.04);
-  border-radius: 999px;
-  padding: 6px 12px;
-  font-weight: 900;
-  font-size: 13px;
-  line-height: 1.05;
-  margin: 0 0 10px 0;
-">
-  ✨ <span>PRO 이용 중입니다</span>
+  padding:6px 10px;
+  border:1px solid rgba(0,0,0,0.10);
+  border-radius:999px;
+  background:rgba(255,255,255,0.95);
+  font-size:0.85rem;
+  line-height:1;
+  width:fit-content;
+  box-shadow:0 1px 2px rgba(0,0,0,0.04);
+  margin:0 0 10px 0; /* ✅ 아래 간격 최소화 */
+}
+.ha-pro-pill .ha-pro-left{ display:flex; align-items:center; gap:8px; }
+.ha-pro-pill .ha-pro-txt{ font-weight:700; opacity:0.9; }
+.ha-pro-pill .ha-pro-spacer{ flex:1; }
+.ha-pro-pill .ha-pro-gear{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:22px;
+  height:22px;
+  border-radius:999px;
+  border:1px solid rgba(0,0,0,0.10);
+  background:rgba(255,255,255,0.9);
+  font-size:0.95rem;
+  opacity:0.85;
+}
+</style>
+''',
+                unsafe_allow_html=True,
+            )
+            st.session_state["_ha_pro_pill_css_v1"] = True
+
+        st.markdown(
+            '''
+<div class="ha-pro-pill">
+  <div class="ha-pro-left">
+    <span>✨</span>
+    <span class="ha-pro-txt">PRO 이용 중입니다</span>
+  </div>
+  <span class="ha-pro-spacer"></span>
+  <span class="ha-pro-gear">⚙️</span>
 </div>
 ''',
             unsafe_allow_html=True,
         )
+
+    plan = get_user_plan()
+    if plan == "pro":
+        _render_pro_pill()
         return
 
     st.info("🔒 일부 기능은 PRO에서 열립니다. (예: 오답만 다시풀기, 발음 버튼, 패턴카드 확장 등)")
     if st.button("💎 PRO 신청/문의", use_container_width=True, key="btn_go_pro"):
-        st.session_state["_scroll_top_once"] = True
-        st.markdown(f"<meta http-equiv='refresh' content='0;url={NAVER_TALK_URL}'>", unsafe_allow_html=True)
-
-# OK 호출은 정의 아래에서
-render_topcard()
-render_plan_banner()
-render_sound_toggle()
-
-if not st.session_state.get("HUB_MODE", False):
-    streak = st.session_state.get("streak_count")
-    did_today = st.session_state.get("did_attend_today")
-    if streak is not None:
-        if did_today:
-            st.success(f"오늘 출석 완료!  (연속 {streak}일)")
-        else:
-            st.caption(f"연속 출석 {streak}일")
-        if streak >= 30:
-            st.info("🔥 30일 연속 달성!")
-        elif streak >= 7:
-            st.info("🏅 7일 연속 달성!")
-
-    if not HUB_MODE:
-            # --- (A) 기존 "오늘의 목표(루틴)" 섹션 ---
-            if "today_goal_text" not in st.session_state:
-                st.session_state.today_goal_text = "오늘은 10문항 1회 완주"
-            if "today_goal_done" not in st.session_state:
-                st.session_state.today_goal_done = False
-        
-            # ============================================================
-            # OK [PATCH] 🎯 오늘 목표 자동 연동 + 진행률 도표(프로그레스 바)
-            # - 목표 1회=10문항, 2회=20문항...
-            # - today_total(= total) 기준으로 자동 OK달성/⏳진행중
-            # - OK “오늘 목표” 박스 안에 진행률 도표 + % 표시
-            # - OK 세그먼트 카드/목표 카드 톤(테두리/라운드/그림자) 통일
-            # ============================================================
-        
-            st.markdown("""
-            <style>
-            /* OK goal 세그먼트 전용 앵커 */
-            #goal_seg_anchor + div[data-testid="stSegmentedControl"]{
-              padding: 10px 12px;
-              border: 1px solid rgba(49,51,63,.12);
-              border-radius: 14px;
-              background: #fff;
-              box-shadow: 0 1px 0 rgba(0,0,0,.02);
-              margin-bottom: 10px;
-            }
-            #goal_seg_anchor + div[data-testid="stSegmentedControl"] [role="group"]{
-              display:flex !important;
-              width:100% !important;
-              gap: 8px !important;
-            }
-            #goal_seg_anchor + div[data-testid="stSegmentedControl"] button{
-              flex: 1 1 0 !important;
-              min-width: 0 !important;
-              text-align: center !important;
-              padding: 12px 10px !important;
-              font-size: 15px !important;
-              border-radius: 12px !important;
-              border: 1px solid rgba(49,51,63,.12) !important;
-            }
-            #goal_seg_anchor + div[data-testid="stSegmentedControl"] button[aria-pressed="true"]{
-              border: 1px solid rgba(255,0,0,.35) !important;
-              box-shadow: 0 0 0 2px rgba(255,0,0,.08) inset;
-            }
-            </style>
-            """, unsafe_allow_html=True)
-        
-            # OK 앵커는 segmented_control "바로 직전"에 둬야 함
-            st.markdown('<div id="goal_seg_anchor"></div>', unsafe_allow_html=True)
-        
-        
-            # OK 1) 목표(세션) 설정값
-            if "goal_sessions" not in st.session_state:
-                st.session_state.goal_sessions = 1  # 기본 1회(=10문항)
-        
-            target_questions = st.slider(
-                "오늘 목표",
-                min_value=10, max_value=60, step=10,
-                value=st.session_state.get("target_questions", 10),
-            )
-            st.session_state["target_questions"] = target_questions
-        
-        
-            # OK 2) 오늘 푼 문항수(기존 total 변수 재사용)
-            today_total = int(total)  # ← 기존 코드에서 total이 "오늘 푼 문항"이면 그대로 OK
-        
-            goal_done = today_total >= target_questions
-            goal_percent = int(min(100, (today_total / max(1, target_questions)) * 100))
-            remain = max(0, target_questions - today_total)
-        
-            goal_msg = "오늘 목표 달성! 내일도 루틴 이어가요 🔥" if goal_done else f"남은 문항: {remain}"
-        
-        
-            # OK 3) 자동 목표 UI (진행률 도표 포함)
-            import streamlit.components.v1 as components
-        
-            card_html = f"""
-            <div class="jp" style="
-              border:1px solid rgba(49,51,63,.12);
-              border-radius:18px;
-              padding:14px 14px;
-              background:#fff;
-              box-shadow: 0 1px 0 rgba(0,0,0,.02);
-              margin: 6px 0 10px 0;
-              font-family: inherit;
-            ">
-              <div style="display:flex; justify-content:space-between; align-items:center;">
-                <div style="font-weight:900; font-size:14px; opacity:.80;">🎯 오늘 목표</div>
-                <div style="font-size:12px; font-weight:900; opacity:.85;">
-                  {"달성" if goal_done else "⏳ 진행중"}
-                </div>
-              </div>
-        
-              <div style="margin-top:10px; display:flex; gap:12px; flex-wrap:wrap; align-items:center;">
-                <div style="font-size:13px; font-weight:800; opacity:.85;">
-                  목표: <b>{target_questions}</b>문항
-                </div>
-                <div style="font-size:13px; font-weight:800; opacity:.85;">
-                  진행: <b>{today_total}</b> / {target_questions}문항
-                </div>
-                <div style="font-size:13px; font-weight:900; opacity:.85;">
-                  {goal_percent}%
-                </div>
-              </div>
-        
-              <div style="margin-top:10px;">
-                <div style="height:10px; border-radius:999px; background: rgba(0,0,0,0.07); overflow:hidden;">
-                  <div style="height:100%; width:{goal_percent}%; background: rgba(0,0,0,0.25);"></div>
-                </div>
-        
-                <div style="margin-top:10px; font-size:12.5px; opacity:.72; font-weight:700;">
-                  {goal_msg}
-                </div>
-              </div>
-            </div>
-            """
-        
-            # height는 카드 높이에 맞춰 적당히
-            components.html(card_html, height=0)
-        
-        
-            st.divider()
-
-# ============================================================
-# OK 이하: 기존 세션 상태 초기화/shape ensure (그대로 유지)
-# ============================================================
-
-if "quiz_version" not in st.session_state:
-    st.session_state.quiz_version = 0
-if "submitted" not in st.session_state:
-    st.session_state.submitted = False
-if "wrong_list" not in st.session_state:
-    st.session_state.wrong_list = []
-if "saved_this_attempt" not in st.session_state:
-    st.session_state.saved_this_attempt = False
-if "stats_saved_this_attempt" not in st.session_state:
-    st.session_state.stats_saved_this_attempt = False
-if "session_stats_applied_this_attempt" not in st.session_state:
-    st.session_state.session_stats_applied_this_attempt = False
-if "history" not in st.session_state:
-    st.session_state.history = []
-if "progress_dirty" not in st.session_state:
-    st.session_state.progress_dirty = False
-if "wrong_counter" not in st.session_state:
-    st.session_state.wrong_counter = {}
-if "total_counter" not in st.session_state:
-    st.session_state.total_counter = {}
-
-ensure_mastered_words_shape()
-ensure_excluded_wrong_words_shape()
-ensure_mastery_banner_shape()
+        st.session_state["page"] = "pro"
+        st.rerun()
 
 
-# ============================================================
-# OK 상단 UI: 품사 버튼 → (기타 expander + 적용 버튼) → 유형 버튼 → 캡션 → divider
-# ============================================================
 def on_pick_pos_group(ps: str):
     ps = str(ps).strip().lower()
     if ps == st.session_state.pos_group:
