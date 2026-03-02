@@ -47,6 +47,8 @@ def _wn_warn(msg: str):
 # OK HUB에서 호출되면 상단 중복 UI를 숨기기 위한 플래그
 HUB_MODE = st.session_state.get('HUB_MODE', False)
 import unicodedata
+from supabase import create_client
+from streamlit_cookies_manager import EncryptedCookieManager
 import streamlit.components.v1 as components
 from collections import Counter
 import time
@@ -63,7 +65,7 @@ st.session_state.pop("plan_cached", None)
 
 if not st.session_state.get('_page_config_set'):
     st.set_page_config(
-    page_title="왕초보 탈출 하테나일본어",
+    page_title="왕초보탈출 하테나일본어",
     page_icon="static/icon-192.png",   # 또는 "🟦"
     layout="centered",
 )
@@ -649,16 +651,63 @@ if st.session_state.get("_scroll_top_once"):
     scroll_to_top(nonce=st.session_state["_scroll_top_nonce"])
 
 # ============================================================
-# OK Cookies + Supabase (Hub/core로 통일)
+# OK Cookies + Supabase (Cloud Run env + Streamlit secrets 겸용)
 # ============================================================
-# ✅ 쿠키/세션 복구는 core.ensure_core() 한 곳에서만 처리합니다.
-core.ensure_core(cookie_prefix="hotena_beginner_", localstorage_keys=("hotena_rt","hotena_at"))
+import os
+import streamlit as st
+from streamlit_cookies_manager import EncryptedCookieManager
+from supabase import create_client
 
+def get_cfg(key: str) -> str:
+    # 0) Hub(home.py)에서 주입된 설정 우선
+    try:
+        cfg = st.session_state.get("cfg", {}) or {}
+        if key in cfg and cfg[key]:
+            return str(cfg[key])
+    except Exception:
+        pass
+    # 1) Cloud Run: 환경변수 우선
+    v = os.getenv(key)
+    if v:
+        return v
+    # 2) Streamlit Cloud: secrets
+    try:
+        return st.secrets[key]
+    except Exception:
+        return 
+
+COOKIE_PASSWORD = get_cfg("COOKIE_PASSWORD")
+SUPABASE_URL = get_cfg("SUPABASE_URL")
+SUPABASE_ANON_KEY = get_cfg("SUPABASE_ANON_KEY")
+
+# OK 필수값 체크
+missing = [k for k, v in {
+    "COOKIE_PASSWORD": COOKIE_PASSWORD,
+    "SUPABASE_URL": SUPABASE_URL,
+    "SUPABASE_ANON_KEY": SUPABASE_ANON_KEY,
+}.items() if not v]
+
+if missing:
+    st.error(f"설정값이 없습니다: {', '.join(missing)} (Cloud Run env 또는 Streamlit secrets 확인)")
+    st.stop()
+
+# OK cookies/supabase는 Hub(home.py)에서 1회 생성 후 공유합니다.
 cookies = st.session_state.get("cookies")
 sb = st.session_state.get("sb")
-if cookies is None or sb is None:
-    st.error("세션 초기화에 실패했습니다. (cookies/supabase)")
-    st.stop()
+
+if cookies is None:
+    cookies = EncryptedCookieManager(
+        prefix="hotena_beginner_",
+        password=COOKIE_PASSWORD,
+    )
+    if not cookies.ready():
+        st.info("잠깐만요! 곧 시작할게요🙂")
+        st.stop()
+    st.session_state["cookies"] = cookies
+
+if sb is None:
+    sb = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+    st.session_state["sb"] = sb
 
 # ============================================================
 # OK Utils: 위젯 잔상(q_...) 제거
@@ -786,7 +835,7 @@ def is_admin() -> bool:
         st.session_state["is_admin_cached"] = False
         return False
 
-    sb_authed_local = core.get_authed_sb()
+    sb_authed_local = get_authed_sb()
     if sb_authed_local is None:
         st.session_state["is_admin_cached"] = False
         return False
@@ -878,7 +927,7 @@ def start_quiz_state(quiz_list: list, qtype: str, clear_wrongs: bool = True):
 def mark_progress_dirty():
     st.session_state.progress_dirty = True
 
-    sb_authed_local = core.get_authed_sb()
+    sb_authed_local = get_authed_sb()
     u = st.session_state.get("user")
     if (sb_authed_local is None) or (u is None):
         return
@@ -1007,6 +1056,27 @@ def refresh_session_from_cookie_if_needed(force: bool = False) -> bool:
 
     return False
 
+def get_authed_sb():
+    if not st.session_state.get("access_token"):
+        refresh_session_from_cookie_if_needed(force=True)
+
+    token = st.session_state.get("access_token")
+    if not token:
+        return None
+
+    cached = st.session_state.get("_sb_authed")
+    cached_token = st.session_state.get("_sb_authed_token")
+
+    if cached is not None and cached_token == token:
+        return cached
+
+    sb2 = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
+    sb2.postgrest.auth(token)
+
+    st.session_state["_sb_authed"] = sb2
+    st.session_state["_sb_authed_token"] = token
+    return sb2
+
 def to_kst_naive(x):
     ts = pd.to_datetime(x, utc=True, errors="coerce")
     if isinstance(ts, pd.Series):
@@ -1094,7 +1164,7 @@ def get_user_plan() -> str:
         st.session_state["plan_cached"] = "free"
         return "free"
 
-    sb_authed_local = core.get_authed_sb()
+    sb_authed_local = get_authed_sb()
     if sb_authed_local is None:
         st.session_state["plan_cached"] = "free"
         return "free"
@@ -2140,7 +2210,7 @@ def render_admin_dashboard():
         st.session_state.page = "quiz"
         st.rerun()
 
-    sb_authed_local = core.get_authed_sb()
+    sb_authed_local = get_authed_sb()
     if sb_authed_local is None:
         st.warning("세션 토큰이 없습니다. 다시 로그인해 주세요.")
         return
@@ -2180,7 +2250,7 @@ def render_my_dashboard():
         st.session_state.page = "quiz"
         st.stop()
 
-    sb_authed_local = core.get_authed_sb()
+    sb_authed_local = get_authed_sb()
     if sb_authed_local is None:
         st.warning("세션 토큰이 없습니다. 다시 로그인해 주세요.")
         return
@@ -2445,7 +2515,7 @@ def render_home():
 
     # OK (2) 오늘의 학습 리포트: 홈에서만 / 타이틀 다음, 오늘의 말 위
     try:
-        sb_authed = core.get_authed_sb()
+        sb_authed = get_authed_sb()
         user_id = getattr(u, "id", None) if u else None
         if sb_authed and user_id:
             render_today_report_db_only(sb_authed, user_id)
@@ -2721,7 +2791,7 @@ user_id = getattr(user, "id", None) if user else None
 user_email = getattr(user, "email", None) if user else None
 user_email = user_email or st.session_state.get("login_email")
 
-sb_authed = core.get_authed_sb()
+sb_authed = get_authed_sb()
 
 # OK PRO 캐시가 다른 유저에게 넘어가는 것 방지 (먼저!)
 cached_uid = st.session_state.get("plan_cached_user_id")
@@ -2770,7 +2840,7 @@ if st.session_state.get("page") != "home":
     st.markdown(
         f"""
 <div class="jp headbar">
-  <div class="headtitle">✨ 단어</div>
+  <div class="headtitle">✨ 왕초보 탈출 하테나일본어</div>
 </div>
 """,
         unsafe_allow_html=True,
@@ -2846,7 +2916,7 @@ is_locked = False
 daily_solved = 0
 
 if not is_pro():
-    sb_authed_local = core.get_authed_sb()
+    sb_authed_local = get_authed_sb()
     if sb_authed_local is not None:
         daily_solved = get_daily_solved_from_db(sb_authed_local, user_id)
         is_locked = (daily_solved >= FREE_LIMIT)
@@ -2858,7 +2928,7 @@ if is_locked:
 # OK 오늘 푼 문항 수(total) 정의: 목표 UI/DEBUG에서 공통 사용
 total = 0
 try:
-    sb_authed_local = core.get_authed_sb()
+    sb_authed_local = get_authed_sb()
     if sb_authed_local is not None and user_id:
         total = get_daily_solved_from_db(sb_authed_local, user_id)  # 오늘 푼 문항 수
 except Exception:
@@ -3489,7 +3559,7 @@ if st.session_state.submitted:
     # OK 오답 상세 저장 (wrong_notes) — 3회 이상 반복오답/Top10 복습용
     # - 홈/마이페이지에서 '단어/정답/내답' 카드 복원을 위해 필요
     rows = []
-    sb_authed = core.get_authed_sb()
+    sb_authed = get_authed_sb()
     u_id = getattr(st.session_state.get("user"), "id", None)
 
     if (not u_id) and st.session_state.get("access_token"):
@@ -3535,17 +3605,16 @@ if st.session_state.submitted:
         st.session_state.free_limit_applied_this_attempt = True
 
     
-    ratio = score / quiz_len if quiz_len else 0.0
+ratio = score / quiz_len if quiz_len else 0.0
 
-    # OK 점수 기반 SFX (제출 직후 1회) — core.py에서 중앙 통제
-    _sfx_key = f"word_submit__{int(st.session_state.get('quiz_version', 0) or 0)}"
-    if ratio == 1:
-        core.play_sfx_once(_sfx_key, "reward")
-    elif ratio >= 0.7:
-        core.play_sfx_once(_sfx_key, "correct")
-    else:
-        core.play_sfx_once(_sfx_key, "wrong")
-
+# OK 점수 기반 SFX (제출 직후 1회) — core.py에서 중앙 통제
+_sfx_key = f"word_submit__{int(st.session_state.get('quiz_version', 0) or 0)}"
+if ratio == 1:
+    core.play_sfx_once(_sfx_key, "reward")
+elif ratio >= 0.7:
+    core.play_sfx_once(_sfx_key, "correct")
+else:
+    core.play_sfx_once(_sfx_key, "wrong")
     if ratio == 1:
         st.balloons()
         st.success("🎉 완벽해요! 전부 정답입니다.")
@@ -3553,7 +3622,7 @@ if st.session_state.submitted:
         st.info("👍 잘하고 있어요! 조금만 더 다듬으면 완벽해질 거예요.")
     else:
         st.warning("💪 괜찮아요! 틀린 문제는 성장의 재료예요. 다시 한 번 도전해봐요.")
-    sb_authed_local = core.get_authed_sb()
+    sb_authed_local = get_authed_sb()
     if sb_authed_local is None:
         if show_post_ui:
             st.warning("DB 저장/조회용 토큰이 없습니다. 다시 로그인해 주세요.")
