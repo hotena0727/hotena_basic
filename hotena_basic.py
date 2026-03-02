@@ -3535,15 +3535,15 @@ if st.session_state.submitted:
         st.session_state.free_limit_applied_this_attempt = True
 
     
-ratio = score / quiz_len if quiz_len else 0.0
-
-# OK 점수 기반 SFX (제출 직후 1회) — core.py에서 중앙 통제
-_sfx_key = f"word_submit__{int(st.session_state.get('quiz_version', 0) or 0)}"
-if ratio == 1:
+    ratio = score / quiz_len if quiz_len else 0.0
+    
+    # OK 점수 기반 SFX (제출 직후 1회) — core.py에서 중앙 통제
+    _sfx_key = f"word_submit__{int(st.session_state.get('quiz_version', 0) or 0)}"
+    if ratio == 1:
     core.play_sfx_once(_sfx_key, "reward")
-elif ratio >= 0.7:
+    elif ratio >= 0.7:
     core.play_sfx_once(_sfx_key, "correct")
-else:
+    else:
     core.play_sfx_once(_sfx_key, "wrong")
     if ratio == 1:
         st.balloons()
@@ -3574,7 +3574,7 @@ else:
                 if show_post_ui:
                     st.warning("DB 저장에 실패했습니다. (테이블/컬럼/권한/RLS 정책 확인 필요)")
                     st.write(str(e))
-
+    
         if not st.session_state.stats_saved_this_attempt:
             try:
                 sync_answers_from_widgets()
@@ -3591,12 +3591,12 @@ else:
                 if show_post_ui and is_admin():
                     st.error("❌ 단어 통계(bulk) 저장 실패 (RPC/정책 확인)")
                     st.exception(e)
-
+    
         try:
             save_progress_to_db(sb_authed_local, user_id)
         except Exception:
             pass
-
+    
     # ============================================================
     # OK 콤보 계산 (⚠️ 반드시 제출 후에만)
     # ============================================================
@@ -3605,20 +3605,20 @@ else:
         picked = st.session_state.answers[idx]
         correct = q["correct_text"]
         correct_flags.append(picked == correct)
-
+    
     max_combo = compute_max_combo(correct_flags)
     render_combo_celebration(max_combo)
     render_combo_small_badge()
-
+    
     # ============================================================
     # OK 제출 후 화면 내부 "오답노트" 블록
     # ============================================================
     if st.session_state.wrong_list:
         st.subheader("❌ 오답 노트")
-
+    
     def _s(v):
         return "" if v is None else str(v)
-
+    
     def _esc(x: str) -> str:
         x = _s(x)
         return (x.replace("&", "&amp;")
@@ -3626,37 +3626,37 @@ else:
                  .replace(">", "&gt;")
                  .replace('"', "&quot;")
                  .replace("'", "&#39;"))
-
+    
     STYLE = """
-<style>
-.wrong-card{
+    <style>
+    .wrong-card{
   border: 1px solid rgba(120,120,120,0.25);
   border-radius: 16px;
   padding: 14px 14px;
   margin-bottom: 10px;
   background: rgba(255,255,255,0.02);
-}
-.wrong-top{
+    }
+    .wrong-top{
   display:flex;
   align-items:flex-start;
   justify-content:space-between;
   gap:12px;
   margin-bottom: 8px;
-}
-.wrong-left{ min-width:0; }
-.wrong-title{
+    }
+    .wrong-left{ min-width:0; }
+    .wrong-title{
   font-weight: 900;
   font-size: 15px;
   margin-bottom: 4px;
   overflow:hidden;
   text-overflow:ellipsis;
   white-space:nowrap;
-}
-.wrong-sub{
+    }
+    .wrong-sub{
   opacity: 0.8;
   font-size: 12px;
-}
-.tag{
+    }
+    .tag{
   display:inline-flex;
   align-items:center;
   gap:6px;
@@ -3667,18 +3667,18 @@ else:
   border: 1px solid rgba(120,120,120,0.25);
   background: rgba(255,255,255,0.03);
   white-space: nowrap;
-}
-.ans-row{
+    }
+    .ans-row{
   display:grid;
   grid-template-columns: 72px 1fr;
   gap:10px;
   margin-top:6px;
   font-size: 13px;
-}
-.ans-k{ opacity: 0.7; font-weight: 700; }
-</style>
-"""
-
+    }
+    .ans-k{ opacity: 0.7; font-weight: 700; }
+    </style>
+    """
+    
     cards = []
     for w in st.session_state.wrong_list:
         no = _s(w.get("No"))
@@ -3690,9 +3690,9 @@ else:
         meaning = _s(w.get("뜻"))
         mode = quiz_label_map.get(w.get("유형"), _s(w.get("유형")))
         pos_label = POS_LABEL_MAP.get(w.get("품사"), _s(w.get("품사")))
-
+    
         card_html = f"""
-<div class="jp">
+    <div class="jp">
   <div class="wrong-card">
     <div class="wrong-top">
       <div class="wrong-left">
@@ -3701,55 +3701,55 @@ else:
       </div>
       <div class="tag">오답</div>
     </div>
-
+    
     <div class="ans-row"><div class="ans-k">내 답</div><div>{_esc(picked)}</div></div>
     <div class="ans-row"><div class="ans-k">정답</div><div><b>{_esc(correct)}</b></div></div>
     <div class="ans-row"><div class="ans-k">발음</div><div>{_esc(reading)}</div></div>
     <div class="ans-row"><div class="ans-k">뜻</div><div>{_esc(meaning)}</div></div>
   </div>
-</div>
-"""
+    </div>
+    """
         cards.append(card_html)
-
+    
     def _render_cards(card_list: list[str], max_height: int = 650):
         if not card_list:
             return
         html_block = "".join(card_list)
         h = 190 * len(card_list) + 10
         h = max(190, min(h, max_height))
-
+    
         components.html(
             textwrap.dedent(f"""
-{STYLE}
-{html_block}
-"""),
+    {STYLE}
+    {html_block}
+    """),
             height=h,
         )
-
+    
     MAX_PREVIEW = 3
     preview_cards = cards[:MAX_PREVIEW]
     rest_cards = cards[MAX_PREVIEW:]
-
+    
     _render_cards(preview_cards, max_height=650)
-
+    
     if rest_cards:
         with st.expander(f"오답 더 보기 (+{len(rest_cards)}개)", expanded=False):
             _render_cards(rest_cards, max_height=900)
             
-
-# ============================================================
-# OK 제출 후 하단 액션 버튼 (오답 유무와 무관하게 항상 표시)
-# ============================================================
-if st.session_state.get("submitted", False):
+    
+    # ============================================================
+    # OK 제출 후 하단 액션 버튼 (오답 유무와 무관하게 항상 표시)
+    # ============================================================
+    if st.session_state.get("submitted", False):
     st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
-
+    
     cA, cB = st.columns(2)
     with cA:
         locked = free_limit_reached()
-
+    
         if locked:
             st.caption("🔒 오늘 무료 한도(30문항)를 모두 사용했어요.")
-
+    
         if st.button(
             "다음 10문항 시작하기",
             type="primary",
@@ -3759,9 +3759,9 @@ if st.session_state.get("submitted", False):
         ):
             if locked:
                 st.stop()
-
+    
             clear_question_widget_keys()
-
+    
             st.session_state["_counted_today"] = False
             
             new_quiz = build_quiz(st.session_state.quiz_type, st.session_state.pos_group)
@@ -3770,7 +3770,7 @@ if st.session_state.get("submitted", False):
             mark_quiz_as_seen(new_quiz, st.session_state.quiz_type, st.session_state.pos_group)
             st.session_state["_scroll_top_once"] = True
             st.rerun()
-
+    
     with cB:
         # 오답이 있을 때만 활성화(없으면 disabled)
         has_wrongs = bool(st.session_state.get("wrong_list"))
@@ -3790,7 +3790,7 @@ if st.session_state.get("submitted", False):
             start_quiz_state(retry_quiz, st.session_state.quiz_type, clear_wrongs=True)
             st.session_state["_scroll_top_once"] = True
             st.rerun()
-
+    
     show_naver_talk = (SHOW_NAVER_TALK == "N") or is_admin()
     if show_naver_talk:
         render_naver_talk()
