@@ -58,16 +58,9 @@ div[data-testid="stRadio"] span{
 }
 
 </style>""", unsafe_allow_html=True)
-st.session_state["_top_compact_css_applied"] = True
 
-
-# ============================================================
-# ✅ Header / JP Font (same as hotena_basic.py for pixel-match)
-# ============================================================
-if not st.session_state.get("_kanji_header_css_applied", False):
-    st.session_state["_kanji_header_css_applied"] = True
-    st.markdown(
-        """
+st.markdown(
+    """
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Kosugi+Maru&family=Noto+Sans+JP:wght@400;500;700;800&display=swap" rel="stylesheet">
@@ -81,7 +74,7 @@ if not st.session_state.get("_kanji_header_css_applied", False):
   letter-spacing:.2px;
 }
 
-/* 상단 환영바 */
+/* 상단 환영바 (hotena_basic 동일) */
 .headbar{
   display:flex;
   align-items:flex-end;
@@ -117,8 +110,11 @@ if not st.session_state.get("_kanji_header_css_applied", False):
 }
 </style>
 """,
-        unsafe_allow_html=True,
-    )
+    unsafe_allow_html=True,
+)
+
+
+st.session_state["_top_compact_css_applied"] = True
 
 st.session_state["_page_config_set"] = True
 # ============================================================
@@ -884,19 +880,12 @@ def require_login():
         st.markdown(
             """
 <div class="jp" style="margin: 8px 0 14px 0;">
-  <div style="
-    border:1px solid rgba(120,120,120,0.18);
-    border-radius:18px;
-    padding:16px 16px;
-    background: rgba(255,255,255,0.03);
-  ">
-    <div style="font-weight:900; font-size:22px; line-height:1.15;">
-      ✨ 한자 퀴즈
-    </div>
-    <div style="margin-top:6px; opacity:.85; font-size:13px; line-height:1.55;">
-      하루 10문항으로 가볍게 루틴을 만들어요.<br/>
-      정답은 저장되고, 오답은 다시 풀 수 있어요.
-    </div>
+  <div style="font-weight:900; font-size:22px; line-height:1.15;">
+    ✨ 한자 퀴즈
+  </div>
+  <div style="margin-top:6px; opacity:.85; font-size:13px; line-height:1.55;">
+    하루 10문항으로 가볍게 루틴을 만들어요.<br/>
+    정답은 저장되고, 오답은 다시 풀 수 있어요.
   </div>
 </div>
 """,
