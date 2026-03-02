@@ -167,6 +167,85 @@ def hotena_title(icon_path: str, title: str, size_px: int = 56, gap_px: int = 6,
 import ai_tutor
 
 # ============================================================
+# ✅ Smart Coach isolation: keep expander open + avoid whole-page flicker
+# - Use st.form to prevent rerun on every keystroke
+# - Use st.fragment (if available) so only this block reruns on submit
+# ============================================================
+def _render_talk_ai_coach(*, qid: str, row: dict):
+    coach_open_key = f"talk_ai_open_{qid}"
+    coach_answer_key = f"talk_ai_answer_{qid}"
+
+    if coach_open_key not in st.session_state:
+        st.session_state[coach_open_key] = False
+
+    with st.expander(
+        "🤖 원포인트 일본어가 어려우면 하테나쌤에게 물어보세요",
+        expanded=bool(st.session_state.get(coach_open_key, False)),
+    ):
+        # 타이틀/입력
+        hotena_title("assets/hotena_talk/icons_title/icon_coach_title.png", "하테나쌤 스마트 코치")
+
+        q_default = st.session_state.get("talk_ai_last_q") or ""
+        with st.form(key=f"talk_ai_form_{qid}", clear_on_submit=False):
+            user_q = st.text_input(
+                "질문",
+                value=str(q_default),
+                key=f"talk_ai_q_{qid}",
+                placeholder="예) 더 자연스러운 표현도 있어요?",
+                label_visibility="collapsed",
+            )
+            st.caption("회화 표현·뉘앙스·자연스러움 위주 질문에 최적화되어 있어요.")
+            ask = st.form_submit_button("AI 코칭 받기 시작", use_container_width=True)
+
+        coach_slot = st.empty()
+
+        # 이전 답변이 있으면 항상 같은 자리에서 표시
+        _prev = st.session_state.get(coach_answer_key)
+        if _prev:
+            coach_slot.markdown(_prev)
+
+        if ask and str(user_q).strip():
+            # 버튼 누르는 순간 expander는 반드시 열린 상태로 고정
+            st.session_state[coach_open_key] = True
+
+            question = str(user_q).strip()
+            st.session_state["talk_ai_last_q"] = question
+
+            # 👉 일반 문의 분기(기존 로직 유지)
+            general_keywords = [
+                "패키지", "요금", "가격", "결제",
+                "환불", "기능", "프로", "무료",
+                "상담", "문의", "톡", "네이버", "교재"
+            ]
+            if any(k in question for k in general_keywords):
+                coach_slot.info(
+                    "📌 해당 문의는 회화 코칭 범위를 벗어납니다.\n\n"
+                    "👉 정확한 안내는 **하테나쌤 톡**으로 문의해주세요 🙂"
+                )
+                st.session_state[coach_answer_key] = (
+                    "📌 해당 문의는 회화 코칭 범위를 벗어납니다.\n\n"
+                    "👉 정확한 안내는 **하테나쌤 톡**으로 문의해주세요 🙂"
+                )
+                return
+
+            # 👉 회화 코칭
+            with coach_slot:
+                with st.spinner("하테나쌤이 답변 중입니다..."):
+                    ans = ai_tutor.ask_hatena(
+                        mode="talk",
+                        user_input=question,
+                        context=str(row.get("partner_jp", "") or ""),
+                        meta={"qid": qid},
+                    )
+            st.session_state[coach_answer_key] = ans
+            coach_slot.markdown(ans)
+
+# st.fragment 지원 시, 이 블록만 부분 rerun (전체 화면 번쩍임 최소화)
+if hasattr(st, "fragment"):
+    _render_talk_ai_coach = st.fragment(_render_talk_ai_coach)
+
+
+# ============================================================
 # ✅ wrong_notes debug helper
 # ============================================================
 _WN_DEBUG = bool(st.session_state.get("is_admin", False)) or bool(st.session_state.get("is_admin_cached", False))
@@ -2753,128 +2832,7 @@ if submitted:
             if coach_open_key not in st.session_state:
                 st.session_state[coach_open_key] = False
 
-            with st.expander("🤖 원포인트 일본어가 어려우면 하테나쌤에게 물어보세요", expanded=st.session_state.get(coach_open_key, False)):
-                hotena_title("assets/hotena_talk/icons_title/icon_coach_title.png", "하테나쌤 스마트 코치")
-                q_default = st.session_state.get("talk_ai_last_q") or ""
-                user_q = st.text_input(
-                    "질문",
-                    value=str(q_default),
-                    key=f"talk_ai_q_{qid}",
-                    placeholder="예) 더 자연스러운 표현도 있어요?",
-                    label_visibility="collapsed",
-                    # ✅ 입력/포커스가 발생하면 항상 열린 상태로 고정 (rerun에도 expander 유지)
-                    on_change=lambda k=coach_open_key: st.session_state.__setitem__(k, True),
-                )
-
-                st.caption("회화 표현·뉘앙스·자연스러움 위주 질문에 최적화되어 있어요.")
-
-                ask = st.button(
-                    "AI 코칭 받기 시작",
-                    use_container_width=True,
-                    key=f"talk_ai_ask_{qid}",
-                    # ✅ 클릭 순간에도 열린 상태를 세션에 기록 → 버튼 클릭 rerun에서 '닫힘' 방지
-                    on_click=lambda k=coach_open_key: st.session_state.__setitem__(k, True),
-                )
-
-                coach_slot = st.empty()
-
-                # ✅ rerun으로 expander가 닫히지 않도록: 이전 답변이 있으면 즉시 표시
-                if st.session_state.get(coach_answer_key):
-                    st.session_state[coach_open_key] = True
-                    coach_slot.info(st.session_state.get(coach_answer_key))
-
-                if ask and str(user_q).strip():
-                    st.session_state[coach_open_key] = True
-
-                    question = str(user_q).strip()
-                    st.session_state["talk_ai_last_q"] = question
-
-                    # 👉 일반 문의 분기
-                    general_keywords = [
-                        "패키지", "요금", "가격", "결제",
-                        "환불", "기능", "프로", "무료",
-                        "상담", "문의", "톡", "네이버", "교재"
-                    ]
-
-                    if any(k in question for k in general_keywords):
-
-                        coach_slot.info(
-                            "📌 해당 문의는 회화 코칭 범위를 벗어납니다.\n\n"
-                            "👉 정확한 안내는 **하테나쌤 톡**으로 문의해주세요 🙂"
-                        )
-
-                        st.link_button(
-                            "💬 톡 문의하기",
-                            "http://talk.naver.com/W45141",
-                            use_container_width=True
-                        )
-
-                    else:
-                        # 회화 질문일 때만 AI 호출
-                        def _is_ctx_relevant(q: str, row_: dict) -> bool:
-                            q = (q or "").strip().lower()
-                            if not q:
-                                return False
-                            # If question explicitly refers to correctness/nuance/why, treat as relevant
-                            key_hits = ["정답", "오답", "왜", "뉘앙스", "자연", "어색", "차이", "문법", "표현", "대안", "바꿔", "맞아", "틀려"]
-                            if any(k in q for k in key_hits):
-                                return True
-                            # If includes Japanese chars, likely about the expression
-                            if re.search(r"[\u3040-\u30ff\u4e00-\u9fff]", q):
-                                return True
-                            # If includes a snippet from this item's fields, it's relevant
-                            s = str(row_.get("situation_kr", "") or "").strip().lower()
-                            p = str(row_.get("partner_jp", "") or "").strip().lower()
-                            a = str(row_.get("answer_jp", "") or "").strip().lower()
-                            for ref in (p, a):
-                                if ref and ref[:8] in q:
-                                    return True
-                            # Default: treat as general question → do NOT bind to current quiz context
-                            return False
-
-
-                        use_ctx = _is_ctx_relevant(question, row)
-                        ctx_parts = [] if use_ctx else None
-
-                        s = str(row.get("situation_kr", "")).strip()
-                        p = str(row.get("partner_jp", "")).strip()
-                        a = str(row.get("answer_jp", "")).strip()
-                        me = str(selected or "").strip()
-
-                        if ctx_parts is not None and s:
-                            ctx_parts.append(f"현재상황: {s}")
-                        if ctx_parts is not None and p:
-                            ctx_parts.append(f"상대발화: {p}")
-                        if ctx_parts is not None and a:
-                            ctx_parts.append(f"정답표현: {a}")
-                        if ctx_parts is not None and me:
-                            ctx_parts.append(f"내선택: {me}")
-
-                        if ctx_parts is not None:
-                            ctx_parts.append(f"정오답: {'정답' if ok else '오답'}")
-
-                        ctx = "\n".join(ctx_parts) if isinstance(ctx_parts, list) else ""
-
-                        with st.spinner("하테나쌤 답변 중…"):
-                            ans = ai_tutor.ask_hatena(
-                                mode="talk",
-                                user_input=question,
-                                context=ctx,
-                                meta={
-                                    "page": "talk",
-                                    "qid": str(qid),
-                                    "submitted": True,
-                                    "ctx_used": bool(ctx),
-                                    "ok": bool(ok),
-                                    "is_admin": bool(
-                                        st.session_state.get("is_admin", False)
-                                        or st.session_state.get("is_admin_cached", False)
-                                    ),
-                                },
-                            )
-
-                        st.session_state[coach_answer_key] = ans
-                        coach_slot.info(ans)# ============================================================
+            _render_talk_ai_coach(qid=str(qid), row=row)
 # ✅ (추가) 정답 발음 확인 버튼용: 플레이어 없이 즉시 재생(JS Audio / TTS)
 # - 브라우저에 플레이어 UI가 뜨지 않게, new Audio().play()로만 재생
 # - JS 문자열은 % 포맷을 써서 f-string 중괄호 오류를 방지
