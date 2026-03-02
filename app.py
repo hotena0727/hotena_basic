@@ -1882,6 +1882,7 @@ st.session_state.progress_restored = True
 if "level" not in st.session_state:
     st.session_state.level = "N5"
 
+
 # title (home 제외: 페이지별로 제목 다르게)
 if st.session_state.get("page") != "home":
     u = st.session_state.get("user")
@@ -1889,27 +1890,39 @@ if st.session_state.get("page") != "home":
 
     _p = st.session_state.get("page")
     if _p == "my":
-        _title_html = "👤 마이페이지"
-        _wrap_style = ""
-    elif _p == "admin":
-        _title_html = "🛠 관리자"
-        _wrap_style = ""
-    else:
-        # ✅ 단어 훈련과 같은 "✨ + 제목" 한 줄 스타일
-        _title_html = (
-            "<span style=\"font-size:28px; line-height:1;\">✨</span>"
-            "<span style=\"font-size:34px; font-weight:900; letter-spacing:-0.5px;\">한자</span>"
-        )
-        _wrap_style = "display:flex; align-items:center; gap:10px;"
-
-    st.markdown(
-        f"""
+        _title = "👤 마이페이지"
+        st.markdown(
+            f"""
 <div class="jp headbar">
-  <div class="headtitle" style="{_wrap_style}">{_title_html}</div>
+  <div class="headtitle">{_title}</div>
 </div>
 """,
-        unsafe_allow_html=True
-    )
+            unsafe_allow_html=True
+        )
+    elif _p == "admin":
+        _title = "🛠 관리자"
+        st.markdown(
+            f"""
+<div class="jp headbar">
+  <div class="headtitle">{_title}</div>
+</div>
+""",
+            unsafe_allow_html=True
+        )
+    else:
+        # ✅ "단어" 페이지처럼: ✨ + 큰 제목을 한 줄로(한 덩어리 헤더)
+        st.markdown(
+            """
+<div class="jp headbar" style="padding:0;">
+  <div style="display:flex; align-items:center; gap:10px;">
+    <div style="font-size:28px; line-height:1;">✨</div>
+    <div style="font-size:34px; font-weight:900; letter-spacing:-0.5px;">한자</div>
+  </div>
+</div>
+""",
+            unsafe_allow_html=True,
+        )
+
 
 # 프로필/출석
 if sb_authed is not None:
@@ -2291,15 +2304,15 @@ def render_kanji_hub(HUB_MODE: bool = False):
         ratio = score / quiz_len if quiz_len else 0
 
         
-# OK 점수 기반 SFX (제출 직후 1회) — core.py에서 중앙 통제
-_sfx_key = f"word_submit__{int(st.session_state.get('quiz_version', 0) or 0)}"
-if ratio == 1:
-    core.play_sfx_once(_sfx_key, "reward")
-elif ratio >= 0.7:
-    core.play_sfx_once(_sfx_key, "correct")
-else:
-    core.play_sfx_once(_sfx_key, "wrong")
-    
+        # OK 점수 기반 SFX (제출 직후 1회) — core.py에서 중앙 통제
+        _sfx_key = f"word_submit__{int(st.session_state.get('quiz_version', 0) or 0)}"
+        if ratio == 1:
+            core.play_sfx_once(_sfx_key, "reward")
+        elif ratio >= 0.7:
+            core.play_sfx_once(_sfx_key, "correct")
+        else:
+            core.play_sfx_once(_sfx_key, "wrong")
+
         if ratio == 1:
             st.balloons()
             st.success("🎉 완벽해요! 전부 정답입니다. 정말 잘했어요!")
