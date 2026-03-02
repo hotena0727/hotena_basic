@@ -1785,7 +1785,10 @@ def render_home():
 # ============================================================
 # OK 앱 시작: refresh → 로그인 강제 → 페이지 설정
 # ============================================================
-ok = core.refresh_session_from_cookie_if_needed(force=False)
+ok = refresh_session_from_cookie_if_needed(force=False)
+if not ok and (cookies.get("refresh_token") or cookies.get("access_token")):
+    clear_auth_everywhere()
+    st.caption("세션 복원에 실패해서 로그인을 다시 요청합니다.")
 
 require_login()
 
@@ -1835,10 +1838,16 @@ if st.session_state.get("page") != "home":
 
     st.markdown(
         f"""
-<div class="jp headbar">
-  <div class="headtitle">{_title}</div>
+st.markdown(
+    f"""
+<div class="jp" style="margin:6px 0 10px 0;">
+  <div style="font-weight:900; font-size:22px; line-height:1.15;">
+    {_title}
+  </div>
 </div>
 """,
+    unsafe_allow_html=True
+)""",
         unsafe_allow_html=True
     )
 
