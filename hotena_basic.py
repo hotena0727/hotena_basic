@@ -2748,10 +2748,14 @@ def render_today_report_db_only(sb_authed, user_id: str):
 # ============================================================
 # OK App Start: refresh → login → routing
 # ============================================================
-ok = refresh_session_from_cookie_if_needed(force=False)
-if not ok and (cookies.get("refresh_token") or cookies.get("access_token")):
-    clear_auth_everywhere()
-    st.caption("세션 복원에 실패해서 로그인을 다시 요청합니다.")
+# ✅ 세션 복원 (Hub 이동/리렌더링에도 로그인 유지)
+# - 여기서 '복원 실패'를 이유로 강제 로그아웃(clear_auth_everywhere)하지 않습니다.
+#   (페이지 이동 시 일시적으로 token/user가 비어 보이는 순간이 있어도, core가 복원합니다.)
+try:
+    core.ensure_core(cookie_prefix="hotena_beginner_", localstorage_keys=("hotena_rt","hotena_at"))
+    core.refresh_session_from_cookie_if_needed(force=False)
+except Exception:
+    pass
 
 require_login()
 
