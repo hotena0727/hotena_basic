@@ -1911,7 +1911,7 @@ if st.session_state.get("page") != "home":
     elif _p == "admin":
         _title = "🛠 관리자"
     else:
-        _title = "✨ 한자"
+        _title = "✨ 한자 퀴즈"
 
     st.markdown(
         f"""
