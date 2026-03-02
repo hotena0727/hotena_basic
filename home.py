@@ -94,8 +94,6 @@ def run_module(module_name: str):
 # ✅ LocalStorage / QueryParam persistence helpers
 # ============================================================
 def _js_bridge_localstorage_to_queryparam(ls_key: str, qp_key: str):
-    # (Helper) Mirror localStorage value into a URL queryparam without a full page reload.
-    # Uses history.replaceState (NOT location.replace) to avoid full reload/new-tab behavior.
     try:
         components.html(
             f"""<script>
@@ -114,6 +112,7 @@ def _js_bridge_localstorage_to_queryparam(ls_key: str, qp_key: str):
   }} catch(e) {{}}
 }})();
 
+// ✅ iframe wrapper hide (string 안에 있어야 함)
 try{{var f=window.frameElement;if(f){{f.style.display='none';f.style.height='0px';f.style.minHeight='0px';f.style.border='0';var p=f.parentElement;if(p){{p.style.display='none';p.style.height='0px';p.style.minHeight='0px';p.style.margin='0';p.style.padding='0';}}}}}}catch(e){{}}
 </script>""",
             height=0,
@@ -127,11 +126,29 @@ def _js_set_localstorage(key: str, value: str):
         components.html(
             f"""<script>
 try {{
-  localStorage.setItem({json.dumps("K")}, {json.dumps("V")});
+  localStorage.setItem({json.dumps(key)}, {json.dumps(value)});
 }} catch(e) {{}}
 
+// ✅ iframe wrapper hide (string 안에 있어야 함)
 try{{var f=window.frameElement;if(f){{f.style.display='none';f.style.height='0px';f.style.minHeight='0px';f.style.border='0';var p=f.parentElement;if(p){{p.style.display='none';p.style.height='0px';p.style.minHeight='0px';p.style.margin='0';p.style.padding='0';}}}}}}catch(e){{}}
-</script>""".replace("K", key).replace("V", value),
+</script>""",
+            height=0,
+        )
+    except Exception:
+        pass
+
+
+def _js_remove_localstorage(key: str):
+    try:
+        components.html(
+            f"""<script>
+try {{
+  localStorage.removeItem({json.dumps(key)});
+}} catch(e) {{}}
+
+// ✅ iframe wrapper hide (string 안에 있어야 함)
+try{{var f=window.frameElement;if(f){{f.style.display='none';f.style.height='0px';f.style.minHeight='0px';f.style.border='0';var p=f.parentElement;if(p){{p.style.display='none';p.style.height='0px';p.style.minHeight='0px';p.style.margin='0';p.style.padding='0';}}}}}}catch(e){{}}
+</script>""",
             height=0,
         )
     except Exception:
