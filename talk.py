@@ -2750,11 +2750,26 @@ if submitted:
             # ------------------------------------
             coach_open_key = f"talk_ai_open_{qid}"
             coach_answer_key = f"talk_ai_answer_{qid}"
+            coach_req_key = f"talk_ai_req_{qid}"
+
             if coach_open_key not in st.session_state:
                 st.session_state[coach_open_key] = False
 
-            with st.expander("🤖 원포인트 일본어가 어려우면 하테나쌤에게 물어보세요", expanded=st.session_state.get(coach_open_key, False)):
+            def _coach_start_request():
+                # ✅ 버튼 클릭 시(리런 전에) expander를 열고, 질문을 '요청 대기' 상태로 저장
+                st.session_state[coach_open_key] = True
+                qv = (st.session_state.get(f"talk_ai_q_{qid}") or "").strip()
+                st.session_state["talk_ai_last_q"] = qv
+                st.session_state[coach_req_key] = qv
+                # 새 질문이면 이전 답변은 지우고, 이번 런에서 다시 출력되게 함
+                st.session_state.pop(coach_answer_key, None)
+
+            with st.expander(
+                "🤖 원포인트 일본어가 어려우면 하테나쌤에게 물어보세요",
+                expanded=bool(st.session_state.get(coach_open_key, False)),
+            ):
                 hotena_title("assets/hotena_talk/icons_title/icon_coach_title.png", "하테나쌤 스마트 코치")
+
                 q_default = st.session_state.get("talk_ai_last_q") or ""
                 user_q = st.text_input(
                     "질문",
@@ -2766,88 +2781,61 @@ if submitted:
 
                 st.caption("회화 표현·뉘앙스·자연스러움 위주 질문에 최적화되어 있어요.")
 
-                ask = st.button(
+                st.button(
                     "AI 코칭 받기 시작",
                     use_container_width=True,
                     key=f"talk_ai_ask_{qid}",
+                    on_click=_coach_start_request,
                 )
 
                 coach_slot = st.empty()
 
-                # ✅ rerun으로 expander가 닫히지 않도록: 이전 답변이 있으면 즉시 표시
+                # ✅ 이전 답변이 있으면 즉시 표시
                 if st.session_state.get(coach_answer_key):
-                    st.session_state[coach_open_key] = True
                     coach_slot.info(st.session_state.get(coach_answer_key))
 
-                if ask and str(user_q).strip():
-                    st.session_state[coach_open_key] = True
+                # ✅ '요청 대기'가 있으면: 이 런에서 바로 "답변 중…" → 결과 출력 (talk(44) 방식)
+                pending_q = (st.session_state.get(coach_req_key) or "").strip()
+                if pending_q:
+                    question = pending_q
 
-                    question = str(user_q).strip()
-                    st.session_state["talk_ai_last_q"] = question
-
-                    # 👉 일반 문의 분기
                     general_keywords = [
-                        "패키지", "요금", "가격", "결제",
                         "환불", "기능", "프로", "무료",
                         "상담", "문의", "톡", "네이버", "교재"
                     ]
 
                     if any(k in question for k in general_keywords):
-
                         coach_slot.info(
                             "📌 해당 문의는 회화 코칭 범위를 벗어납니다.\n\n"
                             "👉 정확한 안내는 **하테나쌤 톡**으로 문의해주세요 🙂"
                         )
-
-                        st.link_button(
-                            "💬 톡 문의하기",
-                            "http://talk.naver.com/W45141",
-                            use_container_width=True
-                        )
-
+                        st.link_button("💬 톡 문의하기", "http://talk.naver.com/W45141")
+                        st.session_state.pop(coach_req_key, None)
                     else:
-                        # 회화 질문일 때만 AI 호출
-                        def _is_ctx_relevant(q: str, row_: dict) -> bool:
-                            q = (q or "").strip().lower()
-                            if not q:
-                                return False
-                            # If question explicitly refers to correctness/nuance/why, treat as relevant
-                            key_hits = ["정답", "오답", "왜", "뉘앙스", "자연", "어색", "차이", "문법", "표현", "대안", "바꿔", "맞아", "틀려"]
-                            if any(k in q for k in key_hits):
-                                return True
-                            # If includes Japanese chars, likely about the expression
-                            if re.search(r"[\u3040-\u30ff\u4e00-\u9fff]", q):
-                                return True
-                            # If includes a snippet from this item's fields, it's relevant
-                            s = str(row_.get("situation_kr", "") or "").strip().lower()
-                            p = str(row_.get("partner_jp", "") or "").strip().lower()
-                            a = str(row_.get("answer_jp", "") or "").strip().lower()
-                            for ref in (p, a):
-                                if ref and ref[:8] in q:
-                                    return True
-                            # Default: treat as general question → do NOT bind to current quiz context
-                            return False
-
-
-                        use_ctx = _is_ctx_relevant(question, row)
-                        ctx_parts = [] if use_ctx else None
-
-                        s = str(row.get("situation_kr", "")).strip()
-                        p = str(row.get("partner_jp", "")).strip()
-                        a = str(row.get("answer_jp", "")).strip()
-                        me = str(selected or "").strip()
-
-                        if ctx_parts is not None and s:
-                            ctx_parts.append(f"현재상황: {s}")
-                        if ctx_parts is not None and p:
-                            ctx_parts.append(f"상대발화: {p}")
-                        if ctx_parts is not None and a:
-                            ctx_parts.append(f"정답표현: {a}")
-                        if ctx_parts is not None and me:
-                            ctx_parts.append(f"내선택: {me}")
-
-                        if ctx_parts is not None:
-                            ctx_parts.append(f"정오답: {'정답' if ok else '오답'}")
+                        # context: 문제/정답/해설/내 답/정오답 등(가능한 범위에서)
+                        ctx_parts = []
+                        try:
+                            ctx_parts.append(f"상황(한국어): {str(row.get('situation_kr','')).strip()}")
+                        except Exception:
+                            pass
+                        try:
+                            ctx_parts.append(f"상대(日本語): {str(row.get('partner_jp','')).strip()}")
+                        except Exception:
+                            pass
+                        try:
+                            ctx_parts.append(f"내(日本語): {str(row.get('answer_jp','')).strip()}")
+                        except Exception:
+                            pass
+                        try:
+                            if 'selected_label' in locals() and str(selected_label).strip():
+                                ctx_parts.append(f"선택한 보기: {str(selected_label).strip()}")
+                        except Exception:
+                            pass
+                        try:
+                            if 'ok' in locals():
+                                ctx_parts.append(f"정오답: {'정답' if ok else '오답'}")
+                        except Exception:
+                            pass
 
                         ctx = "\n".join(ctx_parts) if isinstance(ctx_parts, list) else ""
 
@@ -2859,9 +2847,9 @@ if submitted:
                                 meta={
                                     "page": "talk",
                                     "qid": str(qid),
-                                    "submitted": True,
-                                    "ctx_used": bool(ctx),
-                                    "ok": bool(ok),
+                                    "uid": str(USER_ID or ""),
+                                    "email": str(USER_EMAIL or ""),
+                                    "plan": str(USER_PLAN or ""),
                                     "is_admin": bool(
                                         st.session_state.get("is_admin", False)
                                         or st.session_state.get("is_admin_cached", False)
@@ -2870,7 +2858,9 @@ if submitted:
                             )
 
                         st.session_state[coach_answer_key] = ans
-                        coach_slot.info(ans)# ============================================================
+                        st.session_state.pop(coach_req_key, None)
+                        coach_slot.info(ans)
+# ============================================================
 # ✅ (추가) 정답 발음 확인 버튼용: 플레이어 없이 즉시 재생(JS Audio / TTS)
 # - 브라우저에 플레이어 UI가 뜨지 않게, new Audio().play()로만 재생
 # - JS 문자열은 % 포맷을 써서 f-string 중괄호 오류를 방지
