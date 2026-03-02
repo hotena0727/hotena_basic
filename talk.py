@@ -1396,6 +1396,7 @@ SUB_LABEL = {
     "basic": "기본",
     "daily": "일상",
     # understand 등에서 쓰는 값들
+    "confirm": "확인",
     "mixed": "혼합",
 }
 
@@ -2836,24 +2837,24 @@ if submitted:
                             ctx = "\n".join(ctx_parts) if isinstance(ctx_parts, list) else ""
             
                             # ✅ talk(44) 느낌: expander 안에서 같은 자리에서 로딩→답변 갱신
-                            # (중복 표시 방지: 로딩 표시는 스피너만 사용)
-                            with st.spinner("답변 중…"):
-                                ans = ai_tutor.ask_hatena(
-                                    mode="talk",
-                                    user_input=question,
-                                    context=ctx,
-                                    meta={
-                                        "page": "talk",
-                                        "qid": str(qid),
-                                        "submitted": True,
-                                        "ctx_used": bool(ctx),
-                                        "ok": bool(ok),
-                                        "is_admin": bool(
-                                            st.session_state.get("is_admin", False)
-                                            or st.session_state.get("is_admin_cached", False)
-                                        ),
-                                    },
-                                )
+                            # (로딩 표시는 상단 1회만 표시)
+                            coach_slot.info("답변 중…")
+                            ans = ai_tutor.ask_hatena(
+                                mode="talk",
+                                user_input=question,
+                                context=ctx,
+                                meta={
+                                    "page": "talk",
+                                    "qid": str(qid),
+                                    "submitted": True,
+                                    "ctx_used": bool(ctx),
+                                    "ok": bool(ok),
+                                    "is_admin": bool(
+                                        st.session_state.get("is_admin", False)
+                                        or st.session_state.get("is_admin_cached", False)
+                                    ),
+                                },
+                            )
                             st.session_state[coach_answer_key] = ans
                             coach_slot.info(ans)
             
