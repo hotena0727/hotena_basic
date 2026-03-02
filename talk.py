@@ -21,7 +21,11 @@ def _wn_warn(msg: str):
         try:
             st.warning(msg)
         except Exception:
-            pass
+            # fallback: Streamlit 기본 녹음(브라우저/환경에 따라 components 녹음이 막힐 때)
+            try:
+                st.audio_input("(선택) 내 말 녹음")
+            except Exception:
+                pass
 # ============================================================
 # ✅ HUB 진입 시: 선택/제출 상태 초기화 (회화)
 # ============================================================
@@ -35,11 +39,21 @@ if st.session_state.get("_entered_talk"):
 import streamlit.components.v1 as components
 from supabase import create_client
 
+# ✅ MP3 base (스토리지)
+BASE_AUDIO_URL = 'https://hotena.com/hotena/app/mp3/'
+
+# ✅ MP3 URL이 없을 때 브라우저 TTS로 대체할지 여부
+USE_TTS_FALLBACK = True  # mp3만 쓰려면 False
+
+
 # ============================================================
 # ✅ Settings
 # ============================================================
 NS = "talk"
 SET_LEN = 10
+FREE_SET_LEN = 3  # FREE는 3문제만 제공
+FREE_TTS_QUOTA = 3  # FREE 발음 듣기 3회(일)
+FREE_RECORD_QUOTA = 3  # FREE 녹음 3회(일)
 
 # ============================================================
 # ✅ Hub login required
@@ -55,7 +69,37 @@ USER_EMAIL = getattr(u, "email", "") or ""
 USER_PLAN = (st.session_state.get("user_plan") or "free").lower()
 IS_PRO = USER_PLAN == "pro"
 
-st.title("회화 훈련 · 상황판단")
+def _inject_talk_ui_css():
+    if st.session_state.get("_talk_ui_css_done", False):
+        return
+    st.session_state["_talk_ui_css_done"] = True
+    st.markdown(
+        """
+<style>
+.talk-bubble-row{display:flex;gap:10px;align-items:flex-end;margin:6px 0;}
+.talk-bubble-label{min-width:68px;font-weight:800;opacity:.85;}
+.talk-bubble{
+  display:inline-block;
+  max-width:100%;
+  padding:10px 12px;
+  border-radius:16px;
+  border:1px solid rgba(49,51,63,.14);
+  box-shadow:0 1px 0 rgba(0,0,0,.02);
+  line-height:1.25;
+  word-break:break-word;
+}
+.talk-bubble.partner{background:rgba(0,0,0,.02);}
+.talk-bubble.me{background:rgba(33,150,243,.08);}
+.talk-bubble-sub{font-size:.86rem;opacity:.70;margin-top:2px;}
+.talk-tts-col{display:flex;justify-content:flex-end;align-items:center;}
+</style>
+""",
+        unsafe_allow_html=True,
+    )
+
+_inject_talk_ui_css()
+
+st.title("일본어회화")
 st.caption("1문제씩: 상황 → 상대 발화(🔊/PRO) → 보기 선택 → 제출 → 정답/설명 → (선택)말하기 완료 체크")
 
 # ============================================================
@@ -190,6 +234,76 @@ def save_progress(progress_all: dict):
         pass
 
 
+# ============================================================
+# ✅ FREE quota (daily): TTS 3회 / 녹음 3회
+# - profiles.progress['talk']['free_quota'] 에 저장해서 새로고침/재로그인에도 유지
+# ============================================================
+from datetime import date as _date
+
+def _today_key() -> str:
+    try:
+        return _date.today().isoformat()
+    except Exception:
+        return "1970-01-01"
+
+
+def _get_free_quota() -> dict:
+    """returns dict: {'date': 'YYYY-MM-DD', 'tts_used': int, 'record_used': int}"""
+    prog = load_progress()
+    talk_prog = prog.get("talk") or {}
+    fq = talk_prog.get("free_quota") or {}
+    if not isinstance(fq, dict):
+        fq = {}
+    d = fq.get("date") or ""
+    if d != _today_key():
+        fq = {"date": _today_key(), "tts_used": 0, "record_used": 0}
+        talk_prog["free_quota"] = fq
+        prog["talk"] = talk_prog
+        save_progress(prog)
+    fq["date"] = fq.get("date") or _today_key()
+    fq["tts_used"] = int(fq.get("tts_used") or 0)
+    fq["record_used"] = int(fq.get("record_used") or 0)
+    return fq
+
+
+def _set_free_quota(fq: dict):
+    prog = load_progress()
+    talk_prog = prog.get("talk") or {}
+    talk_prog["free_quota"] = fq
+    prog["talk"] = talk_prog
+    save_progress(prog)
+
+
+def _free_tts_remaining() -> int:
+    if IS_PRO:
+        return 9999
+    fq = _get_free_quota()
+    return max(0, int(FREE_TTS_QUOTA) - int(fq.get("tts_used") or 0))
+
+
+def _free_record_remaining() -> int:
+    if IS_PRO:
+        return 9999
+    fq = _get_free_quota()
+    return max(0, int(FREE_RECORD_QUOTA) - int(fq.get("record_used") or 0))
+
+
+def _use_free_tts_once():
+    if IS_PRO:
+        return
+    fq = _get_free_quota()
+    fq["tts_used"] = int(fq.get("tts_used") or 0) + 1
+    _set_free_quota(fq)
+
+
+def _use_free_record_once():
+    if IS_PRO:
+        return
+    fq = _get_free_quota()
+    fq["record_used"] = int(fq.get("record_used") or 0) + 1
+    _set_free_quota(fq)
+
+
 def log_attempt(level: str, score: int, quiz_len: int, wrong_count: int, wrong_list: list[dict], tag: str):
     try:
         sb.table("quiz_attempts").insert(
@@ -247,37 +361,91 @@ except Exception:
     pass
 
 # ============================================================
-# ✅ Filters (tag/level)
+# ✅ Filters (상황(tag))  ※ 현재는 '인사말(aisatsu)'만 노출
 # ============================================================
-all_tags = [t for t in DF["tag"].astype(str).unique().tolist() if t]
-tag_options = [t for t in ["daily", "business", "call", "interview", "travel", "shopping", "food", "emergency"] if t in all_tags]
+
+# --- normalize (비교 실패/공백 문제 방지) ---
+for _c in ["mode", "tag", "level"]:
+    if _c in DF.columns:
+        DF[_c] = DF[_c].astype(str).fillna("").str.strip()
+
+if "mode" in DF.columns:
+    DF["mode"] = DF["mode"].str.lower()
+if "tag" in DF.columns:
+    DF["tag"] = DF["tag"].str.lower().str.replace(r"[\s\-]+", "_", regex=True)
+if "sub" in DF.columns:
+    DF["sub"] = (
+        DF["sub"].astype(str)
+        .str.replace("\u3000", " ", regex=False)
+        .str.strip()
+        .str.lower()
+        .str.replace(r"[\s\-]+", "_", regex=True)
+    )
+if "level" in DF.columns:
+    DF["level"] = DF["level"].str.lower().str.replace(" ", "")
+
+# --- 실전회화만 사용 ---
+DF_BASE = DF.copy()
+
+# --- 현재는 인사말만(aisatsu) ---
+TAG_LABEL = {"aisatsu": "인사말"}
+def _tag_label(t: str) -> str:
+    return TAG_LABEL.get(str(t), str(t))
+
+# 인사말은 tag=aisatsu 고정
+tag_options = ["aisatsu"]
+
 if not tag_options:
-    tag_options = all_tags
+    st.warning("해당 상황의 회화 문제가 없습니다. (CSV의 tag 확인)")
+    st.stop()
 
-c1, c2 = st.columns([1.4, 1], vertical_alignment="bottom")
-with c1:
-    tag = st.selectbox(
-        "상황 선택",
-        options=tag_options,
-        format_func=lambda x: TAG_LABELS.get(x, x),
-        key=f"{NS}_tag",
+tag = st.selectbox(
+    "상황 선택",
+    options=tag_options,
+    format_func=_tag_label,
+    key=f"{NS}_tag",
+)
+
+# ✅ 인사말 유형(sub) 선택 (CSV에 sub 컬럼이 있으면 노출)
+SUB_LABEL = {
+    "__all__": "전체",
+    "home": "집/가정",
+    "morning": "아침",
+    "day": "낮/친구",
+    "evening": "저녁/밤",
+    "thanks": "감사",
+    "apology": "사과",
+    "work": "회사 기본",
+    "meeting": "미팅/첫인사",
+    "phone": "전화",
+    "basic": "기본/기타",
+}
+
+def _sub_label(s: str) -> str:
+    return SUB_LABEL.get(str(s), str(s))
+
+sub = "__all__"
+has_sub = ("sub" in DF_BASE.columns) and DF_BASE["sub"].astype(str).str.strip().ne("").any()
+if has_sub:
+    subs_in_data = sorted(set([x for x in DF_BASE["sub"].astype(str).tolist() if str(x).strip()]))
+    sub_options = ["__all__"] + subs_in_data
+    sub = st.selectbox(
+        "인사말 유형",
+        options=sub_options,
+        format_func=_sub_label,
+        key=f"{NS}_sub",
     )
 
-with c2:
-    levels_in_data = [lv for lv in ["n5", "n4", "n3"] if lv in DF["level"].unique().tolist()]
-    if not levels_in_data:
-        levels_in_data = ["n5", "n4", "n3"]
-    level = st.selectbox(
-        "레벨",
-        options=levels_in_data,
-        format_func=lambda x: LEVEL_LABELS.get(x, x.upper()),
-        key=f"{NS}_level",
-    )
+# 레벨 선택은 사용하지 않음(인사말에서 N4~N3 혼합)
+level = "mix"
+
+pool_df = DF_BASE[(DF_BASE["tag"] == tag)].copy().reset_index(drop=True)
+if has_sub and sub != "__all__":
+    pool_df = pool_df[pool_df["sub"].astype(str) == str(sub)].copy().reset_index(drop=True)
 
 
-pool_df = DF[(DF["tag"] == tag) & (DF["level"] == level)].copy().reset_index(drop=True)
 if pool_df.empty:
-    st.warning("해당 조건의 회화 문제가 없습니다. (CSV의 tag/level 확인)")
+    st.warning("해당 상황의 회화 문제가 없습니다. (CSV의 tag 확인)")
     st.stop()
 
 # ============================================================
@@ -286,51 +454,304 @@ if pool_df.empty:
 
 
 def tts_button(text: str, label: str, key: str):
-    """브라우저 SpeechSynthesis 기반 TTS 버튼.
-    - Streamlit iframe 안에서 직접 버튼을 렌더링(부모 DOM 주입 X) → 가장 안정적
-    - PRO: 클릭 시 재생
-    - FREE: 잠금된 버튼(비활성) 표시
-    """
-    safe = (text or "").replace("\\", "\\\\").replace("`", "").replace("\n", " ")
+    '''브라우저 SpeechSynthesis 기반 TTS 버튼.
+    - PRO: 클릭 시 재생 / FREE: 잠금(비활성)
+    - 일본어 voice 자동 선택(가능하면 Google/日本語系)
+    '''
+    txt = text or ""
+    is_icon = (label or "").strip() in ["🔊", "🔈"]
     disabled = "true" if (not IS_PRO) else "false"
     btn_text = (f"🔒 {label}" if (not IS_PRO) else label)
-    # key마다 고유한 mount id
+
+    style_btn = (
+        "width:36px;height:36px;border-radius:999px;display:flex;align-items:center;justify-content:center;font-size:18px;"
+        if is_icon
+        else "width:100%;padding:8px 10px;border-radius:12px;font-size:15px;"
+    )
+
     components.html(
         f"""
-<div style='width:100%'>
-  <button id='tts_{key}' {'disabled' if not IS_PRO else ''} 
-    style='width:100%;padding:8px 10px;border-radius:12px;border:1px solid rgba(49,51,63,.18);
-           background:{'#f6f7f9' if not IS_PRO else 'white'};cursor:{'not-allowed' if not IS_PRO else 'pointer'};
-           font-weight:800;opacity:{'0.7' if not IS_PRO else '1.0'};'>
+<div style="width:100%;display:flex;justify-content:{'flex-end' if is_icon else 'stretch'};">
+  <button id="tts_{key}" {'disabled' if not IS_PRO else ''} style="{style_btn}
+           border:1px solid rgba(49,51,63,.18);
+           background:{'#f6f7f9' if not IS_PRO else 'white'};
+           cursor:{'not-allowed' if not IS_PRO else 'pointer'};
+           font-weight:800;opacity:{'0.7' if not IS_PRO else '1.0'};">
     {btn_text}
   </button>
 </div>
 <script>
 (function() {{
-  const btn = document.getElementById('tts_{key}');
+  const btn = document.getElementById("tts_{key}");
   if (!btn) return;
   if ({disabled}) return;
-  // 동일 rerun에서 이벤트 중복 등록 방지
-  if (btn.dataset.bound === '1') return;
-  btn.dataset.bound = '1';
-  btn.addEventListener('click', () => {{
+  if (btn.dataset.bound === "1") return;
+  btn.dataset.bound = "1";
+
+  const synth = window.speechSynthesis;
+
+  function pickJaVoice() {{
+    const voices = synth.getVoices() || [];
+    const ja = voices.filter(v => String(v.lang || "").toLowerCase().startsWith("ja"));
+    if (!ja.length) return null;
+    return ja.find(v => /google/i.test(v.name || "")) 
+        || ja.find(v => /日本|japanese/i.test(v.name || "")) 
+        || ja[0] || null;
+  }}
+
+  function speak() {{
     try {{
-      const u = new SpeechSynthesisUtterance({safe!r});
-      u.lang = 'ja-JP';
-      window.speechSynthesis.cancel();
-      window.speechSynthesis.speak(u);
+      const u = new SpeechSynthesisUtterance({txt!r});
+      u.lang = "ja-JP";
+      const v = pickJaVoice();
+      if (v) u.voice = v;
+      synth.cancel();
+      synth.speak(u);
     }} catch(e) {{}}
+  }}
+
+  btn.addEventListener("click", () => {{
+    if ((synth.getVoices() || []).length === 0) {{
+      let tried = 0;
+      const t = setInterval(() => {{
+        tried += 1;
+        if ((synth.getVoices() || []).length > 0 || tried >= 10) {{
+          clearInterval(t);
+          speak();
+        }}
+      }}, 150);
+    }} else {{
+      speak();
+    }}
   }});
 }})();
 </script>
 """,
-        height=60,
+        height=(44 if is_icon else 60),
     )
+
+
+def tts_inline_row(role_label: str, text: str, key: str, show_text: bool = True):
+    # 문장 오른쪽에 스피커 아이콘을 '텍스트 바로 옆'에 붙여 표시 (iframe 1개로 렌더링)
+    txt = text or ""
+    safe = txt.replace("\\", "\\\\").replace("`", "").replace("\n", " ")
+    disabled = "true" if (not IS_PRO) else "false"
+    btn = "🔊"
+    badge = '<span style="margin-left:6px;font-size:12px;background:#FFD54F;color:#000;padding:2px 6px;border-radius:8px;font-weight:800;line-height:1;">PRO</span>' if (not IS_PRO) else ""
+    show = "inline" if show_text else "none"
+
+    components.html(
+        f'''
+<div style="display:flex;align-items:center;gap:8px;line-height:1.25;">
+  <div style="min-width:72px;font-weight:800;opacity:.85;">{role_label}</div>
+  <div style="flex:1;display:flex;align-items:center;gap:6px;">
+    <span style="display:{show};font-weight:500;">{txt}</span>
+    <button id="tts_{key}" {'disabled' if not IS_PRO else ''}
+      title="발음 듣기"
+      style="padding:0;margin:0;border:none;background:transparent;
+             cursor:{'not-allowed' if not IS_PRO else 'pointer'};
+             font-size:18px;font-weight:900;line-height:1;
+             opacity:{'0.55' if not IS_PRO else '0.9'};">
+      {btn}
+    </button>{badge}
+  </div>
+</div>
+<script>
+(function() {{
+  const btn = document.getElementById("tts_{key}");
+  if (!btn) return;
+  if ({disabled}) return;
+  if (btn.dataset.bound === "1") return;
+  btn.dataset.bound = "1";
+
+  const synth = window.speechSynthesis;
+
+  function pickJaVoice() {{
+    const voices = synth.getVoices() || [];
+    const ja = voices.filter(v => String(v.lang || "").toLowerCase().startsWith("ja"));
+    if (!ja.length) return null;
+    return ja.find(v => /google/i.test(v.name || ""))
+        || ja.find(v => /日本|japanese/i.test(v.name || ""))
+        || ja[0] || null;
+  }}
+
+  function speak() {{
+    try {{
+      const u = new SpeechSynthesisUtterance({safe!r});
+      u.lang = "ja-JP";
+      const v = pickJaVoice();
+      if (v) u.voice = v;
+      synth.cancel();
+      synth.speak(u);
+    }} catch(e) {{}}
+  }}
+
+  btn.addEventListener("click", () => {{
+    if ((synth.getVoices() || []).length === 0) {{
+      let tried = 0;
+      const t = setInterval(() => {{
+        tried += 1;
+        if ((synth.getVoices() || []).length > 0 || tried >= 10) {{
+          clearInterval(t);
+          speak();
+        }}
+      }}, 150);
+    }} else {{
+      speak();
+    }}
+  }});
+}})();
+</script>
+''',
+        height=40,
+    )
+
+
 
 # ======================================
 # ======================================
 # ✅ Build choices (문제 로딩 시 1회 셔플 후 고정)
 # ============================================================
+
+
+def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bool = True):
+    # 상대/내 2줄을 하나의 iframe 안에서 렌더링해서 줄 간격을 촘촘하게 제어
+    ptxt = partner_text or ""
+    atxt = answer_text or ""
+
+    def _safe(s: str) -> str:
+        return (s or "").replace("\\", "\\\\").replace("`", "").replace("\n", " ")
+
+    p_safe = _safe(ptxt)
+    a_safe = _safe(atxt)
+
+    disabled = (not IS_PRO)
+    icon_partner = "🔊"
+    icon_answer = "🔊"
+    p_badge = '<span style="margin-left:6px;font-size:12px;background:#FFD54F;color:#000;padding:2px 6px;border-radius:8px;font-weight:800;line-height:1;">PRO</span>' if disabled else ""
+    a_badge = '<span style="margin-left:6px;font-size:12px;background:#FFD54F;color:#000;padding:2px 6px;border-radius:8px;font-weight:800;line-height:1;">PRO</span>' if disabled else ""
+    show = "inline" if show_text else "none"
+
+    html = """
+<div style="display:flex;flex-direction:column;gap:10px;line-height:1.25;">
+  <div style="display:flex;align-items:center;gap:8px;">
+    <div style="min-width:72px;font-weight:800;opacity:.85;">상대(말)</div>
+    <div style="flex:1;display:flex;align-items:center;gap:6px;">
+      <span style="display:{show};font-weight:500;">{ptxt}</span>
+      <button id="tts_{qid}_p" {p_dis} title="발음 듣기"
+        style="padding:0;margin:0;border:none;background:transparent;
+               cursor:{p_cursor};
+               font-size:18px;font-weight:900;line-height:1;
+               opacity:{p_opacity};">{p_icon}</button>{p_badge}
+    </div>
+  </div>
+
+  <div style="display:flex;align-items:center;gap:8px;">
+    <div style="min-width:72px;font-weight:800;opacity:.85;">내(말)</div>
+    <div style="flex:1;display:flex;align-items:center;gap:6px;">
+      <span style="display:{show};font-weight:500;">{atxt}</span>
+      <button id="tts_{qid}_a" {a_dis} title="발음 듣기"
+        style="padding:0;margin:0;border:none;background:transparent;
+               cursor:{a_cursor};
+               font-size:18px;font-weight:900;line-height:1;
+               opacity:{a_opacity};">{a_icon}</button>{a_badge}
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){{
+  const synth = window.speechSynthesis;
+
+  function pickJaVoice(){{
+    const voices = synth.getVoices() || [];
+    const ja = voices.filter(v => String(v.lang||"").toLowerCase().startsWith("ja"));
+    if (!ja.length) return null;
+    return ja.find(v => /google/i.test(v.name||""))
+        || ja.find(v => /日本|japanese/i.test(v.name||""))
+        || ja[0] || null;
+  }}
+
+  function speak(text){{
+    try{{
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = "ja-JP";
+      const v = pickJaVoice();
+      if (v) u.voice = v;
+      synth.cancel();
+      synth.speak(u);
+    }}catch(e){{}}
+  }}
+
+  function bind(btnId, text, disabled){{
+    const btn = document.getElementById(btnId);
+    if (!btn || disabled) return;
+    if (btn.dataset.bound === "1") return;
+    btn.dataset.bound = "1";
+
+    btn.addEventListener("click", () => {{
+      if ((synth.getVoices() || []).length === 0){{
+        let tried = 0;
+        const t = setInterval(() => {{
+          tried += 1;
+          if ((synth.getVoices() || []).length > 0 || tried >= 10){{
+            clearInterval(t);
+            speak(text);
+          }}
+        }}, 150);
+      }} else {{
+        speak(text);
+      }}
+    }});
+  }}
+
+  bind("tts_{qid}_p", {p_safe}, {disabled});
+  bind("tts_{qid}_a", {a_safe}, {disabled});
+}})();
+</script>
+"""
+
+    html = html.format(
+        show=show,
+        qid=qid,
+        ptxt=ptxt,
+        atxt=atxt,
+        p_badge=p_badge,
+        a_badge=a_badge,
+        p_dis=("disabled" if disabled else ""),
+        a_dis=("disabled" if disabled else ""),
+        p_cursor=("not-allowed" if disabled else "pointer"),
+        a_cursor=("not-allowed" if disabled else "pointer"),
+        p_opacity=("0.55" if disabled else "0.9"),
+        a_opacity=("0.55" if disabled else "0.9"),
+        p_icon=icon_partner,
+        a_icon=icon_answer,
+        p_safe=repr(p_safe),
+        a_safe=repr(a_safe),
+        disabled=("true" if disabled else "false"),
+    )
+    components.html(html, height=92)
+
+
+
+def play_audio_or_tts(text: str, audio_url: str, label: str, key: str):
+    """PRO: mp3 URL 재생 / FREE: 잠금. URL 없으면 TTS fallback."""
+    audio_url = (audio_url or "").strip()
+    # URL이 전체가 아니면 BASE_AUDIO_URL을 붙입니다.
+    if audio_url and (not audio_url.startswith('http://')) and (not audio_url.startswith('https://')):
+        audio_url = BASE_AUDIO_URL.rstrip('/') + '/' + audio_url.lstrip('/')
+
+    if audio_url:
+        if IS_PRO:
+            if st.button(f"🔊 {label}", key=f"{key}_btn"):
+                st.audio(audio_url)
+        else:
+            st.button(f"🔒 {label} (PRO 전용)", disabled=True, key=f"{key}_lock")
+        return
+
+    # URL이 없으면 브라우저 TTS fallback
+    if st.button(f"🔊 {label}", key=f"{key}_ttsbtn"):
+        tts_button(text, label, key=f"{key}_tts")
 
 def build_choices(row: dict, pool_answers: list[str]) -> list[str]:
     correct = str(row.get("answer_jp", "")).strip()
@@ -359,7 +780,7 @@ pool_answers = pool_df["answer_jp"].astype(str).tolist()
 # ✅ Initialize set (10 qids) + pointer
 # ============================================================
 if f"{NS}_set_qids" not in st.session_state:
-    n = min(SET_LEN, len(pool_df))
+    n = min((SET_LEN if IS_PRO else FREE_SET_LEN), len(pool_df))
     sample = pool_df.sample(n=n, replace=False).reset_index(drop=True)
     qids = sample["qid"].astype(str).tolist()
     st.session_state[f"{NS}_set_qids"] = qids
@@ -392,7 +813,19 @@ with p2:
 # ✅ Current question
 # ============================================================
 qid = qids[idx]
-row = pool_df[pool_df["qid"].astype(str) == str(qid)].iloc[0].to_dict()
+_cur = pool_df[pool_df["qid"].astype(str) == str(qid)]
+# ✅ 필터/상황/레벨 변경 등으로 qid가 풀에서 사라질 수 있음 → 안전 처리
+if _cur.empty:
+    # 가장 첫 문제로 강제 리셋
+    st.session_state[f"{NS}_idx"] = 0
+    qid = qids[0]
+    _cur = pool_df[pool_df["qid"].astype(str) == str(qid)]
+if _cur.empty:
+    # 선택된 qid가 현재 풀에 없으면 첫 문제로 안전하게 재설정
+    qid = str(pool_df.iloc[0].get("qid"))
+    st.session_state[f"{NS}_qid"] = qid
+    _cur = pool_df[pool_df["qid"].astype(str) == str(qid)]
+row = _cur.iloc[0].to_dict()
 
 # options fixed per qid
 opt_key = f"{NS}_opts_{qid}"
@@ -416,53 +849,87 @@ submitted = bool(st.session_state.get(submitted_key))
 # ============================================================
 with st.container(border=True):
     st.markdown(f"**상황**: {row.get('situation_kr','')}")
-    st.markdown(f"**상대**: {row.get('partner_jp','')}")
-
-    # 상대 발음(제출 전/후 모두)
-    tts_button(row.get("partner_jp", ""), "🔊 상대 듣기", key=f"{qid}_partner")
+    # FREE는 듣기가 잠겨 있으니, 문제 단계에서 스크립트를 보여줍니다.
+    # 상대(말): PRO는 스크립트 숨김(듣기만), FREE는 스크립트 + (발음 듣기 3회/일) 버튼
+    if IS_PRO:
+        tts_inline_row("상대(말)", row.get("partner_jp",""), key=f"{qid}_partner_q", show_text=False)
+    else:
+        tts_inline_row("상대(말)", row.get("partner_jp",""), key=f"{qid}_partner_q", show_text=True)
+        rem = _free_tts_remaining()
+        if rem > 0:
+            if st.button(f"🔊 발음 듣기 (무료 {FREE_TTS_QUOTA-rem+1}/{FREE_TTS_QUOTA})", key=f"{qid}_free_tts_q", use_container_width=True):
+                _use_free_tts_once()
+                components.html(f"""<script>
+(function(){{
+  try{{
+    const synth = window.speechSynthesis;
+    function pickJaVoice(){{
+      const voices = synth.getVoices() || [];
+      const ja = voices.filter(v => String(v.lang||"").toLowerCase().startsWith("ja"));
+      if (!ja.length) return null;
+      return ja.find(v => /google/i.test(v.name||""))
+          || ja.find(v => /日本|japanese/i.test(v.name||""))
+          || ja[0] || null;
+    }}
+    const u = new SpeechSynthesisUtterance({(row.get('partner_jp','') or '').replace('\n',' ')!r});
+    u.lang = "ja-JP";
+    const v = pickJaVoice();
+    if (v) u.voice = v;
+    synth.cancel();
+    synth.speak(u);
+  }}catch(e){{}}
+}})();
+</script>""", height=0)
+        else:
+            st.markdown(
+                '<div style="margin-top:6px;display:flex;align-items:center;gap:8px;">'
+                '<span style="font-size:12px;background:#FFD54F;color:#000;padding:2px 6px;border-radius:8px;font-weight:800;">PRO</span>'
+                '<span style="font-size:0.92rem;opacity:0.85;">발음 듣기는 PRO 전용 (무료 3회 소진)</span>'
+                '</div>',
+                unsafe_allow_html=True,
+            )
 
     st.markdown("---")
-    st.markdown("**내가 할 말(보기)**")
+    with st.container(border=True):
+        st.markdown("**내가 할 말(선택)**")
 
-    # 보기 버튼(선택 없음 상태 유지)
-    # 버튼은 클릭 시 selected 저장, 보기 순서는 고정(choices 리스트)
-    btn_cols = st.columns(1)
-    for j, opt in enumerate(choices):
-        # 보기 버튼 key는 qid+index로 고정
-        bkey = f"{NS}_optbtn_{qid}_{j}"
-        label = opt
-        pressed = st.button(label, use_container_width=True, key=bkey, disabled=submitted)
-        if pressed:
-            st.session_state[sel_key] = opt
-            selected = opt
-
-    # 선택 표시(제출 전)
-    if not submitted:
-        if selected:
-            st.info(f"선택: **{selected}**")
+        # ✅ 보기 선택(속도/안정성 개선)
+        # - st.button 4개는 클릭할 때마다 전체가 재렌더링되어 체감이 느릴 수 있어
+        # - st.radio 1개 위젯으로 선택만 바꾸면 훨씬 가볍고, 보기 순서도 고정됨
+        radio_key = f"{NS}_radio_{qid}"
+        # 기존 selected가 있으면 라디오 기본값으로 반영
+        if selected and selected in choices:
+            default_idx = choices.index(selected)
         else:
-            st.warning("보기를 하나 선택해 주세요.")
+            default_idx = 0
 
-# ============================================================
-# ✅ Submit / Next controls
-# ============================================================
-cc1, cc2, cc3 = st.columns([1, 1, 1])
+        picked = st.radio(
+            label="보기 선택",
+            options=choices,
+            index=default_idx,
+            key=radio_key,
+            disabled=submitted,
+            label_visibility="collapsed",
+        )
+        # 선택값 반영
+        if not submitted:
+            st.session_state[sel_key] = picked
+            selected = picked
 
-with cc1:
-    if st.button("이전", use_container_width=True, disabled=(idx == 0), key=f"{NS}_prev"):
-        st.session_state[f"{NS}_idx"] = idx - 1
-        st.rerun()
-
-with cc2:
-    can_submit = (not submitted) and bool(selected)
-    if st.button("정답 제출", use_container_width=True, disabled=not can_submit, key=f"{NS}_submit"):
-        st.session_state[submitted_key] = True
-        submitted = True
-
-with cc3:
-    if st.button("다음", use_container_width=True, disabled=(idx >= len(qids) - 1), key=f"{NS}_next"):
-        st.session_state[f"{NS}_idx"] = idx + 1
-        st.rerun()
+        # ============================================================
+        # ✅ Controls (단순화)
+        # - 이전/다음 제거
+        # - "정답 제출" 버튼은 유지 (제출 후에는 비활성)
+        # - "다음 문제" 버튼은 최하단(말하기 완료 아래)에서만 노출
+        # ============================================================
+        can_submit = bool(selected) and (not submitted)
+        st.button(
+            "정답 제출",
+            use_container_width=True,
+            disabled=not can_submit,
+            key=f"{NS}_submit",
+            on_click=(lambda: st.session_state.__setitem__(submitted_key, True)),
+        )
 
 # ============================================================
 # ✅ After submit
@@ -470,7 +937,8 @@ with cc3:
 if submitted:
     correct = str(row.get("answer_jp", "")).strip()
     ok = (selected == correct)
-        # ============================================================
+
+    # ============================================================
     # ✅ 오답 상세 저장 (wrong_notes) — 회화도 '단어/정답/내답' 기록
     # ============================================================
     if not ok:
@@ -524,54 +992,150 @@ if submitted:
     else:
         st.error("오답 ❌")
 
-    # 상대/정답 스크립트 + 발음
+    # 상대/정답 스크립트 + 해설(제출 후에만)
     with st.container(border=True):
-        st.markdown("**상대 스크립트**")
-        st.write(row.get("partner_jp", ""))
-        tts_button(row.get("partner_jp", ""), "🔊 상대 듣기", key=f"{qid}_partner_after")
+        st.markdown("### 🧑‍🏫 발음/말하기")
 
-        st.markdown("**정답 스크립트**")
-        st.write(correct)
-        tts_button(correct, "🔊 정답 듣기", key=f"{qid}_answer")
-        # ✅ 말하기 녹음(선택) — 채점/인식 없이 '내 발화'만 남길 수 있게
-        try:
-            if hasattr(st, "audio_input"):
-                audio = st.audio_input("내 말 녹음(선택)", key=f"{NS}_rec_{qid}")
-                if audio is not None:
-                    st.audio(audio)
-            else:
-                st.caption("현재 Streamlit 버전에서는 즉시 녹음이 지원되지 않아, 파일 업로드로 대체됩니다.")
-                up = st.file_uploader("내 음성 파일 업로드(선택)", type=["wav","mp3","m4a"], key=f"{NS}_rec_up_{qid}")
-                if up is not None:
-                    st.audio(up)
-        except Exception:
-            pass
+        # ✅ 상황(제출 전에도 보이지만, 결과 박스에도 다시 한 번 노출)
+        situation = str(row.get("situation_kr", "")).strip()
+        if situation:
+            st.caption(f"상황: {situation}")
 
+        # ✅ 상대(말) / 내(말) — 스피커 아이콘 버튼은 여기서만 노출
+        
+        # ✅ 상대(말) / 내(말) — 한 iframe에서 2줄 렌더(간격 촘촘)
+        tts_inline_pair(row.get("partner_jp", ""), row.get("answer_jp", ""), qid=str(qid), show_text=True)
 
-        # 납득 가능한 안내
+        # FREE: 제출 후에도 발음 듣기 하루 3회만 허용 (상대/내 각각 버튼 제공)
+        if not IS_PRO:
+            rem2 = _free_tts_remaining()
+            c1, c2 = st.columns(2)
+            with c1:
+                if rem2 > 0 and st.button("🔊 상대 발음 듣기", key=f"{qid}_free_tts_partner_after", use_container_width=True):
+                    _use_free_tts_once()
+                    components.html(f"""<script>
+(function(){{
+  try{{
+    const synth = window.speechSynthesis;
+    function pickJaVoice(){{
+      const voices = synth.getVoices() || [];
+      const ja = voices.filter(v => String(v.lang||"").toLowerCase().startsWith("ja"));
+      if (!ja.length) return null;
+      return ja.find(v => /google/i.test(v.name||""))
+          || ja.find(v => /日本|japanese/i.test(v.name||""))
+          || ja[0] || null;
+    }}
+    const u = new SpeechSynthesisUtterance({(row.get('partner_jp','') or '').replace('\n',' ')!r});
+    u.lang = "ja-JP";
+    const v = pickJaVoice();
+    if (v) u.voice = v;
+    synth.cancel();
+    synth.speak(u);
+  }}catch(e){{}}
+}})();
+</script>""", height=0)
+                elif rem2 <= 0:
+                    st.button("🔒 상대 발음 듣기 (PRO)", key=f"{qid}_free_tts_partner_after_lock", disabled=True, use_container_width=True)
+            with c2:
+                rem3 = _free_tts_remaining()
+                if rem3 > 0 and st.button("🔊 내 발음 듣기", key=f"{qid}_free_tts_answer_after", use_container_width=True):
+                    _use_free_tts_once()
+                    components.html(f"""<script>
+(function(){{
+  try{{
+    const synth = window.speechSynthesis;
+    function pickJaVoice(){{
+      const voices = synth.getVoices() || [];
+      const ja = voices.filter(v => String(v.lang||"").toLowerCase().startsWith("ja"));
+      if (!ja.length) return null;
+      return ja.find(v => /google/i.test(v.name||""))
+          || ja.find(v => /日本|japanese/i.test(v.name||""))
+          || ja[0] || null;
+    }}
+    const u = new SpeechSynthesisUtterance({(row.get('answer_jp','') or '').replace('\n',' ')!r});
+    u.lang = "ja-JP";
+    const v = pickJaVoice();
+    if (v) u.voice = v;
+    synth.cancel();
+    synth.speak(u);
+  }}catch(e){{}}
+}})();
+</script>""", height=0)
+                elif rem3 <= 0:
+                    st.button("🔒 내 발음 듣기 (PRO)", key=f"{qid}_free_tts_answer_after_lock", disabled=True, use_container_width=True)
+# ✅ 하테나쌤 코멘트 (explain_kr 우선, 없으면 hint_kr)
+        explain_kr = str(row.get("explain_kr", "")).strip()
         hint = str(row.get("hint_kr", "")).strip()
-        if hint:
-            st.info(hint)
+
+        if explain_kr:
+            st.info("💡 하테나쌤 코멘트\n\n" + explain_kr)
+        elif hint:
+            st.info("💡 하테나쌤 코멘트\n\n" + hint)
         else:
-            st.info("포인트: 상황에서 ‘요청/사과/확인/거절’ 중 무엇인지 먼저 잡고, 그에 맞는 톤(정중/캐주얼)을 고르면 실수가 줄어듭니다.")
+            st.info("💡 하테나쌤 코멘트\n\n포인트: 상황에서 ‘요청/사과/확인/거절’ 중 무엇인지 먼저 잡고, 그에 맞는 톤(정중/캐주얼)을 고르면 실수가 줄어듭니다.")
 
-    # 말하기 완료 체크 (B안)
-    st.markdown("#### 🎤 말하기(체크형)")
-    st.caption("정답을 보고 2~3번 따라 말한 뒤, 아래 체크를 눌러 주세요. (녹음/인식 없이 가볍게!)")
+if submitted:
+    with st.container(border=True):
+        total_cnt = len(qids)
+        current_no = idx + 1
+        st.markdown(
+            f"""
+        <div style="display:flex; align-items:baseline; justify-content:space-between; gap:12px;">
+          <div style="font-size:1.25rem; font-weight:700;">🎙️ 발음 체크</div>
+          <div style="font-size:1rem; opacity:0.85;">📘 진행: {current_no} / {total_cnt}</div>
+        </div>
+        """,
+            unsafe_allow_html=True,
+        )
 
-    spoken_key = f"{NS}_spoken_{qid}"
-    if spoken_key not in st.session_state:
-        st.session_state[spoken_key] = False
 
-    already = bool(st.session_state.get(spoken_key))
-    speak_done = st.checkbox("말하기 완료", value=already, key=f"{NS}_spoken_cb_{qid}")
+        # ✅ 말하기 녹음(선택)
+        # - PRO: 녹음 가능
+        # - FREE: PRO 안내 카드 노출
+        if IS_PRO:
+            _audio = st.audio_input("🎤 (선택) 내 발음을 녹음하고 들어보세요", key=f"{qid}_record")
+            if _audio is not None:
+                st.audio(_audio)
+        else:
+            remr = _free_record_remaining()
+            if remr > 0:
+                st.caption(f"FREE 녹음 남은 횟수: {remr}/{FREE_RECORD_QUOTA} (오늘 기준)")
+                _audio = st.audio_input("🎤 (무료) 내 발음을 녹음하고 들어보세요", key=f"{qid}_record_free")
+                if _audio is not None:
+                    _use_free_record_once()
+                    st.audio(_audio)
+            else:
+                st.markdown(
+                    '''
+<div style="padding:12px;border:1px solid #FFD54F;border-radius:12px;background:#FFF8E1;">
+  <div style="font-weight:800;">🎙️ 발음 녹음 기능은 PRO 전용입니다</div>
+  <div style="margin-top:6px;font-size:0.92rem;opacity:0.9;">
+    오늘의 무료 녹음 3회를 모두 사용했습니다.
+  </div>
+  <div style="margin-top:10px;">
+    <span style="background:#FFD54F;color:#000;padding:3px 10px;border-radius:10px;font-weight:900;">PRO</span>
+  </div>
+</div>
+''',
+                    unsafe_allow_html=True,
+                )
 
-    if speak_done and not already:
-        st.session_state[spoken_key] = True
-        # XP 지급(1문제 말하기 완료)
-        award_xp(1, "회화 말하기 완료")
-        st.success("+1 XP (말하기 완료)")
+        st.caption("정답을 보고 2~3번 따라 말한 뒤, 아래 버튼을 눌러 다음으로 넘어가세요.")
 
+
+        if st.button("✅ 다 했어요 (다음)", use_container_width=True, key=f"{NS}_next_after"):
+            st.success("+2 XP 🎤 (말하기 완료 보상)")
+
+            nxt = idx + 1
+            if nxt >= len(qids):
+                nxt = 0
+            st.session_state[f"{NS}_idx"] = nxt
+            # 상태 초기화(다음 문제)
+            st.session_state[submitted_key] = False
+            st.session_state.pop(sel_key, None)
+            st.session_state.pop(f"{NS}_radio_{qid}", None)
+            st.session_state.pop(f"{NS}_speak_done_{qid}", None)
+            st.rerun()
 # ============================================================
 # ✅ Set completion (10문제 모두 제출되면 자동 집계)
 # ============================================================
@@ -592,7 +1156,10 @@ def finalize_set_if_ready():
     score = 0
     wrong_list: list[dict] = []
     for q in qids:
-        r = pool_df[pool_df["qid"].astype(str) == str(q)].iloc[0].to_dict()
+        tmp = pool_df[pool_df["qid"].astype(str) == str(q)]
+        if tmp.empty:
+            continue
+        r = tmp.iloc[0].to_dict()
         correct = str(r.get("answer_jp", "")).strip()
         sel = st.session_state.get(f"{NS}_selected_{q}")
         ok = (sel == correct)
