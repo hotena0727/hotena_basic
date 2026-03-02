@@ -224,9 +224,7 @@ def scroll_to_top(nonce: int = 0):
           setTimeout(go, 350);
           setTimeout(go, 800);
         }})();
-        
-try{var f=window.frameElement;if(f){f.style.display='none';f.style.height='0px';f.style.minHeight='0px';f.style.border='0';var p=f.parentElement;if(p){p.style.display='none';p.style.height='0px';p.style.minHeight='0px';p.style.margin='0';p.style.padding='0';}}}catch(e){}
-</script>
+        </script>
         <!-- nonce:{nonce} -->
         """,
         height=0,
