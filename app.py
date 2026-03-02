@@ -14,7 +14,6 @@ if "KANJI_HEADER_RENDERED" not in st.session_state:
     st.session_state["KANJI_HEADER_RENDERED"] = False
 
 import unicodedata
-from supabase import create_client
 from streamlit_cookies_manager import EncryptedCookieManager
 import streamlit.components.v1 as components
 from collections import Counter
@@ -59,6 +58,97 @@ div[data-testid="stRadio"] span{
 }
 
 </style>""", unsafe_allow_html=True)
+
+
+if not st.session_state.get("_headbar_css_injected"):
+    # Inject into *parent* document head so CSS affects the whole app.
+    components.html(
+        """
+<script>
+(function(){
+  const doc = (window.parent && window.parent.document) ? window.parent.document : document;
+
+  // 1) Fonts (once)
+  if (!doc.getElementById("ha-font-preconnect-1")) {
+    const l1 = doc.createElement("link");
+    l1.id = "ha-font-preconnect-1";
+    l1.rel = "preconnect";
+    l1.href = "https://fonts.googleapis.com";
+    doc.head.appendChild(l1);
+  }
+  if (!doc.getElementById("ha-font-preconnect-2")) {
+    const l2 = doc.createElement("link");
+    l2.id = "ha-font-preconnect-2";
+    l2.rel = "preconnect";
+    l2.href = "https://fonts.gstatic.com";
+    l2.crossOrigin = "anonymous";
+    doc.head.appendChild(l2);
+  }
+  if (!doc.getElementById("ha-font-css")) {
+    const l3 = doc.createElement("link");
+    l3.id = "ha-font-css";
+    l3.rel = "stylesheet";
+    l3.href = "https://fonts.googleapis.com/css2?family=Kosugi+Maru&family=Noto+Sans+JP:wght@400;500;700;800&display=swap";
+    doc.head.appendChild(l3);
+  }
+
+  // 2) CSS (once)
+  if (!doc.getElementById("ha-headbar-css")) {
+    const style = doc.createElement("style");
+    style.id = "ha-headbar-css";
+    style.textContent = `
+:root{
+  --jp-rounded: "Noto Sans JP","Kosugi Maru","Hiragino Sans","Yu Gothic","Meiryo",sans-serif;
+}
+.jp, .jp *{
+  font-family: var(--jp-rounded) !important;
+  line-height:1.7;
+  letter-spacing:.2px;
+}
+
+/* 상단 환영바 (hotena_basic 동일) */
+.headbar{
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:12px;
+  margin: 0px 0 12px 0;
+}
+.headtitle{
+  font-size:32px;
+  font-weight:900;
+  line-height:1.15;
+  white-space: nowrap;
+}
+.headhello{
+  font-size: 13px;
+  font-weight:700;
+  opacity:.88;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 52%;
+}
+.headhello .mail{
+  font-weight:600;
+  opacity:.75;
+  margin-left:8px;
+}
+
+@media (max-width: 760px){
+  .headhello .mail{ display:none !important; }
+  .headhello{ font-size:11px; }
+  .headtitle{ font-size:22px; }
+}
+`;
+    doc.head.appendChild(style);
+  }
+})();
+</script>
+""",
+        height=0,
+    )
+    st.session_state["_headbar_css_injected"] = True
 st.session_state["_top_compact_css_applied"] = True
 
 st.session_state["_page_config_set"] = True
@@ -279,13 +369,12 @@ if cookies is None:
     st.session_state["cookies"] = cookies
 
 if sb is None:
-    SUPABASE_URL = cfg.get("SUPABASE_URL") or st.secrets.get("SUPABASE_URL", "")
-    SUPABASE_ANON_KEY = cfg.get("SUPABASE_ANON_KEY") or st.secrets.get("SUPABASE_ANON_KEY", "")
-    if not SUPABASE_URL or not SUPABASE_ANON_KEY:
+    # ✅ Supabase anon client 생성은 core.py에서만 담당합니다.
+    core.ensure_core()
+    sb = st.session_state.get("sb")
+    if sb is None:
         st.error("Supabase 설정값이 없습니다. (SUPABASE_URL / SUPABASE_ANON_KEY)")
         st.stop()
-    sb = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
-    st.session_state["sb"] = sb
 # ============================================================
 # OK Supabase 연결
 # ============================================================
@@ -389,7 +478,7 @@ def mark_progress_dirty():
     st.session_state.progress_dirty = True
     st.session_state._progress_dirty_ts = time.time()
 
-    sb_authed_local = get_authed_sb()
+    sb_authed_local = core.get_authed_sb()
     u = st.session_state.get("user")
     if (sb_authed_local is None) or (u is None):
         return
@@ -470,8 +559,8 @@ def run_db(callable_fn):
             ok = refresh_session_from_cookie_if_needed(force=True)
             if ok:
                 st.rerun()
-            clear_auth_everywhere()
             st.warning("세션이 만료되었습니다. 다시 로그인해 주세요.")
+            # (자동 로그아웃/쿠키 삭제는 사용자가 로그아웃을 눌렀을 때만 수행)
             st.rerun()
         raise
 
@@ -518,63 +607,6 @@ def refresh_session_from_cookie_if_needed(force: bool = False) -> bool:
             pass
 
     return False
-
-def get_authed_sb():
-    """Return an authed Supabase client.
-    In the hub architecture, home.py is responsible for creating the base client
-    and restoring the session. This function reuses that client to avoid
-    missing secret vars / duplicate setup.
-    """
-    # OK Prefer a client already prepared by home.py
-    sb = st.session_state.get("supabase_authed") or st.session_state.get("sb_authed")
-    if sb is not None:
-        return sb
-
-    # OK Ensure token exists (home should have restored it)
-    if not st.session_state.get("access_token"):
-        try:
-            refresh_session_from_cookie_if_needed(force=True)
-        except Exception:
-            pass
-
-    token = st.session_state.get("access_token")
-    refresh_token = st.session_state.get("refresh_token")
-
-    # OK Reuse base client from home.py if present
-    base = st.session_state.get("supabase") or st.session_state.get("sb")
-    if base is not None:
-        if token and refresh_token:
-            try:
-                base.auth.set_session(token, refresh_token)
-            except Exception:
-                # Some supabase-py versions use different auth plumbing; ignore and proceed.
-                pass
-        st.session_state["supabase_authed"] = base
-        return base
-
-    # OK Fallback: build a client from secrets (for standalone run)
-    url = None
-    key = None
-    try:
-        url = st.secrets.get("SUPABASE_URL")
-        key = st.secrets.get("SUPABASE_ANON_KEY")
-    except Exception:
-        url = None
-        key = None
-
-    if not url or not key:
-        st.error("Supabase 설정이 없습니다. home.py에서 먼저 로그인/세션을 생성해 주세요. (SUPABASE_URL / SUPABASE_ANON_KEY)")
-        st.stop()
-
-    sb2 = create_client(url, key)
-    if token and refresh_token:
-        try:
-            sb2.auth.set_session(token, refresh_token)
-        except Exception:
-            pass
-
-    st.session_state["supabase_authed"] = sb2
-    return sb2
 
 def to_kst_naive(x):
     ts = pd.to_datetime(x, utc=True, errors="coerce")
@@ -743,7 +775,7 @@ def is_admin() -> bool:
         st.session_state["is_admin_cached"] = False
         return False
 
-    sb_authed_local = get_authed_sb()
+    sb_authed_local = core.get_authed_sb()
     if sb_authed_local is None:
         st.session_state["is_admin_cached"] = False
         return False
@@ -883,19 +915,12 @@ def require_login():
         st.markdown(
             """
 <div class="jp" style="margin: 8px 0 14px 0;">
-  <div style="
-    border:1px solid rgba(120,120,120,0.18);
-    border-radius:18px;
-    padding:16px 16px;
-    background: rgba(255,255,255,0.03);
-  ">
-    <div style="font-weight:900; font-size:22px; line-height:1.15;">
-      ✨ 한자 퀴즈
-    </div>
-    <div style="margin-top:6px; opacity:.85; font-size:13px; line-height:1.55;">
-      하루 10문항으로 가볍게 루틴을 만들어요.<br/>
-      정답은 저장되고, 오답은 다시 풀 수 있어요.
-    </div>
+  <div style="font-weight:900; font-size:22px; line-height:1.15;">
+    ✨ 한자 퀴즈
+  </div>
+  <div style="margin-top:6px; opacity:.85; font-size:13px; line-height:1.55;">
+    하루 10문항으로 가볍게 루틴을 만들어요.<br/>
+    정답은 저장되고, 오답은 다시 풀 수 있어요.
   </div>
 </div>
 """,
@@ -1533,7 +1558,7 @@ def render_admin_dashboard():
         st.session_state.page = "quiz"
         st.rerun()
 
-    sb_authed_local = get_authed_sb()
+    sb_authed_local = core.get_authed_sb()
     if sb_authed_local is None:
         st.warning("세션 토큰이 없습니다. 다시 로그인해 주세요.")
         return
@@ -1562,7 +1587,7 @@ def render_my_dashboard():
         st.session_state.page = "quiz"
         st.stop()
 
-    sb_authed_local = get_authed_sb()
+    sb_authed_local = core.get_authed_sb()
     if sb_authed_local is None:
         st.warning("세션 토큰이 없습니다. 다시 로그인해 주세요.")
         return
@@ -1844,10 +1869,16 @@ def render_home():
 # ============================================================
 # OK 앱 시작: refresh → 로그인 강제 → 페이지 설정
 # ============================================================
-ok = refresh_session_from_cookie_if_needed(force=False)
-if not ok and (cookies.get("refresh_token") or cookies.get("access_token")):
-    clear_auth_everywhere()
-    st.caption("세션 복원에 실패해서 로그인을 다시 요청합니다.")
+# ============================================================
+# ✅ 세션 복원 (Hub 이동/리렌더링에도 로그인 유지)
+# - 여기서 '복원 실패'를 이유로 강제 로그아웃(clear_auth_everywhere)하지 않습니다.
+#   (페이지 이동 시 일시적으로 token/user가 비어 보이는 순간이 있어도, core가 복원합니다.)
+# ============================================================
+try:
+    core.ensure_core(cookie_prefix="hotena_beginner_", localstorage_keys=("hotena_rt","hotena_at"))
+    core.refresh_session_from_cookie_if_needed(force=False)
+except Exception:
+    pass
 
 require_login()
 
@@ -1869,7 +1900,7 @@ if st.session_state.get("HUB_MODE"):
 user = st.session_state.user
 user_id = user.id
 user_email = getattr(user, "email", None) or st.session_state.get("login_email")
-sb_authed = get_authed_sb()
+sb_authed = core.get_authed_sb()
 
 try:
     available_types = get_available_quiz_types() if sb_authed is not None else QUIZ_TYPES_USER
@@ -2283,6 +2314,7 @@ def render_kanji_hub(HUB_MODE: bool = False):
         st.success(f"점수: {score} / {quiz_len}")
         ratio = score / quiz_len if quiz_len else 0
 
+        
         # OK 점수 기반 SFX (제출 직후 1회) — core.py에서 중앙 통제
         _sfx_key = f"word_submit__{int(st.session_state.get('quiz_version', 0) or 0)}"
         if ratio == 1:
@@ -2291,8 +2323,7 @@ def render_kanji_hub(HUB_MODE: bool = False):
             core.play_sfx_once(_sfx_key, "correct")
         else:
             core.play_sfx_once(_sfx_key, "wrong")
-
-        # OK 결과 메시지
+    
         if ratio == 1:
             st.balloons()
             st.success("🎉 완벽해요! 전부 정답입니다. 정말 잘했어요!")
@@ -2303,7 +2334,7 @@ def render_kanji_hub(HUB_MODE: bool = False):
             st.warning("💪 괜찮아요! 틀린 문제는 성장의 재료예요. 다시 한 번 도전해봐요.")
 
         # OK DB 저장
-        sb_authed_local = get_authed_sb()
+        sb_authed_local = core.get_authed_sb()
         if sb_authed_local is None:
             if show_post_ui:
                 st.warning("DB 저장/조회용 토큰이 없습니다. 다시 로그인해 주세요.")
