@@ -3,21 +3,21 @@ server {
     server_name _;
 
     location = /manifest.json {
-        alias /app/hotena_basic/static/pwa-manifest.json;
+        alias /app/static/pwa-manifest.json;
         add_header Content-Type "application/manifest+json" always;
         add_header Cache-Control "no-cache" always;
     }
 
     location = /sw.js {
-        alias /app/hotena_basic/static/sw.js;
+        alias /app/static/sw.js;
         add_header Content-Type "application/javascript" always;
         add_header Cache-Control "no-cache" always;
     }
 
-    location = /icon-192.png { alias /app/hotena_basic/static/icon-192.png; add_header Cache-Control "public, max-age=86400"; }
-    location = /icon-512.png { alias /app/hotena_basic/static/icon-512.png; add_header Cache-Control "public, max-age=86400"; }
-    location = /apple-touch-icon.png { alias /app/hotena_basic/static/apple-touch-icon.png; add_header Cache-Control "public, max-age=86400"; }
-    location = /favicon.ico { alias /app/hotena_basic/static/favicon.ico; add_header Cache-Control "public, max-age=86400"; }
+    location = /icon-192.png { alias /app/static/icon-192.png; add_header Cache-Control "public, max-age=86400"; }
+    location = /icon-512.png { alias /app/static/icon-512.png; add_header Cache-Control "public, max-age=86400"; }
+    location = /apple-touch-icon.png { alias /app/static/apple-touch-icon.png; add_header Cache-Control "public, max-age=86400"; }
+    location = /favicon.ico { alias /app/static/favicon.ico; add_header Cache-Control "public, max-age=86400"; }
 
     location / {
         proxy_pass http://127.0.0.1:8501;
