@@ -355,13 +355,26 @@ if st.session_state.get("_scroll_top_once"):
 # OK Cookies
 # ============================================================
 # OK cookies/supabase는 Hub(home.py)에서 1회 생성 후 공유합니다.
-# ✅ 중요: app.py에서 cookies를 '직접 생성'하면 COOKIE_PASSWORD 불일치로
-#          기존 쿠키를 못 읽어서 '페이지 이동마다 로그아웃'처럼 보일 수 있습니다.
-#          따라서 항상 core.ensure_core()를 통해 동일한 설정/쿠키를 사용합니다.
-core.ensure_core(cookie_prefix="hotena_beginner_", localstorage_keys=("hotena_rt","hotena_at"))
 cfg = st.session_state.get("cfg", {}) or {}
 cookies = st.session_state.get("cookies")
 sb = st.session_state.get("sb")
+
+if cookies is None:
+    # ✅ 쿠키/세션은 core.ensure_core()에서 단 한 번 생성해서 모든 페이지가 공유해야 합니다.
+    core.ensure_core()
+    cookies = st.session_state.get("cookies")
+    if cookies is None:
+        st.error("쿠키 매니저 초기화에 실패했습니다. (core.ensure_core)")
+        st.stop()
+    st.session_state["cookies"] = cookies
+
+if sb is None:
+    # ✅ Supabase anon client 생성은 core.py에서만 담당합니다.
+    core.ensure_core()
+    sb = st.session_state.get("sb")
+    if sb is None:
+        st.error("Supabase 설정값이 없습니다. (SUPABASE_URL / SUPABASE_ANON_KEY)")
+        st.stop()
 # ============================================================
 # OK Supabase 연결
 # ============================================================
@@ -372,7 +385,7 @@ sb = st.session_state.get("sb")
 SHOW_POST_SUBMIT_UI = "N"
 SHOW_NAVER_TALK = "Y"
 NAVER_TALK_URL = "https://talk.naver.com/W45141"
-APP_URL = "https://hotenaquiztestapp-5wiha4zfuvtnq4qgxdhq72.streamlit.app/"
+APP_URL = ""  # (optional) set in secrets/env as APP_URL if you want email redirect
 KST_TZ = "Asia/Seoul"
 
 N = 10
@@ -552,9 +565,48 @@ def run_db(callable_fn):
         raise
 
 def refresh_session_from_cookie_if_needed(force: bool = False) -> bool:
-    # ✅ app.py에서는 인증 복원 로직을 중복 구현하지 않습니다.
-    # core.py의 단일 로직(쿠키/쿼리파람/localStorage 브리지)을 사용합니다.
-    return bool(core.refresh_session_from_cookie_if_needed(force=force))
+    if not force and st.session_state.get("user") and st.session_state.get("access_token"):
+        return True
+
+    rt = cookies.get("refresh_token")
+    at = cookies.get("access_token")
+
+    if rt:
+        try:
+            refreshed = sb.auth.refresh_session(rt)
+            if refreshed and refreshed.session and refreshed.session.access_token:
+                st.session_state.user = refreshed.user
+                st.session_state.access_token = refreshed.session.access_token
+                st.session_state.refresh_token = refreshed.session.refresh_token
+
+                u_email = getattr(refreshed.user, "email", None)
+                if u_email:
+                    st.session_state["login_email"] = u_email.strip()
+
+                cookies["access_token"] = refreshed.session.access_token
+                cookies["refresh_token"] = refreshed.session.refresh_token
+                cookies.save()
+                return True
+        except Exception:
+            pass
+
+    if at:
+        try:
+            u = sb.auth.get_user(at)
+            user_obj = getattr(u, "user", None) or getattr(u, "data", None) or None
+            if user_obj:
+                st.session_state.user = user_obj
+                st.session_state.access_token = at
+                if rt:
+                    st.session_state.refresh_token = rt
+                u_email = getattr(user_obj, "email", None)
+                if u_email:
+                    st.session_state["login_email"] = u_email.strip()
+                return True
+        except Exception:
+            pass
+
+    return False
 
 def to_kst_naive(x):
     ts = pd.to_datetime(x, utc=True, errors="coerce")
@@ -834,7 +886,7 @@ def auth_box():
                     {
                         "email": email,
                         "password": pw,
-                        "options": {"email_redirect_to": APP_URL},
+                        "options": ({"email_redirect_to": APP_URL} if APP_URL else {}),
                     }
                 )
 

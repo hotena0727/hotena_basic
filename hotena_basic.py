@@ -693,12 +693,11 @@ cookies = st.session_state.get("cookies")
 sb = st.session_state.get("sb")
 
 if cookies is None:
-    cookies = EncryptedCookieManager(
-        prefix="hotena_beginner_",
-        password=COOKIE_PASSWORD,
-    )
-    if not cookies.ready():
-        st.info("잠깐만요! 곧 시작할게요🙂")
+    # ✅ 쿠키/세션은 core.ensure_core()에서 단 한 번 생성해서 모든 페이지가 공유해야 합니다.
+    core.ensure_core()
+    cookies = st.session_state.get("cookies")
+    if cookies is None:
+        st.error("쿠키 매니저 초기화에 실패했습니다. (core.ensure_core)")
         st.stop()
     st.session_state["cookies"] = cookies
 if sb is None:
