@@ -64,7 +64,7 @@ st.session_state.pop("plan_cached", None)
 
 if not st.session_state.get('_page_config_set'):
     st.set_page_config(
-    page_title="왕초보탈출 하테나일본어",
+    page_title="왕초보 탈출 하테나일본어",
     page_icon="static/icon-192.png",   # 또는 "🟦"
     layout="centered",
 )
@@ -2819,7 +2819,7 @@ if st.session_state.get("page") != "home":
     st.markdown(
         f"""
 <div class="jp headbar">
-  <div class="headtitle">✨ 왕초보 탈출 하테나일본어</div>
+  <div class="headtitle">✨ 단어</div>
 </div>
 """,
         unsafe_allow_html=True,

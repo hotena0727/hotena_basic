@@ -58,6 +58,97 @@ div[data-testid="stRadio"] span{
 }
 
 </style>""", unsafe_allow_html=True)
+
+
+if not st.session_state.get("_headbar_css_injected"):
+    # Inject into *parent* document head so CSS affects the whole app.
+    components.html(
+        """
+<script>
+(function(){
+  const doc = (window.parent && window.parent.document) ? window.parent.document : document;
+
+  // 1) Fonts (once)
+  if (!doc.getElementById("ha-font-preconnect-1")) {
+    const l1 = doc.createElement("link");
+    l1.id = "ha-font-preconnect-1";
+    l1.rel = "preconnect";
+    l1.href = "https://fonts.googleapis.com";
+    doc.head.appendChild(l1);
+  }
+  if (!doc.getElementById("ha-font-preconnect-2")) {
+    const l2 = doc.createElement("link");
+    l2.id = "ha-font-preconnect-2";
+    l2.rel = "preconnect";
+    l2.href = "https://fonts.gstatic.com";
+    l2.crossOrigin = "anonymous";
+    doc.head.appendChild(l2);
+  }
+  if (!doc.getElementById("ha-font-css")) {
+    const l3 = doc.createElement("link");
+    l3.id = "ha-font-css";
+    l3.rel = "stylesheet";
+    l3.href = "https://fonts.googleapis.com/css2?family=Kosugi+Maru&family=Noto+Sans+JP:wght@400;500;700;800&display=swap";
+    doc.head.appendChild(l3);
+  }
+
+  // 2) CSS (once)
+  if (!doc.getElementById("ha-headbar-css")) {
+    const style = doc.createElement("style");
+    style.id = "ha-headbar-css";
+    style.textContent = `
+:root{
+  --jp-rounded: "Noto Sans JP","Kosugi Maru","Hiragino Sans","Yu Gothic","Meiryo",sans-serif;
+}
+.jp, .jp *{
+  font-family: var(--jp-rounded) !important;
+  line-height:1.7;
+  letter-spacing:.2px;
+}
+
+/* 상단 환영바 (hotena_basic 동일) */
+.headbar{
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:12px;
+  margin: 0px 0 12px 0;
+}
+.headtitle{
+  font-size:32px;
+  font-weight:900;
+  line-height:1.15;
+  white-space: nowrap;
+}
+.headhello{
+  font-size: 13px;
+  font-weight:700;
+  opacity:.88;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 52%;
+}
+.headhello .mail{
+  font-weight:600;
+  opacity:.75;
+  margin-left:8px;
+}
+
+@media (max-width: 760px){
+  .headhello .mail{ display:none !important; }
+  .headhello{ font-size:11px; }
+  .headtitle{ font-size:22px; }
+}
+`;
+    doc.head.appendChild(style);
+  }
+})();
+</script>
+""",
+        height=0,
+    )
+    st.session_state["_headbar_css_injected"] = True
 st.session_state["_top_compact_css_applied"] = True
 
 st.session_state["_page_config_set"] = True
@@ -468,8 +559,8 @@ def run_db(callable_fn):
             ok = refresh_session_from_cookie_if_needed(force=True)
             if ok:
                 st.rerun()
-            clear_auth_everywhere()
             st.warning("세션이 만료되었습니다. 다시 로그인해 주세요.")
+            # (자동 로그아웃/쿠키 삭제는 사용자가 로그아웃을 눌렀을 때만 수행)
             st.rerun()
         raise
 
@@ -824,19 +915,12 @@ def require_login():
         st.markdown(
             """
 <div class="jp" style="margin: 8px 0 14px 0;">
-  <div style="
-    border:1px solid rgba(120,120,120,0.18);
-    border-radius:18px;
-    padding:16px 16px;
-    background: rgba(255,255,255,0.03);
-  ">
-    <div style="font-weight:900; font-size:22px; line-height:1.15;">
-      ✨ 한자 퀴즈
-    </div>
-    <div style="margin-top:6px; opacity:.85; font-size:13px; line-height:1.55;">
-      하루 10문항으로 가볍게 루틴을 만들어요.<br/>
-      정답은 저장되고, 오답은 다시 풀 수 있어요.
-    </div>
+  <div style="font-weight:900; font-size:22px; line-height:1.15;">
+    ✨ 한자 퀴즈
+  </div>
+  <div style="margin-top:6px; opacity:.85; font-size:13px; line-height:1.55;">
+    하루 10문항으로 가볍게 루틴을 만들어요.<br/>
+    정답은 저장되고, 오답은 다시 풀 수 있어요.
   </div>
 </div>
 """,
@@ -1785,10 +1869,16 @@ def render_home():
 # ============================================================
 # OK 앱 시작: refresh → 로그인 강제 → 페이지 설정
 # ============================================================
-ok = refresh_session_from_cookie_if_needed(force=False)
-if not ok and (cookies.get("refresh_token") or cookies.get("access_token")):
-    clear_auth_everywhere()
-    st.caption("세션 복원에 실패해서 로그인을 다시 요청합니다.")
+# ============================================================
+# ✅ 세션 복원 (Hub 이동/리렌더링에도 로그인 유지)
+# - 여기서 '복원 실패'를 이유로 강제 로그아웃(clear_auth_everywhere)하지 않습니다.
+#   (페이지 이동 시 일시적으로 token/user가 비어 보이는 순간이 있어도, core가 복원합니다.)
+# ============================================================
+try:
+    core.ensure_core(cookie_prefix="hotena_beginner_", localstorage_keys=("hotena_rt","hotena_at"))
+    core.refresh_session_from_cookie_if_needed(force=False)
+except Exception:
+    pass
 
 require_login()
 
