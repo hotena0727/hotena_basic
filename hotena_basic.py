@@ -70,16 +70,22 @@ if not st.session_state.get('_page_config_set'):
 # HN_RADIO_COMPACT_V4
 try:
     _hn_css = "/* ===========================\n   HN RADIO COMPACT (v4)\n   \ubaa9\ud45c: \"\uc120\ud0dd \ud6c4\"\uc758 \ucd18\ucd18\ud55c \ub290\ub08c\uc744 \uae30\ubcf8\uac12\uc73c\ub85c \uace0\uc815\n   - Streamlit \uae30\ubcf8 \ud3f0\ud2b8/\uc0c9\uc0c1 \uc720\uc9c0\n   - \uc120\ud0dd \uc804/\ud6c4 \uac04\uaca9 \ub3d9\uc77c\n   =========================== */\ndiv[data-testid=\"stRadio\"] div[role=\"radiogroup\"]{\n  gap: 0px !important;\n}\n\n/* \uac01 \ubcf4\uae30(\ub77c\ub514\uc624 1\uac1c)\uc758 \uae30\ubcf8 \uac04\uaca9\uc744 '\ucd18\ucd18\ud558\uac8c' */\ndiv[data-testid=\"stRadio\"] div[data-baseweb=\"radio\"]{\n  margin: 0 0 0.28rem 0 !important;   /* \u2705 \uae30\ubcf8 \uac04\uaca9\uc744 \uc120\ud0dd \ud6c4 \ub290\ub08c\uc73c\ub85c */\n  padding: 0 !important;\n}\n\n/* \ub0b4\ubd80 \ub798\ud37c \uc5ec\ubc31 \uc81c\uac70(\ube0c\ub77c\uc6b0\uc800/\uc120\ud0dd\uc0c1\ud0dc\uc5d0 \ub530\ub978 \ud754\ub4e4\ub9bc \ubc29\uc9c0) */\ndiv[data-testid=\"stRadio\"] div[data-baseweb=\"radio\"] > div{\n  padding: 0 !important;\n}\n\n/* \uae00\uc904 \ub192\uc774\ub3c4 \uc0b4\uc9dd \ucef4\ud329\ud2b8\ud558\uac8c(\uc120\ud0dd \uc804/\ud6c4 \ub3d9\uc77c) */\ndiv[data-testid=\"stRadio\"] label,\ndiv[data-testid=\"stRadio\"] span{\n  font-weight: inherit !important;\n  line-height: 1.32 !important;\n}"
-    _hn_html = (
-        "<script>(function(){try{"
-        "var doc=(window.parent&&window.parent.document)?window.parent.document:document;"
-        "var ID='hn_radio_compact_v4';"
-        "var style=doc.getElementById(ID);"
-        "if(!style){style=doc.createElement('style');style.id=ID;doc.head.appendChild(style);}"
-        "style.textContent=" + JSON.stringify(_hn_css) + ";"
-        "}catch(e){}})();</script>"
-    )
-    components.html(_hn_html, height=0)
+    # ✅ IMPORTANT:
+    # - HUB_MODE에서는 components.html(iframe)이 '0 높이'여도 환경에 따라 빈 여백이 생길 수 있습니다.
+    # - 따라서 HUB_MODE에서는 st.markdown(<style>)로 직접 주입해 여백을 만들지 않습니다.
+    if st.session_state.get('HUB_MODE', False):
+        st.markdown(f"<style>{_hn_css}</style>", unsafe_allow_html=True)
+    else:
+        _hn_html = (
+            "<script>(function(){try{"
+            "var doc=(window.parent&&window.parent.document)?window.parent.document:document;"
+            "var ID='hn_radio_compact_v4';"
+            "var style=doc.getElementById(ID);"
+            "if(!style){style=doc.createElement('style');style.id=ID;doc.head.appendChild(style);}"
+            "style.textContent=" + JSON.stringify(_hn_css) + ";"
+            "}catch(e){}})();</script>"
+        )
+        components.html(_hn_html, height=0)
 except Exception:
     # fallback (iframe 내부)
     st.markdown("""<style>
@@ -2873,44 +2879,11 @@ def render_plan_banner():
         return
 
     plan = get_user_plan()
-
-    # ✅ pill 배지(한자 페이지와 동일 컨셉): st.success()/st.info 사용 금지(여백 커짐)
     if plan == "pro":
-        st.markdown(
-            """
-<style>
-.ha-pro-pill{
-  display:inline-flex; align-items:center; gap:8px;
-  padding:7px 12px; border-radius:999px;
-  background: rgba(255,255,255,0.85);
-  border: 1px solid rgba(0,0,0,0.08);
-  box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-  font-size:13px; font-weight:700;
-  margin: 0 0 0px 0;   /* 🔥 배지 아래 여백 0 */
-}
-.ha-pro-gear{
-  display:inline-flex; align-items:center; justify-content:center;
-  width:26px; height:26px; border-radius:999px;
-  border: 1px solid rgba(0,0,0,0.08);
-  background: rgba(0,0,0,0.03);
-  font-size:14px;
-}
-</style>
-<div class="ha-pro-pill">✨ PRO 이용 중입니다 <span class="ha-pro-gear">⚙️</span></div>
-""",
-            unsafe_allow_html=True,
-        )
+        st.success("✨ PRO 이용 중입니다.")
         return
 
-    # FREE 배너(필요 시만): 과한 여백을 피하기 위해 info 대신 pill로
-    st.markdown(
-        """
-<div class="ha-pro-pill" style="opacity:.92;">
-  🔒 일부 기능은 PRO에서 열립니다
-</div>
-""",
-        unsafe_allow_html=True,
-    )
+    st.info("🔒 일부 기능은 PRO에서 열립니다. (예: 오답만 다시풀기, 발음 버튼, 패턴카드 확장 등)")
     if st.button("💎 PRO 신청/문의", use_container_width=True, key="btn_go_pro"):
         st.session_state["_scroll_top_once"] = True
         st.markdown(f"<meta http-equiv='refresh' content='0;url={NAVER_TALK_URL}'>", unsafe_allow_html=True)
@@ -2918,14 +2891,9 @@ def render_plan_banner():
 # OK 호출은 정의 아래에서
 render_topcard()
 render_plan_banner()
+render_sound_toggle()
 
-# ✅ 핵심: '배지 ↔ 타이틀' 사이에 끼는 블록 제거
-# - 한자 페이지처럼 '배지 → 바로 타이틀'이 되려면,
-#   사운드 토글/출석/오늘목표 같은 상단 위젯은 home에서만 렌더링
-if (not st.session_state.get("HUB_MODE", False)) and (st.session_state.get("page", "home") == "home"):
-    render_sound_toggle()
-
-if (not st.session_state.get("HUB_MODE", False)) and (st.session_state.get("page","home") == "home"):
+if not st.session_state.get("HUB_MODE", False):
     streak = st.session_state.get("streak_count")
     did_today = st.session_state.get("did_attend_today")
     if streak is not None:
