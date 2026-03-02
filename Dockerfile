@@ -14,14 +14,5 @@ COPY nginx.conf /etc/nginx/nginx.conf
 
 EXPOSE 8080
 
-CMD ["bash", "-lc", "\
-set -e; \
-streamlit run home.py \
-  --server.port=8501 \
-  --server.address=0.0.0.0 \
-  --server.headless=true \
-  --browser.gatherUsageStats=false \
-  --server.fileWatcherType=none & \
-exec nginx -g 'daemon off;' \
-"]
+CMD ["sh","-c","streamlit run home.py --server.address=0.0.0.0 --server.port=${PORT}"]
 
