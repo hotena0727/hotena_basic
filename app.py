@@ -1838,8 +1838,10 @@ if st.session_state.get("page") != "home":
 
     st.markdown(
         f"""
-<div class="jp headbar">
-  <div class="headtitle">{_title}</div>
+<div class="jp headbar" style="margin:6px 0 10px 0;">
+  <div class="headtitle" style="font-size:22px; font-weight:900; line-height:1.15;">
+    {_title}
+  </div>
 </div>
 """,
         unsafe_allow_html=True
