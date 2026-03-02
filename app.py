@@ -1836,20 +1836,16 @@ if st.session_state.get("page") != "home":
     else:
         _title = "✨ 한자 퀴즈"
 
-    st.markdown(
-        f"""
 st.markdown(
     f"""
 <div class="jp" style="margin:6px 0 10px 0;">
-  <div style="font-weight:900; font-size:22px; line-height:1.15;">
+  <div class="headtitle" style="font-size:22px; line-height:1.15;">
     {_title}
   </div>
 </div>
 """,
-    unsafe_allow_html=True
-)""",
-        unsafe_allow_html=True
-    )
+    unsafe_allow_html=True,
+)
 
 # 프로필/출석
 if sb_authed is not None:
