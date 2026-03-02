@@ -14,7 +14,6 @@ if "KANJI_HEADER_RENDERED" not in st.session_state:
     st.session_state["KANJI_HEADER_RENDERED"] = False
 
 import unicodedata
-from supabase import create_client
 from streamlit_cookies_manager import EncryptedCookieManager
 import streamlit.components.v1 as components
 from collections import Counter
@@ -279,13 +278,12 @@ if cookies is None:
     st.session_state["cookies"] = cookies
 
 if sb is None:
-    SUPABASE_URL = cfg.get("SUPABASE_URL") or st.secrets.get("SUPABASE_URL", "")
-    SUPABASE_ANON_KEY = cfg.get("SUPABASE_ANON_KEY") or st.secrets.get("SUPABASE_ANON_KEY", "")
-    if not SUPABASE_URL or not SUPABASE_ANON_KEY:
+    # ✅ Supabase anon client 생성은 core.py에서만 담당합니다.
+    core.ensure_core()
+    sb = st.session_state.get("sb")
+    if sb is None:
         st.error("Supabase 설정값이 없습니다. (SUPABASE_URL / SUPABASE_ANON_KEY)")
         st.stop()
-    sb = create_client(SUPABASE_URL, SUPABASE_ANON_KEY)
-    st.session_state["sb"] = sb
 # ============================================================
 # OK Supabase 연결
 # ============================================================
@@ -389,7 +387,7 @@ def mark_progress_dirty():
     st.session_state.progress_dirty = True
     st.session_state._progress_dirty_ts = time.time()
 
-    sb_authed_local = get_authed_sb()
+    sb_authed_local = core.get_authed_sb()
     u = st.session_state.get("user")
     if (sb_authed_local is None) or (u is None):
         return
@@ -518,63 +516,6 @@ def refresh_session_from_cookie_if_needed(force: bool = False) -> bool:
             pass
 
     return False
-
-def get_authed_sb():
-    """Return an authed Supabase client.
-    In the hub architecture, home.py is responsible for creating the base client
-    and restoring the session. This function reuses that client to avoid
-    missing secret vars / duplicate setup.
-    """
-    # OK Prefer a client already prepared by home.py
-    sb = st.session_state.get("supabase_authed") or st.session_state.get("sb_authed")
-    if sb is not None:
-        return sb
-
-    # OK Ensure token exists (home should have restored it)
-    if not st.session_state.get("access_token"):
-        try:
-            refresh_session_from_cookie_if_needed(force=True)
-        except Exception:
-            pass
-
-    token = st.session_state.get("access_token")
-    refresh_token = st.session_state.get("refresh_token")
-
-    # OK Reuse base client from home.py if present
-    base = st.session_state.get("supabase") or st.session_state.get("sb")
-    if base is not None:
-        if token and refresh_token:
-            try:
-                base.auth.set_session(token, refresh_token)
-            except Exception:
-                # Some supabase-py versions use different auth plumbing; ignore and proceed.
-                pass
-        st.session_state["supabase_authed"] = base
-        return base
-
-    # OK Fallback: build a client from secrets (for standalone run)
-    url = None
-    key = None
-    try:
-        url = st.secrets.get("SUPABASE_URL")
-        key = st.secrets.get("SUPABASE_ANON_KEY")
-    except Exception:
-        url = None
-        key = None
-
-    if not url or not key:
-        st.error("Supabase 설정이 없습니다. home.py에서 먼저 로그인/세션을 생성해 주세요. (SUPABASE_URL / SUPABASE_ANON_KEY)")
-        st.stop()
-
-    sb2 = create_client(url, key)
-    if token and refresh_token:
-        try:
-            sb2.auth.set_session(token, refresh_token)
-        except Exception:
-            pass
-
-    st.session_state["supabase_authed"] = sb2
-    return sb2
 
 def to_kst_naive(x):
     ts = pd.to_datetime(x, utc=True, errors="coerce")
@@ -743,7 +684,7 @@ def is_admin() -> bool:
         st.session_state["is_admin_cached"] = False
         return False
 
-    sb_authed_local = get_authed_sb()
+    sb_authed_local = core.get_authed_sb()
     if sb_authed_local is None:
         st.session_state["is_admin_cached"] = False
         return False
@@ -1533,7 +1474,7 @@ def render_admin_dashboard():
         st.session_state.page = "quiz"
         st.rerun()
 
-    sb_authed_local = get_authed_sb()
+    sb_authed_local = core.get_authed_sb()
     if sb_authed_local is None:
         st.warning("세션 토큰이 없습니다. 다시 로그인해 주세요.")
         return
@@ -1562,7 +1503,7 @@ def render_my_dashboard():
         st.session_state.page = "quiz"
         st.stop()
 
-    sb_authed_local = get_authed_sb()
+    sb_authed_local = core.get_authed_sb()
     if sb_authed_local is None:
         st.warning("세션 토큰이 없습니다. 다시 로그인해 주세요.")
         return
@@ -1869,7 +1810,7 @@ if st.session_state.get("HUB_MODE"):
 user = st.session_state.user
 user_id = user.id
 user_email = getattr(user, "email", None) or st.session_state.get("login_email")
-sb_authed = get_authed_sb()
+sb_authed = core.get_authed_sb()
 
 try:
     available_types = get_available_quiz_types() if sb_authed is not None else QUIZ_TYPES_USER
@@ -2284,14 +2225,14 @@ def render_kanji_hub(HUB_MODE: bool = False):
         ratio = score / quiz_len if quiz_len else 0
 
         
-# OK 점수 기반 SFX (제출 직후 1회) — core.py에서 중앙 통제
-_sfx_key = f"word_submit__{int(st.session_state.get('quiz_version', 0) or 0)}"
-if ratio == 1:
-    core.play_sfx_once(_sfx_key, "reward")
-elif ratio >= 0.7:
-    core.play_sfx_once(_sfx_key, "correct")
-else:
-    core.play_sfx_once(_sfx_key, "wrong")
+        # OK 점수 기반 SFX (제출 직후 1회) — core.py에서 중앙 통제
+        _sfx_key = f"word_submit__{int(st.session_state.get('quiz_version', 0) or 0)}"
+        if ratio == 1:
+            core.play_sfx_once(_sfx_key, "reward")
+        elif ratio >= 0.7:
+            core.play_sfx_once(_sfx_key, "correct")
+        else:
+            core.play_sfx_once(_sfx_key, "wrong")
     
         if ratio == 1:
             st.balloons()
@@ -2303,7 +2244,7 @@ else:
             st.warning("💪 괜찮아요! 틀린 문제는 성장의 재료예요. 다시 한 번 도전해봐요.")
 
         # OK DB 저장
-        sb_authed_local = get_authed_sb()
+        sb_authed_local = core.get_authed_sb()
         if sb_authed_local is None:
             if show_post_ui:
                 st.warning("DB 저장/조회용 토큰이 없습니다. 다시 로그인해 주세요.")
