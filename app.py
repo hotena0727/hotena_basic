@@ -103,7 +103,7 @@ st.markdown(
   margin-left:8px;
 }
 
-@media (max-width: 480px){
+@media (max-width: 760px){
   .headhello .mail{ display:none !important; }
   .headhello{ font-size:11px; }
   .headtitle{ font-size:22px; }
