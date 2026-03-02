@@ -1834,25 +1834,22 @@ if st.session_state.get("page") != "home":
     elif _p == "admin":
         _title = "🛠 관리자"
     else:
-        _title = "✨ 한자"
+        _title = "✨ 한자 퀴즈"
 
     st.markdown(
+        f"""
+st.markdown(
     f"""
-<div class="jp headbar" style="margin: 8px 0 14px 0;">
-  <div style="
-    border:1px solid rgba(120,120,120,0.18);
-    border-radius:18px;
-    padding:16px 16px;
-    background: rgba(255,255,255,0.03);
-  ">
-    <div class="headtitle" style="font-weight:900; font-size:22px; line-height:1.15;">
-      {_title}
-    </div>
+<div class="jp" style="margin:6px 0 10px 0;">
+  <div style="font-weight:900; font-size:22px; line-height:1.15;">
+    {_title}
   </div>
 </div>
 """,
-    unsafe_allow_html=True,
-)
+    unsafe_allow_html=True
+)""",
+        unsafe_allow_html=True
+    )
 
 # 프로필/출석
 if sb_authed is not None:
