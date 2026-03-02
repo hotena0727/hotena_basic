@@ -114,8 +114,8 @@ def _js_bridge_localstorage_to_queryparam(ls_key: str, qp_key: str):
   }} catch(e) {{}}
 }})();
 
-try{var f=window.frameElement;if(f){f.style.display='none';f.style.height='0px';f.style.minHeight='0px';f.style.border='0';var p=f.parentElement;if(p){p.style.display='none';p.style.height='0px';p.style.minHeight='0px';p.style.margin='0';p.style.padding='0';}}}catch(e){}
-</script>""".replace("LS_KEY", ls_key).replace("QP_KEY", qp_key),
+try{{var f=window.frameElement;if(f){{f.style.display='none';f.style.height='0px';f.style.minHeight='0px';f.style.border='0';var p=f.parentElement;if(p){{p.style.display='none';p.style.height='0px';p.style.minHeight='0px';p.style.margin='0';p.style.padding='0';}}}}}}catch(e){{}}
+</script>""",
             height=0,
         )
     except Exception:
@@ -130,7 +130,7 @@ try {{
   localStorage.setItem({json.dumps("K")}, {json.dumps("V")});
 }} catch(e) {{}}
 
-try{var f=window.frameElement;if(f){f.style.display='none';f.style.height='0px';f.style.minHeight='0px';f.style.border='0';var p=f.parentElement;if(p){p.style.display='none';p.style.height='0px';p.style.minHeight='0px';p.style.margin='0';p.style.padding='0';}}}catch(e){}
+try{{var f=window.frameElement;if(f){{f.style.display='none';f.style.height='0px';f.style.minHeight='0px';f.style.border='0';var p=f.parentElement;if(p){{p.style.display='none';p.style.height='0px';p.style.minHeight='0px';p.style.margin='0';p.style.padding='0';}}}}}}catch(e){{}}
 </script>""".replace("K", key).replace("V", value),
             height=0,
         )
@@ -145,7 +145,7 @@ try {{
   localStorage.removeItem({json.dumps("K")});
 }} catch(e) {{}}
 
-try{var f=window.frameElement;if(f){f.style.display='none';f.style.height='0px';f.style.minHeight='0px';f.style.border='0';var p=f.parentElement;if(p){p.style.display='none';p.style.height='0px';p.style.minHeight='0px';p.style.margin='0';p.style.padding='0';}}}catch(e){}
+try{{var f=window.frameElement;if(f){{f.style.display='none';f.style.height='0px';f.style.minHeight='0px';f.style.border='0';var p=f.parentElement;if(p){{p.style.display='none';p.style.height='0px';p.style.minHeight='0px';p.style.margin='0';p.style.padding='0';}}}}}}catch(e){{}}
 </script>""".replace("K", key),
             height=0,
         )
