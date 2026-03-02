@@ -14,6 +14,7 @@ if "KANJI_HEADER_RENDERED" not in st.session_state:
     st.session_state["KANJI_HEADER_RENDERED"] = False
 
 import unicodedata
+from streamlit_cookies_manager import EncryptedCookieManager
 import streamlit.components.v1 as components
 from collections import Counter
 import time
@@ -351,22 +352,11 @@ if st.session_state.get("_scroll_top_once"):
     scroll_to_top(nonce=st.session_state["_scroll_top_nonce"])
 
 # ============================================================
-# OK Cookies
+# OK Cookies / Supabase (통합: core.ensure_core)
 # ============================================================
-# ✅ cookies/supabase는 core.ensure_core()에서 일관되게 복구/생성합니다.
 core.ensure_core(cookie_prefix="hotena_beginner_", localstorage_keys=("hotena_rt","hotena_at"))
-
-cfg = st.session_state.get("cfg", {}) or {}
 cookies = st.session_state.get("cookies")
 sb = st.session_state.get("sb")
-
-if cookies is None:
-    st.error("쿠키 초기화에 실패했습니다. (cookies)")
-    st.stop()
-
-if sb is None:
-    st.error("Supabase 설정값이 없습니다. (SUPABASE_URL / SUPABASE_ANON_KEY)")
-    st.stop()
 
 # ============================================================
 # OK Supabase 연결

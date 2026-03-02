@@ -650,64 +650,11 @@ if st.session_state.get("_scroll_top_once"):
     scroll_to_top(nonce=st.session_state["_scroll_top_nonce"])
 
 # ============================================================
-# OK Cookies + Supabase (Cloud Run env + Streamlit secrets 겸용)
+# OK Cookies / Supabase (통합: core.ensure_core)
 # ============================================================
-import os
-import streamlit as st
-from streamlit_cookies_manager import EncryptedCookieManager
-def get_cfg(key: str) -> str:
-    # 0) Hub(home.py)에서 주입된 설정 우선
-    try:
-        cfg = st.session_state.get("cfg", {}) or {}
-        if key in cfg and cfg[key]:
-            return str(cfg[key])
-    except Exception:
-        pass
-    # 1) Cloud Run: 환경변수 우선
-    v = os.getenv(key)
-    if v:
-        return v
-    # 2) Streamlit Cloud: secrets
-    try:
-        return st.secrets[key]
-    except Exception:
-        return 
-
-COOKIE_PASSWORD = get_cfg("COOKIE_PASSWORD")
-SUPABASE_URL = get_cfg("SUPABASE_URL")
-SUPABASE_ANON_KEY = get_cfg("SUPABASE_ANON_KEY")
-
-# OK 필수값 체크
-missing = [k for k, v in {
-    "COOKIE_PASSWORD": COOKIE_PASSWORD,
-    "SUPABASE_URL": SUPABASE_URL,
-    "SUPABASE_ANON_KEY": SUPABASE_ANON_KEY,
-}.items() if not v]
-
-if missing:
-    st.error(f"설정값이 없습니다: {', '.join(missing)} (Cloud Run env 또는 Streamlit secrets 확인)")
-    st.stop()
-
-# OK cookies/supabase는 Hub(home.py)에서 1회 생성 후 공유합니다.
+core.ensure_core(cookie_prefix="hotena_beginner_", localstorage_keys=("hotena_rt","hotena_at"))
 cookies = st.session_state.get("cookies")
 sb = st.session_state.get("sb")
-
-if cookies is None:
-    cookies = EncryptedCookieManager(
-        prefix="hotena_beginner_",
-        password=COOKIE_PASSWORD,
-    )
-    if not cookies.ready():
-        st.info("잠깐만요! 곧 시작할게요🙂")
-        st.stop()
-    st.session_state["cookies"] = cookies
-if sb is None:
-    # ✅ Supabase anon client 생성은 core.py에서만 담당합니다.
-    core.ensure_core()
-    sb = st.session_state.get("sb")
-    if sb is None:
-        st.error("Supabase 설정값이 없습니다. (SUPABASE_URL / SUPABASE_ANON_KEY)")
-        st.stop()
 
 # ============================================================
 # OK Utils: 위젯 잔상(q_...) 제거
