@@ -2762,6 +2762,8 @@ if submitted:
                     key=f"talk_ai_q_{qid}",
                     placeholder="예) 더 자연스러운 표현도 있어요?",
                     label_visibility="collapsed",
+                    # ✅ 입력/포커스가 발생하면 항상 열린 상태로 고정 (rerun에도 expander 유지)
+                    on_change=lambda k=coach_open_key: st.session_state.__setitem__(k, True),
                 )
 
                 st.caption("회화 표현·뉘앙스·자연스러움 위주 질문에 최적화되어 있어요.")
@@ -2770,6 +2772,8 @@ if submitted:
                     "AI 코칭 받기 시작",
                     use_container_width=True,
                     key=f"talk_ai_ask_{qid}",
+                    # ✅ 클릭 순간에도 열린 상태를 세션에 기록 → 버튼 클릭 rerun에서 '닫힘' 방지
+                    on_click=lambda k=coach_open_key: st.session_state.__setitem__(k, True),
                 )
 
                 coach_slot = st.empty()
