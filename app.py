@@ -60,6 +60,66 @@ div[data-testid="stRadio"] span{
 </style>""", unsafe_allow_html=True)
 st.session_state["_top_compact_css_applied"] = True
 
+
+# ============================================================
+# ✅ Header / JP Font (same as hotena_basic.py for pixel-match)
+# ============================================================
+if not st.session_state.get("_kanji_header_css_applied", False):
+    st.session_state["_kanji_header_css_applied"] = True
+    st.markdown(
+        """
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Kosugi+Maru&family=Noto+Sans+JP:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --jp-rounded: "Noto Sans JP","Kosugi Maru","Hiragino Sans","Yu Gothic","Meiryo",sans-serif;
+}
+.jp, .jp *{
+  font-family: var(--jp-rounded) !important;
+  line-height:1.7;
+  letter-spacing:.2px;
+}
+
+/* 상단 환영바 */
+.headbar{
+  display:flex;
+  align-items:flex-end;
+  justify-content:space-between;
+  gap:12px;
+  margin: 0px 0 12px 0;
+}
+.headtitle{
+  font-size:32px;
+  font-weight:900;
+  line-height:1.15;
+  white-space: nowrap;
+}
+.headhello{
+  font-size: 13px;
+  font-weight:700;
+  opacity:.88;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 52%;
+}
+.headhello .mail{
+  font-weight:600;
+  opacity:.75;
+  margin-left:8px;
+}
+
+@media (max-width: 480px){
+  .headhello .mail{ display:none !important; }
+  .headhello{ font-size:11px; }
+  .headtitle{ font-size:22px; }
+}
+</style>
+""",
+        unsafe_allow_html=True,
+    )
+
 st.session_state["_page_config_set"] = True
 # ============================================================
 # OK [SOUND] 사운드 유틸 (모바일 자동재생 정책 대응)
@@ -824,12 +884,19 @@ def require_login():
         st.markdown(
             """
 <div class="jp" style="margin: 8px 0 14px 0;">
-  <div style="font-weight:900; font-size:22px; line-height:1.15;">
-    ✨ 한자 퀴즈
-  </div>
-  <div style="margin-top:6px; opacity:.85; font-size:13px; line-height:1.55;">
-    하루 10문항으로 가볍게 루틴을 만들어요.<br/>
-    정답은 저장되고, 오답은 다시 풀 수 있어요.
+  <div style="
+    border:1px solid rgba(120,120,120,0.18);
+    border-radius:18px;
+    padding:16px 16px;
+    background: rgba(255,255,255,0.03);
+  ">
+    <div style="font-weight:900; font-size:22px; line-height:1.15;">
+      ✨ 한자 퀴즈
+    </div>
+    <div style="margin-top:6px; opacity:.85; font-size:13px; line-height:1.55;">
+      하루 10문항으로 가볍게 루틴을 만들어요.<br/>
+      정답은 저장되고, 오답은 다시 풀 수 있어요.
+    </div>
   </div>
 </div>
 """,
@@ -1831,13 +1898,11 @@ if st.session_state.get("page") != "home":
 
     st.markdown(
         f"""
-<div class="jp" style="margin:6px 0 10px 0;">
-  <div style="font-weight:900; font-size:22px; line-height:1.15;">
-    {_title}
-  </div>
+<div class="jp headbar">
+  <div class="headtitle">{_title}</div>
 </div>
 """,
-        unsafe_allow_html=True,
+        unsafe_allow_html=True
     )
 
 # 프로필/출석
