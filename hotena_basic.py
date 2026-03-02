@@ -1549,7 +1549,7 @@ def require_login():
     background: rgba(255,255,255,0.03);
   ">
     <div style="font-weight:900; font-size:22px; line-height:1.15;">
-      ✨ 왕초보 탈출 하테나일본어
+      ✨ 단어
     </div>
     <div style="margin-top:6px; opacity:.85; font-size:13px; line-height:1.55;">
       하루 10문항으로 가볍게 루틴을 만들어요.<br/>
@@ -2486,7 +2486,7 @@ def render_home():
     st.markdown(
         f"""
 <div class="jp headbar">
-  <div class="headtitle">✨ 단어 훈련</div>
+  <div class="headtitle">✨ 왕초보 탈출 하테나일본어</div>
 </div>
 """,
         unsafe_allow_html=True,
