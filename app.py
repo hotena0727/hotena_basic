@@ -1893,7 +1893,7 @@ if st.session_state.get("page") != "home":
     elif _p == "admin":
         _title = "🛠 관리자"
     else:
-        _title = "✨ 한자 퀴즈"
+        _title = "✨ 한자"
 
     st.markdown(
         f"""
@@ -2283,16 +2283,16 @@ def render_kanji_hub(HUB_MODE: bool = False):
         st.success(f"점수: {score} / {quiz_len}")
         ratio = score / quiz_len if quiz_len else 0
 
-        
-# OK 점수 기반 SFX (제출 직후 1회) — core.py에서 중앙 통제
-_sfx_key = f"word_submit__{int(st.session_state.get('quiz_version', 0) or 0)}"
-if ratio == 1:
-    core.play_sfx_once(_sfx_key, "reward")
-elif ratio >= 0.7:
-    core.play_sfx_once(_sfx_key, "correct")
-else:
-    core.play_sfx_once(_sfx_key, "wrong")
-    
+        # OK 점수 기반 SFX (제출 직후 1회) — core.py에서 중앙 통제
+        _sfx_key = f"word_submit__{int(st.session_state.get('quiz_version', 0) or 0)}"
+        if ratio == 1:
+            core.play_sfx_once(_sfx_key, "reward")
+        elif ratio >= 0.7:
+            core.play_sfx_once(_sfx_key, "correct")
+        else:
+            core.play_sfx_once(_sfx_key, "wrong")
+
+        # OK 결과 메시지
         if ratio == 1:
             st.balloons()
             st.success("🎉 완벽해요! 전부 정답입니다. 정말 잘했어요!")
