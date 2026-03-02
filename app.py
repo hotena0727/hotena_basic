@@ -903,7 +903,7 @@ def require_login():
             """
 <div class="jp" style="margin: 8px 0 14px 0;">
   <div style="font-weight:900; font-size:22px; line-height:1.15;">
-    ✨ 한자 퀴즈
+    ✨ 한자
   </div>
   <div style="margin-top:6px; opacity:.85; font-size:13px; line-height:1.55;">
     하루 10문항으로 가볍게 루틴을 만들어요.<br/>
