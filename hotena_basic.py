@@ -2874,7 +2874,28 @@ def render_plan_banner():
 
     plan = get_user_plan()
     if plan == "pro":
-        st.success("✨ PRO 이용 중입니다.")
+        # ✅ st.success는 기본 padding/margin이 커서 상단 간격이 벌어집니다.
+        #    한자 페이지와 동일하게 "pill 배지"로 표시해 간격/톤을 통일합니다.
+        st.markdown(
+            '''
+<div class="jp" style="
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  border:1px solid rgba(120,120,120,0.22);
+  background: rgba(255,255,255,0.04);
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-weight: 900;
+  font-size: 13px;
+  line-height: 1.05;
+  margin: 0 0 10px 0;
+">
+  ✨ <span>PRO 이용 중입니다</span>
+</div>
+''',
+            unsafe_allow_html=True,
+        )
         return
 
     st.info("🔒 일부 기능은 PRO에서 열립니다. (예: 오답만 다시풀기, 발음 버튼, 패턴카드 확장 등)")
