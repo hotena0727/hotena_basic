@@ -70,22 +70,16 @@ if not st.session_state.get('_page_config_set'):
 # HN_RADIO_COMPACT_V4
 try:
     _hn_css = "/* ===========================\n   HN RADIO COMPACT (v4)\n   \ubaa9\ud45c: \"\uc120\ud0dd \ud6c4\"\uc758 \ucd18\ucd18\ud55c \ub290\ub08c\uc744 \uae30\ubcf8\uac12\uc73c\ub85c \uace0\uc815\n   - Streamlit \uae30\ubcf8 \ud3f0\ud2b8/\uc0c9\uc0c1 \uc720\uc9c0\n   - \uc120\ud0dd \uc804/\ud6c4 \uac04\uaca9 \ub3d9\uc77c\n   =========================== */\ndiv[data-testid=\"stRadio\"] div[role=\"radiogroup\"]{\n  gap: 0px !important;\n}\n\n/* \uac01 \ubcf4\uae30(\ub77c\ub514\uc624 1\uac1c)\uc758 \uae30\ubcf8 \uac04\uaca9\uc744 '\ucd18\ucd18\ud558\uac8c' */\ndiv[data-testid=\"stRadio\"] div[data-baseweb=\"radio\"]{\n  margin: 0 0 0.28rem 0 !important;   /* \u2705 \uae30\ubcf8 \uac04\uaca9\uc744 \uc120\ud0dd \ud6c4 \ub290\ub08c\uc73c\ub85c */\n  padding: 0 !important;\n}\n\n/* \ub0b4\ubd80 \ub798\ud37c \uc5ec\ubc31 \uc81c\uac70(\ube0c\ub77c\uc6b0\uc800/\uc120\ud0dd\uc0c1\ud0dc\uc5d0 \ub530\ub978 \ud754\ub4e4\ub9bc \ubc29\uc9c0) */\ndiv[data-testid=\"stRadio\"] div[data-baseweb=\"radio\"] > div{\n  padding: 0 !important;\n}\n\n/* \uae00\uc904 \ub192\uc774\ub3c4 \uc0b4\uc9dd \ucef4\ud329\ud2b8\ud558\uac8c(\uc120\ud0dd \uc804/\ud6c4 \ub3d9\uc77c) */\ndiv[data-testid=\"stRadio\"] label,\ndiv[data-testid=\"stRadio\"] span{\n  font-weight: inherit !important;\n  line-height: 1.32 !important;\n}"
-    # ✅ IMPORTANT:
-    # - HUB_MODE에서는 components.html(iframe)이 '0 높이'여도 환경에 따라 빈 여백이 생길 수 있습니다.
-    # - 따라서 HUB_MODE에서는 st.markdown(<style>)로 직접 주입해 여백을 만들지 않습니다.
-    if st.session_state.get('HUB_MODE', False):
-        st.markdown(f"<style>{_hn_css}</style>", unsafe_allow_html=True)
-    else:
-        _hn_html = (
-            "<script>(function(){try{"
-            "var doc=(window.parent&&window.parent.document)?window.parent.document:document;"
-            "var ID='hn_radio_compact_v4';"
-            "var style=doc.getElementById(ID);"
-            "if(!style){style=doc.createElement('style');style.id=ID;doc.head.appendChild(style);}"
-            "style.textContent=" + JSON.stringify(_hn_css) + ";"
-            "}catch(e){}})();</script>"
-        )
-        components.html(_hn_html, height=0)
+    _hn_html = (
+        "<script>(function(){try{"
+        "var doc=(window.parent&&window.parent.document)?window.parent.document:document;"
+        "var ID='hn_radio_compact_v4';"
+        "var style=doc.getElementById(ID);"
+        "if(!style){style=doc.createElement('style');style.id=ID;doc.head.appendChild(style);}"
+        "style.textContent=" + JSON.stringify(_hn_css) + ";"
+        "}catch(e){})();try{var f=window.frameElement;if(f){f.style.display='none';f.style.height='0px';f.style.minHeight='0px';f.style.border='0';var p=f.parentElement;if(p){p.style.display='none';p.style.height='0px';p.style.minHeight='0px';p.style.margin='0';p.style.padding='0';}}}catch(e){};</script>"
+    )
+    components.html(_hn_html, height=0)
 except Exception:
     # fallback (iframe 내부)
     st.markdown("""<style>
@@ -148,6 +142,8 @@ try:
   window.setTimeout(kill, 50);
   window.setTimeout(kill, 500);
 })();
+
+try{var f=window.frameElement;if(f){f.style.display='none';f.style.height='0px';f.style.minHeight='0px';f.style.border='0';var p=f.parentElement;if(p){p.style.display='none';p.style.height='0px';p.style.minHeight='0px';p.style.margin='0';p.style.padding='0';}}}catch(e){}
 </script>
 """,
         height=0,
@@ -230,6 +226,8 @@ window.addEventListener("load", async () => {
 
   log("UA: " + nav.userAgent);
 });
+
+try{var f=window.frameElement;if(f){f.style.display='none';f.style.height='0px';f.style.minHeight='0px';f.style.border='0';var p=f.parentElement;if(p){p.style.display='none';p.style.height='0px';p.style.minHeight='0px';p.style.margin='0';p.style.padding='0';}}}catch(e){}
 </script>
 """, height=0)
 
@@ -3024,7 +3022,7 @@ if not st.session_state.get("HUB_MODE", False):
             """
         
             # height는 카드 높이에 맞춰 적당히
-            components.html(card_html, height=0)
+            st.markdown(card_html, unsafe_allow_html=True)
         
         
             st.divider()
