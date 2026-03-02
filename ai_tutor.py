@@ -24,6 +24,17 @@ from typing import Any, Dict, Optional, Tuple
 
 import streamlit as st
 
+
+def _safe_secrets_get(key: str, default: str = "") -> str:
+    try:
+        if hasattr(st, "secrets"):
+            if hasattr(st.secrets, "get"):
+                return st.secrets.get(key, default) or default
+            return st.secrets[key] if key in st.secrets else default
+    except Exception:
+        return default
+    return default
+
 # Local imports from your project
 import core
 
@@ -213,7 +224,7 @@ def _openai_chat(model: str, messages: list[dict[str, str]], *, max_output_token
 
     api_key = (
         _cfg("OPENAI_API_KEY")
-        or st.secrets.get("OPENAI_API_KEY")
+        or _safe_secrets_get("OPENAI_API_KEY")
         or os.getenv("OPENAI_API_KEY")
     )
 
