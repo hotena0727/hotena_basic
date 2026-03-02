@@ -59,12 +59,44 @@ div[data-testid="stRadio"] span{
 
 </style>""", unsafe_allow_html=True)
 
-st.markdown(
-    """
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Kosugi+Maru&family=Noto+Sans+JP:wght@400;500;700;800&display=swap" rel="stylesheet">
-<style>
+
+if not st.session_state.get("_headbar_css_injected"):
+    # Inject into *parent* document head so CSS affects the whole app.
+    components.html(
+        """
+<script>
+(function(){
+  const doc = (window.parent && window.parent.document) ? window.parent.document : document;
+
+  // 1) Fonts (once)
+  if (!doc.getElementById("ha-font-preconnect-1")) {
+    const l1 = doc.createElement("link");
+    l1.id = "ha-font-preconnect-1";
+    l1.rel = "preconnect";
+    l1.href = "https://fonts.googleapis.com";
+    doc.head.appendChild(l1);
+  }
+  if (!doc.getElementById("ha-font-preconnect-2")) {
+    const l2 = doc.createElement("link");
+    l2.id = "ha-font-preconnect-2";
+    l2.rel = "preconnect";
+    l2.href = "https://fonts.gstatic.com";
+    l2.crossOrigin = "anonymous";
+    doc.head.appendChild(l2);
+  }
+  if (!doc.getElementById("ha-font-css")) {
+    const l3 = doc.createElement("link");
+    l3.id = "ha-font-css";
+    l3.rel = "stylesheet";
+    l3.href = "https://fonts.googleapis.com/css2?family=Kosugi+Maru&family=Noto+Sans+JP:wght@400;500;700;800&display=swap";
+    doc.head.appendChild(l3);
+  }
+
+  // 2) CSS (once)
+  if (!doc.getElementById("ha-headbar-css")) {
+    const style = doc.createElement("style");
+    style.id = "ha-headbar-css";
+    style.textContent = `
 :root{
   --jp-rounded: "Noto Sans JP","Kosugi Maru","Hiragino Sans","Yu Gothic","Meiryo",sans-serif;
 }
@@ -108,12 +140,15 @@ st.markdown(
   .headhello{ font-size:11px; }
   .headtitle{ font-size:22px; }
 }
-</style>
+`;
+    doc.head.appendChild(style);
+  }
+})();
+</script>
 """,
-    unsafe_allow_html=True,
-)
-
-
+        height=0,
+    )
+    st.session_state["_headbar_css_injected"] = True
 st.session_state["_top_compact_css_applied"] = True
 
 st.session_state["_page_config_set"] = True
