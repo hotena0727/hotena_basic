@@ -66,9 +66,13 @@ st.session_state.pop("plan_cached", None)
 if not st.session_state.get('_page_config_set'):
     st.set_page_config(
     page_title="왕초보탈출 하테나일본어",
-    page_icon="static/icon-192.png",   # 또는 "🟦"
+    page_icon="icon-192.png",   # 또는 "🟦"
     layout="centered",
 )
+
+# ✅ PWA/A2HS 공통 주입 (루트: /manifest.json, /sw.js, /apple-touch-icon.png, /icon-192.png, /icon-512.png)
+core.inject_pwa_once(app_name="Hotena", theme_color="#0F6B3F")
+
 # HN_RADIO_COMPACT_V4
 try:
     _hn_css = "/* ===========================\n   HN RADIO COMPACT (v4)\n   \ubaa9\ud45c: \"\uc120\ud0dd \ud6c4\"\uc758 \ucd18\ucd18\ud55c \ub290\ub08c\uc744 \uae30\ubcf8\uac12\uc73c\ub85c \uace0\uc815\n   - Streamlit \uae30\ubcf8 \ud3f0\ud2b8/\uc0c9\uc0c1 \uc720\uc9c0\n   - \uc120\ud0dd \uc804/\ud6c4 \uac04\uaca9 \ub3d9\uc77c\n   =========================== */\ndiv[data-testid=\"stRadio\"] div[role=\"radiogroup\"]{\n  gap: 0px !important;\n}\n\n/* \uac01 \ubcf4\uae30(\ub77c\ub514\uc624 1\uac1c)\uc758 \uae30\ubcf8 \uac04\uaca9\uc744 '\ucd18\ucd18\ud558\uac8c' */\ndiv[data-testid=\"stRadio\"] div[data-baseweb=\"radio\"]{\n  margin: 0 0 0.28rem 0 !important;   /* \u2705 \uae30\ubcf8 \uac04\uaca9\uc744 \uc120\ud0dd \ud6c4 \ub290\ub08c\uc73c\ub85c */\n  padding: 0 !important;\n}\n\n/* \ub0b4\ubd80 \ub798\ud37c \uc5ec\ubc31 \uc81c\uac70(\ube0c\ub77c\uc6b0\uc800/\uc120\ud0dd\uc0c1\ud0dc\uc5d0 \ub530\ub978 \ud754\ub4e4\ub9bc \ubc29\uc9c0) */\ndiv[data-testid=\"stRadio\"] div[data-baseweb=\"radio\"] > div{\n  padding: 0 !important;\n}\n\n/* \uae00\uc904 \ub192\uc774\ub3c4 \uc0b4\uc9dd \ucef4\ud329\ud2b8\ud558\uac8c(\uc120\ud0dd \uc804/\ud6c4 \ub3d9\uc77c) */\ndiv[data-testid=\"stRadio\"] label,\ndiv[data-testid=\"stRadio\"] span{\n  font-weight: inherit !important;\n  line-height: 1.32 !important;\n}"
@@ -152,82 +156,6 @@ except Exception:
     pass
 
 
-# ============================================================
-# OK PWA/아이콘 - set_page_config 바로 아래
-# ============================================================
-
-components.html("""
-<script>
-window.addEventListener("load", async () => {
-  // OK 부모 문서(=진짜 페이지)로 주입
-  const doc = (window.parent && window.parent.document) ? window.parent.document : document;
-
-  // OK 작은 로그 박스(디버그용) - 가능하면 부모 body에
-  const pre = doc.createElement("pre");
-  pre.id = "pwa_debug";
-  pre.style.cssText = "white-space:pre-wrap;font-size:12px;opacity:0.75;margin:6px 0 0;";
-  pre.textContent = "";
-  (doc.body || doc.documentElement).prepend(pre);
-
-  const log = (msg) => { pre.textContent += msg + "\\n"; };
-
-  // OK manifest
-  let m = doc.querySelector("link[rel='manifest']");
-  if (!m) { m = doc.createElement("link"); m.rel = "manifest"; doc.head.appendChild(m); }
-  m.href = "/manifest.json";
-  log("manifest: /manifest.json");
-
-  // OK icons
-  let a = doc.querySelector("link[rel='apple-touch-icon']");
-  if (!a) { a = doc.createElement("link"); a.rel = "apple-touch-icon"; doc.head.appendChild(a); }
-  a.setAttribute("sizes", "180x180");
-  a.href = "/apple-touch-icon.png";
-  log("apple-touch-icon: /apple-touch-icon.png");
-
-  // OK Android/Chrome icon
-  let i = doc.querySelector("link[rel='icon']");
-  if (!i) { i = doc.createElement("link"); i.rel = "icon"; doc.head.appendChild(i); }
-  i.setAttribute("type", "image/png");
-  i.setAttribute("sizes", "192x192");
-  i.href = "/icon-192.png";
-  log("icon: /icon-192.png");
-
-  // OK meta (iOS + theme)
-  const meta = (name, content) => {
-    let el = doc.querySelector(`meta[name='${name}']`);
-    if (!el) { el = doc.createElement("meta"); el.name = name; doc.head.appendChild(el); }
-    el.content = content;
-  };
-  meta("theme-color", "#0B2A6F");
-  meta("apple-mobile-web-app-capable", "yes");
-  meta("apple-mobile-web-app-status-bar-style", "black-translucent");
-
-  // OK SW 등록은 “부모 navigator”로 시도(환경에 따라 더 안정적)
-  const nav = (window.parent && window.parent.navigator) ? window.parent.navigator : navigator;
-
-  // OK 먼저 sw.js가 실제로 200으로 오는지 확인
-  try {
-    const r = await fetch("/sw.js", { cache: "no-store" });
-    log("fetch /sw.js status: " + r.status);
-  } catch (e) {
-    log("fetch /sw.js FAILED: " + e);
-  }
-
-  if ("serviceWorker" in nav) {
-    try {
-      const reg = await nav.serviceWorker.register("/sw.js");
-      log("SW registered scope: " + reg.scope);
-    } catch (e) {
-      log("SW register FAILED: " + e);
-    }
-  } else {
-    log("serviceWorker not supported");
-  }
-
-  log("UA: " + nav.userAgent);
-});
-</script>
-""", height=0)
 
 
 

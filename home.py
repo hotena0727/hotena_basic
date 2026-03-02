@@ -36,6 +36,10 @@ html, body, [class*="css"]  {
 
 _inject_jp_font_once()
 
+# ✅ PWA/A2HS 공통 주입 (루트: /manifest.json, /sw.js, /apple-touch-icon.png, /icon-192.png, /icon-512.png)
+core.inject_pwa_once(app_name="Hotena", theme_color="#0F6B3F")
+
+
 
 # ============================================================
 # ✅ Module runner (NO runpy/run_path)

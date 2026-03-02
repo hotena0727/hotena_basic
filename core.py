@@ -137,6 +137,85 @@ div[data-testid="stIFrame"]:has(iframe[title^="streamlit.components.v1."]) ifram
 
 
 
+# ============================================================
+# ✅ PWA / A2HS (Android/iOS 홈화면 추가) - ROOT assets version
+# - Expects these URLs to be served at ROOT:
+#   /manifest.json, /sw.js, /apple-touch-icon.png, /icon-192.png, /icon-512.png, /favicon.ico (optional)
+# - Safe to call multiple times; injects only once per session.
+# ============================================================
+def inject_pwa_once(
+    app_name: str = "Hotena",
+    theme_color: str = "#0F6B3F",
+    manifest_path: str = "/manifest.json",
+    sw_path: str = "/sw.js",
+    apple_touch_icon: str = "/apple-touch-icon.png",
+    icon_192: str = "/icon-192.png",
+    icon_512: str = "/icon-512.png",
+) -> None:
+    try:
+        if st.session_state.get("_pwa_injected", False):
+            return
+        st.session_state["_pwa_injected"] = True
+
+        js = f"""
+<script>
+(function() {{
+  try {{
+    const doc = (window.parent && window.parent.document) ? window.parent.document : document;
+    const nav = (window.parent && window.parent.navigator) ? window.parent.navigator : navigator;
+
+    // manifest
+    let m = doc.querySelector("link[rel='manifest']");
+    if (!m) {{ m = doc.createElement("link"); m.rel = "manifest"; doc.head.appendChild(m); }}
+    m.href = {json.dumps(manifest_path)};
+
+    // theme + iOS meta
+    const meta = (name, content) => {{
+      let el = doc.querySelector(`meta[name='${{name}}']`);
+      if (!el) {{ el = doc.createElement("meta"); el.name = name; doc.head.appendChild(el); }}
+      el.content = content;
+    }};
+    meta("theme-color", {json.dumps(theme_color)});
+    meta("apple-mobile-web-app-capable", "yes");
+    meta("apple-mobile-web-app-status-bar-style", "black-translucent");
+    meta("apple-mobile-web-app-title", {json.dumps(app_name)});
+
+    // iOS touch icon
+    let a = doc.querySelector("link[rel='apple-touch-icon']");
+    if (!a) {{ a = doc.createElement("link"); a.rel = "apple-touch-icon"; doc.head.appendChild(a); }}
+    a.setAttribute("sizes", "180x180");
+    a.href = {json.dumps(apple_touch_icon)};
+
+    // icons (harmless; helps some browsers)
+    function upsertIcon(href, sizes) {{
+      let i = doc.querySelector(`link[rel='icon'][sizes='${{sizes}}']`);
+      if (!i) {{
+        i = doc.createElement("link");
+        i.rel = "icon";
+        i.type = "image/png";
+        i.setAttribute("sizes", sizes);
+        doc.head.appendChild(i);
+      }}
+      i.href = href;
+    }}
+    upsertIcon({json.dumps(icon_192)}, "192x192");
+    upsertIcon({json.dumps(icon_512)}, "512x512");
+
+    // service worker (Android A2HS 핵심)
+    if ("serviceWorker" in nav) {{
+      window.addEventListener("load", function() {{
+        nav.serviceWorker.register({json.dumps(sw_path)}).catch(function(){{}});
+      }});
+    }}
+  }} catch (e) {{}}
+}})();
+</script>
+"""
+        components.html(js, height=0)
+    except Exception:
+        # Do not break the app for PWA injection failures
+        return
+
 def ensure_core(
     *,
     cookie_prefix: str = "hotena_beginner_",
