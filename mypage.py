@@ -2673,8 +2673,15 @@ def render() -> None:
             st.session_state.get("user_id")
             or st.session_state.get("uid")
             or st.session_state.get("id")
-            or st.session_state.get("user", {}).get("id") if isinstance(st.session_state.get("user"), dict) else None
         )
+        # st.session_state["user"]가 dict가 아닐 때도 user_id가 None으로 덮이지 않게 분리
+        if not user_id:
+            _u = st.session_state.get("user")
+            if isinstance(_u, dict):
+                user_id = _u.get("id")
+            else:
+                # supabase.User 같은 객체 형태도 대비
+                user_id = getattr(_u, "id", None) or getattr(_u, "user_id", None)
 
         if not (sb and user_id):
             st.info("로그인 후 알림 설정을 할 수 있어요.")
