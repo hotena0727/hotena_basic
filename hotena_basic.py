@@ -168,7 +168,7 @@ APP_URL = "https://hotena-basic-925102605904.asia-northeast3.run.app/"      # OK
 # OK App Settings
 # ============================================================
 SHOW_POST_SUBMIT_UI = "N"  # 제출 후 '내 최근 기록' 등을 퀴즈 페이지에 바로 보여줄지
-SHOW_NAVER_TALK = "N"
+SHOW_NAVER_TALK = "Y"
 NAVER_TALK_URL = "https://talk.naver.com/W45141"
 
 KST_TZ = "Asia/Seoul"
@@ -3789,6 +3789,6 @@ if st.session_state.get("submitted", False):
             st.session_state["_scroll_top_once"] = True
             st.rerun()
 
-    show_naver_talk = (SHOW_NAVER_TALK == "N") or is_admin()
+    show_naver_talk = (SHOW_NAVER_TALK == "Y") or is_admin()
     if show_naver_talk:
         render_naver_talk()
