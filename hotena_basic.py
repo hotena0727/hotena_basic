@@ -168,7 +168,7 @@ APP_URL = "https://hotena-basic-925102605904.asia-northeast3.run.app/"      # OK
 # OK App Settings
 # ============================================================
 SHOW_POST_SUBMIT_UI = "N"  # 제출 후 '내 최근 기록' 등을 퀴즈 페이지에 바로 보여줄지
-SHOW_NAVER_TALK = "N"
+SHOW_NAVER_TALK = "Y"
 NAVER_TALK_URL = "https://talk.naver.com/W45141"
 
 KST_TZ = "Asia/Seoul"
@@ -826,9 +826,8 @@ def sync_answers_from_widgets():
     for idx in range(len(quiz)):
         widget_key = f"q_{qv}_{idx}"
         if widget_key in st.session_state:
-            _v = st.session_state.get(widget_key, None)
+            st.session_state.answers[idx] = st.session_state[widget_key]
 
-            st.session_state.answers[idx] = _v if _v not in ("",) else None
 def start_quiz_state(quiz_list: list, qtype: str, clear_wrongs: bool = True):
     st.session_state.quiz_version = int(st.session_state.get("quiz_version", 0)) + 1
     st.session_state.quiz_type = qtype
@@ -3396,17 +3395,15 @@ with st.form(key=f"quiz_form_word_{st.session_state.quiz_version}"):
         if prev is not None and prev in q["choices"]:
             default_index = q["choices"].index(prev)
 
-        # ✅ "미리 선택" 방지: selectbox로 변경 (아무것도 선택 안 한 상태 유지)
-        # - placeholder를 빈 문자열로 두어 화면에 '- 선택하세요 -' 같은 문구가 보이지 않게 합니다.
-        choice = st.selectbox(
+        choice = st.radio(
             label="보기",
             options=q["choices"],
             index=default_index,
             key=widget_key,
             label_visibility="collapsed",
-            placeholder="",
         )
         st.session_state.answers[idx] = choice
+
     sync_answers_from_widgets()
 
     submitted_clicked = st.form_submit_button(
