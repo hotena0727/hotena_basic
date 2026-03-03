@@ -2552,8 +2552,8 @@ def _render_notifications_tab(sb_authed=None):
     - DB 컬럼/스키마(예: profiles.progress_all)에 의존하지 않게 설계
     - 브라우저 권한(ON/OFF)은 사용자 기기에서 최종 결정
     """
-    st.markdown("### 🔔 알림")
-    st.caption("푸시 알림은 **브라우저/OS 권한**이 핵심입니다. 이 탭에서는 권한 상태를 확인하고, 필요하면 허용 요청을 보낼 수 있어요.")
+    st.markdown("### 🔔 알림 설정")
+    st.caption("알림은 기기(브라우저/OS)에서 허용해야 받을 수 있어요. 여기서는 상태 확인과 허용 요청만 할 수 있습니다.")
 
     # 1) 권한 상태 확인/요청 (클라이언트에서만 처리)
     components.html(
@@ -2626,7 +2626,7 @@ def render() -> None:
     _render_top_summary(wrongs, attempts_ok)
 
     # ✅ 탭 방식 (요청 사항)
-    tab_w, tab_r, tab_n, tab_m = st.tabs(["📚 오답", "📈 기록", "🔔 알림", "📩 메시지"])
+    tab_w, tab_r, tab_m, tab_n = st.tabs(["📚 오답", "📈 기록", "📩 메시지", "🔔 알림"])
     with tab_w:
         _render_wrongs(wrongs, wrongs_table)
     with tab_r:
