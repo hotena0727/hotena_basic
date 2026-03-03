@@ -1471,11 +1471,14 @@ if len(subs_all) >= 2:
         key=f"{NS}_sub",
     )
 elif len(subs_all) == 1:
-    sub = subs_all[0]
-    try:
-        st.caption(f"상황: {_sub_label(sub)} (고정)")
-    except Exception:
-        pass
+    # ✅ 옵션이 1개뿐이어도 '고정 캡션'이 아니라 선택 UI로 그대로 노출 (코스와 동일 UX)
+    sub_options = [subs_all[0]]
+    sub = st.selectbox(
+        "상황 선택",
+        options=sub_options,
+        format_func=_sub_label,
+        key=f"{NS}_sub",
+    )
 else:
     sub = "__all__"
 
