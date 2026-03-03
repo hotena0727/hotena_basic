@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import time
 import streamlit as st
 import streamlit.components.v1 as components
+import os
 
 
 # ============================================================
@@ -54,6 +55,111 @@ def _sb() -> Any:
 
 
 
+
+
+# ============================
+# Push notification helpers (minimal, mypage-only)
+# ============================
+import json as _json
+import streamlit.components.v1 as _components
+
+def _js_bridge_localstorage_to_queryparam(ls_key: str, qp_key: str):
+    _components.html(f"""
+<script>
+(function(){{
+  try{{
+    const v = localStorage.getItem({ls_key!r});
+    if (!v) return;
+    const u = new URL(window.location.href);
+    if (u.searchParams.get({qp_key!r}) === v) return;
+    u.searchParams.set({qp_key!r}, v);
+    window.history.replaceState({{}}, "", u.toString());
+  }}catch(e){{}}
+}})();
+</script>
+""", height=0)
+
+def _js_remove_localstorage(ls_key: str):
+    _components.html(f"""
+<script>
+(function(){{
+  try{{ localStorage.removeItem({ls_key!r}); }}catch(e){{}}
+}})();
+</script>
+""", height=0)
+
+def _push_subscribe_widget(vapid_public_key: str, ls_key: str = "hotena_push_sub_b64", qp_key: str = "ps"):
+    if not (vapid_public_key or "").strip():
+        st.warning("VAPID_PUBLIC 키가 설정되지 않았습니다. (Cloud Run env 또는 Streamlit secrets에 VAPID_PUBLIC 추가)")
+        return
+
+    _components.html(f"""
+<div style="margin:8px 0 10px 0;">
+  <button id="haPushBtn" style="padding:10px 14px;border-radius:12px;border:1px solid rgba(0,0,0,.15);background:#fff;cursor:pointer;font-weight:600;">
+    🔔 알림 허용 + 푸시 구독 만들기
+  </button>
+  <div id="haPushMsg" style="margin-top:8px;font-size:13px;opacity:.85;"></div>
+</div>
+
+<script>
+(async function(){{
+  const msg = (t)=>{{ try{{ document.getElementById('haPushMsg').textContent=t; }}catch(e){{}} }};
+  const btn = document.getElementById('haPushBtn');
+  if (!btn) return;
+
+  function urlBase64ToUint8Array(base64String) {{
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+    for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
+    return outputArray;
+  }}
+
+  async function ensureSW() {{
+    if (!('serviceWorker' in navigator)) throw new Error('serviceWorker not supported');
+    // sw.js는 root에 매핑되어 있어야 함
+    const reg = await navigator.serviceWorker.register('/sw.js');
+    await navigator.serviceWorker.ready;
+    return reg;
+  }}
+
+  async function subscribe() {{
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') throw new Error('permission not granted: ' + perm);
+
+    const reg = await ensureSW();
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {{
+      const key = urlBase64ToUint8Array({vapid_public_key!r});
+      sub = await reg.pushManager.subscribe({{
+        userVisibleOnly: true,
+        applicationServerKey: key
+      }});
+    }}
+    const b64 = btoa(JSON.stringify(sub));
+    localStorage.setItem({ls_key!r}, b64);
+
+    const u = new URL(window.location.href);
+    u.searchParams.set({qp_key!r}, b64);
+    window.history.replaceState({{}}, "", u.toString());
+
+    msg('✅ 푸시 구독이 준비됐습니다. 아래 "반영" 버튼을 눌러 저장을 완료해 주세요.');
+  }}
+
+  btn.addEventListener('click', async ()=>{{
+    try {{
+      msg('알림 권한 요청 중…');
+      await subscribe();
+    }} catch(e) {{
+      console.error(e);
+      msg('⚠️ 실패: ' + (e && e.message ? e.message : e));
+      alert('푸시 구독에 실패했어요.\n브라우저 알림 권한/서비스워커 상태를 확인해 주세요.');
+    }}
+  }});
+}})();
+</script>
+""", height=90)
 # ---------------------------
 # Speed helpers (session cache)
 # ---------------------------
@@ -2550,12 +2656,98 @@ def render() -> None:
     _render_top_summary(wrongs, attempts_ok)
 
     # ✅ 탭 방식 (요청 사항)
-    tab_w, tab_r, tab_m = st.tabs(["📚 오답", "📈 기록", "📩 메시지"])
+    tab_w, tab_r, tab_m, tab_n = st.tabs(["📚 오답", "📈 기록", "📩 메시지", "🔔 알림"])
     with tab_w:
         _render_wrongs(wrongs, wrongs_table)
     with tab_r:
         _render_records(attempts_ok, "ok" if attempts_ok else attempts_status)
     with tab_m:
         _render_msgs(msgs)
+
+
+    with tab_n:
+        st.markdown("## 🔔 알림")
+        st.caption("기본값은 ‘켜짐’입니다. 원하지 않으시면 아래에서 끌 수 있어요.")
+
+        sb = _sb()
+        user_id = (
+            st.session_state.get("user_id")
+            or st.session_state.get("uid")
+            or st.session_state.get("id")
+            or st.session_state.get("user", {}).get("id") if isinstance(st.session_state.get("user"), dict) else None
+        )
+
+        if not (sb and user_id):
+            st.info("로그인 후 알림 설정을 할 수 있어요.")
+        else:
+            progress = {}
+            try:
+                r = sb.table("profiles").select("progress").eq("id", user_id).execute()
+                row = None
+                if getattr(r, "data", None):
+                    row = r.data[0] if isinstance(r.data, list) else r.data
+                progress = (row or {}).get("progress") or {}
+            except Exception as e:
+                st.warning(f"설정을 불러오지 못했습니다: {e}")
+                progress = {}
+
+            push_enabled = bool(progress.get("push_enabled", True))
+
+            # on/off toggle
+            new_enabled = st.toggle("푸시 알림 사용", value=push_enabled, key="mypage_push_enabled")
+            if new_enabled != push_enabled:
+                progress["push_enabled"] = bool(new_enabled)
+                if not new_enabled:
+                    progress.pop("push_sub_b64", None)
+                    _js_remove_localstorage("hotena_push_sub_b64")
+                    _components.html("""<script>
+(async function(){
+  try{
+    if(!('serviceWorker' in navigator)) return;
+    const reg = await navigator.serviceWorker.getRegistration();
+    if(!reg) return;
+    const sub = await reg.pushManager.getSubscription();
+    if(sub) await sub.unsubscribe();
+  }catch(e){}
+})();
+</script>""", height=0)
+
+                try:
+                    sb.table("profiles").update({"progress": progress}).eq("id", user_id).execute()
+                    st.success("저장했습니다.")
+                except Exception as e:
+                    st.warning(f"저장 실패: {e}")            
+# --- subscription status / create ---
+saved_b64 = (progress.get("push_sub_b64") or "").strip()
+
+# (권장) 토글 ON인데 구독이 없으면, 버튼 1개만 보여줍니다.
+if push_enabled and not saved_b64:
+    st.info("아직 알림이 꺼져 있어요. 아래 버튼을 한 번만 눌러서 알림을 켜 주세요.")
+    _push_subscribe_widget(vapid_public, ls_key="hotena_push_sub_b64", qp_key="ps")
+
+# JS가 만들어준 구독(base64)이 쿼리파람으로 들어오면 → 자동 저장(버튼/리스트 없이)
+ps_b64 = (st.query_params.get("ps") or "").strip()
+if push_enabled and ps_b64:
+    # 같은 값으로 반복 저장 방지
+    last_saved = st.session_state.get("_push_saved_b64")
+    if last_saved != ps_b64:
+        progress["push_sub_b64"] = ps_b64
+        progress["push_enabled"] = True
+        try:
+            sb_authed.table("profiles").update({"progress": progress}).eq("id", user_id).execute()
+            st.session_state["_push_saved_b64"] = ps_b64
+            st.success("✅ 알림이 켜졌습니다.")
+        except Exception as e:
+            st.warning(f"저장 실패: {e}")
+
+    # 저장 후 쿼리파람 정리(새로고침/재실행 시 중복 처리 방지)
+    try:
+        if "ps" in st.query_params:
+            del st.query_params["ps"]
+    except Exception:
+        pass
+
+if push_enabled and saved_b64:
+    st.success("✅ 알림이 켜져 있습니다.")
 
     _wrap_end()
