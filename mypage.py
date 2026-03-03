@@ -2582,7 +2582,7 @@ def render() -> None:
         sw_candidates = ["/app/static/sw.js", "/static/sw.js", "/sw.js", "/app/sw.js"]
         manifest_candidates = ["/app/static/pwa-manifest.json", "/manifest.json", "/pwa-manifest.json", "/static/pwa-manifest.json"]
 
-        html = f"""
+        html = """
 <div style="padding:12px 14px;border:1px solid rgba(0,0,0,.08);border-radius:14px;background:#fff;">
   <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
     <button id="ha_push_on" style="padding:10px 14px;border-radius:12px;border:1px solid rgba(0,0,0,.12);background:#f3f4f6;cursor:pointer;">🔔 알림 켜기</button>
@@ -2594,7 +2594,7 @@ def render() -> None:
 
 <script>
 (function(){{
-  const VAPID = "{vapid_public}";
+  const VAPID = "__VAPID_PUBLIC__";
   const SW_CANDIDATES = __SW_CANDIDATES__;
   const MANIFEST_CANDIDATES = __MANIFEST_CANDIDATES__;
 
@@ -2743,6 +2743,7 @@ def render() -> None:
 }})();
 </script>
 """
+        html = html.replace("__VAPID_PUBLIC__", vapid_public)
 
 
         # 🔧 JS에서 후보 경로를 순차 시도 (MIME text/html 이면 실패)
