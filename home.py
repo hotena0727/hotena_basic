@@ -151,118 +151,6 @@ try {{
         pass
 
 
-
-# ============================================================
-# ✅ WebPush subscription helpers (browser -> localStorage -> queryparam -> profiles.progress)
-# - We store ONLY the subscription JSON (base64url) on the client, then persist it into profiles.progress.
-# - This keeps the first step minimal (no new Supabase tables yet).
-# ============================================================
-def _b64url_encode_utf8(s: str) -> str:
-    b = s.encode("utf-8")
-    return base64.urlsafe_b64encode(b).decode("ascii").rstrip("=")
-
-def _b64url_decode_utf8(s: str) -> str:
-    pad = "=" * (-len(s) % 4)
-    return base64.urlsafe_b64decode((s + pad).encode("ascii")).decode("utf-8")
-
-def _push_subscribe_widget(vapid_public_key: str, ls_key: str = "hotena_push_sub_b64", qp_key: str = "ps"):
-    """Render a small HTML widget that:
-    - asks Notification permission
-    - ensures SW is ready
-    - subscribes to PushManager
-    - stores subscription JSON as base64url in localStorage + query param (history.replaceState)
-    NOTE: Streamlit cannot receive JS result in the same run, so user should click a '반영' button after.
-    """
-    if not vapid_public_key:
-        st.warning("VAPID_PUBLIC 키가 설정되지 않았습니다. (Cloud Run env 또는 Streamlit secrets에 VAPID_PUBLIC 추가)")
-        return
-
-    components.html(
-        f"""<div style="margin:0;padding:0">
-<script>
-(function(){{
-  const vapidPublic = {json.dumps("VAPID_PUBLIC")};
-  const publicKeyB64 = {json.dumps(vapid_public_key)};
-  const lsKey = {json.dumps(ls_key)};
-  const qpKey = {json.dumps(qp_key)};
-
-  function urlB64ToUint8Array(base64String) {{
-    const padding = '='.repeat((4 - base64String.length % 4) % 4);
-    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-    const rawData = window.atob(base64);
-    const outputArray = new Uint8Array(rawData.length);
-    for (let i = 0; i < rawData.length; ++i) {{
-      outputArray[i] = rawData.charCodeAt(i);
-    }}
-    return outputArray;
-  }}
-
-  function b64urlEncodeUtf8(str) {{
-    const utf8 = encodeURIComponent(str).replace(/%([0-9A-F]{{2}})/g, function(_, p1) {{
-      return String.fromCharCode('0x' + p1);
-    }});
-    return btoa(utf8).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
-  }}
-
-  async function ensureSub() {{
-    try {{
-      if (!('serviceWorker' in navigator)) {{
-        alert('이 브라우저는 Service Worker를 지원하지 않습니다.');
-        return;
-      }}
-      if (!('PushManager' in window)) {{
-        alert('이 브라우저는 Push를 지원하지 않습니다.');
-        return;
-      }}
-      const perm = await Notification.requestPermission();
-      if (perm !== 'granted') {{
-        alert('알림이 허용되지 않았습니다. 브라우저 설정에서 알림을 허용해 주세요.');
-        return;
-      }}
-
-      const reg = await navigator.serviceWorker.ready;
-
-      // 기존 구독이 있으면 재사용
-      let sub = await reg.pushManager.getSubscription();
-      if (!sub) {{
-        sub = await reg.pushManager.subscribe({{
-          userVisibleOnly: true,
-          applicationServerKey: urlB64ToUint8Array(publicKeyB64)
-        }});
-      }}
-
-      const json = JSON.stringify(sub);
-      const b64 = b64urlEncodeUtf8(json);
-
-      try {{ localStorage.setItem(lsKey, b64); }} catch(e) {{}}
-
-      // query param에 넣어 Streamlit에서 읽게 함 (replaceState라 새로고침 없음)
-      try {{
-        const url = new URL(window.location.href);
-        url.searchParams.set(qpKey, b64);
-        window.history.replaceState({{}}, document.title, url.toString());
-      }} catch(e) {{}}
-
-      alert('✅ 푸시 구독이 준비됐습니다. 아래 "반영" 버튼을 눌러 저장을 완료해 주세요.');
-    }} catch (e) {{
-      console.error(e);
-      alert('❌ 구독 생성 중 오류가 발생했습니다. 콘솔을 확인해 주세요.');
-    }}
-  }}
-
-  // expose to window so button can call
-  window.__hotenaEnsurePushSub = ensureSub;
-}})();
-</script>
-
-<button onclick="window.__hotenaEnsurePushSub && window.__hotenaEnsurePushSub();"
-  style="width:100%;height:44px;border-radius:12px;border:1px solid rgba(0,0,0,0.12);background:#fff;font-weight:700;cursor:pointer;">
-  🔔 알림 허용 + 푸시 구독 만들기
-</button>
-</div>""",
-        height=58,
-    )
-
 from supabase import create_client
 from streamlit_cookies_manager import EncryptedCookieManager
 import html as html_module  # ✅ for html escaping in admin cards
@@ -465,7 +353,6 @@ CFG = {
     "COOKIE_PASSWORD": get_cfg("COOKIE_PASSWORD"),
     "SUPABASE_URL": get_cfg("SUPABASE_URL"),
     "SUPABASE_ANON_KEY": get_cfg("SUPABASE_ANON_KEY"),
-    "VAPID_PUBLIC": get_cfg("VAPID_PUBLIC"),
 }
 # ✅ If COOKIE_PASSWORD is not set, derive a STABLE key from SUPABASE_ANON_KEY.
 #    This prevents 'logout on refresh' caused by missing/rotating cookie password across instances.
@@ -1620,60 +1507,6 @@ def render_reminder_settings(sb_authed, user):
     st.markdown('---')
     st.markdown('### 💬 NAVER Talk 버튼')
     yn = st.radio('표시 여부', options=['N', 'Y'], index=(1 if naver_default else 0), horizontal=True, key='hub_naver_talk_yn')
-
-    # ----------------------------
-    # 🔔 Web Push (PWA) subscription (minimal v1)
-    # - Browser에서 알림 허용 + 구독 생성
-    # - 구독 JSON(base64url)을 profiles.progress에 저장
-    # ----------------------------
-    st.markdown('---')
-    st.markdown('### 📲 푸시 알림(PWA)')
-    st.caption('설치형(PWA)에서만 동작합니다. 구독을 한 번 저장해두면, 이후 스케줄러가 이 구독으로 알림을 보낼 수 있습니다.')
-
-    # localStorage -> queryparam bridge (ps)
-    _js_bridge_localstorage_to_queryparam("hotena_push_sub_b64", "ps")
-
-    ps_b64 = ""
-    try:
-        ps_b64 = (st.query_params.get("ps") or "").strip()
-    except Exception:
-        ps_b64 = ""
-
-    saved_b64 = (progress_all.get("push_sub_b64") or "").strip()
-    if saved_b64:
-        st.success("✅ 저장된 푸시 구독이 있습니다.")
-    else:
-        st.info("아직 저장된 푸시 구독이 없습니다. 아래 버튼으로 구독을 만들어 주세요.")
-
-    # 1) Subscribe button (JS)
-    _push_subscribe_widget(CFG.get("VAPID_PUBLIC", ""), ls_key="hotena_push_sub_b64", qp_key="ps")
-
-    cpa1, cpa2 = st.columns([1, 1])
-    with cpa1:
-        if st.button("반영(구독 저장)", use_container_width=True, key="hub_push_apply"):
-            if ps_b64:
-                progress_all["push_sub_b64"] = ps_b64
-                st.session_state["progress_all"] = progress_all
-                try:
-                    save_progress(sb_authed, user.id, progress_all)
-                except Exception:
-                    pass
-                st.success("저장했습니다. 이제 스케줄러에서 이 구독으로 푸시를 보낼 수 있어요.")
-            else:
-                st.warning("구독 정보가 아직 감지되지 않았습니다. 위 버튼을 눌러 구독을 만든 뒤, 다시 '반영'을 눌러주세요.")
-    with cpa2:
-        if st.button("구독 삭제", use_container_width=True, key="hub_push_delete"):
-            progress_all.pop("push_sub_b64", None)
-            st.session_state["progress_all"] = progress_all
-            try:
-                save_progress(sb_authed, user.id, progress_all)
-            except Exception:
-                pass
-            try:
-                _js_remove_localstorage("hotena_push_sub_b64")
-            except Exception:
-                pass
-            st.success("삭제했습니다.")
 
     if st.button("저장", use_container_width=True, key="hub_rem_save"):
         try:
@@ -3065,6 +2898,91 @@ def render_admin_dashboard(sb_authed):
                                                     st.error(f"전체 발송 실패: {e}")
 
                                 st.markdown("</div>", unsafe_allow_html=True)
+                                # --- Card: Web Push send (Admin) ---
+                                st.markdown('<div class="ha-card">', unsafe_allow_html=True)
+                                st.markdown("#### 📣 웹푸시 알림 보내기")
+                                vapid_public = (os.getenv("VAPID_PUBLIC") or "").strip()
+                                vapid_private = (os.getenv("VAPID_PRIVATE") or "").strip()
+                                vapid_subject = (os.getenv("VAPID_SUBJECT") or "mailto:admin@hotenai.com").strip()
+
+                                def _push_fetch_rows(_sb):
+                                    try:
+                                        r = _sb.table("push_subscriptions").select("*").limit(5000).execute()
+                                        return (r.data or [])
+                                    except Exception as _e:
+                                        st.error(f"push_subscriptions 조회 실패: {_e}")
+                                        return []
+
+                                def _push_row_to_sub(row):
+                                    # 가능한 컬럼 형태를 모두 커버 (subscription/sub_json/jsonb, 또는 endpoint/keys 컬럼)
+                                    for k in ("subscription", "sub_json", "sub", "payload"):
+                                        v = row.get(k)
+                                        if isinstance(v, dict) and v.get("endpoint"):
+                                            return v
+                                        if isinstance(v, str) and v.strip().startswith("{"):
+                                            try:
+                                                j = json.loads(v)
+                                                if isinstance(j, dict) and j.get("endpoint"):
+                                                    return j
+                                            except Exception:
+                                                pass
+                                    ep = row.get("endpoint")
+                                    p256dh = row.get("p256dh") or (row.get("keys") or {}).get("p256dh") if isinstance(row.get("keys"), dict) else None
+                                    auth = row.get("auth") or (row.get("keys") or {}).get("auth") if isinstance(row.get("keys"), dict) else None
+                                    if ep and p256dh and auth:
+                                        return {"endpoint": ep, "keys": {"p256dh": p256dh, "auth": auth}}
+                                    return None
+
+                                if (not vapid_public) or (not vapid_private):
+                                    st.info("VAPID_PUBLIC / VAPID_PRIVATE 환경변수가 없어 푸시 발송을 사용할 수 없습니다. (Cloud Run/Streamlit secrets에 설정 필요)")
+                                else:
+                                    _rows = _push_fetch_rows(sb_authed)
+                                    _subs = [s for s in (_push_row_to_sub(r) for r in _rows) if s]
+                                    st.caption(f"등록된 구독 수: {len(_subs)}개")
+
+                                    c1, c2 = st.columns([2,1])
+                                    with c1:
+                                        push_title = st.text_input("제목", value="공부 시간입니다 🙂", key="admin_push_title")
+                                        push_body = st.text_area("내용", height=120, key="admin_push_body", placeholder="예: 오늘 10분만 단어 훈련 1세트!")
+                                        push_url = st.text_input("클릭 이동 URL(선택)", value="https://hotenai.com/?p=word", key="admin_push_url")
+                                    with c2:
+                                        max_send = st.number_input("최대 발송 건수", min_value=1, max_value=5000, value=min(200, max(1, len(_subs))), step=50, key="admin_push_limit")
+                                        dry_run = st.checkbox("테스트(실제 발송 안 함)", value=False, key="admin_push_dry")
+                                        confirm_send = st.checkbox("발송 확인", value=False, key="admin_push_confirm")
+
+                                    if st.button("🚀 푸시 발송", type="primary", use_container_width=True, disabled=not confirm_send, key="admin_push_send_btn"):
+                                        payload = {"title": (push_title or "알림").strip(), "body": (push_body or "").strip(), "url": (push_url or "").strip()}
+                                        if not payload["body"]:
+                                            st.warning("내용을 입력해 주세요.")
+                                        else:
+                                            try:
+                                                from pywebpush import webpush
+                                            except Exception as _e:
+                                                st.error(f"pywebpush가 설치되어 있지 않습니다: {_e}")
+                                            else:
+                                                ok_n = 0
+                                                fail_n = 0
+                                                sent = 0
+                                                for sub in _subs:
+                                                    if sent >= int(max_send):
+                                                        break
+                                                    sent += 1
+                                                    if dry_run:
+                                                        ok_n += 1
+                                                        continue
+                                                    try:
+                                                        webpush(
+                                                            subscription_info=sub,
+                                                            data=json.dumps(payload, ensure_ascii=False),
+                                                            vapid_private_key=vapid_private,
+                                                            vapid_claims={"sub": vapid_subject},
+                                                        )
+                                                        ok_n += 1
+                                                    except Exception:
+                                                        fail_n += 1
+                                                st.success(f"완료: 성공 {ok_n}건 / 실패 {fail_n}건 (대상 {min(int(max_send), len(_subs))}건)")
+                                st.markdown("</div>", unsafe_allow_html=True)
+
 
                 else:
                     st.info("검색 결과가 없습니다.")
