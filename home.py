@@ -2357,24 +2357,30 @@ def render_admin_dashboard(sb_authed):
             st.warning("VAPID_PRIVATE가 설정되어 있지 않습니다. (Cloud Run env 또는 Streamlit secrets)")
 
         def _admin_load_push_subs(_sb, limit=5000):
-            candidates = [
-                ("push_subscriptions", "id,user_id,sub_json,updated_at"),
-                ("push_subscriptions", "user_id,sub_json,updated_at"),
-            ]
-            last_err = None
-            for table, cols in candidates:
-                try:
-                    res = _sb.table(table).select(cols).order("updated_at", desc=True).limit(limit).execute()
-                    data = getattr(res, "data", None) or []
-                    return data, None
-                except Exception as e:
-                    last_err = e
-            return [], last_err
+            """Load push subscriptions (split-columns schema: endpoint/p256dh/auth)."""
+            try:
+                res = (
+                    _sb.table("push_subscriptions")
+                    .select("id,user_id,endpoint,p256dh,auth,user_agent,updated_at")
+                    .order("updated_at", desc=True)
+                    .limit(limit)
+                    .execute()
+                )
+                data = getattr(res, "data", None) or []
+                return data, None
+            except Exception as e:
+                return [], e
 
         def _parse_sub(row):
-            raw = row.get("sub_json") or row.get("subscription") or row.get("sub") or row.get("subscription_json")
-            if raw is None:
+            """Rebuild WebPush subscription_info dict from split columns."""
+            ep = row.get("endpoint")
+            if isinstance(ep, str):
+                ep = ep.strip()
+            p256dh = row.get("p256dh")
+            auth = row.get("auth")
+            if not ep or not p256dh or not auth:
                 return None
+            return {"endpoint": ep, "keys": {"p256dh": p256dh, "auth": auth}}
             if isinstance(raw, dict):
                 return raw
             try:
