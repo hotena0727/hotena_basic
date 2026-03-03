@@ -2717,37 +2717,55 @@ def render() -> None:
                     st.success("저장했습니다.")
                 except Exception as e:
                     st.warning(f"저장 실패: {e}")            
-# --- subscription status / create ---
-saved_b64 = (progress.get("push_sub_b64") or "").strip()
+            # --- subscription status / create ---
+            saved_b64 = (progress.get("push_sub_b64") or "").strip()
 
-# (권장) 토글 ON인데 구독이 없으면, 버튼 1개만 보여줍니다.
-if push_enabled and not saved_b64:
-    st.info("아직 알림이 꺼져 있어요. 아래 버튼을 한 번만 눌러서 알림을 켜 주세요.")
-    _push_subscribe_widget(vapid_public, ls_key="hotena_push_sub_b64", qp_key="ps")
+            # (권장) 토글 ON인데 구독이 없으면, 버튼 1개만 보여줍니다.
+            if push_enabled and not saved_b64:
+                st.info("아직 알림이 꺼져 있어요. 아래 버튼을 한 번만 눌러서 알림을 켜 주세요.")
+                _push_subscribe_widget(vapid_public, ls_key="hotena_push_sub_b64", qp_key="ps")
 
-# JS가 만들어준 구독(base64)이 쿼리파람으로 들어오면 → 자동 저장(버튼/리스트 없이)
-ps_b64 = (st.query_params.get("ps") or "").strip()
-if push_enabled and ps_b64:
-    # 같은 값으로 반복 저장 방지
-    last_saved = st.session_state.get("_push_saved_b64")
-    if last_saved != ps_b64:
-        progress["push_sub_b64"] = ps_b64
-        progress["push_enabled"] = True
-        try:
-            sb_authed.table("profiles").update({"progress": progress}).eq("id", user_id).execute()
-            st.session_state["_push_saved_b64"] = ps_b64
-            st.success("✅ 알림이 켜졌습니다.")
-        except Exception as e:
-            st.warning(f"저장 실패: {e}")
+            # JS가 만들어준 구독(base64)이 쿼리파람으로 들어오면 → 자동 저장(버튼/리스트 없이)
+            ps_b64 = (st.query_params.get("ps") or "").strip()
+            if push_enabled and ps_b64:
+                # 같은 값으로 반복 저장 방지
+                last_saved = st.session_state.get("_push_saved_b64")
+                if last_saved != ps_b64:
+                    progress["push_sub_b64"] = ps_b64
+                    progress["push_enabled"] = True
+                    try:
+                        sb_authed.table("profiles").update({"progress": progress}).eq("id", user_id).execute()
+                        st.session_state["_push_saved_b64"] = ps_b64
+                        st.success("✅ 알림이 켜졌습니다.")
+                    except Exception as e:
+                        st.warning(f"저장 실패: {e}")
 
-    # 저장 후 쿼리파람 정리(새로고침/재실행 시 중복 처리 방지)
-    try:
-        if "ps" in st.query_params:
-            del st.query_params["ps"]
-    except Exception:
-        pass
+            # 현재 상태 안내
+            if push_enabled and saved_b64:
+                st.success("✅ 알림이 켜져 있습니다.")
+            elif not push_enabled:
+                st.info("현재 알림이 꺼져 있습니다.")
 
-if push_enabled and saved_b64:
-    st.success("✅ 알림이 켜져 있습니다.")
+            # OFF로 바꾸면 서버 저장도 같이 비활성화(구독은 남겨두되, 발송만 막는 방식)
+            if (not push_enabled) and saved_b64 and st.button("구독은 유지하고 알림만 끄기(서버 발송 OFF)"):
+                progress["push_enabled"] = False
+                try:
+                    sb_authed.table("profiles").update({"progress": progress}).eq("id", user_id).execute()
+                    st.success("알림을 껐습니다.")
+                except Exception as e:
+                    st.warning(f"저장 실패: {e}")
+
+            # 완전 삭제(원치 않으면 버튼 숨겨도 됨)
+            if saved_b64 and st.button("(고급) 구독 삭제(완전 끄기)"):
+                progress.pop("push_sub_b64", None)
+                progress["push_enabled"] = False
+                try:
+                    sb_authed.table("profiles").update({"progress": progress}).eq("id", user_id).execute()
+                    st.success("구독을 삭제했습니다.")
+                except Exception as e:
+                    st.warning(f"삭제 실패: {e}")
+
+            if not vapid_public:
+                st.warning("VAPID_PUBLIC 키가 설정되지 않았습니다. (Cloud Run env 또는 Streamlit secrets에 VAPID_PUBLIC 추가)")
 
     _wrap_end()
