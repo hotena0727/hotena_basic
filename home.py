@@ -2359,9 +2359,7 @@ def render_admin_dashboard(sb_authed):
         def _admin_load_push_subs(_sb, limit=5000):
             candidates = [
                 ("push_subscriptions", "id,user_id,sub_json,updated_at"),
-                ("push_subscriptions", "id,user_id,subscription,updated_at"),
                 ("push_subscriptions", "user_id,sub_json,updated_at"),
-                ("push_subscriptions", "user_id,subscription,updated_at"),
             ]
             last_err = None
             for table, cols in candidates:
