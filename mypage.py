@@ -1893,13 +1893,24 @@ def _render_top_summary(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, A
 
     actL, actR = st.columns([4.6, 5.4], vertical_alignment="center")
     with actL:
-        cT, cLbl = st.columns([1.2, 8.8], gap="small", vertical_alignment="center")
-        with cT:
+        cS, cBell, cLbl = st.columns([1.2, 1.2, 7.6], gap="small", vertical_alignment="center")
+        with cS:
             _cur_sfx = bool(core.is_sfx_enabled(True))
             _new_sfx = st.toggle("🔊", value=_cur_sfx, key="myp_sfx_toggle", label_visibility="collapsed")
             core.set_sfx_enabled(bool(_new_sfx))
+        with cBell:
+            # 🔔 홈 알림(푸시) 설정으로 이동
+            if st.button("🔔", key="myp_reminder_btn", help="홈 알림 설정"):
+                try:
+                    st.query_params.update({"p": "reminder"})
+                except Exception:
+                    try:
+                        st.experimental_set_query_params(p="reminder")
+                    except Exception:
+                        pass
+                st.rerun()
         with cLbl:
-            # (UI) 소리 텍스트 제거: 아이콘 토글만 유지
+            # (UI) 텍스트 제거: 아이콘들만 유지
             pass
 
     with actR:
