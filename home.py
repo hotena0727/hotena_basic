@@ -2342,8 +2342,8 @@ def render_admin_dashboard(sb_authed):
             st.info("데이터가 없습니다.")
         st.markdown("</div>", unsafe_allow_html=True)
 
-    # ---------- tab: users ----------
-        with tab_push:
+    # ---------- tab: push ----------
+    with tab_push:
         st.subheader("🔔 푸시 알림 보내기")
         st.caption("전체 발송 또는 특정 유저 선택 발송을 지원합니다. 웹푸시 구독(알림 ON)한 유저에게만 도달합니다.")
 
@@ -2496,7 +2496,7 @@ def render_admin_dashboard(sb_authed):
                     for msg, uid in fail_samples:
                         st.write(f"- user_id={uid} | {msg}")
 
-with tab_users:
+    with tab_users:
         st.markdown("""
         <div class="ha-section">
           <div class="ha-title">회원 관리</div>
