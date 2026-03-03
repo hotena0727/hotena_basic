@@ -6,12 +6,13 @@ from typing import Any, Dict, List, Optional, Tuple
 
 import time
 import streamlit as st
-import os
-import json
-import base64
 import streamlit.components.v1 as components
 
 
+
+import os
+import json
+import base64
 # ============================================================
 # ✅ Fragment helper (Streamlit >= 1.33)
 # - If st.fragment is available, we use it to reduce full-page reruns/flicker.
@@ -2553,11 +2554,14 @@ def render() -> None:
     _render_top_summary(wrongs, attempts_ok)
 
     # ✅ 탭 방식 (요청 사항)
-    tab_w, tab_r, tab_m = st.tabs(["📚 오답", "📈 기록", "📩 메시지"])
+    tab_w, tab_r, tab_n, tab_m = st.tabs(["📚 오답", "📈 기록", "🔔 알림", "📩 메시지"])
     with tab_w:
         _render_wrongs(wrongs, wrongs_table)
     with tab_r:
         _render_records(attempts_ok, "ok" if attempts_ok else attempts_status)
+    with tab_n:
+        _render_notifications_tab(_sb())
+
     with tab_m:
         _render_msgs(msgs)
 
