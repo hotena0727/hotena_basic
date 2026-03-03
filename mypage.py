@@ -2555,212 +2555,222 @@ def render() -> None:
     def _render_notifications_tab():
         import os
         import json
-        import streamlit as st
         import streamlit.components.v1 as components
 
-        st.subheader("🔔 알림")
-        st.caption("알림은 기본값이 꺼짐입니다. 원할 때만 켜고, 원치 않으면 언제든 끌 수 있어요.")
-
-        # 설정값 읽기: get_cfg()가 있으면 우선 사용, 없으면 env 사용
-        _get_cfg = globals().get("get_cfg")
+        # VAPID 공개키(클라이언트에서만 사용). get_cfg가 있으면 우선 사용하고, 없으면 env만 사용합니다.
+        _get_cfg = globals().get("get_cfg", None)
         try:
-            vapid_public = (_get_cfg("VAPID_PUBLIC", "") if callable(_get_cfg) else "")
+            vapid_public = (_get_cfg("VAPID_PUBLIC", "") if callable(_get_cfg) else "") or os.getenv("VAPID_PUBLIC") or ""
         except Exception:
-            vapid_public = ""
-        vapid_public = (vapid_public or os.getenv("VAPID_PUBLIC") or "").strip()
+            vapid_public = os.getenv("VAPID_PUBLIC") or ""
+        vapid_public = (vapid_public or "").strip()
 
-        # Service Worker / Manifest 경로 (Cloud Run nginx 기준)
-        sw_path = "/app/static/sw.js"
-        manifest_path = "/app/static/pwa-manifest.json"
+        # ✅ Cloud Run(nginx)에서는 보통 /app/static/sw.js 가 200/JS로 응답합니다.
+        # 환경별로 경로가 달라질 수 있어 후보를 여러 개 둡니다.
+        sw_candidates = [
+            "/app/static/sw.js",
+            "/static/sw.js",
+            "/sw.js",
+        ]
 
-
+        # VAPID가 없으면 켜기 버튼 자체를 막고 안내만 보여줍니다.
         if not vapid_public:
-            st.info("알림 설정을 불러올 수 없습니다. (VAPID_PUBLIC 미설정)")
+            st.info("푸시 알림 설정값(VAPID_PUBLIC)이 없어 알림을 켤 수 없습니다. (관리자: Cloud Run env 또는 Streamlit secrets 확인)")
             return
 
-        # Cloud Run / Streamlit Cloud 경로 차이를 흡수하기 위해 후보 경로를 여러 개 시도합니다.
-        sw_candidates = ["/app/static/sw.js", "/static/sw.js", "/sw.js", "/app/sw.js"]
-        manifest_candidates = ["/app/static/pwa-manifest.json", "/manifest.json", "/pwa-manifest.json", "/static/pwa-manifest.json"]
-
-        html = """
-<div style="padding:12px 14px;border:1px solid rgba(0,0,0,.08);border-radius:14px;background:#fff;">
-  <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-    <button id="ha_push_on" style="padding:10px 14px;border-radius:12px;border:1px solid rgba(0,0,0,.12);background:#f3f4f6;cursor:pointer;">🔔 알림 켜기</button>
-    <button id="ha_push_off" style="padding:10px 14px;border-radius:12px;border:1px solid rgba(0,0,0,.12);background:#fff;cursor:pointer;">🔕 알림 끄기</button>
-    <span id="ha_push_state" style="font-size:13px;opacity:.75;"></span>
-    <div id="ha_push_msg" style="display:none;margin-top:8px;padding:10px 12px;border-radius:12px;border:1px solid rgba(59,130,246,.25);background:rgba(59,130,246,.06);font-size:13px;line-height:1.35;"></div>
+        html = """<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  body { font-family: -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Noto Sans KR','Apple SD Gothic Neo',sans-serif; margin:0; padding:0; }
+  .box { border:1px solid rgba(0,0,0,0.08); border-radius:14px; padding:14px 14px 12px; background:rgba(255,255,255,0.92); }
+  .row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+  .btn { padding:10px 12px; border-radius:12px; border:1px solid rgba(0,0,0,0.12); background:#fff; cursor:pointer; font-size:14px; }
+  .btn:active { transform: scale(0.99); }
+  .muted { color: rgba(0,0,0,0.55); font-size:12px; margin-top:8px; line-height:1.35; }
+  .status { font-size:13px; margin-top:10px; padding:10px 12px; border-radius:12px; background:rgba(0,0,0,0.03); border:1px solid rgba(0,0,0,0.06); }
+  .ok { color:#0a7; font-weight:600; }
+  .bad { color:#d33; font-weight:600; }
+  code { font-family: ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace; font-size:12px; }
+</style>
+</head>
+<body>
+  <div class="box">
+    <div class="row">
+      <button id="btnOn" class="btn">🔔 알림 켜기</button>
+      <button id="btnOff" class="btn">🔕 알림 끄기</button>
+      <span id="pill" class="muted"></span>
+    </div>
+    <div id="status" class="status">상태 확인 중…</div>
+    <div class="muted">
+      ※ 알림은 기기/브라우저별로 각각 설정됩니다.<br/>
+      ※ iOS Safari는 “홈 화면에 추가된 웹앱”에서 동작이 제한될 수 있습니다.
+    </div>
   </div>
-</div>
 
 <script>
-(function(){{
+(() => {
   const VAPID = "__VAPID_PUBLIC__";
-  const SW_CANDIDATES = __SW_CANDIDATES__;
-  const MANIFEST_CANDIDATES = __MANIFEST_CANDIDATES__;
+  const SW_CANDS = __SW_CANDS_JSON__;
 
-  const $on  = document.getElementById('ha_push_on');
-  const $off = document.getElementById('ha_push_off');
-  const $state = document.getElementById('ha_push_state');
-  const $msg = document.getElementById('ha_push_msg');
+  const elStatus = document.getElementById('status');
+  const elPill = document.getElementById('pill');
+  const btnOn = document.getElementById('btnOn');
+  const btnOff = document.getElementById('btnOff');
 
-  function setState(t){{ if($state) $state.textContent = t || ''; }}
-  function setMsg(t, isErr){{
-    if(!$msg) return;
-    $msg.textContent = t || '';
-    $msg.style.display = t ? 'block' : 'none';
-    $msg.style.borderColor = isErr ? 'rgba(239,68,68,.35)' : 'rgba(59,130,246,.25)';
-    $msg.style.background  = isErr ? 'rgba(239,68,68,.06)' : 'rgba(59,130,246,.06)';
-    $msg.style.color       = isErr ? '#b91c1c' : '#1d4ed8';
-  }}
+  function setStatus(msg, ok=null){
+    elStatus.textContent = msg;
+    elStatus.classList.remove('ok','bad');
+    if(ok === true) elStatus.classList.add('ok');
+    if(ok === false) elStatus.classList.add('bad');
+  }
 
-  function supports(){{
-    return (typeof window !== 'undefined'
-      && 'serviceWorker' in navigator
-      && 'PushManager' in window
-      && 'Notification' in window);
-  }}
-
-  function toUint8Array(base64String) {{
+  function b64ToU8(base64String){
     const b64 = base64String.replace(/-/g,'+').replace(/_/g,'/');
     const pad = '='.repeat((4 - (b64.length % 4)) % 4);
     const raw = atob(b64 + pad);
-    return new Uint8Array([...raw].map(ch => ch.charCodeAt(0)));
-  }}
+    const arr = new Uint8Array(raw.length);
+    for (let i=0; i<raw.length; i++) arr[i] = raw.charCodeAt(i);
+    return arr;
+  }
 
-  async function pickFirstOk(paths, wantJs){
-    for (const p of paths){
+  async function pickServiceWorkerPath(){
+    for (const p of SW_CANDS){
       try{
         const r = await fetch(p, {method:'GET', cache:'no-store'});
         if(!r || !r.ok) continue;
         const ct = (r.headers.get('content-type') || '').toLowerCase();
-        if(wantJs){
-          if(ct.includes('javascript') || ct.includes('ecmascript') || ct.includes('text/js')) return p;
-          // 일부 서버는 content-type 누락: 본문이 "<!doctype" 등 HTML이면 제외
-          const t = await r.clone().text();
-          if(t && t.trim().startsWith('/*') || t.trim().startsWith('self') || t.trim().startsWith('importScripts')) return p;
-          continue;
-        }else{
-          if(ct.includes('json')) return p;
-          // json 헤더가 아니어도 파일이 json이면 ok
-          const t = await r.clone().text();
-          if(t && t.trim().startsWith('{')) return p;
-          continue;
+        // JS가 아닌 HTML(404/리다이렉트) 이면 제외
+        if(ct.includes('javascript') || ct.includes('ecmascript') || p.endsWith('.js')){
+          // 일부 환경은 content-type이 애매할 수 있어, 실제 내용도 살짝 확인
+          const t = (await r.text()).slice(0, 80).toLowerCase();
+          if(t.includes('<!doctype html') || t.includes('<html')) continue;
+          return p;
         }
-      }catch(e){}
+      }catch(e){ /* ignore */ }
     }
     return null;
   }
 
   async function getReg(){
-    const sw = await pickFirstOk(SW_CANDIDATES, true);
-    const manifest = await pickFirstOk(MANIFEST_CANDIDATES, false);
-
-    if(manifest){
-      try { await fetch(manifest, {cache:'no-store'}); } catch(e) {}
+    if(!('serviceWorker' in navigator)) return {ok:false, err:'이 브라우저는 Service Worker를 지원하지 않습니다.'};
+    const swPath = await pickServiceWorkerPath();
+    if(!swPath) return {ok:false, err:'sw.js를 찾지 못했습니다. (경로 후보: '+SW_CANDS.join(', ')+')'};
+    try{
+      const reg = await navigator.serviceWorker.register(swPath);
+      await navigator.serviceWorker.ready;
+      return {ok:true, reg, swPath};
+    }catch(e){
+      return {ok:false, err:'Service Worker 등록 실패: '+(e && e.message ? e.message : String(e))};
     }
-
-    if(!sw){
-      throw new Error('서비스워커 파일(sw.js)을 찾지 못했습니다. (서버에서 JS로 서빙되지 않음)');
-    }
-    return await navigator.serviceWorker.register(sw);
   }
 
-  async function getSub(){{
-    const reg = await navigator.serviceWorker.ready;
-    return await reg.pushManager.getSubscription();
-  }}
-
-  async function subscribe(){{
-    if (!VAPID) throw new Error('VAPID 공개키가 비어 있습니다.');
-    // iOS/일부 브라우저는 "사용자 제스처" 필요
-    const perm = await Notification.requestPermission();
-    if (perm !== 'granted') throw new Error('알림 권한이 허용되지 않았습니다: ' + perm);
-
-    const reg = await getReg();
-    const sub = await reg.pushManager.subscribe({{
-      userVisibleOnly: true,
-      applicationServerKey: toUint8Array(VAPID)
-    }});
-    return sub;
-  }}
-
-  async function unsubscribe(){{
-    const sub = await getSub();
-    if (sub) await sub.unsubscribe();
-  }}
-
-  async function refreshUi(){{
-    if (!supports()){{
-      setState('지원되지 않음');
-      setMsg('이 기기/브라우저는 웹푸시(서비스워커/푸시/알림)를 지원하지 않습니다.', true);
+  async function refreshStatus(){
+    const perm = (window.Notification && Notification.permission) ? Notification.permission : 'unsupported';
+    if(perm === 'denied'){
+      elPill.textContent = '차단됨';
+      setStatus('현재 알림이 차단되어 있습니다. 브라우저 설정에서 알림을 허용으로 바꿔야 합니다.', false);
       return;
-    }}
-    const perm = Notification.permission || 'default';
-    let sub = null;
-    try {{ sub = await getSub(); }} catch(e) {{}}
+    }
+    if(perm === 'unsupported'){
+      elPill.textContent = '미지원';
+      setStatus('이 환경에서는 푸시 알림을 지원하지 않습니다.', false);
+      return;
+    }
 
-    if (sub){{
-      setState('켜짐');
-      setMsg('현재 이 기기에서 알림이 켜져 있습니다. (권한: ' + perm + ')', false);
-    }} else {{
-      setState('꺼짐');
-      if (perm === 'denied'){{
-        setMsg('알림 권한이 차단되어 있어 켤 수 없습니다. 브라우저/OS 설정에서 허용으로 바꿔 주세요.', true);
-      }} else {{
-        setMsg('현재 이 기기에서 알림이 꺼져 있습니다. (권한: ' + perm + ')', false);
-      }}
-    }}
-  }}
+    const rr = await getReg();
+    if(!rr.ok){
+      elPill.textContent = '오류';
+      setStatus(rr.err, false);
+      return;
+    }
 
-  $on?.addEventListener('click', async ()=>{{
-    setMsg('');
-    setState('처리중…');
-    try{{
-      await subscribe();
-      setState('켜짐');
-      setMsg('알림이 켜졌습니다. (이 기기/브라우저 기준)', false);
-    }}catch(e){{
-      setState('꺼짐');
-      setMsg('알림 설정 중 오류: ' + (e && e.message ? e.message : String(e)), true);
-    }}
-    try{{ await refreshUi(); }}catch(e){{}}
-  }});
+    try{
+      const sub = await rr.reg.pushManager.getSubscription();
+      if(sub){
+        elPill.textContent = '켜짐';
+        setStatus('알림이 켜져 있습니다. (SW: '+rr.swPath+')', true);
+      }else{
+        elPill.textContent = '꺼짐';
+        setStatus('알림이 꺼져 있습니다. “알림 켜기”를 눌러 설정할 수 있습니다. (SW: '+rr.swPath+')', null);
+      }
+    }catch(e){
+      elPill.textContent = '오류';
+      setStatus('구독 상태 확인 실패: '+(e && e.message ? e.message : String(e)), false);
+    }
+  }
 
-  $off?.addEventListener('click', async ()=>{{
-    setMsg('');
-    setState('처리중…');
-    try{{
-      await unsubscribe();
-      setState('꺼짐');
-      setMsg('알림이 꺼졌습니다. (이 기기/브라우저 기준)', false);
-    }}catch(e){{
-      setMsg('알림 해제 중 오류: ' + (e && e.message ? e.message : String(e)), true);
-    }}
-    try{{ await refreshUi(); }}catch(e){{}}
-  }});
+  btnOn.addEventListener('click', async () => {
+    try{
+      if(!(window.Notification && Notification.permission)){
+        setStatus('이 환경에서는 알림을 지원하지 않습니다.', false);
+        return;
+      }
 
-  refreshUi();
-}})();
+      const perm = await Notification.requestPermission();
+      if(perm !== 'granted'){
+        elPill.textContent = (perm === 'denied') ? '차단됨' : '미허용';
+        setStatus('알림 권한이 허용되지 않았습니다.', false);
+        return;
+      }
+
+      const rr = await getReg();
+      if(!rr.ok){
+        elPill.textContent = '오류';
+        setStatus(rr.err, false);
+        return;
+      }
+
+      const sub = await rr.reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: b64ToU8(VAPID),
+      });
+
+      // ✅ 여기까지 오면 브라우저 기준 “켜짐” 입니다.
+      // (서버 저장/전송 로직은 기존 파이프라인을 그대로 사용)
+      elPill.textContent = '켜짐';
+      setStatus('알림이 켜졌습니다.', true);
+      console.log('[push] subscribed:', sub);
+
+    }catch(e){
+      elPill.textContent = '오류';
+      setStatus('알림 설정 중 오류: '+(e && e.message ? e.message : String(e)), false);
+      console.error(e);
+    }
+  });
+
+  btnOff.addEventListener('click', async () => {
+    try{
+      const rr = await getReg();
+      if(!rr.ok){
+        elPill.textContent = '오류';
+        setStatus(rr.err, false);
+        return;
+      }
+      const sub = await rr.reg.pushManager.getSubscription();
+      if(sub){
+        await sub.unsubscribe();
+      }
+      elPill.textContent = '꺼짐';
+      setStatus('알림이 꺼졌습니다.', null);
+    }catch(e){
+      elPill.textContent = '오류';
+      setStatus('알림 해제 중 오류: '+(e && e.message ? e.message : String(e)), false);
+      console.error(e);
+    }
+  });
+
+  refreshStatus();
+})();
 </script>
+</body>
+</html>
 """
+
         html = html.replace("__VAPID_PUBLIC__", vapid_public)
+        html = html.replace("__SW_CANDS_JSON__", json.dumps(sw_candidates))
 
-
-        # 🔧 JS에서 후보 경로를 순차 시도 (MIME text/html 이면 실패)
-        html = html.replace("__SW_CANDIDATES__", json.dumps(sw_candidates))
-        html = html.replace("__MANIFEST_CANDIDATES__", json.dumps(manifest_candidates))
-        components.html(html, height=120)
-        st.caption("※ 알림은 기기/브라우저별로 각각 설정됩니다.")
-    tab_w, tab_r, tab_m, tab_n = st.tabs(["📚 오답", "📈 기록", "📩 메시지", "🔔 알림"])
-    with tab_w:
-        _render_wrongs(wrongs, wrongs_table)
-    with tab_r:
-        _render_records(attempts_ok, "ok" if attempts_ok else attempts_status)
-    with tab_m:
-        _render_msgs(msgs)
-
-
-    with tab_n:
-        _render_notifications_tab()
-
-    _wrap_end()
+        # height를 충분히 줘서(특히 모바일) 잘림/스크롤 문제를 줄입니다.
+        components.html(html, height=210, scrolling=False)
