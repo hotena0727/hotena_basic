@@ -1893,7 +1893,7 @@ def _render_top_summary(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, A
 
     actL, actR = st.columns([4.6, 5.4], vertical_alignment="center")
     with actL:
-        cS, cBell, cLbl = st.columns([0.9, 0.9, 8.2], gap="small", vertical_alignment="center")
+        cS, cBell, cLbl = st.columns([1.5, 1.5, 7.0], gap="small", vertical_alignment="center")
         with cS:
             _cur_sfx = bool(core.is_sfx_enabled(True))
             _new_sfx = st.toggle("🔊", value=_cur_sfx, key="myp_sfx_toggle", label_visibility="collapsed")
