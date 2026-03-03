@@ -2553,114 +2553,143 @@ def render() -> None:
     # ✅ 탭 방식 (요청 사항)
     
     def _render_notifications_tab():
-        st.markdown("### 🔔 알림")
+    import os
+    import streamlit.components.v1 as components
 
-        # 로그인 확인
-        _token = (st.session_state.get("access_token") or st.session_state.get("sb_access_token") or "").strip()
-        _logged_in = bool(_token) or bool(st.session_state.get("sb_authed"))
-        if not _logged_in:
-            st.info("로그인 후 알림 설정을 할 수 있어요.")
-            return
+    # get_cfg가 있으면 우선 사용 (없으면 env만 사용)
+    _get_cfg = globals().get("get_cfg", None)
+    try:
+        vapid_public = ((_get_cfg("VAPID_PUBLIC", "") if callable(_get_cfg) else "") or os.getenv("VAPID_PUBLIC") or "").strip()
+    except Exception:
+        vapid_public = (os.getenv("VAPID_PUBLIC") or "").strip()
 
-        # VAPID 공개키 (Cloud Run env 또는 Streamlit secrets)
-        try:
-            _secret_vapid = (st.secrets.get("VAPID_PUBLIC") or "").strip()  # type: ignore[attr-defined]
-        except Exception:
-            _secret_vapid = ""
-        vapid_public = (os.getenv("VAPID_PUBLIC") or _secret_vapid or "").strip()
+    st.markdown("### 🔔 알림")
+    st.caption("알림은 기본값이 ‘꺼짐’입니다. 원할 때만 켜고, 필요하면 언제든 다시 끌 수 있어요.")
 
-        if not vapid_public:
-            st.warning("알림 설정값이 없습니다: VAPID_PUBLIC (Cloud Run env 또는 Streamlit secrets 확인)")
-            return
-        
-        # ✅ Streamlit 버튼 클릭 → rerun 후에는 '사용자 제스처'가 끊겨서
-        # (특히 iOS/Safari/일부 Android) Notification.requestPermission / subscribe가 예외가 날 수 있습니다.
-        # 그래서 'iframe 안의 실제 버튼 클릭'에서 바로 JS가 실행되도록 구성합니다.
-        
-        _html = '''
-        <div style="display:flex; gap:10px; width:100%;">
-          <button id="haPushOn" style="flex:1; padding:14px 12px; border-radius:12px; border:1px solid rgba(0,0,0,.08); background:#ffffff; font-size:16px; cursor:pointer;">
-            🔔 알림 켜기
-          </button>
-          <button id="haPushOff" style="flex:1; padding:14px 12px; border-radius:12px; border:1px solid rgba(0,0,0,.08); background:#ffffff; font-size:16px; cursor:pointer;">
-            🔕 알림 끄기
-          </button>
-        </div>
+    if not vapid_public:
+        st.info("알림 설정을 할 수 없습니다. (VAPID_PUBLIC 설정이 없습니다)")
+        return
 
-        <script>
-        const VAPID = "__VAPID_PUBLIC__";
-        function toUint8Array(base64String) {
-          const b64 = base64String.replace(/-/g,'+').replace(/_/g,'/');
-          const pad = '='.repeat((4 - (b64.length % 4)) % 4);
-          const raw = atob(b64 + pad);
-          return new Uint8Array([...raw].map(ch => ch.charCodeAt(0)));
-        }
+    # ✅ SW 경로는 환경마다 달라질 수 있어 후보를 여러 개 두고, 실제로 JS에서 유효한 파일인지 확인 후 등록합니다.
+    _html = r'''
+<div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap; margin-top:6px;">
+  <button id="haEnablePush" style="padding:10px 14px; border-radius:12px; border:1px solid #ddd; background:#fff; cursor:pointer;">
+    🔔 알림 켜기
+  </button>
+  <button id="haDisablePush" style="padding:10px 14px; border-radius:12px; border:1px solid #ddd; background:#fff; cursor:pointer;">
+    🔕 알림 끄기
+  </button>
+  <div id="haPushStatus" style="font-size:13px; color:#666;"></div>
+</div>
 
-        async function ensureReg() {
-          let reg = await navigator.serviceWorker.getRegistration();
-          if (!reg) {
-            reg = await navigator.serviceWorker.register('/app/static/sw.js');
-          }
-          try { await navigator.serviceWorker.ready; } catch (e) {}
-          return reg;
-        }
+<script>
+(() => {
+  const VAPID = "__VAPID_PUBLIC__";
+  const statusEl = document.getElementById("haPushStatus");
+  const btnOn = document.getElementById("haEnablePush");
+  const btnOff = document.getElementById("haDisablePush");
 
-        async function enablePush() {
-          if (!('serviceWorker' in navigator)) { alert('이 브라우저는 알림을 지원하지 않습니다.'); return; }
-          if (!('PushManager' in window)) { alert('이 환경에서는 푸시 알림을 지원하지 않습니다.'); return; }
+  function setStatus(msg){ if(statusEl) statusEl.textContent = msg || ""; }
 
-          let perm = Notification.permission;
-          if (perm !== 'granted') { perm = await Notification.requestPermission(); }
-          if (perm !== 'granted') { alert('알림 권한이 허용되지 않았습니다.'); return; }
+  function toUint8Array(base64String) {
+    const b64 = (base64String || "").replace(/-/g,'+').replace(/_/g,'/');
+    const pad = '='.repeat((4 - (b64.length % 4)) % 4);
+    const raw = atob(b64 + pad);
+    return new Uint8Array([...raw].map(ch => ch.charCodeAt(0)));
+  }
 
-          const reg = await ensureReg();
-          if (!reg) { alert('서비스워커 등록에 실패했습니다.'); return; }
+  async function pickWorkingSwUrl(candidates){
+    for (const url of candidates){
+      try{
+        const res = await fetch(url, { cache: "no-store" });
+        const ct = (res.headers.get("content-type") || "").toLowerCase();
+        if(res.ok && ct.includes("javascript")) return url;
+        // 일부 서버가 application/x-javascript, text/javascript로 줄 수 있어 includes("javascript")로 커버
+      }catch(e){}
+    }
+    return null;
+  }
 
-          let sub = await reg.pushManager.getSubscription();
-          if (!sub) {
-            const key = toUint8Array(VAPID);
-            sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
-          }
+  async function refreshUi(){
+    try{
+      if (!("Notification" in window)) { setStatus("이 브라우저는 알림을 지원하지 않아요."); return; }
+      if (!("serviceWorker" in navigator)) { setStatus("Service Worker를 지원하지 않아요."); return; }
+      const perm = Notification.permission;
+      const saved = localStorage.getItem("ha_push_sub") || "";
+      if (perm === "granted" && saved) setStatus("현재 알림이 켜져 있어요.");
+      else if (perm === "denied") setStatus("브라우저에서 알림이 차단되어 있어요. (설정에서 허용으로 변경 필요)");
+      else setStatus("현재 알림이 꺼져 있어요.");
+    }catch(e){
+      setStatus("상태 확인 중 오류가 발생했어요.");
+    }
+  }
 
-          localStorage.setItem('hotena_push_enabled','1');
-          localStorage.setItem('hotena_push_subscription', JSON.stringify(sub));
-          alert('알림이 켜졌습니다.');
-        }
+  btnOn?.addEventListener("click", async () => {
+    try{
+      setStatus("알림을 켜는 중...");
+      if (!("Notification" in window)) { setStatus("이 브라우저는 알림을 지원하지 않아요."); return; }
+      if (!("serviceWorker" in navigator)) { setStatus("Service Worker를 지원하지 않아요."); return; }
 
-        async function disablePush() {
-          if (!('serviceWorker' in navigator)) { alert('이 브라우저는 알림을 지원하지 않습니다.'); return; }
-          const regs = await navigator.serviceWorker.getRegistrations();
-          for (const reg of regs) {
-            try { const sub = await reg.pushManager.getSubscription(); if (sub) await sub.unsubscribe(); } catch (e) {}
-          }
-          localStorage.removeItem('hotena_push_enabled');
-          localStorage.removeItem('hotena_push_subscription');
-          alert('알림이 꺼졌습니다.');
-        }
+      const perm = await Notification.requestPermission();
+      if (perm !== "granted") { setStatus("알림 권한이 허용되지 않았어요."); return; }
 
-        function prettyErr(e) {
-          try {
-            if (!e) return 'unknown';
-            if (typeof e === 'string') return e;
-            if (e.message) return e.message;
-            return JSON.stringify(e);
-          } catch (_) { return String(e); }
-        }
+      const swCandidates = [
+        "/app/static/sw.js",
+        "/sw.js",
+        "/static/sw.js",
+        "/app/static/service-worker.js",
+        "/service-worker.js",
+        "./sw.js"
+      ];
+      const swUrl = await pickWorkingSwUrl(swCandidates);
+      if (!swUrl){ setStatus("sw.js를 찾지 못했어요. (서버 경로/설정 확인 필요)"); return; }
 
-        document.getElementById('haPushOn').addEventListener('click', async () => {
-          try { await enablePush(); }
-          catch (e) { console.error(e); alert('알림 설정 중 오류: ' + prettyErr(e)); }
-        });
+      const reg = await navigator.serviceWorker.register(swUrl, { scope: "/" });
+      const sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: toUint8Array(VAPID)
+      });
 
-        document.getElementById('haPushOff').addEventListener('click', async () => {
-          try { await disablePush(); }
-          catch (e) { console.error(e); alert('알림 해제 중 오류: ' + prettyErr(e)); }
-        });
-        </script>
-        _html = '''
-        _html = _html.replace("__VAPID_PUBLIC__", vapid_public)
-        components.html(_html, height=80)
-        st.caption("알림을 켜면 브라우저/기기에 따라 권한 팝업이 뜰 수 있어요.")
+      localStorage.setItem("ha_push_sub", JSON.stringify(sub));
+      setStatus("알림이 켜졌어요.");
+
+      // (선택) 부모 프레임에 알려서, 필요하면 파이썬 쪽에서 이어서 저장/동기화할 수 있게 합니다.
+      try{
+        window.parent?.postMessage({ type: "ha_push_subscribed", sub: sub }, "*");
+      }catch(e){}
+
+      await refreshUi();
+    }catch(e){
+      console.error(e);
+      setStatus("알림 설정 중 오류가 발생했어요.");
+    }
+  });
+
+  btnOff?.addEventListener("click", async () => {
+    try{
+      setStatus("알림을 끄는 중...");
+      localStorage.removeItem("ha_push_sub");
+
+      // 브라우저 구독 해제까지 시도(가능할 때만)
+      if ("serviceWorker" in navigator){
+        const reg = await navigator.serviceWorker.getRegistration("/");
+        const sub = await reg?.pushManager.getSubscription();
+        await sub?.unsubscribe();
+      }
+      setStatus("알림이 꺼졌어요.");
+      await refreshUi();
+    }catch(e){
+      console.error(e);
+      setStatus("알림 해제 중 오류가 발생했어요.");
+    }
+  });
+
+  refreshUi();
+})();
+</script>
+'''
+    _html = _html.replace("__VAPID_PUBLIC__", vapid_public)
+    components.html(_html, height=90)
 
     tab_w, tab_r, tab_m, tab_n = st.tabs(["📚 오답", "📈 기록", "📩 메시지", "🔔 알림"])
     with tab_w:
