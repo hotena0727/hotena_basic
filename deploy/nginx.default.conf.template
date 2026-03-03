@@ -2,7 +2,7 @@ server {
     listen ${PORT};
     server_name _;
 
-    # PWA core files
+    # PWA 핵심 파일
     location = /manifest.json {
         alias /app/static/pwa-manifest.json;
         add_header Content-Type "application/manifest+json" always;
@@ -15,14 +15,14 @@ server {
         add_header Cache-Control "no-cache" always;
     }
 
-    # Serve everything under /static/
+    # 정적 파일은 /static/로 통일
     location /static/ {
         alias /app/static/;
         add_header Cache-Control "public, max-age=86400" always;
         access_log off;
     }
 
-    # Optional root-path compatibility
+    # (호환용) 루트에서도 아이콘 접근 가능
     location = /icon-192.png { alias /app/static/icon-192.png; add_header Cache-Control "public, max-age=86400" always; access_log off; }
     location = /icon-512.png { alias /app/static/icon-512.png; add_header Cache-Control "public, max-age=86400" always; access_log off; }
     location = /favicon.ico { alias /app/static/favicon.ico; add_header Cache-Control "public, max-age=86400" always; access_log off; }
@@ -43,4 +43,3 @@ server {
         proxy_read_timeout 86400;
     }
 }
-EOF
