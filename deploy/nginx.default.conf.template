@@ -2,21 +2,18 @@ server {
     listen ${PORT};
     server_name _;
 
-    # PWA 핵심 파일
     location = /manifest.json {
         alias /app/static/pwa-manifest.json;
         add_header Content-Type "application/manifest+json" always;
-        add_header Cache-Control "no-cache" always;
+        add_header Cache-Control "no-store" always;
     }
 
     location = /sw.js {
         alias /app/static/sw.js;
         add_header Content-Type "application/javascript" always;
-        add_header Cache-Control "no-cache" always;
         add_header Cache-Control "no-store" always;
     }
 
-    # 정적 파일은 /static/로 통일
     # ✅ Streamlit이 쓰는 /static/* 는 반드시 Streamlit로 전달
     location /static/ {
         proxy_pass http://127.0.0.1:8501;
@@ -40,6 +37,9 @@ server {
     location = /apple-touch-icon.png { alias /app/static/apple-touch-icon.png; add_header Cache-Control "public, max-age=86400" always; access_log off; }
 
     location / {
+        # ✅ HTML 캐시 방지(해시 불일치 재발 방지)
+        add_header Cache-Control "no-store" always;
+
         proxy_pass http://127.0.0.1:8501;
         proxy_http_version 1.1;
 
