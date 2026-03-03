@@ -1313,7 +1313,7 @@ except Exception:
     pass
 
 # ============================================================
-# ✅ Filters (상황(tag))
+# ✅ Filters (유형(sub) → 상황(tag))  ✅ (순서만 변경)
 # ============================================================
 
 # --- normalize (비교 실패/공백 문제 방지) ---
@@ -1361,26 +1361,7 @@ def _tag_label(t: str) -> str:
     t = str(t)
     return TAG_LABELS.get(t, t)
 
-# ✅ CSV에 존재하는 tag 자동 수집
-if "tag" in DF_BASE.columns:
-    tag_options = sorted([x for x in DF_BASE["tag"].astype(str).tolist() if str(x).strip()])
-    # 중복 제거 + 순서 유지(정렬 유지하려면 set 사용)
-    tag_options = sorted(set(tag_options))
-else:
-    tag_options = []
-
-if not tag_options:
-    st.warning("해당 상황의 회화 문제가 없습니다. (CSV의 tag 확인)")
-    st.stop()
-
-tag = st.selectbox(
-    "상황 선택",
-    options=tag_options,
-    format_func=_tag_label,
-    key=f"{NS}_tag",
-)
-
-# ✅ 유형(sub) 선택 (CSV에 sub 컬럼이 있으면 노출)
+# ✅ 유형(sub) 라벨
 SUB_LABEL = {
     "__all__": "전체",
     # aisatsu 쪽에서 쓰는 값들
@@ -1404,47 +1385,65 @@ def _sub_label(s: str) -> str:
     s = str(s)
     return SUB_LABEL.get(s, s)
 
+# ✅ 1) 유형(sub) 선택을 먼저
 sub = "__all__"
-
-# ✅ 유형(sub)은 '선택된 tag' 안에서만 보여주기(다른 tag의 sub가 섞여 나오면 혼란)
 has_sub_col = "sub" in DF_BASE.columns
 
-subs_in_tag = []
+subs_all: list[str] = []
 if has_sub_col:
-    _df_tag = DF_BASE[DF_BASE["tag"].astype(str) == str(tag)].copy()
-    subs_in_tag = [x for x in _df_tag["sub"].astype(str).tolist() if str(x).strip()]
+    subs_all = [x for x in DF_BASE["sub"].astype(str).tolist() if str(x).strip()]
+subs_all = sorted(set([str(x).strip() for x in subs_all if str(x).strip()]))
 
-# tag 안에 sub 값이 2개 이상 있을 때만 노출(1개면 자동 선택)
-subs_in_tag = sorted(set([str(x).strip() for x in subs_in_tag if str(x).strip()]))
-
-if len(subs_in_tag) >= 2:
-    sub_options = ["__all__"] + subs_in_tag
+if len(subs_all) >= 2:
+    sub_options = ["__all__"] + subs_all
     sub = st.selectbox(
         "유형 선택",
         options=sub_options,
         format_func=_sub_label,
         key=f"{NS}_sub",
     )
-elif len(subs_in_tag) == 1:
-    # ✅ 1개뿐이면 드롭다운은 숨기되, 사용자에게는 '고정된 유형'을 표시
-    sub = subs_in_tag[0]
+elif len(subs_all) == 1:
+    sub = subs_all[0]
     try:
         st.caption(f"유형: {_sub_label(sub)} (고정)")
     except Exception:
         pass
 else:
-    # sub 컬럼이 없거나, 해당 tag는 sub가 비어있음
     sub = "__all__"
+
+# ✅ 2) 상황(tag) 선택은 '선택된 sub'에 맞춰 좁혀서 보여주기
+if "tag" in DF_BASE.columns:
+    _df_for_tags = DF_BASE.copy()
+    if has_sub_col and sub != "__all__":
+        _df_for_tags = _df_for_tags[_df_for_tags["sub"].astype(str) == str(sub)].copy()
+
+    tag_options = sorted([x for x in _df_for_tags["tag"].astype(str).tolist() if str(x).strip()])
+    tag_options = sorted(set(tag_options))
+else:
+    tag_options = []
+
+if not tag_options:
+    st.warning("해당 조건의 회화 문제가 없습니다. (CSV의 tag/sub 확인)")
+    st.stop()
+
+tag = st.selectbox(
+    "상황 선택",
+    options=tag_options,
+    format_func=_tag_label,
+    key=f"{NS}_tag",
+)
 
 # 레벨 선택은 사용하지 않음(현재는 N4~N3 혼합 운영)
 level = "mix"
 
-pool_df = DF_BASE[(DF_BASE["tag"] == tag)].copy().reset_index(drop=True)
-if ("sub" in DF_BASE.columns) and sub != "__all__":
+# ✅ 풀 구성: sub → tag 순서로 필터 (기존 기능/로직 유지)
+pool_df = DF_BASE.copy().reset_index(drop=True)
+if has_sub_col and sub != "__all__":
     pool_df = pool_df[pool_df["sub"].astype(str) == str(sub)].copy().reset_index(drop=True)
+pool_df = pool_df[pool_df["tag"].astype(str) == str(tag)].copy().reset_index(drop=True)
 
 if pool_df.empty:
-    st.warning("해당 상황의 회화 문제가 없습니다. (CSV의 tag/sub 확인)")
+    st.warning("해당 조건의 회화 문제가 없습니다. (CSV의 tag/sub 확인)")
     st.stop()
 
 # ============================================================
