@@ -1,6 +1,3 @@
-cd ~/hotena_basic
-
-cat > deploy/nginx.default.conf.template <<'EOF'
 server {
     listen ${PORT};
     server_name _;
