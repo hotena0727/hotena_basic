@@ -13,6 +13,7 @@ server {
         alias /app/static/sw.js;
         add_header Content-Type "application/javascript" always;
         add_header Cache-Control "no-cache" always;
+        add_header Cache-Control "no-store" always;
     }
 
     # 정적 파일은 /static/로 통일
