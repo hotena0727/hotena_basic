@@ -2435,7 +2435,7 @@ def render_home():
     st.markdown(
         f"""
 <div class="jp headbar">
-  <div class="headtitle">✨ 왕초보 탈출 하테나일본어</div>
+  <div class="headtitle">✨ 단어</div>
 </div>
 """,
         unsafe_allow_html=True,
