@@ -1412,19 +1412,13 @@ if "stage" in DF_BASE.columns:
         return (0, int(x)) if x.isdigit() else (1, x)
     _stages = sorted(_stages, key=_stage_sort_key)
 
-    if len(_stages) >= 2:
+    if len(_stages) >= 1:
         stage_val = st.selectbox(
             "코스 선택",
             options=_stages,
             format_func=_course_label,
             key=f"{NS}_stage",
         )
-    elif len(_stages) == 1:
-        stage_val = _stages[0]
-        try:
-            st.caption(f"코스: {_course_label(stage_val)} (고정)")
-        except Exception:
-            pass
 
 # stage 필터(코스가 있으면 적용)
 DF_SEL = DF_BASE.copy()
