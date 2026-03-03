@@ -2577,7 +2577,7 @@ def render() -> None:
         # (특히 iOS/Safari/일부 Android) Notification.requestPermission / subscribe가 예외가 날 수 있습니다.
         # 그래서 'iframe 안의 실제 버튼 클릭'에서 바로 JS가 실행되도록 구성합니다.
         
-            _html = '''
+        _html = '''
         <div style="display:flex; gap:10px; width:100%;">
           <button id="haPushOn" style="flex:1; padding:14px 12px; border-radius:12px; border:1px solid rgba(0,0,0,.08); background:#ffffff; font-size:16px; cursor:pointer;">
             🔔 알림 켜기
@@ -2657,7 +2657,7 @@ def render() -> None:
           catch (e) { console.error(e); alert('알림 해제 중 오류: ' + prettyErr(e)); }
         });
         </script>
-        '''
+        _html = '''
         _html = _html.replace("__VAPID_PUBLIC__", vapid_public)
         components.html(_html, height=80)
         st.caption("알림을 켜면 브라우저/기기에 따라 권한 팝업이 뜰 수 있어요.")
