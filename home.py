@@ -2349,9 +2349,9 @@ def render_admin_dashboard(sb_authed):
 
         import os, json
 
-        vapid_public = (get_cfg("VAPID_PUBLIC", "") or os.getenv("VAPID_PUBLIC") or "").strip()
-        vapid_private = (get_cfg("VAPID_PRIVATE", "") or os.getenv("VAPID_PRIVATE") or "").strip()
-        vapid_subject = (get_cfg("VAPID_SUBJECT", "") or os.getenv("VAPID_SUBJECT") or "mailto:admin@hotenai.com").strip()
+        vapid_public = (get_cfg("VAPID_PUBLIC") or os.getenv("VAPID_PUBLIC") or "").strip()
+        vapid_private = (get_cfg("VAPID_PRIVATE") or os.getenv("VAPID_PRIVATE") or "").strip()
+        vapid_subject = (get_cfg("VAPID_SUBJECT") or os.getenv("VAPID_SUBJECT") or "mailto:admin@hotenai.com").strip()
 
         if not vapid_private:
             st.warning("VAPID_PRIVATE가 설정되어 있지 않습니다. (Cloud Run env 또는 Streamlit secrets)")
