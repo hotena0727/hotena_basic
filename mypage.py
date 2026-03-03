@@ -2541,6 +2541,78 @@ def _render_msgs(msgs: List[Dict[str, Any]]) -> None:
     st.markdown("</div>", unsafe_allow_html=True)  # card
 
 
+
+# ============================================================
+# Notifications tab (simple, no DB schema dependency)
+# ============================================================
+
+def _render_notifications_tab(sb_authed=None):
+    """마이페이지 알림 탭.
+
+    - DB 컬럼/스키마(예: profiles.progress_all)에 의존하지 않게 설계
+    - 브라우저 권한(ON/OFF)은 사용자 기기에서 최종 결정
+    """
+    st.markdown("### 🔔 알림")
+    st.caption("푸시 알림은 **브라우저/OS 권한**이 핵심입니다. 이 탭에서는 권한 상태를 확인하고, 필요하면 허용 요청을 보낼 수 있어요.")
+
+    # 1) 권한 상태 확인/요청 (클라이언트에서만 처리)
+    components.html(
+        """
+        <div style='display:flex; gap:8px; flex-wrap:wrap; align-items:center;'>
+          <button id='ha-noti-check' style='padding:8px 10px; border-radius:10px; border:1px solid rgba(0,0,0,.12); background:#fff; cursor:pointer;'>권한 상태 확인</button>
+          <button id='ha-noti-ask' style='padding:8px 10px; border-radius:10px; border:1px solid rgba(0,0,0,.12); background:#fff; cursor:pointer;'>알림 허용 요청</button>
+          <span id='ha-noti-state' style='font-size:12px; opacity:.75;'>—</span>
+        </div>
+        <script>
+          const $state = document.getElementById('ha-noti-state');
+          const setState = (t)=>{ $state.textContent = t; };
+
+          const check = ()=>{
+            if (!('Notification' in window)) { setState('이 브라우저는 Notification API를 지원하지 않습니다.'); return; }
+            setState('현재 권한: ' + Notification.permission);
+          };
+
+          document.getElementById('ha-noti-check').onclick = check;
+
+          document.getElementById('ha-noti-ask').onclick = async ()=>{
+            if (!('Notification' in window)) { setState('이 브라우저는 Notification API를 지원하지 않습니다.'); return; }
+            try{
+              const p = await Notification.requestPermission();
+              setState('권한 결과: ' + p);
+            }catch(e){
+              setState('권한 요청 실패: ' + (e && e.message ? e.message : String(e)));
+            }
+          };
+
+          // auto show once
+          check();
+        </script>
+        """,
+        height=72,
+    )
+
+    st.markdown("#### 📌 안내")
+    st.markdown(
+        """
+- **ON/OFF 최종 스위치는 기기 설정**(안드로이드/아이폰/브라우저)에서 결정돼요.
+- 앱에서 할 수 있는 건 보통 **(1) 권한 요청** / **(2) 구독 생성(웹푸시)** / **(3) 서버가 구독자에게 발송** 입니다.
+- 지금 단계에서 ‘복잡한 구독 리스트’ 없이 가려면, **마이페이지에서는 권한 상태 확인 + (필요 시) 허용 요청**까지만 제공하고,
+  실제 발송은 관리자 화면/스케줄러에서 처리하는 구성이 가장 안정적입니다.
+        """
+    )
+
+    # 2) (옵션) 서버 발송을 위한 VAPID 키가 세팅되어 있는지만 표시
+    try:
+        import os
+        vapid_public = (os.getenv('VAPID_PUBLIC') or '').strip()
+    except Exception:
+        vapid_public = ''
+
+    if vapid_public:
+        st.success("✅ 서버 VAPID_PUBLIC 설정이 감지되었습니다.")
+    else:
+        st.warning("⚠️ 서버 VAPID_PUBLIC이 비어 있습니다. (Cloud Run env / Streamlit secrets 확인)")
+
 def render() -> None:
     _inject_css()
     _wrap_start()
