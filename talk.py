@@ -419,7 +419,9 @@ DF = load_csv(CSV_PATH)
 # ============================================================
 # ✅ Labels
 # ============================================================
-TAG_LABELS = {
+# (legacy) 아래 라벨들은 현재 선택 UI(코스→유형→상황)에서는 사용하지 않습니다.
+# 예전 버전 호환/참고용으로만 남깁니다. (TAG_LABELS를 덮어쓰지 않도록 이름 변경)
+TAG_LABELS_LEGACY = {
     "basic": "기본",
     "business": "비즈니스",
     "daily": "일상",
@@ -430,7 +432,7 @@ TAG_LABELS = {
     "food": "음식/카페",
     "emergency": "긴급/트러블",
 }
-LEVEL_LABELS = {"n5": "N5", "n4": "N4", "n3": "N3"}
+LEVEL_LABELS_LEGACY = {"n5": "N5", "n4": "N4", "n3": "N3"}
 
 # ============================================================
 # ✅ Progress I/O (profiles.progress)
@@ -1346,7 +1348,7 @@ if "mode" in DF_BASE.columns:
     if not _real.empty:
         DF_BASE = _real.copy()
 
-# --- tag(상황) 라벨: 기본값 + CSV에 없는 태그는 그대로 노출 ---
+# --- tag(유형) 라벨: 기본값 + CSV에 없는 태그는 그대로 노출 ---
 TAG_LABELS = {
     "aisatsu": "인사말",
     "understand": "이해",
@@ -1363,7 +1365,7 @@ def _tag_label(t: str) -> str:
     t = str(t)
     return TAG_LABELS.get(t, t)
 
-# ✅ 유형(sub) 라벨
+# ✅ sub(상황) 라벨
 SUB_LABEL = {
     "__all__": "전체",
     # aisatsu 쪽에서 쓰는 값들
@@ -1375,6 +1377,15 @@ SUB_LABEL = {
     "apology": "사과",
     "work": "회사 기본",
     "meeting": "미팅/첫인사",
+    "meetup": "첫만남",
+    # (확장 대비) 자주 쓰는 상황 키
+    "cafe": "카페",
+    "restaurant": "식당",
+    "hotel": "호텔",
+    "station": "역/지하철",
+    "street": "길/거리",
+    "dm": "DM/채팅",
+
     "phone": "전화",
     "basic": "기본",
     "daily": "일상",
