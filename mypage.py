@@ -2546,95 +2546,77 @@ def _render_msgs(msgs: List[Dict[str, Any]]) -> None:
 # Notifications tab (simple, no DB schema dependency)
 # ============================================================
 
-def _render_notifications_tab(sb_authed=None):
-    """마이페이지 알림 탭.
+def _render_notifications_tab(sb_authed):
+    # 알림 탭(심플 버전): 권한 상태 확인 + 허용 요청만 제공
+    st.markdown("## 🔔 알림 설정")
+    st.caption("알림을 받으려면 브라우저/기기에서 알림을 허용해 주세요.")
 
-    - DB 컬럼/스키마(예: profiles.progress_all)에 의존하지 않게 설계
-    - 브라우저 권한(ON/OFF)은 사용자 기기에서 최종 결정
-    """
-    st.markdown("### 🔔 알림 설정")
-    st.caption("알림은 기기(브라우저/OS)에서 허용해야 받을 수 있어요. 여기서는 상태 확인과 허용 요청만 할 수 있습니다.")
-
-    # 1) 권한 상태 확인/요청 (클라이언트에서만 처리)
-    components.html(
+    # --- JS 위젯: 권한 상태 확인 / 요청 ---
+    st.components.v1.html(
         """
-        <div style='display:flex; gap:8px; flex-wrap:wrap; align-items:center;'>
-          <button id='ha-noti-check' style='padding:8px 10px; border-radius:10px; border:1px solid rgba(0,0,0,.12); background:#fff; cursor:pointer;'>권한 상태 확인</button>
-          <button id='ha-noti-ask' style='padding:8px 10px; border-radius:10px; border:1px solid rgba(0,0,0,.12); background:#fff; cursor:pointer;'>알림 허용 요청</button>
-          <span id='ha-noti-state' style='font-size:12px; opacity:.75;'>—</span>
-        </div>
-        <script>
-          const $state = document.getElementById('ha-noti-state');
-          const setState = (t)=>{ $state.textContent = t; };
+<div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:6px;">
+  <button id="ha-push-check" style="padding:10px 14px; border:1px solid #e6e6e6; border-radius:12px; background:#fff; cursor:pointer;">
+    상태 확인
+  </button>
+  <button id="ha-push-ask" style="padding:10px 14px; border:1px solid #e6e6e6; border-radius:12px; background:#fff; cursor:pointer;">
+    허용 요청
+  </button>
+  <span id="ha-push-status" style="padding:10px 14px; border-radius:12px; background:#f6f6f6; font-weight:700;">
+    상태: 확인 중…
+  </span>
+</div>
 
-          const check = ()=>{
-            if (!('Notification' in window)) { setState('이 브라우저는 Notification API를 지원하지 않습니다.'); return; }
-            setState('현재 권한: ' + Notification.permission);
-          };
+<script>
+(function(){
+  function kLabel(p){
+    if(p === 'granted') return '허용됨';
+    if(p === 'denied') return '차단됨';
+    return '미결정';
+  }
+  function kColor(p){
+    if(p === 'granted') return {bg:'#e8f7ee', fg:'#0f6d2a'};
+    if(p === 'denied') return {bg:'#fdecec', fg:'#9b1c1c'};
+    return {bg:'#f4f5f7', fg:'#3a3a3a'};
+  }
+  function setStatus(p){
+    var el = document.getElementById('ha-push-status');
+    if(!el) return;
+    var label = kLabel(p);
+    var c = kColor(p);
+    el.textContent = '현재 상태: ' + label;
+    el.style.background = c.bg;
+    el.style.color = c.fg;
+  }
+  async function check(){
+    try{
+      if(!('Notification' in window)){
+        var el = document.getElementById('ha-push-status');
+        if(el){ el.textContent='이 브라우저는 알림을 지원하지 않아요.'; el.style.background='#f4f5f7'; el.style.color='#3a3a3a'; }
+        return;
+      }
+      setStatus(Notification.permission);
+    }catch(e){
+      var el = document.getElementById('ha-push-status');
+      if(el){ el.textContent='상태 확인 실패'; el.style.background='#f4f5f7'; el.style.color='#3a3a3a'; }
+    }
+  }
+  async function ask(){
+    try{
+      if(!('Notification' in window)){ return; }
+      var p = await Notification.requestPermission();
+      setStatus(p);
+    }catch(e){}
+  }
 
-          document.getElementById('ha-noti-check').onclick = check;
-
-          document.getElementById('ha-noti-ask').onclick = async ()=>{
-            if (!('Notification' in window)) { setState('이 브라우저는 Notification API를 지원하지 않습니다.'); return; }
-            try{
-              const p = await Notification.requestPermission();
-              setState('권한 결과: ' + p);
-            }catch(e){
-              setState('권한 요청 실패: ' + (e && e.message ? e.message : String(e)));
-            }
-          };
-
-          // auto show once
-          check();
-        </script>
+  document.getElementById('ha-push-check')?.addEventListener('click', check);
+  document.getElementById('ha-push-ask')?.addEventListener('click', ask);
+  // 초기 1회
+  check();
+})();
+</script>
         """,
-        height=72,
+        height=85,
     )
 
-    st.markdown("#### 📌 안내")
-    st.markdown(
-        """
-- **ON/OFF 최종 스위치는 기기 설정**(안드로이드/아이폰/브라우저)에서 결정돼요.
-- 앱에서 할 수 있는 건 보통 **(1) 권한 요청** / **(2) 구독 생성(웹푸시)** / **(3) 서버가 구독자에게 발송** 입니다.
-- 지금 단계에서 ‘복잡한 구독 리스트’ 없이 가려면, **마이페이지에서는 권한 상태 확인 + (필요 시) 허용 요청**까지만 제공하고,
-  실제 발송은 관리자 화면/스케줄러에서 처리하는 구성이 가장 안정적입니다.
-        """
-    )
-
-    # 2) (옵션) 서버 발송을 위한 VAPID 키가 세팅되어 있는지만 표시
-    try:
-        import os
-        vapid_public = (os.getenv('VAPID_PUBLIC') or '').strip()
-    except Exception:
-        vapid_public = ''
-
-    if vapid_public:
-        st.success("✅ 서버 VAPID_PUBLIC 설정이 감지되었습니다.")
-    else:
-        st.warning("⚠️ 서버 VAPID_PUBLIC이 비어 있습니다. (Cloud Run env / Streamlit secrets 확인)")
-
-def render() -> None:
-    _inject_css()
-    _wrap_start()
-
-    wrongs, wrongs_table = _get_cached("myp_cache_wrongs", 30, lambda: _load_wrongs(limit=400))
-    msgs = _get_cached("myp_cache_msgs", 30, lambda: _load_messages(limit=300))
-    attempts, attempts_status = _get_cached("myp_cache_attempts", 30, lambda: _load_attempts(limit=500))
-    attempts_ok = attempts if attempts_status == "ok" else []
-    attempts_ok = [_normalize_attempt(a) for a in attempts_ok]
-
-    _render_top_summary(wrongs, attempts_ok)
-
-    # ✅ 탭 방식 (요청 사항)
-    tab_w, tab_r, tab_m, tab_n = st.tabs(["📚 오답", "📈 기록", "📩 메시지", "🔔 알림"])
-    with tab_w:
-        _render_wrongs(wrongs, wrongs_table)
-    with tab_r:
-        _render_records(attempts_ok, "ok" if attempts_ok else attempts_status)
-    with tab_n:
-        _render_notifications_tab(_sb())
-
-    with tab_m:
-        _render_msgs(msgs)
-
-    _wrap_end()
+    # 아주 짧은 힌트만(길게 안내하지 않음)
+    st.caption("‘차단됨’이면 브라우저/기기 설정에서 알림을 허용으로 바꿔 주세요.")
