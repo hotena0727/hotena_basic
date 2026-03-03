@@ -3533,7 +3533,7 @@ if st.session_state.submitted:
         st.session_state.free_limit_applied_this_attempt = True
 
     
-ratio = score / quiz_len if quiz_len else 0.0
+    ratio = score / quiz_len if quiz_len else 0.0
 
 # OK 점수 기반 SFX (제출 직후 1회) — core.py에서 중앙 통제
 _sfx_key = f"word_submit__{int(st.session_state.get('quiz_version', 0) or 0)}"
