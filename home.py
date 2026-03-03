@@ -2363,9 +2363,6 @@ def render_admin_dashboard(sb_authed):
                 ("push_subscriptions", "user_id,sub_json,updated_at"),
                 ("push_subscriptions", "user_id,subscription,updated_at"),
                 ("public.push_subscriptions", "id,user_id,sub_json,updated_at"),
-                ("public.push_subscriptions", "id,user_id,subscription,updated_at"),
-                ("public.push_subscriptions", "user_id,sub_json,updated_at"),
-                ("public.push_subscriptions", "user_id,subscription,updated_at"),
             ]
             last_err = None
             for table, cols in candidates:
