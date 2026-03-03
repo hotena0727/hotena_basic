@@ -21,9 +21,6 @@ def _ha_fragment(fn):
         return fn
 
 import core  # ✅ 중앙 효과음(SFX) 설정/재생
-import os
-import json
-import base64
 
 # ============================================================
 # ✅ MyPage (Redesign v4 • Fix labels • CTA works • app+pos robust)
@@ -1893,24 +1890,13 @@ def _render_top_summary(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, A
 
     actL, actR = st.columns([4.6, 5.4], vertical_alignment="center")
     with actL:
-        cS, cBell, cLbl = st.columns([1.5, 1.5, 7.0], gap="small", vertical_alignment="center")
-        with cS:
+        cT, cLbl = st.columns([1.2, 8.8], gap="small", vertical_alignment="center")
+        with cT:
             _cur_sfx = bool(core.is_sfx_enabled(True))
             _new_sfx = st.toggle("🔊", value=_cur_sfx, key="myp_sfx_toggle", label_visibility="collapsed")
             core.set_sfx_enabled(bool(_new_sfx))
-        with cBell:
-            # 🔔 홈 알림(푸시) 설정으로 이동
-            if st.button("🔔", key="myp_reminder_btn", help="홈 알림 설정", use_container_width=True):
-                try:
-                    st.query_params.update({"p": "reminder"})
-                except Exception:
-                    try:
-                        st.experimental_set_query_params(p="reminder")
-                    except Exception:
-                        pass
-                st.rerun()
         with cLbl:
-            # (UI) 텍스트 제거: 아이콘들만 유지
+            # (UI) 소리 텍스트 제거: 아이콘 토글만 유지
             pass
 
     with actR:
@@ -2551,210 +2537,9 @@ def _render_msgs(msgs: List[Dict[str, Any]]) -> None:
     st.markdown("</div>", unsafe_allow_html=True)  # card
 
 
-# ============================
-# 🔔 Push 알림 (심플 토글 UI)
-# - 탭 안에 넣지 않고, 마이페이지 상단에 "켜기/끄기"만 제공합니다.
-# - 브라우저 정책상 "자동 허용"은 불가(항상 사용자 클릭/제스처 필요).
-# - 구독 데이터는 profiles.progress(JSON) 안에 저장합니다: push_enabled, push_sub_b64
-# ============================
-
-def _cfg(key: str, default: str = "") -> str:
-    try:
-        v = (os.getenv(key) or "").strip()
-        if v:
-            return v
-    except Exception:
-        pass
-    try:
-        v = (st.secrets.get(key) or "").strip()  # type: ignore[attr-defined]
-        if v:
-            return v
-    except Exception:
-        pass
-    return default
-
-def _js_bridge_localstorage_to_queryparam(ls_key: str, qp_key: str) -> None:
-    # localStorage[ls_key] -> URL query param[qp_key] 로 복사(한 번만)
-    st.components.v1.html(f"""
-<script>
-(function() {{
-  try {{
-    const v = localStorage.getItem({json.dumps(ls_key)}) || "";
-    if (!v) return;
-    const url = new URL(window.location.href);
-    if (url.searchParams.get({json.dumps(qp_key)}) === v) return;
-    url.searchParams.set({json.dumps(qp_key)}, v);
-    window.history.replaceState(null, "", url.toString());
-    window.dispatchEvent(new Event("popstate"));
-  }} catch (e) {{}}
-}})();
-</script>
-""", height=0)
-
-def _js_remove_localstorage(ls_key: str) -> None:
-    st.components.v1.html(f"""
-<script>
-(function() {{
-  try {{ localStorage.removeItem({json.dumps(ls_key)}); }} catch(e) {{}}
-}})();
-</script>
-""", height=0)
-
-def _push_subscribe_button(vapid_public_key: str, ls_key: str = "hotena_push_sub_b64") -> None:
-    # "사용자 클릭"이 있어야 subscribe가 동작합니다.
-    if not (vapid_public_key or "").strip():
-        st.warning("VAPID_PUBLIC 키가 설정되지 않았습니다. (Cloud Run env 또는 Streamlit secrets)")
-        return
-
-    # 버튼을 누르면 JS가 subscribe → localStorage 저장 → 안내 alert
-    st.components.v1.html(f"""
-<div style="margin: 6px 0 10px 0;">
-  <button id="ha_push_btn" style="
-    width:100%;
-    padding:10px 12px;
-    border-radius:12px;
-    border:1px solid rgba(0,0,0,0.12);
-    background:#fff;
-    font-weight:700;
-    cursor:pointer;">
-    🔔 알림 허용하고 켜기
-  </button>
-</div>
-
-<script>
-(function() {{
-  const vapidPublic = {json.dumps(vapid_public_key)};
-  function urlB64ToUint8Array(base64String) {{
-    const padding = '='.repeat((4 - base64String.length % 4) % 4);
-    const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-    const rawData = window.atob(base64);
-    const outputArray = new Uint8Array(rawData.length);
-    for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i);
-    return outputArray;
-  }}
-
-  async function ensureSW() {{
-    if (!('serviceWorker' in navigator)) throw new Error("Service Worker 미지원 브라우저입니다.");
-    const reg = await navigator.serviceWorker.register('/sw.js');
-    await navigator.serviceWorker.ready;
-    return reg;
-  }}
-
-  async function subscribe() {{
-    const reg = await ensureSW();
-    const perm = await Notification.requestPermission();
-    if (perm !== 'granted') throw new Error("알림 권한이 허용되지 않았습니다.");
-    const sub = await reg.pushManager.subscribe({{
-      userVisibleOnly: true,
-      applicationServerKey: urlB64ToUint8Array(vapidPublic),
-    }});
-    const b64 = btoa(JSON.stringify(sub));
-    localStorage.setItem({json.dumps(ls_key)}, b64);
-    alert('✅ 알림이 켜졌습니다. (저장은 자동으로 진행됩니다)');
-    // 쿼리파라미터로 옮기기(서버 저장 트리거)
-    try {{
-      const url = new URL(window.location.href);
-      url.searchParams.set('ps', b64);
-      window.history.replaceState(null, "", url.toString());
-      window.dispatchEvent(new Event("popstate"));
-    }} catch(e) {{}}
-  }}
-
-  const btn = document.getElementById("ha_push_btn");
-  if (btn) {{
-    btn.addEventListener("click", async () => {{
-      btn.disabled = true;
-      btn.textContent = "처리 중...";
-      try {{
-        await subscribe();
-      }} catch(e) {{
-        alert('❌ ' + (e && e.message ? e.message : String(e)));
-      }} finally {{
-        btn.disabled = false;
-        btn.textContent = "🔔 알림 허용하고 켜기";
-      }}
-    }});
-  }}
-}})();
-</script>
-""", height=80)
-
-def _load_profile_progress(sb, user_id: str) -> dict:
-    try:
-        r = sb.table("profiles").select("progress").eq("id", user_id).single().execute()
-        prog = (getattr(r, "data", None) or {}).get("progress") or {}
-        return prog if isinstance(prog, dict) else {}
-    except Exception:
-        return {}
-
-def _save_profile_progress(sb, user_id: str, progress: dict) -> bool:
-    try:
-        sb.table("profiles").update({"progress": progress}).eq("id", user_id).execute()
-        return True
-    except Exception:
-        return False
-
-def _render_push_settings_simple() -> None:
-    # 마이페이지 상단: 켜기/끄기 + (필요 시) "알림 허용하고 켜기" 버튼만 노출
-    with st.container():
-        st.markdown("## 🔔 알림")
-        sb = _sb()
-        user_id = (st.session_state.get("user_id") or st.session_state.get("uid") or "").strip()
-        if not sb or not user_id:
-            st.info("알림 설정은 로그인 후 사용할 수 있습니다.")
-            return
-
-        progress = _load_profile_progress(sb, user_id)
-        enabled_now = bool(progress.get("push_enabled", False))
-
-        enabled = st.toggle("푸시 알림 받기", value=enabled_now, help="브라우저/OS 설정에서 알림 권한을 차단하면 동작하지 않습니다.")
-
-        # URL query param으로 구독 전달(자동 저장)
-        try:
-            qp = st.query_params  # st>=1.30
-            ps_b64 = (qp.get("ps") or "").strip()
-        except Exception:
-            ps_b64 = ""
-
-        if enabled:
-            # 구독이 없으면: 1개 버튼만 보여줌
-            saved_b64 = (progress.get("push_sub_b64") or "").strip()
-            if not (saved_b64 or ps_b64):
-                vapid_public = _cfg("VAPID_PUBLIC", "").strip()
-                _push_subscribe_button(vapid_public, ls_key="hotena_push_sub_b64")
-            # localStorage -> queryparam 브릿지(혹시 JS가 localStorage만 남긴 경우 대비)
-            _js_bridge_localstorage_to_queryparam("hotena_push_sub_b64", "ps")
-
-            # ps가 들어오면 즉시 저장
-            if ps_b64:
-                progress["push_enabled"] = True
-                progress["push_sub_b64"] = ps_b64
-                _save_profile_progress(sb, user_id, progress)
-                # ps 제거
-                try:
-                    st.query_params.pop("ps", None)
-                except Exception:
-                    pass
-                st.success("✅ 알림 설정이 저장되었습니다.")
-            else:
-                # toggle만 켠 상태면 enabled만 저장
-                if enabled != enabled_now:
-                    progress["push_enabled"] = True
-                    _save_profile_progress(sb, user_id, progress)
-        else:
-            # 끄기: 구독은 보관(재활성화 시 재구독 없이 가능). 원하면 localStorage만 정리.
-            if enabled != enabled_now:
-                progress["push_enabled"] = False
-                _save_profile_progress(sb, user_id, progress)
-                _js_remove_localstorage("hotena_push_sub_b64")
-                st.success("알림을 껐습니다.")
-
 def render() -> None:
     _inject_css()
     _wrap_start()
-
-    _render_push_settings_simple()
-
 
     wrongs, wrongs_table = _get_cached("myp_cache_wrongs", 30, lambda: _load_wrongs(limit=400))
     msgs = _get_cached("myp_cache_msgs", 30, lambda: _load_messages(limit=300))
