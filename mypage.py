@@ -2569,6 +2569,11 @@ def render() -> None:
             vapid_public = ""
         vapid_public = (vapid_public or os.getenv("VAPID_PUBLIC") or "").strip()
 
+        # Service Worker / Manifest 경로 (Cloud Run nginx 기준)
+        sw_path = "/app/static/sw.js"
+        manifest_path = "/app/static/pwa-manifest.json"
+
+
         if not vapid_public:
             st.info("알림 설정을 불러올 수 없습니다. (VAPID_PUBLIC 미설정)")
             return
