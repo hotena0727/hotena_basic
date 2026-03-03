@@ -3789,6 +3789,6 @@ if st.session_state.get("submitted", False):
             st.session_state["_scroll_top_once"] = True
             st.rerun()
 
-    show_naver_talk = (SHOW_NAVER_TALK == "N") or is_admin()
+    show_naver_talk = (SHOW_NAVER_TALK == "Y") or is_admin()
     if show_naver_talk:
         render_naver_talk()
