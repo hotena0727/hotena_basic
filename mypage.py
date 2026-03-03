@@ -2658,9 +2658,9 @@ def render() -> None:
         });
         </script>
         '''
-    _html = _html.replace("__VAPID_PUBLIC__", vapid_public)
-    components.html(_html, height=80)
-    st.caption("알림을 켜면 브라우저/기기에 따라 권한 팝업이 뜰 수 있어요.")
+        _html = _html.replace("__VAPID_PUBLIC__", vapid_public)
+        components.html(_html, height=80)
+        st.caption("알림을 켜면 브라우저/기기에 따라 권한 팝업이 뜰 수 있어요.")
 
     tab_w, tab_r, tab_m, tab_n = st.tabs(["📚 오답", "📈 기록", "📩 메시지", "🔔 알림"])
     with tab_w:
