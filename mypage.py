@@ -2595,8 +2595,8 @@ def render() -> None:
 <script>
 (function(){{
   const VAPID = "{vapid_public}";
-  const SW_PATH = "{sw_path}";
-  const MANIFEST_PATH = "{manifest_path}";
+  const SW_CANDIDATES = __SW_CANDIDATES__;
+  const MANIFEST_CANDIDATES = __MANIFEST_CANDIDATES__;
 
   const $on  = document.getElementById('ha_push_on');
   const $off = document.getElementById('ha_push_off');
@@ -2627,11 +2627,43 @@ def render() -> None:
     return new Uint8Array([...raw].map(ch => ch.charCodeAt(0)));
   }}
 
-  async function getReg(){{
-    // manifest는 그냥 캐시 워밍용
-    try {{ await fetch(MANIFEST_PATH, {{cache:'no-store'}}); }} catch(e) {{}}
-    return await navigator.serviceWorker.register(SW_PATH);
-  }}
+  async function pickFirstOk(paths, wantJs){
+    for (const p of paths){
+      try{
+        const r = await fetch(p, {method:'GET', cache:'no-store'});
+        if(!r || !r.ok) continue;
+        const ct = (r.headers.get('content-type') || '').toLowerCase();
+        if(wantJs){
+          if(ct.includes('javascript') || ct.includes('ecmascript') || ct.includes('text/js')) return p;
+          // 일부 서버는 content-type 누락: 본문이 "<!doctype" 등 HTML이면 제외
+          const t = await r.clone().text();
+          if(t && t.trim().startsWith('/*') || t.trim().startsWith('self') || t.trim().startsWith('importScripts')) return p;
+          continue;
+        }else{
+          if(ct.includes('json')) return p;
+          // json 헤더가 아니어도 파일이 json이면 ok
+          const t = await r.clone().text();
+          if(t && t.trim().startsWith('{')) return p;
+          continue;
+        }
+      }catch(e){}
+    }
+    return null;
+  }
+
+  async function getReg(){
+    const sw = await pickFirstOk(SW_CANDIDATES, true);
+    const manifest = await pickFirstOk(MANIFEST_CANDIDATES, false);
+
+    if(manifest){
+      try { await fetch(manifest, {cache:'no-store'}); } catch(e) {}
+    }
+
+    if(!sw){
+      throw new Error('서비스워커 파일(sw.js)을 찾지 못했습니다. (서버에서 JS로 서빙되지 않음)');
+    }
+    return await navigator.serviceWorker.register(sw);
+  }
 
   async function getSub(){{
     const reg = await navigator.serviceWorker.ready;
@@ -2712,6 +2744,10 @@ def render() -> None:
 </script>
 """
 
+
+        # 🔧 JS에서 후보 경로를 순차 시도 (MIME text/html 이면 실패)
+        html = html.replace("__SW_CANDIDATES__", json.dumps(sw_candidates))
+        html = html.replace("__MANIFEST_CANDIDATES__", json.dumps(manifest_candidates))
         components.html(html, height=120)
         st.caption("※ 알림은 기기/브라우저별로 각각 설정됩니다.")
     tab_w, tab_r, tab_m, tab_n = st.tabs(["📚 오답", "📈 기록", "📩 메시지", "🔔 알림"])
