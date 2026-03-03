@@ -2583,128 +2583,123 @@ def render() -> None:
     <button id="ha_push_on" style="padding:10px 14px;border-radius:12px;border:1px solid rgba(0,0,0,.12);background:#f3f4f6;cursor:pointer;">🔔 알림 켜기</button>
     <button id="ha_push_off" style="padding:10px 14px;border-radius:12px;border:1px solid rgba(0,0,0,.12);background:#fff;cursor:pointer;">🔕 알림 끄기</button>
     <span id="ha_push_state" style="font-size:13px;opacity:.75;"></span>
+    <div id="ha_push_msg" style="display:none;margin-top:8px;padding:10px 12px;border-radius:12px;border:1px solid rgba(59,130,246,.25);background:rgba(59,130,246,.06);font-size:13px;line-height:1.35;"></div>
   </div>
 </div>
 
 <script>
 (function(){{
-  const VAPID = {json.dumps(vapid_public)};
-  const SW_CANDIDATES = {json.dumps(sw_candidates)};
-  const MANIFEST_CANDIDATES = {json.dumps(manifest_candidates)};
+  const VAPID = "{vapid_public}";
+  const SW_PATH = "{sw_path}";
+  const MANIFEST_PATH = "{manifest_path}";
 
-  const $state = document.getElementById('ha_push_state');
-  const $on = document.getElementById('ha_push_on');
+  const $on  = document.getElementById('ha_push_on');
   const $off = document.getElementById('ha_push_off');
+  const $state = document.getElementById('ha_push_state');
+  const $msg = document.getElementById('ha_push_msg');
 
-  function setState(msg){{ if($state) $state.textContent = msg || ''; }}
+  function setState(t){{ if($state) $state.textContent = t || ''; }}
+  function setMsg(t, isErr){{
+    if(!$msg) return;
+    $msg.textContent = t || '';
+    $msg.style.display = t ? 'block' : 'none';
+    $msg.style.borderColor = isErr ? 'rgba(239,68,68,.35)' : 'rgba(59,130,246,.25)';
+    $msg.style.background  = isErr ? 'rgba(239,68,68,.06)' : 'rgba(59,130,246,.06)';
+    $msg.style.color       = isErr ? '#b91c1c' : '#1d4ed8';
+  }}
 
-  // iOS/일부 브라우저에서 manifest가 필요할 때가 있어 후보를 링크로 삽입
-  (async function ensureManifest(){{
-    for(const url of MANIFEST_CANDIDATES){{
-      try{{
-        const r = await fetch(url, {{cache:'no-store'}});
-        if(r.ok){{
-          const ct = (r.headers.get('content-type')||'').toLowerCase();
-          if(ct.includes('json')){{
-            const link = document.createElement('link');
-            link.rel = 'manifest';
-            link.href = url;
-            document.head.appendChild(link);
-            return;
-          }}
-        }}
-      }}catch(e){{}}
-    }}
-  }})();
+  function supports(){{
+    return (typeof window !== 'undefined'
+      && 'serviceWorker' in navigator
+      && 'PushManager' in window
+      && 'Notification' in window);
+  }}
 
-  function toUint8Array(base64String){{
+  function toUint8Array(base64String) {{
     const b64 = base64String.replace(/-/g,'+').replace(/_/g,'/');
     const pad = '='.repeat((4 - (b64.length % 4)) % 4);
     const raw = atob(b64 + pad);
-    const out = new Uint8Array(raw.length);
-    for(let i=0;i<raw.length;i++) out[i] = raw.charCodeAt(i);
-    return out;
+    return new Uint8Array([...raw].map(ch => ch.charCodeAt(0)));
   }}
 
-  async function pickServiceWorkerUrl(){{
-    for(const url of SW_CANDIDATES){{
-      try{{
-        const r = await fetch(url, {{cache:'no-store'}});
-        if(!r.ok) continue;
-        const ct = (r.headers.get('content-type')||'').toLowerCase();
-        // sw.js가 404면 보통 text/html로 떨어집니다.
-        if(ct.includes('javascript') || ct.includes('ecmascript') || ct.includes('text/plain')) return url;
-      }}catch(e){{}}
-    }}
-    return null;
-  }}
-
-  async function registerSW(){{
-    if(!('serviceWorker' in navigator)) throw new Error('서비스워커를 지원하지 않는 브라우저입니다.');
-    const swUrl = await pickServiceWorkerUrl();
-    if(!swUrl) throw new Error('sw.js를 찾지 못했습니다. (경로/정적파일 확인 필요)');
-    try{{
-      return await navigator.serviceWorker.register(swUrl, {{scope: '/'}});
-    }}catch(err){{
-      throw new Error('서비스워커 등록 실패: ' + (err && err.message ? err.message : String(err)));
-    }}
+  async function getReg(){{
+    // manifest는 그냥 캐시 워밍용
+    try {{ await fetch(MANIFEST_PATH, {{cache:'no-store'}}); }} catch(e) {{}}
+    return await navigator.serviceWorker.register(SW_PATH);
   }}
 
   async function getSub(){{
-    const reg = await navigator.serviceWorker.getRegistration();
-    if(!reg) return null;
+    const reg = await navigator.serviceWorker.ready;
     return await reg.pushManager.getSubscription();
   }}
 
   async function subscribe(){{
-    if(!('Notification' in window)) throw new Error('알림을 지원하지 않는 브라우저입니다.');
+    if (!VAPID) throw new Error('VAPID 공개키가 비어 있습니다.');
+    // iOS/일부 브라우저는 "사용자 제스처" 필요
     const perm = await Notification.requestPermission();
-    if(perm !== 'granted') throw new Error('알림 권한이 허용되지 않았습니다.');
+    if (perm !== 'granted') throw new Error('알림 권한이 허용되지 않았습니다: ' + perm);
 
-    const reg = await registerSW();
+    const reg = await getReg();
     const sub = await reg.pushManager.subscribe({{
       userVisibleOnly: true,
-      applicationServerKey: toUint8Array(VAPID),
+      applicationServerKey: toUint8Array(VAPID)
     }});
-
-    // subscription을 localStorage에 저장
-    try{{ localStorage.setItem('ha_push_sub_json', JSON.stringify(sub)); }}catch(e){{}}
     return sub;
   }}
 
   async function unsubscribe(){{
     const sub = await getSub();
-    if(sub) await sub.unsubscribe();
-    try{{ localStorage.removeItem('ha_push_sub_json'); }}catch(e){{}}
+    if (sub) await sub.unsubscribe();
   }}
 
   async function refreshUi(){{
-    try{{
-      const sub = await getSub();
-      setState(sub ? '켜짐' : '꺼짐');
-    }}catch(e){{ setState(''); }}
+    if (!supports()){{
+      setState('지원되지 않음');
+      setMsg('이 기기/브라우저는 웹푸시(서비스워커/푸시/알림)를 지원하지 않습니다.', true);
+      return;
+    }}
+    const perm = Notification.permission || 'default';
+    let sub = null;
+    try {{ sub = await getSub(); }} catch(e) {{}}
+
+    if (sub){{
+      setState('켜짐');
+      setMsg('현재 이 기기에서 알림이 켜져 있습니다. (권한: ' + perm + ')', false);
+    }} else {{
+      setState('꺼짐');
+      if (perm === 'denied'){{
+        setMsg('알림 권한이 차단되어 있어 켤 수 없습니다. 브라우저/OS 설정에서 허용으로 바꿔 주세요.', true);
+      }} else {{
+        setMsg('현재 이 기기에서 알림이 꺼져 있습니다. (권한: ' + perm + ')', false);
+      }}
+    }}
   }}
 
-  $on.addEventListener('click', async ()=>{{
+  $on?.addEventListener('click', async ()=>{{
+    setMsg('');
+    setState('처리중…');
     try{{
-      setState('권한 요청/등록 중…');
       await subscribe();
       setState('켜짐');
-      alert('알림이 켜졌습니다.');
+      setMsg('알림이 켜졌습니다. (이 기기/브라우저 기준)', false);
     }}catch(e){{
-      setState('');
-      alert('알림 설정 중 오류가 발생했습니다.\n' + (e && e.message ? e.message : String(e)));
+      setState('꺼짐');
+      setMsg('알림 설정 중 오류: ' + (e && e.message ? e.message : String(e)), true);
     }}
+    try{{ await refreshUi(); }}catch(e){{}}
   }});
 
-  $off.addEventListener('click', async ()=>{{
+  $off?.addEventListener('click', async ()=>{{
+    setMsg('');
+    setState('처리중…');
     try{{
       await unsubscribe();
       setState('꺼짐');
-      alert('알림이 꺼졌습니다.');
+      setMsg('알림이 꺼졌습니다. (이 기기/브라우저 기준)', false);
     }}catch(e){{
-      alert('알림 해제 중 오류가 발생했습니다.\n' + (e && e.message ? e.message : String(e)));
+      setMsg('알림 해제 중 오류: ' + (e && e.message ? e.message : String(e)), true);
     }}
+    try{{ await refreshUi(); }}catch(e){{}}
   }});
 
   refreshUi();
