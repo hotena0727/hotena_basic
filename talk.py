@@ -1313,11 +1313,11 @@ except Exception:
     pass
 
 # ============================================================
-# ✅ Filters (유형(sub) → 상황(tag))  ✅ (순서만 변경)
+# ✅ Filters (코스(stage) → 유형(tag) → 상황(sub))  ✅ (선택 UI만 확장)
 # ============================================================
 
 # --- normalize (비교 실패/공백 문제 방지) ---
-for _c in ["mode", "tag", "level"]:
+for _c in ["mode", "tag", "level", "stage"]:
     if _c in DF.columns:
         DF[_c] = DF[_c].astype(str).fillna("").str.strip()
 
@@ -1335,6 +1335,8 @@ if "sub" in DF.columns:
     )
 if "level" in DF.columns:
     DF["level"] = DF["level"].str.lower().str.replace(" ", "")
+if "stage" in DF.columns:
+    DF["stage"] = DF["stage"].astype(str).str.strip()
 
 # --- 실전회화만 사용 ---
 DF_BASE = DF.copy()
@@ -1385,14 +1387,57 @@ def _sub_label(s: str) -> str:
     s = str(s)
     return SUB_LABEL.get(s, s)
 
-# ✅ 1) 유형(tag) 선택을 먼저
+# ✅ 코스(stage) 라벨 — "CSV에 있는 코스만" 노출
+COURSE_LABELS = {
+    "1": "LV1: 말문 트기",
+    "2": "LV2: 문장 늘리기",
+    "3": "LV3: 대화 확장",
+}
+def _course_label(stage: str) -> str:
+    stage = str(stage).strip()
+    if stage in COURSE_LABELS:
+        return COURSE_LABELS[stage]
+    # 알 수 없는 stage도 CSV에 있으면 노출(확장 대비)
+    if stage.isdigit():
+        return f"LV{stage}"
+    return stage
+
+# ✅ 0) 코스 선택 (stage)
+stage_val = ""
+if "stage" in DF_BASE.columns:
+    _stages = [str(x).strip() for x in DF_BASE["stage"].astype(str).tolist() if str(x).strip()]
+    _stages = list(dict.fromkeys(_stages))  # stable unique
+    # 숫자는 숫자 정렬, 그 외는 문자열 정렬
+    def _stage_sort_key(x: str):
+        return (0, int(x)) if x.isdigit() else (1, x)
+    _stages = sorted(_stages, key=_stage_sort_key)
+
+    if len(_stages) >= 2:
+        stage_val = st.selectbox(
+            "코스 선택",
+            options=_stages,
+            format_func=_course_label,
+            key=f"{NS}_stage",
+        )
+    elif len(_stages) == 1:
+        stage_val = _stages[0]
+        try:
+            st.caption(f"코스: {_course_label(stage_val)} (고정)")
+        except Exception:
+            pass
+
+# stage 필터(코스가 있으면 적용)
+DF_SEL = DF_BASE.copy()
+if stage_val and "stage" in DF_SEL.columns:
+    DF_SEL = DF_SEL[DF_SEL["stage"].astype(str) == str(stage_val)].copy()
+
+# ✅ 1) 유형(tag) — DF_SEL에 실제로 존재하는 것만 노출
 tag_options_all: list[str] = []
-if "tag" in DF_BASE.columns:
-    tag_options_all = sorted([x for x in DF_BASE["tag"].astype(str).tolist() if str(x).strip()])
-    tag_options_all = sorted(set(tag_options_all))
+if "tag" in DF_SEL.columns:
+    tag_options_all = sorted(set([str(x).strip() for x in DF_SEL["tag"].astype(str).tolist() if str(x).strip()]))
 
 if not tag_options_all:
-    st.warning("회화 문제가 없습니다. (CSV의 tag/sub 확인)")
+    st.warning("회화 문제가 없습니다. (CSV의 stage/tag/sub 확인)")
     st.stop()
 
 tag = st.selectbox(
@@ -1402,13 +1447,13 @@ tag = st.selectbox(
     key=f"{NS}_tag",
 )
 
-# ✅ 2) 상황(sub) 선택은 '선택된 tag'에 맞춰 좁혀서 보여주기
+# ✅ 2) 상황(sub) — 선택된 tag 안에서만, 실제 존재하는 것만 노출
 sub = "__all__"
-has_sub_col = "sub" in DF_BASE.columns
+has_sub_col = "sub" in DF_SEL.columns
 
 subs_all: list[str] = []
 if has_sub_col:
-    _df_for_subs = DF_BASE[DF_BASE["tag"].astype(str) == str(tag)].copy()
+    _df_for_subs = DF_SEL[DF_SEL["tag"].astype(str) == str(tag)].copy()
     subs_all = [x for x in _df_for_subs["sub"].astype(str).tolist() if str(x).strip()]
 subs_all = sorted(set([str(x).strip() for x in subs_all if str(x).strip()]))
 
@@ -1432,15 +1477,14 @@ else:
 # 레벨 선택은 사용하지 않음(현재는 N4~N3 혼합 운영)
 level = "mix"
 
-# ✅ 풀 구성: sub → tag 순서로 필터 (기존 기능/로직 유지)
-pool_df = DF_BASE.copy().reset_index(drop=True)
-# ✅ 풀 구성: tag → sub 순서로 필터 (기존 기능/로직 유지)
+# ✅ 풀 구성: 코스(stage) → 유형(tag) → 상황(sub)
+pool_df = DF_SEL.copy().reset_index(drop=True)
 pool_df = pool_df[pool_df["tag"].astype(str) == str(tag)].copy().reset_index(drop=True)
 if has_sub_col and sub != "__all__":
     pool_df = pool_df[pool_df["sub"].astype(str) == str(sub)].copy().reset_index(drop=True)
 
 if pool_df.empty:
-    st.warning("해당 조건의 회화 문제가 없습니다. (CSV의 tag/sub 확인)")
+    st.warning("해당 조건의 회화 문제가 없습니다. (CSV의 stage/tag/sub 확인)")
     st.stop()
 
 # ============================================================
