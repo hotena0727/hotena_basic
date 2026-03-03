@@ -1893,14 +1893,14 @@ def _render_top_summary(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, A
 
     actL, actR = st.columns([4.6, 5.4], vertical_alignment="center")
     with actL:
-        cS, cBell, cLbl = st.columns([1.2, 1.2, 7.6], gap="small", vertical_alignment="center")
+        cS, cBell, cLbl = st.columns([0.9, 0.9, 8.2], gap="small", vertical_alignment="center")
         with cS:
             _cur_sfx = bool(core.is_sfx_enabled(True))
             _new_sfx = st.toggle("🔊", value=_cur_sfx, key="myp_sfx_toggle", label_visibility="collapsed")
             core.set_sfx_enabled(bool(_new_sfx))
         with cBell:
             # 🔔 홈 알림(푸시) 설정으로 이동
-            if st.button("🔔", key="myp_reminder_btn", help="홈 알림 설정"):
+            if st.button("🔔", key="myp_reminder_btn", help="홈 알림 설정", use_container_width=True):
                 try:
                     st.query_params.update({"p": "reminder"})
                 except Exception:
