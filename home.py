@@ -2162,7 +2162,7 @@ def render_admin_dashboard(sb_authed):
         st.error("quiz_attempts 조회 실패 (RLS/권한/컬럼 확인 필요)")
         st.exception(att_err)
 
-    tab_users, tab_stats, tab_logs, tab_backup = st.tabs(["👥 회원", "📊 통계", "🕒 기록", "🗂 백업·버전"])
+    tab_users, tab_stats, tab_push, tab_logs, tab_backup = st.tabs(["👥 회원", "📊 통계", "🔔 푸시", "🕒 기록", "🗂 백업·버전"])
 
     # ---------- Admin helpers (profiles update / backup) ----------
     def _admin_update_profile(user_id: str, payload: dict):
@@ -2343,7 +2343,160 @@ def render_admin_dashboard(sb_authed):
         st.markdown("</div>", unsafe_allow_html=True)
 
     # ---------- tab: users ----------
-    with tab_users:
+        with tab_push:
+        st.subheader("🔔 푸시 알림 보내기")
+        st.caption("전체 발송 또는 특정 유저 선택 발송을 지원합니다. 웹푸시 구독(알림 ON)한 유저에게만 도달합니다.")
+
+        import os, json
+
+        vapid_public = (get_cfg("VAPID_PUBLIC", "") or os.getenv("VAPID_PUBLIC") or "").strip()
+        vapid_private = (get_cfg("VAPID_PRIVATE", "") or os.getenv("VAPID_PRIVATE") or "").strip()
+        vapid_subject = (get_cfg("VAPID_SUBJECT", "") or os.getenv("VAPID_SUBJECT") or "mailto:admin@hotenai.com").strip()
+
+        if not vapid_private:
+            st.warning("VAPID_PRIVATE가 설정되어 있지 않습니다. (Cloud Run env 또는 Streamlit secrets)")
+
+        def _admin_load_push_subs(_sb, limit=5000):
+            candidates = [
+                ("push_subscriptions", "id,user_id,sub_json,updated_at"),
+                ("push_subscriptions", "id,user_id,subscription,updated_at"),
+                ("push_subscriptions", "user_id,sub_json,updated_at"),
+                ("push_subscriptions", "user_id,subscription,updated_at"),
+                ("public.push_subscriptions", "id,user_id,sub_json,updated_at"),
+                ("public.push_subscriptions", "id,user_id,subscription,updated_at"),
+                ("public.push_subscriptions", "user_id,sub_json,updated_at"),
+                ("public.push_subscriptions", "user_id,subscription,updated_at"),
+            ]
+            last_err = None
+            for table, cols in candidates:
+                try:
+                    res = _sb.table(table).select(cols).order("updated_at", desc=True).limit(limit).execute()
+                    data = getattr(res, "data", None) or []
+                    return data, None
+                except Exception as e:
+                    last_err = e
+            return [], last_err
+
+        def _parse_sub(row):
+            raw = row.get("sub_json") or row.get("subscription") or row.get("sub") or row.get("subscription_json")
+            if raw is None:
+                return None
+            if isinstance(raw, dict):
+                return raw
+            try:
+                return json.loads(raw)
+            except Exception:
+                return None
+
+        def _admin_send_webpush(sub_dict, payload_dict):
+            try:
+                from pywebpush import webpush
+            except Exception as e:
+                raise RuntimeError("pywebpush가 설치되어 있지 않습니다. requirements에 pywebpush 추가가 필요합니다.") from e
+
+            if not vapid_private:
+                raise RuntimeError("VAPID_PRIVATE가 비어있습니다.")
+
+            payload = json.dumps(payload_dict, ensure_ascii=False)
+            return webpush(
+                subscription_info=sub_dict,
+                data=payload,
+                vapid_private_key=vapid_private,
+                vapid_claims={"sub": vapid_subject},
+            )
+
+        mode = st.radio("발송 대상", ["전체 발송", "개별/선택 발송"], horizontal=True)
+
+        title = st.text_input("제목", value="하테나 알림")
+        body = st.text_area("내용", value="오늘 15분만 같이 달려요. 🔥", height=90)
+        url = st.text_input("클릭 이동 URL (선택)", value="https://hotenai.com")
+
+        payload = {"title": title.strip(), "body": body.strip(), "url": (url.strip() or None)}
+
+        subs_all, subs_err = _admin_load_push_subs(sb_authed)
+        if subs_err:
+            st.error(f"push_subscriptions 로드 실패: {subs_err}")
+        st.caption(f"현재 구독 수: {len(subs_all)}")
+
+        target_rows = subs_all
+
+        if mode == "개별/선택 발송":
+            q_email = st.text_input("대상 이메일 검색(부분 입력)", value="")
+            picked_user_id = None
+
+            if q_email.strip():
+                try:
+                    pres = sb_authed.table("profiles").select("id,email,full_name").ilike("email", f"%{q_email.strip()}%").limit(25).execute()
+                    plist = getattr(pres, "data", None) or []
+                except Exception:
+                    plist = []
+
+                if plist:
+                    label_map = []
+                    for p in plist:
+                        label_map.append((f"{p.get('email') or '-'}  ({p.get('full_name') or ''})", p.get("id")))
+                    sel_lbl = st.selectbox("유저 선택", [x[0] for x in label_map])
+                    for _lbl, _uid in label_map:
+                        if _lbl == sel_lbl:
+                            picked_user_id = _uid
+                            break
+                else:
+                    st.info("검색 결과가 없습니다.")
+
+            if picked_user_id:
+                target_rows = [r for r in subs_all if str(r.get("user_id")) == str(picked_user_id)]
+                st.caption(f"선택 유저 구독 수: {len(target_rows)}")
+            else:
+                st.caption("유저 선택을 하지 않으면 체크 선택 발송을 사용할 수 있습니다.")
+
+            if (not picked_user_id) and subs_all:
+                show_n = min(50, len(subs_all))
+                st.markdown("**체크 선택 발송(최대 50개 미리보기)**")
+                previews = subs_all[:show_n]
+                chosen = []
+                for i, r in enumerate(previews):
+                    uid = r.get("user_id")
+                    if st.checkbox(f"user_id: {uid}", key=f"admin_push_pick_{i}"):
+                        chosen.append(r)
+                if chosen:
+                    target_rows = chosen
+                    st.caption(f"체크 선택 구독 수: {len(target_rows)}")
+
+        colA, colB = st.columns([1, 1])
+        with colA:
+            dry_run = st.checkbox("테스트(발송 없이 집계만)", value=False)
+        with colB:
+            go = st.button("🚀 푸시 보내기", use_container_width=True)
+
+        if go:
+            ok = 0
+            fail = 0
+            fail_samples = []
+            if not target_rows:
+                st.warning("발송 대상이 없습니다.")
+            else:
+                for r in target_rows:
+                    sub = _parse_sub(r)
+                    if not sub:
+                        fail += 1
+                        if len(fail_samples) < 5:
+                            fail_samples.append(("parse_fail", r.get("user_id")))
+                        continue
+                    try:
+                        if not dry_run:
+                            _admin_send_webpush(sub, payload)
+                        ok += 1
+                    except Exception as e:
+                        fail += 1
+                        if len(fail_samples) < 5:
+                            fail_samples.append((str(e)[:160], r.get("user_id")))
+                st.success(f"발송 완료: 성공 {ok} / 실패 {fail}")
+                if fail_samples:
+                    st.caption("실패 샘플(일부):")
+                    for msg, uid in fail_samples:
+                        st.write(f"- user_id={uid} | {msg}")
+
+with tab_users:
         st.markdown("""
         <div class="ha-section">
           <div class="ha-title">회원 관리</div>
@@ -2898,91 +3051,6 @@ def render_admin_dashboard(sb_authed):
                                                     st.error(f"전체 발송 실패: {e}")
 
                                 st.markdown("</div>", unsafe_allow_html=True)
-                                # --- Card: Web Push send (Admin) ---
-                                st.markdown('<div class="ha-card">', unsafe_allow_html=True)
-                                st.markdown("#### 📣 웹푸시 알림 보내기")
-                                vapid_public = (os.getenv("VAPID_PUBLIC") or "").strip()
-                                vapid_private = (os.getenv("VAPID_PRIVATE") or "").strip()
-                                vapid_subject = (os.getenv("VAPID_SUBJECT") or "mailto:admin@hotenai.com").strip()
-
-                                def _push_fetch_rows(_sb):
-                                    try:
-                                        r = _sb.table("push_subscriptions").select("*").limit(5000).execute()
-                                        return (r.data or [])
-                                    except Exception as _e:
-                                        st.error(f"push_subscriptions 조회 실패: {_e}")
-                                        return []
-
-                                def _push_row_to_sub(row):
-                                    # 가능한 컬럼 형태를 모두 커버 (subscription/sub_json/jsonb, 또는 endpoint/keys 컬럼)
-                                    for k in ("subscription", "sub_json", "sub", "payload"):
-                                        v = row.get(k)
-                                        if isinstance(v, dict) and v.get("endpoint"):
-                                            return v
-                                        if isinstance(v, str) and v.strip().startswith("{"):
-                                            try:
-                                                j = json.loads(v)
-                                                if isinstance(j, dict) and j.get("endpoint"):
-                                                    return j
-                                            except Exception:
-                                                pass
-                                    ep = row.get("endpoint")
-                                    p256dh = row.get("p256dh") or (row.get("keys") or {}).get("p256dh") if isinstance(row.get("keys"), dict) else None
-                                    auth = row.get("auth") or (row.get("keys") or {}).get("auth") if isinstance(row.get("keys"), dict) else None
-                                    if ep and p256dh and auth:
-                                        return {"endpoint": ep, "keys": {"p256dh": p256dh, "auth": auth}}
-                                    return None
-
-                                if (not vapid_public) or (not vapid_private):
-                                    st.info("VAPID_PUBLIC / VAPID_PRIVATE 환경변수가 없어 푸시 발송을 사용할 수 없습니다. (Cloud Run/Streamlit secrets에 설정 필요)")
-                                else:
-                                    _rows = _push_fetch_rows(sb_authed)
-                                    _subs = [s for s in (_push_row_to_sub(r) for r in _rows) if s]
-                                    st.caption(f"등록된 구독 수: {len(_subs)}개")
-
-                                    c1, c2 = st.columns([2,1])
-                                    with c1:
-                                        push_title = st.text_input("제목", value="공부 시간입니다 🙂", key="admin_push_title")
-                                        push_body = st.text_area("내용", height=120, key="admin_push_body", placeholder="예: 오늘 10분만 단어 훈련 1세트!")
-                                        push_url = st.text_input("클릭 이동 URL(선택)", value="https://hotenai.com/?p=word", key="admin_push_url")
-                                    with c2:
-                                        max_send = st.number_input("최대 발송 건수", min_value=1, max_value=5000, value=min(200, max(1, len(_subs))), step=50, key="admin_push_limit")
-                                        dry_run = st.checkbox("테스트(실제 발송 안 함)", value=False, key="admin_push_dry")
-                                        confirm_send = st.checkbox("발송 확인", value=False, key="admin_push_confirm")
-
-                                    if st.button("🚀 푸시 발송", type="primary", use_container_width=True, disabled=not confirm_send, key="admin_push_send_btn"):
-                                        payload = {"title": (push_title or "알림").strip(), "body": (push_body or "").strip(), "url": (push_url or "").strip()}
-                                        if not payload["body"]:
-                                            st.warning("내용을 입력해 주세요.")
-                                        else:
-                                            try:
-                                                from pywebpush import webpush
-                                            except Exception as _e:
-                                                st.error(f"pywebpush가 설치되어 있지 않습니다: {_e}")
-                                            else:
-                                                ok_n = 0
-                                                fail_n = 0
-                                                sent = 0
-                                                for sub in _subs:
-                                                    if sent >= int(max_send):
-                                                        break
-                                                    sent += 1
-                                                    if dry_run:
-                                                        ok_n += 1
-                                                        continue
-                                                    try:
-                                                        webpush(
-                                                            subscription_info=sub,
-                                                            data=json.dumps(payload, ensure_ascii=False),
-                                                            vapid_private_key=vapid_private,
-                                                            vapid_claims={"sub": vapid_subject},
-                                                        )
-                                                        ok_n += 1
-                                                    except Exception:
-                                                        fail_n += 1
-                                                st.success(f"완료: 성공 {ok_n}건 / 실패 {fail_n}건 (대상 {min(int(max_send), len(_subs))}건)")
-                                st.markdown("</div>", unsafe_allow_html=True)
-
 
                 else:
                     st.info("검색 결과가 없습니다.")
