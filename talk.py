@@ -2516,6 +2516,8 @@ with st.container(border=True):
             if submitted_now and (not submitted):
                 st.session_state[sel_key] = picked
                 st.session_state[submitted_key] = True
+                # ✅ fragment 내부 클릭일 때도 '전체 화면'이 다시 그려지도록 강제 rerun
+                st.rerun()
 
         # ✅ 렌더(버튼 표시)
         if hasattr(st, 'fragment'):
