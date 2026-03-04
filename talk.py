@@ -220,7 +220,7 @@ USE_TTS_FALLBACK = True  # mp3만 쓰려면 False
 # ============================================================
 NS = "talk"
 SET_LEN = 10
-FREE_SET_LEN = 3  # FREE는 3문제만 제공
+FREE_SET_LEN = SET_LEN  # ✅ FREE도 '문제 수' 제한 없음(세트는 10문제 기준 유지)
 FREE_TTS_QUOTA = 3  # FREE 발음 듣기 3회(일)
 FREE_RECORD_QUOTA = 3  # FREE 녹음 3회(일)
 
@@ -2152,7 +2152,7 @@ total_cnt = int(len(pool_df) if pool_df is not None else 0)
 remain_cnt = max(0, total_cnt - mastered_cnt)
 
 # ✅ 세트 진도(현재 세션의 1세트 기준)
-# - 선우님 정의: "10문제 = 1세트" (FREE는 설정값에 따라 3문제 = 1세트)
+# - 선우님 정의: "10문제 = 1세트" (FREE도 동일하게 10문제 = 1세트)
 # - 여기서의 '세트 진도'는 전체 풀(pool) 대비가 아니라, '현재 세트(1세트)' 진행률입니다.
 #   따라서 항상 0/1 또는 1/1로 표시됩니다.
 _set_size = int(SET_LEN)
