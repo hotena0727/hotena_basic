@@ -961,10 +961,9 @@ def render_top_nav(active: str = "home") -> None:
     st.markdown(html, unsafe_allow_html=True)
 
 
-    # ✅ HOTENA_TOPNAV_SLIDE_V4
-    # Streamlit component iframes are often sandboxed and cannot navigate the top window.
-    # So we DO NOT preventDefault / programmatic navigation.
-    # We only paint a slide overlay immediately, then let the browser's normal link navigation happen.
+    # ✅ HOTENA_TOPNAV_SLIDE_V5 (stronger Coupang feel)
+    # - Do NOT block navigation (no preventDefault)
+    # - Paint a more visible slide overlay + subtle page shift immediately
     try:
         components.html(
             r"""
@@ -972,28 +971,41 @@ def render_top_nav(active: str = "home") -> None:
 (function(){
   try{
     var w = (window.parent && window.parent !== window) ? window.parent : window;
-    if (w.__HOTENA_TOPNAV_SLIDE_V4_BOUND__) return;
-    w.__HOTENA_TOPNAV_SLIDE_V4_BOUND__ = true;
+    if (w.__HOTENA_TOPNAV_SLIDE_V5_BOUND__) return;
+    w.__HOTENA_TOPNAV_SLIDE_V5_BOUND__ = true;
 
     var doc = w.document;
 
     // inject CSS once into parent head
-    if (!doc.getElementById('__HOTENA_TOPNAV_SLIDE_V4_STYLE__')) {
+    if (!doc.getElementById('__HOTENA_TOPNAV_SLIDE_V5_STYLE__')) {
       var st = doc.createElement('style');
-      st.id = '__HOTENA_TOPNAV_SLIDE_V4_STYLE__';
+      st.id = '__HOTENA_TOPNAV_SLIDE_V5_STYLE__';
       st.textContent = `
+/* overlay: more visible + shadow + slight blur */
 .hotena-nav-slide-overlay{
   position: fixed;
   inset: 0;
-  background: rgba(255,255,255,0.98);
+  background: rgba(255,255,255,0.96);
   z-index: 2147483647;
-  transform: translateX(110%);
-  will-change: transform;
-  pointer-events: none; /* do not block the click/navigation */
+  transform: translateX(115%);
+  will-change: transform, opacity;
+  opacity: 0.98;
+  pointer-events: none;
+  box-shadow: -18px 0 36px rgba(0,0,0,0.08);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
 .hotena-nav-slide-overlay.is-on{
-  transition: transform 260ms ease-out;
+  transition: transform 320ms cubic-bezier(.2,.9,.2,1), opacity 260ms ease-out;
   transform: translateX(0%);
+  opacity: 1;
+}
+
+/* subtle page shift (makes it feel like the page is moving, not just a blank cover) */
+.hotena-nav-page-shift{
+  transition: transform 220ms ease-out, filter 220ms ease-out;
+  transform: translateX(-14px) scale(0.997);
+  filter: saturate(0.98);
 }
       `;
       doc.head.appendChild(st);
@@ -1014,6 +1026,10 @@ def render_top_nav(active: str = "home") -> None:
         if(href.indexOf('p=') === -1) return;
 
         // paint overlay, but DON'T cancel navigation
+        var root = doc.querySelector('[data-testid="stAppViewContainer"]') || doc.body || doc.documentElement;
+
+        try{ root.classList.add('hotena-nav-page-shift'); }catch(e){}
+
         var ov = doc.createElement('div');
         ov.className = 'hotena-nav-slide-overlay';
         (doc.body || doc.documentElement).appendChild(ov);
@@ -1022,10 +1038,12 @@ def render_top_nav(active: str = "home") -> None:
         void ov.offsetWidth;
         w.requestAnimationFrame(function(){ ov.classList.add('is-on'); });
 
-        // cleanup after a moment (in case navigation is fast / cached)
+        // cleanup (for very fast nav or back/forward cache)
         w.setTimeout(function(){
           try{ ov.remove(); }catch(e){}
-        }, 1200);
+          try{ root.classList.remove('hotena-nav-page-shift'); }catch(e){}
+        }, 1600);
+
       }catch(e){}
     }
 
