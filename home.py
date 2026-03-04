@@ -856,13 +856,6 @@ def render_home_dashboard(sb_authed, user):
                 filled = max(0, min(3, filled))
         return " ".join(["●"] * filled + ["○"] * (3 - filled))
 
-
-
-def _hotena_play_page_transition():
-    # Render a full-screen overlay that slides in from the right.
-    st.markdown("<div class='hotena-page-transition'></div>", unsafe_allow_html=True)
-
-
     # ---- CSS ----
     st.markdown(
         """
@@ -1107,24 +1100,6 @@ def _hotena_play_page_transition():
 }
 .h-guide-btn:hover{filter:brightness(.98);}
 .h-guide-mini-t{font-size:.92rem;font-weight:800;color:rgba(15,23,42,1);margin:0;}
-
-
-
-
-/* ✅ Page transition (Coupang-like slide-in overlay) */
-.hotena-page-transition{
-  position:fixed;
-  top:0; left:0;
-  width:100vw; height:100vh;
-  background: rgba(255,255,255,0.98);
-  z-index: 2147483647;
-  transform: translateX(100%);
-  animation: hotenaSlideIn 240ms ease-out forwards;
-}
-@keyframes hotenaSlideIn{
-  from { transform: translateX(100%); }
-  to   { transform: translateX(0%); }
-}
 
 </style>
         """,
@@ -1414,13 +1389,10 @@ def _hotena_play_page_transition():
     st.markdown(f"<div class='cta_box cta_box_top'><b>{msg}</b></div>", unsafe_allow_html=True)
 
     if st.button(f"{rec_emoji} {rec_label} 시작", use_container_width=True, key="hub_cta_primary"):
-        _hotena_play_page_transition()
-        import time
-        time.sleep(0.18)  # 쿠팡 느낌의 전환 '맛' (너무 길지 않게)
-
         st.session_state["p"] = rec_kind
         st.query_params["p"] = rec_kind
         st.rerun()
+
     # ---- Wrong routine CTA (compact) ----
     st.markdown("<div style='height:0.25rem'></div>", unsafe_allow_html=True)
     c_wr1, c_wr2 = st.columns([2, 1])
@@ -1428,10 +1400,6 @@ def _hotena_play_page_transition():
         st.markdown("<div class='h-sub' style='margin-top:.10rem'>오답 루틴(반복오답)으로 복습까지 마무리해요.</div>", unsafe_allow_html=True)
     with c_wr2:
         if st.button("🔁 반복오답 루틴", use_container_width=True, key="hub_cta_wrongs"):
-            _hotena_play_page_transition()
-            import time
-            time.sleep(0.18)
-
             st.query_params["p"] = "my"
             st.session_state["p"] = "my"
             st.session_state["hub_page"] = "my"
@@ -2071,76 +2039,6 @@ def nav_to(page: str):
     _clear_training_ui_state()
     st.session_state["hub_page"] = page
     st.rerun()
-
-
-
-def _inject_topnav_slide_transition_once():
-    """Coupang-like slide transition when clicking TOP NAV links (anchors with ?p=...)."""
-    if st.session_state.get("_topnav_slide_injected"):
-        return
-    st.session_state["_topnav_slide_injected"] = True
-
-    st.markdown(
-        """
-<style>
-/* ✅ TOP NAV click slide transition (client-side) */
-.hotena-nav-slide-overlay{
-  position: fixed;
-  inset: 0;
-  background: rgba(255,255,255,0.98);
-  z-index: 2147483647;
-  transform: translateX(100%);
-  animation: hotenaNavSlideIn 240ms ease-out forwards;
-}
-@keyframes hotenaNavSlideIn{
-  from { transform: translateX(100%); }
-  to   { transform: translateX(0%); }
-}
-</style>
-<script>
-(function(){
-  if (window.__HOTENA_NAV_SLIDE_BOUND__) return;
-  window.__HOTENA_NAV_SLIDE_BOUND__ = true;
-
-  function shouldHandle(a){
-    try{
-      if(!a) return false;
-      var href = a.getAttribute('href') || '';
-      if(!href) return false;
-      // only internal navigation that changes query param p
-      return href.indexOf('p=') !== -1 && (href.startsWith('?') || href.startsWith('/') || href.startsWith(window.location.origin));
-    }catch(e){ return false; }
-  }
-
-  document.addEventListener('click', function(ev){
-    var a = ev.target && ev.target.closest ? ev.target.closest('a') : null;
-    if(!shouldHandle(a)) return;
-
-    // avoid new tab / modified clicks
-    if(ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey) return;
-    var target = a.getAttribute('target') || '';
-    if(target && target !== '_self') return;
-
-    ev.preventDefault();
-
-    // create overlay
-    try{
-      var ov = document.createElement('div');
-      ov.className = 'hotena-nav-slide-overlay';
-      document.body.appendChild(ov);
-    }catch(e){}
-
-    var href = a.getAttribute('href');
-    setTimeout(function(){
-      window.location.href = href;
-    }, 120);
-  }, true);
-})();
-</script>
-""",
-        unsafe_allow_html=True,
-    )
-
 
 
 def hub_logout():
@@ -3598,7 +3496,6 @@ if isinstance(p, str) and p:
         st.session_state["hub_page"] = p
 
 page = st.session_state.get("hub_page", "home")
-_inject_topnav_slide_transition_once()
 core.render_top_nav(active=page)
 
 # ✅ Plan pill should sit right under the top nav (reduces top whitespace)
