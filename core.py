@@ -42,9 +42,8 @@ except Exception:  # pragma: no cover
 def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
     """Apply global layout CSS once per run.
 
-    We intentionally target both legacy (.block-container) and newer
-    [data-testid="block-container"] selectors because Streamlit's DOM
-    changed across versions.
+    Fix oversized top padding on mobile/PWA across Streamlit versions.
+    Targets both legacy (.block-container) and newer [data-testid="block-container"].
     """
     if st.session_state.get("_core_global_ui_css_applied"):
         return
@@ -52,48 +51,49 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
 
     pad = f"{max(0.0, float(top_padding_rem))}rem"
 
-    st.markdown(
-        f"""<style>
-/* --- TOP SPACING FIX (mobile/PWA) --- */
-[data-testid="stAppViewContainer"]{{ padding-top: 0 !important; }}
-div[data-testid="stAppViewContainer"] > .main{{ padding-top: 0 !important; }}
+    css = textwrap.dedent(f"""
+    <style>
+    /* --- TOP SPACING FIX (mobile/PWA) --- */
+    [data-testid="stAppViewContainer"]{{ padding-top: 0 !important; }}
+    div[data-testid="stAppViewContainer"] > .main{{ padding-top: 0 !important; }}
 
-/* Newer Streamlit */
-[data-testid="block-container"]{{ padding-top: {pad} !important; }}
-/* Older Streamlit */
-.block-container{{ padding-top: {pad} !important; }}
+    /* Newer Streamlit */
+    [data-testid="block-container"]{{ padding-top: {pad} !important; }}
+    /* Older Streamlit */
+    .block-container{{ padding-top: {pad} !important; }}
 
-/* In some layouts, the first vertical block adds extra margin */
-[data-testid="stVerticalBlock"] > div:first-child{{ margin-top: 0 !important; }}
+    /* In some layouts, the first vertical block adds extra margin */
+    [data-testid="stVerticalBlock"] > div:first-child{{ margin-top: 0 !important; }}
 
-/* ✅ Kill Streamlit default header COMPLETELY (no reserved space) */
-header, header[data-testid="stHeader"]{{
-  display:none !important;
-  height:0 !important;
-  min-height:0 !important;
-}}
+    /* ✅ Kill Streamlit default header COMPLETELY (no reserved space) */
+    header, header[data-testid="stHeader"]{{
+      display: none !important;
+      height: 0 !important;
+      min-height: 0 !important;
+    }}
 
-/* Safe-area: avoid extra blank gap on some Android devices */
-html, body{{ padding-top: 0 !important; }}
+    /* Safe-area: avoid extra blank gap on some Android devices */
+    html, body{{ padding-top: 0 !important; }}
+
+    /* --- FORCE HIDE STREAMLIT COMPONENT IFRAMES (prevents refresh top gap) --- */
+    div[data-testid="stIFrame"]{{
+      display: none !important;
+      height: 0 !important;
+      min-height: 0 !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }}
+    div[data-testid="stIFrame"] iframe{{
+      display: none !important;
+      height: 0 !important;
+      min-height: 0 !important;
+    }}
+    </style>
+    """)
+
+    st.markdown(css, unsafe_allow_html=True)
 
 
-/* --- FORCE HIDE STREAMLIT COMPONENT IFRAMES (prevents refresh top gap) --- */
-div[data-testid="stIFrame"]{
-  display:none !important;
-  height:0 !important;
-  min-height:0 !important;
-  margin:0 !important;
-  padding:0 !important;
-}
-div[data-testid="stIFrame"] iframe{
-  display:none !important;
-  height:0 !important;
-  min-height:0 !important;
-}
-
-</style>""",
-        unsafe_allow_html=True,
-    )
 def get_cfg(key: str) -> str:
     """Read from env first, then st.secrets safely. Returns '' if missing.
 
