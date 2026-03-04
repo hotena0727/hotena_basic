@@ -961,9 +961,10 @@ def render_top_nav(active: str = "home") -> None:
     st.markdown(html, unsafe_allow_html=True)
 
 
-    # ✅ HOTENA_TOPNAV_SLIDE_V3
-    # NOTE: Streamlit markdown does not reliably execute <script>.
-    # Use components.html so the JS actually runs, and attach overlay to window.parent.document.
+    # ✅ HOTENA_TOPNAV_SLIDE_V4
+    # Streamlit component iframes are often sandboxed and cannot navigate the top window.
+    # So we DO NOT preventDefault / programmatic navigation.
+    # We only paint a slide overlay immediately, then let the browser's normal link navigation happen.
     try:
         components.html(
             r"""
@@ -971,15 +972,15 @@ def render_top_nav(active: str = "home") -> None:
 (function(){
   try{
     var w = (window.parent && window.parent !== window) ? window.parent : window;
-    if (w.__HOTENA_TOPNAV_SLIDE_V3_BOUND__) return;
-    w.__HOTENA_TOPNAV_SLIDE_V3_BOUND__ = true;
+    if (w.__HOTENA_TOPNAV_SLIDE_V4_BOUND__) return;
+    w.__HOTENA_TOPNAV_SLIDE_V4_BOUND__ = true;
 
     var doc = w.document;
 
-    // inject CSS into parent head once
-    if (!doc.getElementById('__HOTENA_TOPNAV_SLIDE_V3_STYLE__')) {
+    // inject CSS once into parent head
+    if (!doc.getElementById('__HOTENA_TOPNAV_SLIDE_V4_STYLE__')) {
       var st = doc.createElement('style');
-      st.id = '__HOTENA_TOPNAV_SLIDE_V3_STYLE__';
+      st.id = '__HOTENA_TOPNAV_SLIDE_V4_STYLE__';
       st.textContent = `
 .hotena-nav-slide-overlay{
   position: fixed;
@@ -988,6 +989,7 @@ def render_top_nav(active: str = "home") -> None:
   z-index: 2147483647;
   transform: translateX(110%);
   will-change: transform;
+  pointer-events: none; /* do not block the click/navigation */
 }
 .hotena-nav-slide-overlay.is-on{
   transition: transform 260ms ease-out;
@@ -1007,29 +1009,27 @@ def render_top_nav(active: str = "home") -> None:
         if(!a) return;
         if(isModifiedClick(ev)) return;
 
-        var tgt = a.getAttribute('target') || '';
-        if(tgt && tgt !== '_self') return;
-
         var href = a.getAttribute('href') || '';
         if(!href) return;
         if(href.indexOf('p=') === -1) return;
 
-        ev.preventDefault();
-
+        // paint overlay, but DON'T cancel navigation
         var ov = doc.createElement('div');
         ov.className = 'hotena-nav-slide-overlay';
         (doc.body || doc.documentElement).appendChild(ov);
 
-        // force layout, then start transition
+        // force layout then animate
         void ov.offsetWidth;
         w.requestAnimationFrame(function(){ ov.classList.add('is-on'); });
 
-        // navigate after it's visible
-        w.setTimeout(function(){ w.location.href = href; }, 180);
+        // cleanup after a moment (in case navigation is fast / cached)
+        w.setTimeout(function(){
+          try{ ov.remove(); }catch(e){}
+        }, 1200);
       }catch(e){}
     }
 
-    // capture phase: run before other handlers
+    // capture phase: show overlay as early as possible
     doc.addEventListener('click', handle, true);
 
   }catch(e){}
