@@ -1785,8 +1785,8 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
 
 <style>
   /* ✅ 무지/미니멀 A안 + 말풍선 각각 아웃라인(레이아웃 영향 없음: box-shadow) */
-  .ttspair{{display:flex;flex-direction:column;gap:8px;}}
-  .ttspair .row{{display:flex;align-items:flex-start;gap:6px;line-height:1.35;}}}
+  .ttspair{display:flex;flex-direction:column;gap:8px;}
+  .ttspair .row{display:flex;align-items:flex-start;gap:6px;line-height:1.35;}
   .ttspair .bubble{{border-radius:14px; box-shadow:0 0 0 1px rgba(0,0,0,.12);}}
   .ttspair .bubble-p{{box-shadow:0 0 0 1px rgba(0,0,0,.20);}}
   .ttspair .bubble-a{{box-shadow:0 0 0 1px rgba(0,0,0,.12);}}
