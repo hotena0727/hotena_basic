@@ -958,13 +958,29 @@ def render_top_nav(active: str = "home") -> None:
     """
 
     st.markdown(css, unsafe_allow_html=True)
+    st.markdown(html, unsafe_allow_html=True)
 
 
-    # ✅ HOTENA_TOPNAV_SLIDE_V2: stronger slide feel (parent-doc overlay + guaranteed animation frame)
-    st.markdown(
-        """
-<style>
-/* slide overlay */
+    # ✅ HOTENA_TOPNAV_SLIDE_V3
+    # NOTE: Streamlit markdown does not reliably execute <script>.
+    # Use components.html so the JS actually runs, and attach overlay to window.parent.document.
+    try:
+        components.html(
+            r"""
+<script>
+(function(){
+  try{
+    var w = (window.parent && window.parent !== window) ? window.parent : window;
+    if (w.__HOTENA_TOPNAV_SLIDE_V3_BOUND__) return;
+    w.__HOTENA_TOPNAV_SLIDE_V3_BOUND__ = true;
+
+    var doc = w.document;
+
+    // inject CSS into parent head once
+    if (!doc.getElementById('__HOTENA_TOPNAV_SLIDE_V3_STYLE__')) {
+      var st = doc.createElement('style');
+      st.id = '__HOTENA_TOPNAV_SLIDE_V3_STYLE__';
+      st.textContent = `
 .hotena-nav-slide-overlay{
   position: fixed;
   inset: 0;
@@ -977,16 +993,8 @@ def render_top_nav(active: str = "home") -> None:
   transition: transform 260ms ease-out;
   transform: translateX(0%);
 }
-</style>
-<script>
-(function(){
-  try{
-    if (window.__HOTENA_TOPNAV_SLIDE_V2_BOUND__) return;
-    window.__HOTENA_TOPNAV_SLIDE_V2_BOUND__ = true;
-
-    function getDoc(){
-      try{ return (window.parent && window.parent.document) ? window.parent.document : document; }
-      catch(e){ return document; }
+      `;
+      doc.head.appendChild(st);
     }
 
     function isModifiedClick(ev){
@@ -1008,42 +1016,31 @@ def render_top_nav(active: str = "home") -> None:
 
         ev.preventDefault();
 
-        var doc = getDoc();
-        var body = doc.body || doc.documentElement;
-
-        // create overlay in PARENT document so it covers entire UI (Streamlit often runs in iframe)
         var ov = doc.createElement('div');
         ov.className = 'hotena-nav-slide-overlay';
-        body.appendChild(ov);
+        (doc.body || doc.documentElement).appendChild(ov);
 
-        // force layout, then turn on transition
+        // force layout, then start transition
         void ov.offsetWidth;
-        requestAnimationFrame(function(){
-          ov.classList.add('is-on');
-        });
+        w.requestAnimationFrame(function(){ ov.classList.add('is-on'); });
 
-        // navigate after animation begins (give it enough time to be visible)
-        setTimeout(function(){
-          try{ window.location.href = href; } catch(e){ doc.location.href = href; }
-        }, 180);
+        // navigate after it's visible
+        w.setTimeout(function(){ w.location.href = href; }, 180);
       }catch(e){}
     }
 
-    // capture phase to run before Streamlit handlers
-    document.addEventListener('click', handle, true);
-    try{
-      if (window.parent && window.parent !== window){
-        window.parent.document.addEventListener('click', handle, true);
-      }
-    }catch(e){}
+    // capture phase: run before other handlers
+    doc.addEventListener('click', handle, true);
+
   }catch(e){}
 })();
 </script>
-        """,
-        unsafe_allow_html=True,
-    )
+""",
+            height=0,
+        )
+    except Exception:
+        pass
 
-    st.markdown(html, unsafe_allow_html=True)
 
 # ============================================================
 # ✅ SFX (Sound Effects) — shared tiny UX feedback sounds
