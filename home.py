@@ -9,7 +9,7 @@ import importlib
 import json
 import hashlib
 import base64
-from cryptography.fernet import Fernet
+# NOTE: cryptography is imported lazily inside _fernet() to speed up cold start.
 from datetime import date, datetime, timedelta, timezone
 import streamlit as st
 import core
@@ -24,6 +24,8 @@ def _inject_jp_font_once():
     st.session_state["_jp_font_injected"] = True
     st.markdown(
         """
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
 html, body, [class*="css"]  {
@@ -372,6 +374,8 @@ if missing:
 # ✅ Encrypted token helpers (defined early)
 # ============================================================
 def _fernet():
+    # Lazy import to reduce Cloud Run cold-start time (keeps behavior identical).
+    from cryptography.fernet import Fernet
     pw = CFG.get("COOKIE_PASSWORD", "")
     key = base64.urlsafe_b64encode(hashlib.sha256(pw.encode("utf-8")).digest())
     return Fernet(key)
