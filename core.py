@@ -961,9 +961,7 @@ def render_top_nav(active: str = "home") -> None:
     st.markdown(html, unsafe_allow_html=True)
 
 
-    # ✅ HOTENA_TOPNAV_SLIDE_V6 (direction-aware)
-    # - Slide direction depends on menu order (left/right)
-    # - Do NOT block navigation (no preventDefault)
+    # ✅ HOTENA_TOPNAV_SLIDE_V7 (direction-aware + shadow direction)
     try:
         components.html(
             r"""
@@ -971,18 +969,15 @@ def render_top_nav(active: str = "home") -> None:
 (function(){
   try{
     var w = (window.parent && window.parent !== window) ? window.parent : window;
-    if (w.__HOTENA_TOPNAV_SLIDE_V6_BOUND__) return;
-    w.__HOTENA_TOPNAV_SLIDE_V6_BOUND__ = true;
+    if (w.__HOTENA_TOPNAV_SLIDE_V7_BOUND__) return;
+    w.__HOTENA_TOPNAV_SLIDE_V7_BOUND__ = true;
 
     var doc = w.document;
-
-    // menu order for direction
     var ORDER = ['home','word','kanji','talk','my'];
 
     function getPFromHref(href){
       try{
         if(!href) return null;
-        // href is like "?rt=...&p=home"
         var u = new URL(href, w.location.href);
         return u.searchParams.get('p');
       }catch(e){
@@ -1001,12 +996,10 @@ def render_top_nav(active: str = "home") -> None:
       }catch(e){ return null; }
     }
 
-    // inject CSS once into parent head
-    if (!doc.getElementById('__HOTENA_TOPNAV_SLIDE_V6_STYLE__')) {
+    if (!doc.getElementById('__HOTENA_TOPNAV_SLIDE_V7_STYLE__')) {
       var st = doc.createElement('style');
-      st.id = '__HOTENA_TOPNAV_SLIDE_V6_STYLE__';
+      st.id = '__HOTENA_TOPNAV_SLIDE_V7_STYLE__';
       st.textContent = `
-/* overlay: panel-like */
 .hotena-nav-slide-overlay{
   position: fixed;
   inset: 0;
@@ -1015,21 +1008,22 @@ def render_top_nav(active: str = "home") -> None:
   will-change: transform, opacity;
   opacity: 0.98;
   pointer-events: none;
-  box-shadow: -18px 0 36px rgba(0,0,0,0.08);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
 }
 /* start positions */
 .hotena-nav-slide-overlay.from-right{ transform: translateX(115%); }
 .hotena-nav-slide-overlay.from-left{  transform: translateX(-115%); }
-/* animate to center */
+/* shadow direction: feels like a panel sliding in */
+.hotena-nav-slide-overlay.from-right{ box-shadow: -18px 0 36px rgba(0,0,0,0.10); }
+.hotena-nav-slide-overlay.from-left{  box-shadow:  18px 0 36px rgba(0,0,0,0.10); }
+
 .hotena-nav-slide-overlay.is-on{
   transition: transform 320ms cubic-bezier(.2,.9,.2,1), opacity 260ms ease-out;
   transform: translateX(0%);
   opacity: 1;
 }
 
-/* subtle page shift */
 .hotena-nav-page-shift-left{
   transition: transform 220ms ease-out, filter 220ms ease-out;
   transform: translateX(-14px) scale(0.997);
@@ -1064,19 +1058,17 @@ def render_top_nav(active: str = "home") -> None:
         var curIdx = ORDER.indexOf(curP || '');
         var tarIdx = ORDER.indexOf(targetP || '');
 
-        // default direction: right (forward)
         var dir = 'from-right';
         var shiftCls = 'hotena-nav-page-shift-left';
 
         if (curIdx !== -1 && tarIdx !== -1) {
-          if (tarIdx < curIdx) { // going left/back
+          if (tarIdx < curIdx) {
             dir = 'from-left';
             shiftCls = 'hotena-nav-page-shift-right';
           } else if (tarIdx > curIdx) {
             dir = 'from-right';
             shiftCls = 'hotena-nav-page-shift-left';
           } else {
-            // same tab; do nothing
             return;
           }
         }
@@ -1091,7 +1083,6 @@ def render_top_nav(active: str = "home") -> None:
         void ov.offsetWidth;
         w.requestAnimationFrame(function(){ ov.classList.add('is-on'); });
 
-        // cleanup (for fast nav or bfcache)
         w.setTimeout(function(){
           try{ ov.remove(); }catch(e){}
           try{ root.classList.remove('hotena-nav-page-shift-left'); }catch(e){}
