@@ -12,7 +12,6 @@ import os
 import base64
 import hashlib
 import json
-import time
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Optional, Tuple
 
@@ -40,7 +39,7 @@ except Exception:  # pragma: no cover
 # - Fix oversized top padding on mobile/PWA across Streamlit versions
 # - Keep small breathing room for our custom top nav
 # ============================================================
-def apply_global_ui_css(*, top_padding_rem: float = 0.0) -> None:
+def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
     """Apply global layout CSS once per run.
 
     Fix oversized top padding on mobile/PWA across Streamlit versions.
@@ -55,9 +54,6 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.0) -> None:
     css = textwrap.dedent(f"""
     <style>
     /* --- TOP SPACING FIX (mobile/PWA) --- */
-    /* Extra: some versions use stMainBlockContainer wrapper */
-    [data-testid="stMainBlockContainer"]{ padding-top: 0 !important; margin-top: 0 !important; }
-    
     [data-testid="stAppViewContainer"]{{ padding-top: 0 !important; }}
     div[data-testid="stAppViewContainer"] > .main{{ padding-top: 0 !important; }}
 
@@ -289,8 +285,9 @@ def ensure_core(
     Ensure CFG/cookies/supabase anon client exist in st.session_state.
     Safe to call multiple times in the same run.
     """
-    apply_global_ui_css(top_padding_rem=0.0)
-# 1) CFG
+    apply_global_ui_css()
+
+    # 1) CFG
     cfg = st.session_state.get("cfg")
     if not isinstance(cfg, dict) or not cfg:
         cfg = {
@@ -534,21 +531,14 @@ def refresh_session_from_cookie_if_needed(*, force: bool = False) -> bool:
     return False
 
 
-def get_authed_sb(*, force_refresh: bool = False):
+def get_authed_sb(*, force_refresh: bool = True):
     """
     Return a Supabase client authenticated with current access token.
     Caches by token to avoid rebuilding.
     """
     ensure_core()
     if force_refresh:
-        # Rate-limit refresh_session calls (network) to avoid 1~2s stalls on every navigation.
-        now_ts = time.time()
-        last_ts = float(st.session_state.get('_auth_last_refresh_ts', 0.0) or 0.0)
-        min_interval = float(st.session_state.get('_auth_refresh_min_interval_sec', 600) or 600)
-        need = (not st.session_state.get('user')) or (not st.session_state.get('access_token'))
-        if (now_ts - last_ts) >= min_interval or need:
-            refresh_session_from_cookie_if_needed(force=True)
-            st.session_state['_auth_last_refresh_ts'] = now_ts
+        refresh_session_from_cookie_if_needed(force=True)
     token = st.session_state.get("access_token")
     if not token:
         return None
