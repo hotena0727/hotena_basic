@@ -74,20 +74,6 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
 
     /* Safe-area: avoid extra blank gap on some Android devices */
     html, body{{ padding-top: 0 !important; }}
-
-    /* --- FORCE HIDE STREAMLIT COMPONENT IFRAMES (prevents refresh top gap) --- */
-    div[data-testid="stIFrame"]{{
-      display: none !important;
-      height: 0 !important;
-      min-height: 0 !important;
-      margin: 0 !important;
-      padding: 0 !important;
-    }}
-    div[data-testid="stIFrame"] iframe{{
-      display: none !important;
-      height: 0 !important;
-      min-height: 0 !important;
-    }}
     </style>
     """)
 
