@@ -2582,8 +2582,24 @@ def render() -> None:
             action = "off"
 
         # Cloud Run/Streamlit 경로 변형 대응
-        sw_candidates = ["/app/static/sw.js", "/sw.js"]
-        manifest_candidates = ["/app/static/pwa-manifest.json", "/manifest.json", "/pwa-manifest.json"]
+        sw_candidates = [
+            '/sw.js',
+            '/app/static/sw.js',
+            '/static/sw.js',
+            '/pwa/sw.js'
+        ]
+
+        manifest_candidates = [
+
+            '/pwa-manifest.json',
+
+            '/app/static/pwa-manifest.json',
+
+            '/static/pwa-manifest.json',
+
+            '/pwa/pwa-manifest.json'
+
+        ]
 
         import json as _json
 
