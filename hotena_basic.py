@@ -985,7 +985,14 @@ def refresh_session_from_cookie_if_needed(force: bool = False) -> bool:
 
 def get_authed_sb():
     if not st.session_state.get("access_token"):
-        refresh_session_from_cookie_if_needed(force=True)
+        # Rate-limit refresh_session calls (network) to avoid 1~2s stalls on every navigation.
+        now_ts = time.time()
+        last_ts = float(st.session_state.get('_auth_last_refresh_ts', 0.0) or 0.0)
+        min_interval = float(st.session_state.get('_auth_refresh_min_interval_sec', 600) or 600)
+        need = (not st.session_state.get('user')) or (not st.session_state.get('access_token'))
+        if (now_ts - last_ts) >= min_interval or need:
+            refresh_session_from_cookie_if_needed(force=True)
+            st.session_state['_auth_last_refresh_ts'] = now_ts
 
     token = st.session_state.get("access_token")
     if not token:

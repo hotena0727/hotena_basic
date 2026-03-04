@@ -12,7 +12,7 @@ import os
 import base64
 import hashlib
 import json
-import textwrap
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Optional, Tuple
 
@@ -40,7 +40,7 @@ except Exception:  # pragma: no cover
 # - Fix oversized top padding on mobile/PWA across Streamlit versions
 # - Keep small breathing room for our custom top nav
 # ============================================================
-def apply_global_ui_css(*, top_padding_rem: float = 0.0) -> None:
+def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
     """Apply global layout CSS once per run.
 
     Fix oversized top padding on mobile/PWA across Streamlit versions.
@@ -54,10 +54,6 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.0) -> None:
 
     css = textwrap.dedent(f"""
     <style>
-    /* Hide Streamlit default chrome */
-    #MainMenu {{ visibility: hidden; }}
-    footer {{ visibility: hidden; }}
-
     /* --- TOP SPACING FIX (mobile/PWA) --- */
     [data-testid="stAppViewContainer"]{{ padding-top: 0 !important; }}
     div[data-testid="stAppViewContainer"] > .main{{ padding-top: 0 !important; }}
@@ -79,13 +75,24 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.0) -> None:
 
     /* Safe-area: avoid extra blank gap on some Android devices */
     html, body{{ padding-top: 0 !important; }}
+
+    /* --- FORCE HIDE STREAMLIT COMPONENT IFRAMES (prevents refresh top gap) --- */
+    div[data-testid="stIFrame"]{{
+      display: none !important;
+      height: 0 !important;
+      min-height: 0 !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }}
+    div[data-testid="stIFrame"] iframe{{
+      display: none !important;
+      height: 0 !important;
+      min-height: 0 !important;
+    }}
     </style>
     """)
 
     st.markdown(css, unsafe_allow_html=True)
-
-    # Hide gray placeholder iframes used by Streamlit custom components
-    _hide_streamlit_component_iframes()
 
 
 def get_cfg(key: str) -> str:
@@ -525,14 +532,21 @@ def refresh_session_from_cookie_if_needed(*, force: bool = False) -> bool:
     return False
 
 
-def get_authed_sb(*, force_refresh: bool = True):
+def get_authed_sb(*, force_refresh: bool = False):
     """
     Return a Supabase client authenticated with current access token.
     Caches by token to avoid rebuilding.
     """
     ensure_core()
     if force_refresh:
-        refresh_session_from_cookie_if_needed(force=True)
+        # Rate-limit refresh_session calls (network) to avoid 1~2s stalls on every navigation.
+        now_ts = time.time()
+        last_ts = float(st.session_state.get('_auth_last_refresh_ts', 0.0) or 0.0)
+        min_interval = float(st.session_state.get('_auth_refresh_min_interval_sec', 600) or 600)
+        need = (not st.session_state.get('user')) or (not st.session_state.get('access_token'))
+        if (now_ts - last_ts) >= min_interval or need:
+            refresh_session_from_cookie_if_needed(force=True)
+            st.session_state['_auth_last_refresh_ts'] = now_ts
     token = st.session_state.get("access_token")
     if not token:
         return None
@@ -865,7 +879,7 @@ def render_top_nav(active: str = "home") -> None:
 
     css = textwrap.dedent("""        <style>
       /* Hide Streamlit default UI */
-      #MainMenu {{ visibility: hidden; }}
+      #MainMenu { visibility: hidden; }
       header, header[data-testid="stHeader"]{
         display:none !important;
         height:0 !important;
