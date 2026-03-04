@@ -1785,13 +1785,13 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
 
 <style>
   /* ✅ 무지/미니멀 A안 + 말풍선 각각 아웃라인(레이아웃 영향 없음: box-shadow) */
-  .ttspair{display:flex;flex-direction:column;gap:8px;}
-  .ttspair .row{display:flex;align-items:flex-start;gap:6px;line-height:1.35;}
+  .ttspair{{display:flex;flex-direction:column;gap:8px;}}
+  .ttspair .row{{display:flex;align-items:flex-start;gap:6px;line-height:1.35;}}
   .ttspair .bubble{{border-radius:14px; box-shadow:0 0 0 1px rgba(0,0,0,.12);}}
   .ttspair .bubble-p{{box-shadow:0 0 0 1px rgba(0,0,0,.20);}}
   .ttspair .bubble-a{{box-shadow:0 0 0 1px rgba(0,0,0,.12);}}
 
-  .ttspair .lab{{min-width:48px;font-weight:650;opacity:.82;flex:0 0 auto;padding:10px 0 10px 0px;}}}
+  .ttspair .lab{{min-width:44px;font-weight:650;opacity:.82;flex:0 0 auto;padding:10px 0;}}
   .ttspair .txtwrap{{flex:1 1 auto;min-width:0;white-space:normal;overflow-wrap:anywhere;word-break:break-word;padding:10px 0;}}
   .ttspair .jp{{font-size:1.03rem;font-weight:560;line-height:1.35;letter-spacing:.01em;}}
   .ttspair .kr{{margin-top:3px;font-size:.86rem;line-height:1.25;opacity:.72;}}
@@ -2511,14 +2511,18 @@ with st.container(border=True):
                 key=f"{NS}_submit_{qid}",
             )
 
-            # 제출 시에만 선택/제출 상태를 확정
+            # ✅ 제출 시에만 선택/제출 상태를 확정 (session_state만 업데이트)
+            # (함수 내부에서 submitted/selected를 대입하면 지역변수 처리로 UnboundLocalError가 날 수 있어요.)
             if submitted_now and (not submitted):
                 st.session_state[sel_key] = picked
                 st.session_state[submitted_key] = True
-                selected = picked
-                submitted = True
 
-        # ✅ 정답 제출 버튼(제출 전) 렌더 — 전체 rerun 부담 줄이기
+        # ✅ 렌더(버튼 표시)
+        if hasattr(st, 'fragment'):
+            _render_submit_block_f0c2_ = st.fragment(_render_submit_block_f0c2)
+            _render_submit_block_f0c2_()
+        else:
+            _render_submit_block_f0c2()
 
 
     # ============================================================
