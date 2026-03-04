@@ -2,6 +2,22 @@ server {
     listen ${PORT};
     server_name _;
 
+    # --- 🔒 security: block dotfiles (.env, .git, etc.) ---
+    # NOTE: Put these BEFORE the main proxy locations so they match first.
+    location ~ /\.(?!well-known).* {
+        return 404;
+    }
+
+    # --- 🔒 security: block .env anywhere in path (e.g., /.env, /foo/.env, /foo/.env/bar) ---
+    location ~* \.env($|/) {
+        return 404;
+    }
+
+    # (optional) block common sensitive project files
+    location ~* /(composer\.json|composer\.lock|package\.json|package-lock\.json|yarn\.lock|pnpm-lock\.yaml)$ {
+        return 404;
+    }
+
     location = /manifest.json {
         alias /app/static/pwa-manifest.json;
         add_header Content-Type "application/manifest+json" always;
