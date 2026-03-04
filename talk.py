@@ -1620,7 +1620,7 @@ def tts_inline_row(role_label: str, text: str, key: str, show_text: bool = True,
     txt = (text or "").strip()
     au = resolve_audio_url(audio_url)
 
-    colspec = [0.18, 0.72, 0.10] if IS_PRO else [0.07, 0.83, 0.10]
+    colspec = [0.18, 0.72, 0.10] if IS_PRO else [0.12, 0.78, 0.10]
     c1, c2, c3 = st.columns(colspec, vertical_alignment="center")
     with c1:
         st.markdown(f"**{role_label}**")
