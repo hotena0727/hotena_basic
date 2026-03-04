@@ -842,6 +842,7 @@ def render_top_nav(active: str = "home") -> None:
     import textwrap
     from urllib.parse import urlencode
 
+    # preserve all existing query params; only set p
     try:
         qp = dict(st.query_params)
     except Exception:
@@ -852,162 +853,96 @@ def render_top_nav(active: str = "home") -> None:
         q["p"] = p
         return "?" + urlencode(q, doseq=True)
 
-    css = textwrap.dedent("""
-<style>
+    css = textwrap.dedent("""        <style>
+      /* Hide Streamlit default UI */
+      #MainMenu { visibility: hidden; }
+      header, header[data-testid="stHeader"]{
+        display:none !important;
+        height:0 !important;
+        min-height:0 !important;
+      }
+      footer{
+        display:none !important;
+        height:0 !important;
+        min-height:0 !important;
+      }
+      [data-testid="stSidebar"] { display: none !important; }
+      [data-testid="stSidebarNav"] { display: none !important; }
 
-/* ---------- Streamlit 기본 UI 완전 제거 ---------- */
+      .hn-topnav-wrap{
+        position: fixed; left: 0; right: 0;
+        top: 0;
+        z-index: 2147483000;
+        background: rgba(255,255,255,0.94);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border-bottom: 1px solid rgba(0,0,0,0.06);
+      }
+      .hn-topnav{
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 10px 12px;
+      }
+      .hn-nav{
+        display:flex;
+        align-items:center;
+        justify-content:space-between;
+        gap: 6px;
+      }
+      .hn-nav a{
+        flex: 1 1 0;
+        text-align:center;
+        text-decoration:none !important;
+        color: rgba(0,0,0,0.55);
+        font-size: 14px;
+        font-weight: 650;
+        letter-spacing: -0.2px;
+        padding: 10px 0;
+        border-radius: 10px;
+        position: relative;
+      }
+      .hn-nav a:hover{
+        color: rgba(0,0,0,0.82);
+        background: rgba(0,0,0,0.03);
+      }
+      .hn-nav a.active{
+        color: rgba(0,0,0,0.90);
+      }
+      .hn-nav a.active::after{
+        content:"";
+        position:absolute;
+        left: 32%;
+        bottom: 6px;
+        width: 36%;
+        height: 2px;
+        background: #2f80ed;
+        border-radius: 2px;
+      }
 
-#MainMenu {visibility:hidden;}
-
-header,
-header[data-testid="stHeader"],
-[data-testid="stToolbar"],
-[data-testid="stDecoration"]{
-  display:none !important;
-  height:0 !important;
-  min-height:0 !important;
-}
-
-footer{
-  display:none !important;
-  height:0 !important;
-  min-height:0 !important;
-}
-
-[data-testid="stSidebar"]{display:none !important;}
-[data-testid="stSidebarNav"]{display:none !important;}
-
-
-/* ---------- 상단 여백 완전 초기화 ---------- */
-
-[data-testid="stAppViewContainer"]{
-  margin-top:0 !important;
-  padding-top:0 !important;
-}
-
-[data-testid="block-container"],
-.block-container{
-  padding-top:0 !important;
-  margin-top:0 !important;
-}
-
-
-/* ---------- HOTENA TOP NAV ---------- */
-
-.hn-topnav-wrap{
-  position:fixed;
-  left:0;
-  right:0;
-  top:0;
-  z-index:2147483000;
-
-  background:rgba(255,255,255,0.94);
-  backdrop-filter:blur(10px);
-  -webkit-backdrop-filter:blur(10px);
-
-  border-bottom:1px solid rgba(0,0,0,0.06);
-}
-
-.hn-topnav{
-  max-width:1100px;
-  margin:0 auto;
-  padding:10px 12px;
-}
-
-.hn-nav{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:6px;
-}
-
-.hn-nav a{
-  flex:1 1 0;
-  text-align:center;
-
-  text-decoration:none !important;
-  color:rgba(0,0,0,0.55);
-
-  font-size:14px;
-  font-weight:650;
-  letter-spacing:-0.2px;
-
-  padding:10px 0;
-  border-radius:10px;
-
-  position:relative;
-}
-
-.hn-nav a:hover{
-  color:rgba(0,0,0,0.82);
-  background:rgba(0,0,0,0.03);
-}
-
-.hn-nav a.active{
-  color:rgba(0,0,0,0.90);
-}
-
-.hn-nav a.active::after{
-  content:"";
-  position:absolute;
-  left:32%;
-  bottom:6px;
-  width:36%;
-  height:2px;
-  background:#2f80ed;
-  border-radius:2px;
-}
-
-
-/* ---------- 네비 높이만큼만 공간 확보 ---------- */
-
-main .block-container{
-  padding-top:3.1rem !important;
-}
-
-
-/* ---------- MOBILE ---------- */
-
-@media (max-width:820px){
-
-  .hn-topnav{
-    padding:10px 10px;
-  }
-
-  .hn-nav{
-    gap:4px;
-  }
-
-  .hn-nav a{
-    font-size:13.5px;
-    padding:10px 0;
-  }
-
-  .hn-nav a.active::after{
-    left:30%;
-    width:40%;
-  }
-
-}
-
+      @media (max-width: 820px){
+        .hn-topnav{ padding: 10px 10px; }
+        .hn-nav{ gap: 4px; }
+        .hn-nav a{ font-size: 13.5px; padding: 10px 0; }
+        .hn-nav a.active::after{ left: 30%; width: 40%; }
+      }
 </style>
-""")
+    """)
+
+    html = f"""        <div class="hn-topnav-wrap">
+      <div class="hn-topnav">
+        <div class="hn-nav" role="navigation" aria-label="Primary">
+          <a href="{_href('home')}" target="_self" class="{'active' if active=='home' else ''}">홈</a>
+          <a href="{_href('word')}" target="_self" class="{'active' if active=='word' else ''}">단어</a>
+          <a href="{_href('kanji')}" target="_self" class="{'active' if active=='kanji' else ''}">한자</a>
+          <a href="{_href('talk')}" target="_self" class="{'active' if active=='talk' else ''}">회화</a>
+          <a href="{_href('my')}" target="_self" class="{'active' if active=='my' else ''}">MY</a>
+        </div>
+      </div>
+    </div>
+    """
 
     st.markdown(css, unsafe_allow_html=True)
-
-    st.markdown(f"""
-<div class="hn-topnav-wrap">
-  <div class="hn-topnav">
-    <div class="hn-nav">
-      <a href="{_href("home")}" class="{ "active" if active=="home" else "" }">홈</a>
-      <a href="{_href("talk")}" class="{ "active" if active=="talk" else "" }">회화</a>
-      <a href="{_href("kanji")}" class="{ "active" if active=="kanji" else "" }">한자</a>
-      <a href="{_href("vocab")}" class="{ "active" if active=="vocab" else "" }">단어</a>
-      <a href="{_href("mypage")}" class="{ "active" if active=="mypage" else "" }">마이</a>
-    </div>
-  </div>
-</div>
-""", unsafe_allow_html=True)
+    st.markdown(html, unsafe_allow_html=True)
 
 # ============================================================
 # ✅ SFX (Sound Effects) — shared tiny UX feedback sounds
