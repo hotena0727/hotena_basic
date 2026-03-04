@@ -961,7 +961,7 @@ def render_top_nav(active: str = "home") -> None:
     st.markdown(html, unsafe_allow_html=True)
 
 
-    # ✅ HOTENA_TOPNAV_SLIDE_V7 (direction-aware + shadow direction)
+    # ✅ HOTENA_TOPNAV_SLIDE_V8 (direction-aware + shadow + edge gradient)
     try:
         components.html(
             r"""
@@ -969,8 +969,8 @@ def render_top_nav(active: str = "home") -> None:
 (function(){
   try{
     var w = (window.parent && window.parent !== window) ? window.parent : window;
-    if (w.__HOTENA_TOPNAV_SLIDE_V7_BOUND__) return;
-    w.__HOTENA_TOPNAV_SLIDE_V7_BOUND__ = true;
+    if (w.__HOTENA_TOPNAV_SLIDE_V8_BOUND__) return;
+    w.__HOTENA_TOPNAV_SLIDE_V8_BOUND__ = true;
 
     var doc = w.document;
     var ORDER = ['home','word','kanji','talk','my'];
@@ -996,9 +996,9 @@ def render_top_nav(active: str = "home") -> None:
       }catch(e){ return null; }
     }
 
-    if (!doc.getElementById('__HOTENA_TOPNAV_SLIDE_V7_STYLE__')) {
+    if (!doc.getElementById('__HOTENA_TOPNAV_SLIDE_V8_STYLE__')) {
       var st = doc.createElement('style');
-      st.id = '__HOTENA_TOPNAV_SLIDE_V7_STYLE__';
+      st.id = '__HOTENA_TOPNAV_SLIDE_V8_STYLE__';
       st.textContent = `
 .hotena-nav-slide-overlay{
   position: fixed;
@@ -1011,10 +1011,28 @@ def render_top_nav(active: str = "home") -> None:
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
 }
+/* edge highlight */
+.hotena-nav-slide-overlay::before{
+  content:"";
+  position:absolute;
+  top:0; bottom:0;
+  width: 46px;
+  opacity: 0.55;
+  pointer-events:none;
+}
+.hotena-nav-slide-overlay.from-right::before{
+  left:0;
+  background: linear-gradient(90deg, rgba(0,0,0,0.10), rgba(0,0,0,0.00));
+}
+.hotena-nav-slide-overlay.from-left::before{
+  right:0;
+  background: linear-gradient(270deg, rgba(0,0,0,0.10), rgba(0,0,0,0.00));
+}
+
 /* start positions */
 .hotena-nav-slide-overlay.from-right{ transform: translateX(115%); }
 .hotena-nav-slide-overlay.from-left{  transform: translateX(-115%); }
-/* shadow direction: feels like a panel sliding in */
+/* shadow direction */
 .hotena-nav-slide-overlay.from-right{ box-shadow: -18px 0 36px rgba(0,0,0,0.10); }
 .hotena-nav-slide-overlay.from-left{  box-shadow:  18px 0 36px rgba(0,0,0,0.10); }
 
