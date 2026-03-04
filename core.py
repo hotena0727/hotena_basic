@@ -12,7 +12,7 @@ import os
 import base64
 import hashlib
 import json
-import textwrap
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Optional, Tuple
 
@@ -532,14 +532,21 @@ def refresh_session_from_cookie_if_needed(*, force: bool = False) -> bool:
     return False
 
 
-def get_authed_sb(*, force_refresh: bool = True):
+def get_authed_sb(*, force_refresh: bool = False):
     """
     Return a Supabase client authenticated with current access token.
     Caches by token to avoid rebuilding.
     """
     ensure_core()
     if force_refresh:
-        refresh_session_from_cookie_if_needed(force=True)
+        # Rate-limit refresh_session calls (network) to avoid 1~2s stalls on every navigation.
+        now_ts = time.time()
+        last_ts = float(st.session_state.get('_auth_last_refresh_ts', 0.0) or 0.0)
+        min_interval = float(st.session_state.get('_auth_refresh_min_interval_sec', 600) or 600)
+        need = (not st.session_state.get('user')) or (not st.session_state.get('access_token'))
+        if (now_ts - last_ts) >= min_interval or need:
+            refresh_session_from_cookie_if_needed(force=True)
+            st.session_state['_auth_last_refresh_ts'] = now_ts
     token = st.session_state.get("access_token")
     if not token:
         return None
