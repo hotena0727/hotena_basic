@@ -2011,15 +2011,6 @@ def _hub_build_base_qs() -> str:
         parts.append("at=" + _q(at_enc))
     return ("&".join(parts) + "&") if parts else ""
 
-def run_script(filename: str):
-    path = (BASE_DIR / filename).resolve()
-    if not path.exists() or not path.is_file():
-        st.error(f"파일을 찾을 수 없습니다: {path}")
-        st.stop()
-    # ✅ Hub mode flag so child scripts can adjust UI/CSS
-    st.session_state["HUB_MODE"] = True
-    runpy.run_path(str(path), run_name="__main__")
-
 # ============================================================
 # ✅ User Messages (Admin DM / Broadcast) utilities
 # ============================================================
