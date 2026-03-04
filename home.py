@@ -7,7 +7,6 @@ import os
 import runpy
 import importlib
 import json
-import time
 import hashlib
 import base64
 from cryptography.fernet import Fernet
@@ -580,14 +579,7 @@ def refresh_session_from_cookie_if_needed(force: bool = False) -> bool:
 
 
 def get_authed_sb():
-    # Rate-limit refresh_session calls (network) to avoid 1~2s stalls on every navigation.
-    now_ts = time.time()
-    last_ts = float(st.session_state.get('_auth_last_refresh_ts', 0.0) or 0.0)
-    min_interval = float(st.session_state.get('_auth_refresh_min_interval_sec', 600) or 600)
-    need = (not st.session_state.get('user')) or (not st.session_state.get('access_token'))
-    if (now_ts - last_ts) >= min_interval or need:
-        refresh_session_from_cookie_if_needed(force=True)
-        st.session_state['_auth_last_refresh_ts'] = now_ts
+    refresh_session_from_cookie_if_needed(force=True)
     token = st.session_state.get("access_token")
     if not token:
         return None
