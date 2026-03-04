@@ -260,8 +260,8 @@ def _inject_talk_ui_css():
     st.markdown(
         """
 <style>
-.talk-bubble-row{display:flex;gap:10px;align-items:flex-end;margin:6px 0;}
-.talk-bubble-label{min-width:68px;font-weight:800;opacity:.85;}
+.talk-bubble-row{display:flex;gap:6px;align-items:flex-end;margin:6px 0;}
+.talk-bubble-label{min-width:54px;font-weight:800;opacity:.85;}
 .talk-bubble{
   display:inline-block;
   max-width:100%;
@@ -2721,16 +2721,17 @@ with st.container(border=True):
             answer_kr=(row.get("answer_kr","") or row.get("answer_ko","") or row.get("answer_kor","") or ""),
         )
 
-        # FREE: 제출 후에도 발음 듣기 하루 3회만 허용 (상대/내 각각 버튼 제공)
+        ## FREE: 제출 후에도 발음 듣기 하루 3회만 허용 (상대/내 각각 버튼 제공)
         if not IS_PRO:
-            rem2 = _free_tts_remaining()
-            c1, c2 = st.columns(2)
-            with c1:
-                if rem2 > 0 and st.button("🔊 상대 발음 듣기", key=f"{qid}_free_tts_partner_after", use_container_width=True):
-                    _use_free_tts_once()
-                    p_audio_url = resolve_audio_url((row.get("partner_mp3","") or row.get("partner_audio","") or row.get("partner_audio_url","") or ""))
-                    p_text = (row.get("partner_jp","") or "").replace(chr(10)," ")
-                    components.html(f"""<script>
+            def _render_free_after_tts_4b2c():
+                rem2 = _free_tts_remaining()
+                c1, c2 = st.columns(2)
+                with c1:
+                    if rem2 > 0 and st.button("🔊 상대 발음 듣기", key=f"{qid}_free_tts_partner_after", use_container_width=True):
+                        _use_free_tts_once()
+                        p_audio_url = resolve_audio_url((row.get("partner_mp3","") or row.get("partner_audio","") or row.get("partner_audio_url","") or ""))
+                        p_text = (row.get("partner_jp","") or "").replace(chr(10)," ")
+                        components.html(f"""<script>
 (function(){{
   const audioUrl = {p_audio_url!r};
   const text = {p_text!r};
@@ -2769,15 +2770,16 @@ with st.container(border=True):
   }}
 }})();
 </script>""", height=0)
-                elif rem2 <= 0:
-                    st.button("🔒 상대 발음 듣기 (PRO)", key=f"{qid}_free_tts_partner_after_lock", disabled=True, use_container_width=True)
-            with c2:
-                rem3 = _free_tts_remaining()
-                if rem3 > 0 and st.button("🔊 내 발음 듣기", key=f"{qid}_free_tts_answer_after", use_container_width=True):
-                    _use_free_tts_once()
-                    a_audio_url = resolve_audio_url((row.get("answer_mp3","") or row.get("answer_audio","") or row.get("answer_audio_url","") or ""))
-                    a_text = (row.get("answer_jp","") or "").replace(chr(10)," ")
-                    components.html(f"""<script>
+                    elif rem2 <= 0:
+                        st.button("🔒 상대 발음 듣기 (PRO)", key=f"{qid}_free_tts_partner_after_lock", disabled=True, use_container_width=True)
+
+                with c2:
+                    rem3 = _free_tts_remaining()
+                    if rem3 > 0 and st.button("🔊 내 발음 듣기", key=f"{qid}_free_tts_answer_after", use_container_width=True):
+                        _use_free_tts_once()
+                        a_audio_url = resolve_audio_url((row.get("answer_mp3","") or row.get("answer_audio","") or row.get("answer_audio_url","") or ""))
+                        a_text = (row.get("answer_jp","") or "").replace(chr(10)," ")
+                        components.html(f"""<script>
 (function(){{
   const audioUrl = {a_audio_url!r};
   const text = {a_text!r};
@@ -2816,9 +2818,14 @@ with st.container(border=True):
   }}
 }})();
 </script>""", height=0)
-                elif rem3 <= 0:
-                    st.button("🔒 내 발음 듣기 (PRO)", key=f"{qid}_free_tts_answer_after_lock", disabled=True, use_container_width=True)
-# ============================================================
+                    elif rem3 <= 0:
+                        st.button("🔒 내 발음 듣기 (PRO)", key=f"{qid}_free_tts_answer_after_lock", disabled=True, use_container_width=True)
+
+            # ✅ FREE 버튼 클릭 시 페이지 전체 rerun(번쩍임)을 줄이기 위해 fragment로 격리
+            if hasattr(st, 'fragment'):
+                _render_free_after_tts_4b2c = st.fragment(_render_free_after_tts_4b2c)
+            _render_free_after_tts_4b2c()
+        # ============================================================
         # ✅ 제출 이후에만 원포인트 + 스마트코치 표시
         # ============================================================
         if submitted:
