@@ -224,6 +224,21 @@ FREE_SET_LEN = 3  # FREE는 3문제만 제공
 FREE_TTS_QUOTA = 3  # FREE 발음 듣기 3회(일)
 FREE_RECORD_QUOTA = 3  # FREE 녹음 3회(일)
 
+# 🔗 PRO 업그레이드 안내 URL (나중에 바꿀 수 있게 env로 교체 가능)
+UPGRADE_URL = os.getenv("HOTENA_UPGRADE_URL") or "/pricing"
+
+
+def _render_upgrade_cta(label: str = "✨ PRO로 업그레이드", help_text: str = ""):
+    """PRO 결제/안내로 연결. Streamlit 버전에 따라 link_button이 없을 수 있어 fallback 제공."""
+    if help_text:
+        st.caption(help_text)
+    try:
+        st.link_button(label, UPGRADE_URL, use_container_width=True)
+    except Exception:
+        st.markdown(f"[{label}]({UPGRADE_URL})")
+
+
+
 # ============================================================
 # ✅ Hub login required
 # ============================================================
@@ -2407,39 +2422,63 @@ with st.container(border=True):
         tts_inline_row("상대(말)", row.get("partner_jp",""), key=f"{qid}_partner_q", show_text=False, audio_url=row.get("partner_mp3","") or row.get("partner_audio","") or row.get("partner_audio_url","") or "")
     else:
         tts_inline_row("상대(말)", row.get("partner_jp",""), key=f"{qid}_partner_q", show_text=True, audio_url=row.get("partner_mp3","") or row.get("partner_audio","") or row.get("partner_audio_url","") or "")
-        rem = _free_tts_remaining()
-        if rem > 0:
-            if st.button(f"🔊 발음 듣기 (무료 {FREE_TTS_QUOTA-rem+1}/{FREE_TTS_QUOTA})", key=f"{qid}_free_tts_q", use_container_width=True):
-                _use_free_tts_once()
-                components.html(f"""<script>
-(function(){{
-  try{{
-    const synth = window.speechSynthesis;
-    function pickJaVoice(){{
-      const voices = synth.getVoices() || [];
-      const ja = voices.filter(v => String(v.lang||"").toLowerCase().startsWith("ja"));
-      if (!ja.length) return null;
-      return ja.find(v => /google/i.test(v.name||""))
-          || ja.find(v => /日本|japanese/i.test(v.name||""))
-          || ja[0] || null;
-    }}
-    const u = new SpeechSynthesisUtterance({(row.get('partner_jp','') or '').replace(chr(10),' ')!r});
-    u.lang = "ja-JP";
-    const v = pickJaVoice();
-    if (v) u.voice = v;
-    synth.cancel();
-    synth.speak(u);
-  }}catch(e){{}}
-}})();
-</script>""", height=0)
-        else:
-            st.markdown(
-                '<div style="margin-top:6px;display:flex;align-items:center;gap:8px;">'
-                '<span style="font-size:12px;background:#FFD54F;color:#000;padding:2px 6px;border-radius:8px;font-weight:800;">PRO</span>'
-                '<span style="font-size:0.92rem;opacity:0.85;">발음 듣기는 PRO 전용 (무료 3회 소진)</span>'
-                '</div>',
-                unsafe_allow_html=True,
-            )
+        def _render_free_listen_block_9c1b():
+            rem = _free_tts_remaining()
+            if rem > 0:
+                if st.button(f"🔊 발음 듣기 (무료 {FREE_TTS_QUOTA-rem+1}/{FREE_TTS_QUOTA})", key=f"{qid}_free_tts_q", use_container_width=True):
+                    _use_free_tts_once()
+                    _au = resolve_audio_url(row.get('partner_mp3','') or row.get('partner_audio','') or row.get('partner_audio_url','') or '')
+                    components.html(f"""<script>
+    (function(){{
+      try{{
+        const audioUrl = {_au!r};
+        const synth = window.speechSynthesis;
+        function pickJaVoice(){{
+          try {{
+            const voices = (synth && synth.getVoices) ? (synth.getVoices() || []) : [];
+            const ja = voices.filter(v => String(v.lang||"").toLowerCase().startsWith("ja"));
+            if (!ja.length) return null;
+            return ja.find(v => /google/i.test(v.name||""))
+                || ja.find(v => /日本|japanese/i.test(v.name||""))
+                || ja[0] || null;
+          }} catch(e) {{ return null; }}
+        }}
+        function speak(){{
+          try {{
+            if (!synth) return;
+            const u = new SpeechSynthesisUtterance({(row.get('partner_jp','') or '').replace(chr(10),' ')!r});
+            u.lang = "ja-JP";
+            const v = pickJaVoice();
+            if (v) u.voice = v;
+            synth.cancel();
+            synth.speak(u);
+          }} catch(e) {{}}
+        }}
+        if (audioUrl) {{
+          try {{
+            const a = new Audio(audioUrl);
+            a.play().catch(()=>speak());
+          }} catch(e) {{
+            speak();
+          }}
+        }} else {{
+          speak();
+        }}
+      }}catch(e){{}}
+    }})();
+    </script>""", height=0)
+            else:
+                st.markdown(
+                    '<div style="margin-top:6px;display:flex;align-items:center;gap:8px;">'
+                    '<span style="font-size:12px;background:#FFD54F;color:#000;padding:2px 6px;border-radius:8px;font-weight:800;">PRO</span>'
+                    '<span style="font-size:0.92rem;opacity:0.85;">발음 듣기는 PRO 전용 (무료 3회 소진)</span>'
+                    '</div>',
+                    unsafe_allow_html=True,
+                )
+                _render_upgrade_cta("✨ PRO로 업그레이드", "PRO에서는 발음듣기가 무제한입니다.")
+        if hasattr(st, 'fragment'):
+            _render_free_listen_block_9c1b = st.fragment(_render_free_listen_block_9c1b)
+        _render_free_listen_block_9c1b()
 
     st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
     with st.container(border=True):
@@ -2462,196 +2501,206 @@ with st.container(border=True):
             label_visibility="collapsed",
         )
 
-        # ✅ radio는 선택 시 즉시 rerun되므로, 버튼 활성화가 즉시 반영됨
-        can_submit = bool(picked) and (not submitted)
-        submitted_now = st.button(
-            "정답 제출",
-            use_container_width=True,
-            disabled=not can_submit,
-            key=f"{NS}_submit_{qid}",
-        )
+        def _render_submit_block_f0c2():
+            # ✅ radio는 선택 시 즉시 rerun되므로, 버튼 활성화가 즉시 반영됨
+            can_submit = bool(picked) and (not submitted)
+            submitted_now = st.button(
+                "정답 제출",
+                use_container_width=True,
+                disabled=not can_submit,
+                key=f"{NS}_submit_{qid}",
+            )
 
-        # 제출 시에만 선택/제출 상태를 확정
-        if submitted_now and (not submitted):
-            st.session_state[sel_key] = picked
-            st.session_state[submitted_key] = True
-            selected = picked
-            submitted = True
+            # ✅ 제출 시에만 선택/제출 상태를 확정 (session_state만 업데이트)
+            # (함수 내부에서 submitted/selected를 대입하면 지역변수 처리로 UnboundLocalError가 날 수 있어요.)
+            if submitted_now and (not submitted):
+                st.session_state[sel_key] = picked
+                st.session_state[submitted_key] = True
+                # ✅ fragment 내부 클릭일 때도 '전체 화면'이 다시 그려지도록 강제 rerun
+                st.rerun()
 
-
-# ============================================================
-# ✅ After submit
-# ============================================================
-if submitted:
-    correct = str(row.get("answer_jp", "")).strip()
-    ok = (selected == correct)
-
-    # ✅ 제출 직후 SFX(정답/오답) — 문제(qid)당 1회만
-    try:
-        _sfx_guard = f"talk_sfx_{qid}"
-        if not st.session_state.get(_sfx_guard, False):
-            if hasattr(core, "play_sfx_once"):
-                core.play_sfx_once(_sfx_guard, "correct" if ok else "wrong")
-            elif hasattr(core, "play_sfx"):
-                core.play_sfx("correct" if ok else "wrong")
-            st.session_state[_sfx_guard] = True
-    except Exception:
-        pass
-
-
-    # ✅ 최근 2턴 저장(정답 제출 직후 1회만)
-    try:
-        snap_key = f"talk_turn_saved_{qid}"
-        if not st.session_state.get(snap_key):
-            _push_recent_turn({
-                "qid": str(qid),
-                "situation_kr": str(row.get("situation_kr", "")).strip(),
-                "partner_jp": str(row.get("partner_jp", "")).strip(),
-                "selected": str(selected or "").strip(),
-                "correct": str(correct or "").strip(),
-                "ok": bool(ok),
-            })
-            st.session_state[snap_key] = True
-    except Exception:
-        pass
+        # ✅ 렌더(버튼 표시)
+        if hasattr(st, 'fragment'):
+            _render_submit_block_f0c2_ = st.fragment(_render_submit_block_f0c2)
+            _render_submit_block_f0c2_()
+        else:
+            _render_submit_block_f0c2()
 
 
     # ============================================================
-    # ✅ 진도형 누적: 정답이면 mastered로 기록(로그인/재접속에도 유지)
-    if ok:
+    # ✅ After submit
+    # ============================================================
+    if submitted:
+        correct = str(row.get("answer_jp", "")).strip()
+        ok = (selected == correct)
+
+        # ✅ 제출 직후 SFX(정답/오답) — 문제(qid)당 1회만
         try:
-            _mark_mastered(resume_key, str(qid))
-            # 정답으로 맞춘 건 오답 목록에서 제거(있다면)
-            _clear_wrong(resume_key, str(qid))
+            _sfx_guard = f"talk_sfx_{qid}"
+            if not st.session_state.get(_sfx_guard, False):
+                if hasattr(core, "play_sfx_once"):
+                    core.play_sfx_once(_sfx_guard, "correct" if ok else "wrong")
+                elif hasattr(core, "play_sfx"):
+                    core.play_sfx("correct" if ok else "wrong")
+                st.session_state[_sfx_guard] = True
         except Exception:
             pass
-    else:
-        # 오답 누적(틀린 것 우선 복습용)
+
+
+        # ✅ 최근 2턴 저장(정답 제출 직후 1회만)
         try:
-            _mark_wrong(resume_key, str(qid))
+            snap_key = f"talk_turn_saved_{qid}"
+            if not st.session_state.get(snap_key):
+                _push_recent_turn({
+                    "qid": str(qid),
+                    "situation_kr": str(row.get("situation_kr", "")).strip(),
+                    "partner_jp": str(row.get("partner_jp", "")).strip(),
+                    "selected": str(selected or "").strip(),
+                    "correct": str(correct or "").strip(),
+                    "ok": bool(ok),
+                })
+                st.session_state[snap_key] = True
         except Exception:
             pass
+
+
+        # ============================================================
+        # ✅ 진도형 누적: 정답이면 mastered로 기록(로그인/재접속에도 유지)
+        if ok:
+            try:
+                _mark_mastered(resume_key, str(qid))
+                # 정답으로 맞춘 건 오답 목록에서 제거(있다면)
+                _clear_wrong(resume_key, str(qid))
+            except Exception:
+                pass
+        else:
+            # 오답 누적(틀린 것 우선 복습용)
+            try:
+                _mark_wrong(resume_key, str(qid))
+            except Exception:
+                pass
 
     
-    # ✅ 오늘의 복습(하루 1세트 고정): 시도한 문제를 done으로 기록
-    try:
-        if st.session_state.get(mode_key) == "review" and st.session_state.get(review_opt_key) == "today":
-            _today_review_mark_done(resume_key, str(qid))
-    except Exception:
-        pass
-
-# ✅ 오답 상세 저장 (wrong_notes) — 회화도 '단어/정답/내답' 기록
-    # ============================================================
-    if not ok:
+        # ✅ 오늘의 복습(하루 1세트 고정): 시도한 문제를 done으로 기록
         try:
-            sb2 = st.session_state.get("sb_authed") or sb  # hub에서 공유되면 sb_authed 우선
-            if sb2 and USER_ID:
-                q_text = (str(row.get("q_jp", "")) or str(row.get("situation_kr",""))).strip()
-                sb2 = get_authed_sb() or sb2
-
-                if not sb2:
-
-                    _wn_warn("오답 저장 실패: authed client 없음(access_token).")
-
-                else:
-
-                    try:
-
-                        sb2.table("wrong_notes").insert({
-
-                            "user_id": USER_ID,
-
-                            "quiz_type": "talk",
-
-                            "question": q_text if q_text else str(row.get("id", "")),
-
-                            "correct_answer": str(correct),
-
-                            "user_answer": str(selected),
-
-                            "level": "talk",
-
-                        }).execute()
-
-                    except Exception as e:
-
-                        _wn_warn(f"오답 저장 실패: {e}")
+            if st.session_state.get(mode_key) == "review" and st.session_state.get(review_opt_key) == "today":
+                _today_review_mark_done(resume_key, str(qid))
         except Exception:
             pass
 
-# 저장(answers)
-    answers.setdefault(qid, {})
-    answers[qid]["selected"] = selected
-    answers[qid]["ok"] = ok
-    st.session_state[f"{NS}_answers"] = answers
-    try:
-        _persist_daily_progress(resume_key, qids, idx)
-    except Exception:
-        pass
+    # ✅ 오답 상세 저장 (wrong_notes) — 회화도 '단어/정답/내답' 기록
+        # ============================================================
+        if not ok:
+            try:
+                sb2 = st.session_state.get("sb_authed") or sb  # hub에서 공유되면 sb_authed 우선
+                if sb2 and USER_ID:
+                    q_text = (str(row.get("q_jp", "")) or str(row.get("situation_kr",""))).strip()
+                    sb2 = get_authed_sb() or sb2
 
-    st.markdown("---")
-    st.subheader("결과")
+                    if not sb2:
 
-    if ok:
-        st.success("정답 ✅")
-    else:
-        st.error("오답 ❌")
+                        _wn_warn("오답 저장 실패: authed client 없음(access_token).")
 
-    # ✅ 오늘의 회화 레벨 게이지(일일) + 미션 카드(포인트)
-    _goal = 7
-    _done = _get_today_speech_done()
-    _ratio = min(1.0, (_done / _goal) if _goal else 0.0)
-    # ✅ Mission card CSS는 rerun마다 다시 주입해야 레이아웃이 유지됩니다.
-    st.markdown("""
-<style>
-.talk-mission-wrap{
-  display:flex; align-items:center; justify-content:space-between;
-  gap:12px; padding:12px 14px; border-radius:14px;
-  border:1px solid rgba(0,0,0,.10);
-  background:rgba(255, 244, 220, .55);
-  margin:10px 0 12px 0;
-}
-.talk-mission-left{min-width:0;}
-.talk-mission-badge{
-  display:inline-flex; align-items:center;
-  padding:3px 8px; border-radius:999px;
-  font-size:.82rem; font-weight:800;
-  background:rgba(0,0,0,.06);
-}
-.talk-mission-text{
-  margin-top:6px; font-size:0.98rem; font-weight:700;
-  line-height:1.25;
-}
-.talk-mission-right{
-  display:flex; flex-direction:column; align-items:flex-end;
-  flex:0 0 auto;
-}
-.talk-count-label{font-size:.82rem; opacity:.85; font-weight:700;}
-.talk-count-num{font-size:1.9rem; font-weight:900; line-height:1;}
-.talk-count-unit{font-size:.82rem; opacity:.85; font-weight:700; margin-top:2px;}
-</style>
-""", unsafe_allow_html=True)
-    st.markdown(
-        f"""
-        <div class=\"talk-mission-wrap\">
-          <div class=\"talk-mission-left\">
-            <div class=\"talk-mission-badge\">🎯 오늘 미션</div>
-            <div class=\"talk-mission-text\">오늘은 입을 <b>{_goal}번</b>만 열어봅시다.</div>
-          </div>
-          <div class=\"talk-mission-right\">
-            <div class=\"talk-count-label\">🗣 오늘 말한 문장</div>
-            <div class=\"talk-count-num\">{_done}</div>
-            <div class=\"talk-count-unit\">문장</div>
-          </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    st.progress(_ratio)
+                    else:
 
-    # 상대/정답 스크립트 + 해설(제출 후에만)
-    with st.container(border=True):
-        hotena_title("assets/hotena_talk/icons_title/icon_pronounce_title.png", "대화/해설")
+                        try:
+
+                            sb2.table("wrong_notes").insert({
+
+                                "user_id": USER_ID,
+
+                                "quiz_type": "talk",
+
+                                "question": q_text if q_text else str(row.get("id", "")),
+
+                                "correct_answer": str(correct),
+
+                                "user_answer": str(selected),
+
+                                "level": "talk",
+
+                            }).execute()
+
+                        except Exception as e:
+
+                            _wn_warn(f"오답 저장 실패: {e}")
+            except Exception:
+                pass
+
+    # 저장(answers)
+        answers.setdefault(qid, {})
+        answers[qid]["selected"] = selected
+        answers[qid]["ok"] = ok
+        st.session_state[f"{NS}_answers"] = answers
+        try:
+            _persist_daily_progress(resume_key, qids, idx)
+        except Exception:
+            pass
+
+        st.markdown("---")
+        st.subheader("결과")
+
+        if ok:
+            st.success("정답 ✅")
+        else:
+            st.error("오답 ❌")
+
+        # ✅ 오늘의 회화 레벨 게이지(일일) + 미션 카드(포인트)
+        _goal = 7
+        _done = _get_today_speech_done()
+        _ratio = min(1.0, (_done / _goal) if _goal else 0.0)
+        # ✅ Mission card CSS는 rerun마다 다시 주입해야 레이아웃이 유지됩니다.
+        st.markdown("""
+    <style>
+    .talk-mission-wrap{
+      display:flex; align-items:center; justify-content:space-between;
+      gap:12px; padding:12px 14px; border-radius:14px;
+      border:1px solid rgba(0,0,0,.10);
+      background:rgba(255, 244, 220, .55);
+      margin:10px 0 12px 0;
+    }
+    .talk-mission-left{min-width:0;}
+    .talk-mission-badge{
+      display:inline-flex; align-items:center;
+      padding:3px 8px; border-radius:999px;
+      font-size:.82rem; font-weight:800;
+      background:rgba(0,0,0,.06);
+    }
+    .talk-mission-text{
+      margin-top:6px; font-size:0.98rem; font-weight:700;
+      line-height:1.25;
+    }
+    .talk-mission-right{
+      display:flex; flex-direction:column; align-items:flex-end;
+      flex:0 0 auto;
+    }
+    .talk-count-label{font-size:.82rem; opacity:.85; font-weight:700;}
+    .talk-count-num{font-size:1.9rem; font-weight:900; line-height:1;}
+    .talk-count-unit{font-size:.82rem; opacity:.85; font-weight:700; margin-top:2px;}
+    </style>
+    """, unsafe_allow_html=True)
+        st.markdown(
+            f"""
+            <div class=\"talk-mission-wrap\">
+              <div class=\"talk-mission-left\">
+                <div class=\"talk-mission-badge\">🎯 오늘 미션</div>
+                <div class=\"talk-mission-text\">오늘은 입을 <b>{_goal}번</b>만 열어봅시다.</div>
+              </div>
+              <div class=\"talk-mission-right\">
+                <div class=\"talk-count-label\">🗣 오늘 말한 문장</div>
+                <div class=\"talk-count-num\">{_done}</div>
+                <div class=\"talk-count-unit\">문장</div>
+              </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.progress(_ratio)
+
+        # 상대/정답 스크립트 + 해설(제출 후에만)
+        with st.container(border=True):
+            hotena_title("assets/hotena_talk/icons_title/icon_pronounce_title.png", "대화/해설")
+
 
         # ✅ 상황(제출 전에도 보이지만, 결과 박스에도 다시 한 번 노출)
         situation = str(row.get("situation_kr", "")).strip()
@@ -2910,13 +2959,16 @@ if submitted:
                     if (not ask) and st.session_state.get(coach_answer_key):
                         coach_slot.info(st.session_state[coach_answer_key])
             
-            if _frag:
-                @_frag
-                def _render_smartcoach_frag():
+            if IS_PRO:
+                if _frag:
+                    @_frag
+                    def _render_smartcoach_frag():
+                        _render_smartcoach_block()
+                    _render_smartcoach_frag()
+                else:
                     _render_smartcoach_block()
-                _render_smartcoach_frag()
             else:
-                _render_smartcoach_block()# ============================================================
+                st.info("🤖 AI 스마트코치는 PRO 플랜에서만 이용 가능합니다.")# ============================================================
 # ✅ (추가) 정답 발음 확인 버튼용: 플레이어 없이 즉시 재생(JS Audio / TTS)
 # - 브라우저에 플레이어 UI가 뜨지 않게, new Audio().play()로만 재생
 # - JS 문자열은 % 포맷을 써서 f-string 중괄호 오류를 방지
@@ -3015,6 +3067,7 @@ def _render_pron_a3cfa850():
                         _speak_no_player(_ans_txt)
             else:
                 st.button("🔒 정답 발음 확인 (PRO)", key=f"{qid}_ans_pron_lock", disabled=True, use_container_width=True)
+                _render_upgrade_cta("✨ PRO로 발음듣기 무제한 사용하기", "무료 3회를 모두 사용했어요. PRO에서는 발음듣기가 무제한입니다.")
         # ✅ 말하기 녹음(선택)
         # - PRO: 녹음 가능
         # - FREE: PRO 안내 카드 노출
