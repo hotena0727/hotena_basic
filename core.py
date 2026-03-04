@@ -39,7 +39,7 @@ except Exception:  # pragma: no cover
 # - Fix oversized top padding on mobile/PWA across Streamlit versions
 # - Keep small breathing room for our custom top nav
 # ============================================================
-def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
+def apply_global_ui_css(*, top_padding_rem: float = 0.0) -> None:
     """Apply global layout CSS once per run.
 
     Fix oversized top padding on mobile/PWA across Streamlit versions.
@@ -53,6 +53,10 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
 
     css = textwrap.dedent(f"""
     <style>
+    /* Hide Streamlit default chrome */
+    #MainMenu { visibility: hidden; }
+    footer { visibility: hidden; }
+
     /* --- TOP SPACING FIX (mobile/PWA) --- */
     [data-testid="stAppViewContainer"]{{ padding-top: 0 !important; }}
     div[data-testid="stAppViewContainer"] > .main{{ padding-top: 0 !important; }}
@@ -74,24 +78,13 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
 
     /* Safe-area: avoid extra blank gap on some Android devices */
     html, body{{ padding-top: 0 !important; }}
-
-    /* --- FORCE HIDE STREAMLIT COMPONENT IFRAMES (prevents refresh top gap) --- */
-    div[data-testid="stIFrame"]{{
-      display: none !important;
-      height: 0 !important;
-      min-height: 0 !important;
-      margin: 0 !important;
-      padding: 0 !important;
-    }}
-    div[data-testid="stIFrame"] iframe{{
-      display: none !important;
-      height: 0 !important;
-      min-height: 0 !important;
-    }}
     </style>
     """)
 
     st.markdown(css, unsafe_allow_html=True)
+
+    # Hide gray placeholder iframes used by Streamlit custom components
+    _hide_streamlit_component_iframes()
 
 
 def get_cfg(key: str) -> str:
