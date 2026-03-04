@@ -40,7 +40,7 @@ except Exception:  # pragma: no cover
 # - Fix oversized top padding on mobile/PWA across Streamlit versions
 # - Keep small breathing room for our custom top nav
 # ============================================================
-def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
+def apply_global_ui_css(*, top_padding_rem: float = 0.0) -> None:
     """Apply global layout CSS once per run.
 
     Fix oversized top padding on mobile/PWA across Streamlit versions.
@@ -55,6 +55,9 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
     css = textwrap.dedent(f"""
     <style>
     /* --- TOP SPACING FIX (mobile/PWA) --- */
+    /* Extra: some versions use stMainBlockContainer wrapper */
+    [data-testid="stMainBlockContainer"]{ padding-top: 0 !important; margin-top: 0 !important; }
+    
     [data-testid="stAppViewContainer"]{{ padding-top: 0 !important; }}
     div[data-testid="stAppViewContainer"] > .main{{ padding-top: 0 !important; }}
 
@@ -286,9 +289,8 @@ def ensure_core(
     Ensure CFG/cookies/supabase anon client exist in st.session_state.
     Safe to call multiple times in the same run.
     """
-    apply_global_ui_css()
-
-    # 1) CFG
+    apply_global_ui_css(top_padding_rem=0.0)
+# 1) CFG
     cfg = st.session_state.get("cfg")
     if not isinstance(cfg, dict) or not cfg:
         cfg = {
