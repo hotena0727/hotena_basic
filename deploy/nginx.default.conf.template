@@ -13,6 +13,24 @@ server {
         return 404;
     }
 
+    # 🔒 block common backup/archive leaks
+    location ~* \.(bak|old|backup|zip|tar|gz|tgz|7z|rar|sql|sqlite|db)$ {
+        return 404;
+    }
+
+    # 🔒 common exploit paths
+    location ~* ^/(wp-admin|wp-login\.php|phpmyadmin|adminer|\.git|\.svn|\.hg)(/|$) {
+        return 404;
+    }
+
+    # 🔒 security headers (safe defaults)
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    # add_header Permissions-Policy "geolocation=(), microphone=(), camera=()" always;
+
+    # HTTPS 강제(도메인이 https로만 서비스될 때)
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
     # (optional) block common sensitive project files
     location ~* /(composer\.json|composer\.lock|package\.json|package-lock\.json|yarn\.lock|pnpm-lock\.yaml)$ {
         return 404;
@@ -65,6 +83,23 @@ server {
     location = /icon-512.png { alias /app/static/icon-512.png; add_header Cache-Control "public, max-age=86400" always; access_log off; }
     location = /favicon.ico { alias /app/static/favicon.ico; add_header Cache-Control "public, max-age=86400" always; access_log off; }
     location = /apple-touch-icon.png { alias /app/static/apple-touch-icon.png; add_header Cache-Control "public, max-age=86400" always; access_log off; }
+
+
+    # ✅ Streamlit core endpoints
+    location /_stcore/ {
+        proxy_pass http://127.0.0.1:8501;
+        proxy_http_version 1.1;
+
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+
+        proxy_read_timeout 86400;
+    }
 
     location / {
         # ✅ HTML 캐시 방지(해시 불일치 재발 방지)
