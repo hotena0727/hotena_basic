@@ -1524,7 +1524,9 @@ def render_reminder_settings(sb_authed, user):
 
 
 def fire_in_app_reminder_if_enabled(user):
-    """If reminder is enabled, schedule an in-app notification when the app is open."""
+    """If reminder is enabled, schedule an in-app notification when the app is open.
+    ✅ Dedupe: only schedule ONCE per (user, KST date, HH:MM) so page navigation won't spam alerts.
+    """
     progress_all = st.session_state.get("progress_all", {}) or {}
     rem = progress_all.get("reminder") or {}
     enabled = bool(rem.get("enabled", True))
@@ -1533,49 +1535,87 @@ def fire_in_app_reminder_if_enabled(user):
     if not enabled:
         return
 
+    # ---- ✅ Dedupe key (KST 기준) ----
     try:
-        hh, mm = [int(x) for x in time_str.split(":")]
+        kst_today = datetime.now(timezone(timedelta(hours=9))).date()
+    except Exception:
+        kst_today = datetime.now().date()
+
+    user_id = getattr(user, "id", "") or ""
+    schedule_key = f"{user_id}|{kst_today}|{time_str}"
+
+    # Python-side dedupe (same Streamlit session)
+    if st.session_state.get("_in_app_reminder_scheduled_key") == schedule_key:
+        return
+    st.session_state["_in_app_reminder_scheduled_key"] = schedule_key
+
+    # 짧은 해시 키(브라우저 localStorage/JS guard용)
+    try:
+        sk_hash = hashlib.sha1(schedule_key.encode("utf-8")).hexdigest()[:12]
+    except Exception:
+        sk_hash = str(abs(hash(schedule_key)))[:12]
+
+    # ---- schedule delay ----
+    try:
+        hh, mm = [int(x) for x in str(time_str).split(":")]
         now = datetime.now()
         target = now.replace(hour=hh, minute=mm, second=0, microsecond=0)
         if target <= now:
-            # next day
-            target = target.replace(day=now.day)  # keep structure; safe fallback
-            target = target + (datetime(now.year, now.month, now.day) - datetime(now.year, now.month, now.day))
+            target = target + timedelta(days=1)  # ✅ next day
         delay_ms = max(1000, int((target - now).total_seconds() * 1000))
     except Exception:
         delay_ms = 0
 
-    msg = json.dumps(daily_message(str(user.id)))
+    msg = json.dumps(daily_message(str(user_id)))
     components.html(
         f"""
 <script>
-  (function(){{
+(function(){{
+  try {{
+    const delay = {delay_ms};
+    const message = {msg};
+    const sk = "{sk_hash}";
+    if (delay <= 0) return;
+
+    // ---- ✅ JS-side dedupe (rerun-safe) ----
+    // 1) window guard
+    window.__HOTENA_REMINDER__ = window.__HOTENA_REMINDER__ || {{}};
+    if (window.__HOTENA_REMINDER__.scheduledKey === sk) return;
+    window.__HOTENA_REMINDER__.scheduledKey = sk;
+
+    // 2) localStorage guard (avoid duplicates even if streamlit reinjects)
+    const lsKey = "hotena_inapp_reminder_" + sk;
     try {{
-      const delay = {delay_ms};
-      const message = {msg};
-      if (delay <= 0) return;
-      setTimeout(() => {{
-        try {{
-          if (typeof Notification !== 'undefined') {{
-            if (Notification.permission === 'granted') {{
-              new Notification('하테나일본어', {{ body: message }});
-            }}
-          }}
-          // Fallback: simple alert-like toast
-          const t = document.createElement('div');
-          t.textContent = message;
-          t.style.cssText = 'position:fixed;left:50%;bottom:16px;transform:translateX(-50%);padding:10px 14px;background:rgba(20,20,20,0.92);color:#fff;border-radius:12px;font-size:14px;z-index:2147483647;';
-          document.body.appendChild(t);
-          setTimeout(()=>t.remove(), 4500);
-        }} catch(e) {{}}
-      }}, delay);
+      if (window.localStorage && localStorage.getItem(lsKey) === "1") return;
+      if (window.localStorage) localStorage.setItem(lsKey, "1");
     }} catch(e) {{}}
-  }})();
+
+    // 3) clear previous timeout if exists (extra safety)
+    try {{
+      if (window.__HOTENA_REMINDER__.tid) clearTimeout(window.__HOTENA_REMINDER__.tid);
+    }} catch(e) {{}}
+
+    window.__HOTENA_REMINDER__.tid = setTimeout(() => {{
+      try {{
+        if (typeof Notification !== 'undefined') {{
+          if (Notification.permission === 'granted') {{
+            new Notification('하테나일본어', {{ body: message }});
+          }}
+        }}
+        // Fallback: simple toast
+        const t = document.createElement('div');
+        t.textContent = message;
+        t.style.cssText = 'position:fixed;left:50%;bottom:16px;transform:translateX(-50%);padding:10px 14px;background:rgba(20,20,20,0.92);color:#fff;border-radius:12px;font-size:14px;z-index:2147483647;max-width:92vw;white-space:pre-wrap;';
+        document.body.appendChild(t);
+        setTimeout(() => {{ try {{ t.remove(); }} catch(e) {{}} }}, 4500);
+      }} catch(e) {{}}
+    }}, delay);
+  }} catch(e) {{}}
+}})();
 </script>
 """,
         height=0,
     )
-
 
 # ============================================================
 # 🔔 Reminder messages (혼합 50)
