@@ -961,9 +961,9 @@ def render_top_nav(active: str = "home") -> None:
     st.markdown(html, unsafe_allow_html=True)
 
 
-    # ✅ HOTENA_TOPNAV_SLIDE_V5 (stronger Coupang feel)
+    # ✅ HOTENA_TOPNAV_SLIDE_V6 (direction-aware)
+    # - Slide direction depends on menu order (left/right)
     # - Do NOT block navigation (no preventDefault)
-    # - Paint a more visible slide overlay + subtle page shift immediately
     try:
         components.html(
             r"""
@@ -971,23 +971,47 @@ def render_top_nav(active: str = "home") -> None:
 (function(){
   try{
     var w = (window.parent && window.parent !== window) ? window.parent : window;
-    if (w.__HOTENA_TOPNAV_SLIDE_V5_BOUND__) return;
-    w.__HOTENA_TOPNAV_SLIDE_V5_BOUND__ = true;
+    if (w.__HOTENA_TOPNAV_SLIDE_V6_BOUND__) return;
+    w.__HOTENA_TOPNAV_SLIDE_V6_BOUND__ = true;
 
     var doc = w.document;
 
+    // menu order for direction
+    var ORDER = ['home','word','kanji','talk','my'];
+
+    function getPFromHref(href){
+      try{
+        if(!href) return null;
+        // href is like "?rt=...&p=home"
+        var u = new URL(href, w.location.href);
+        return u.searchParams.get('p');
+      }catch(e){
+        try{
+          var m = String(href).match(/[?&]p=([^&]+)/);
+          return m ? decodeURIComponent(m[1]) : null;
+        }catch(e2){ return null; }
+      }
+    }
+
+    function currentP(){
+      try{
+        var a = doc.querySelector('.hn-nav a.active');
+        if(!a) return null;
+        return getPFromHref(a.getAttribute('href') || '');
+      }catch(e){ return null; }
+    }
+
     // inject CSS once into parent head
-    if (!doc.getElementById('__HOTENA_TOPNAV_SLIDE_V5_STYLE__')) {
+    if (!doc.getElementById('__HOTENA_TOPNAV_SLIDE_V6_STYLE__')) {
       var st = doc.createElement('style');
-      st.id = '__HOTENA_TOPNAV_SLIDE_V5_STYLE__';
+      st.id = '__HOTENA_TOPNAV_SLIDE_V6_STYLE__';
       st.textContent = `
-/* overlay: more visible + shadow + slight blur */
+/* overlay: panel-like */
 .hotena-nav-slide-overlay{
   position: fixed;
   inset: 0;
   background: rgba(255,255,255,0.96);
   z-index: 2147483647;
-  transform: translateX(115%);
   will-change: transform, opacity;
   opacity: 0.98;
   pointer-events: none;
@@ -995,16 +1019,25 @@ def render_top_nav(active: str = "home") -> None:
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
 }
+/* start positions */
+.hotena-nav-slide-overlay.from-right{ transform: translateX(115%); }
+.hotena-nav-slide-overlay.from-left{  transform: translateX(-115%); }
+/* animate to center */
 .hotena-nav-slide-overlay.is-on{
   transition: transform 320ms cubic-bezier(.2,.9,.2,1), opacity 260ms ease-out;
   transform: translateX(0%);
   opacity: 1;
 }
 
-/* subtle page shift (makes it feel like the page is moving, not just a blank cover) */
-.hotena-nav-page-shift{
+/* subtle page shift */
+.hotena-nav-page-shift-left{
   transition: transform 220ms ease-out, filter 220ms ease-out;
   transform: translateX(-14px) scale(0.997);
+  filter: saturate(0.98);
+}
+.hotena-nav-page-shift-right{
+  transition: transform 220ms ease-out, filter 220ms ease-out;
+  transform: translateX(14px) scale(0.997);
   filter: saturate(0.98);
 }
       `;
@@ -1025,29 +1058,49 @@ def render_top_nav(active: str = "home") -> None:
         if(!href) return;
         if(href.indexOf('p=') === -1) return;
 
-        // paint overlay, but DON'T cancel navigation
-        var root = doc.querySelector('[data-testid="stAppViewContainer"]') || doc.body || doc.documentElement;
+        var targetP = getPFromHref(href);
+        var curP = currentP();
 
-        try{ root.classList.add('hotena-nav-page-shift'); }catch(e){}
+        var curIdx = ORDER.indexOf(curP || '');
+        var tarIdx = ORDER.indexOf(targetP || '');
+
+        // default direction: right (forward)
+        var dir = 'from-right';
+        var shiftCls = 'hotena-nav-page-shift-left';
+
+        if (curIdx !== -1 && tarIdx !== -1) {
+          if (tarIdx < curIdx) { // going left/back
+            dir = 'from-left';
+            shiftCls = 'hotena-nav-page-shift-right';
+          } else if (tarIdx > curIdx) {
+            dir = 'from-right';
+            shiftCls = 'hotena-nav-page-shift-left';
+          } else {
+            // same tab; do nothing
+            return;
+          }
+        }
+
+        var root = doc.querySelector('[data-testid="stAppViewContainer"]') || doc.body || doc.documentElement;
+        try{ root.classList.add(shiftCls); }catch(e){}
 
         var ov = doc.createElement('div');
-        ov.className = 'hotena-nav-slide-overlay';
+        ov.className = 'hotena-nav-slide-overlay ' + dir;
         (doc.body || doc.documentElement).appendChild(ov);
 
-        // force layout then animate
         void ov.offsetWidth;
         w.requestAnimationFrame(function(){ ov.classList.add('is-on'); });
 
-        // cleanup (for very fast nav or back/forward cache)
+        // cleanup (for fast nav or bfcache)
         w.setTimeout(function(){
           try{ ov.remove(); }catch(e){}
-          try{ root.classList.remove('hotena-nav-page-shift'); }catch(e){}
+          try{ root.classList.remove('hotena-nav-page-shift-left'); }catch(e){}
+          try{ root.classList.remove('hotena-nav-page-shift-right'); }catch(e){}
         }, 1600);
 
       }catch(e){}
     }
 
-    // capture phase: show overlay as early as possible
     doc.addEventListener('click', handle, true);
 
   }catch(e){}
