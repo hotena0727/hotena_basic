@@ -12,6 +12,7 @@ import os
 import base64
 import hashlib
 import json
+import time
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Optional, Tuple
 
@@ -531,14 +532,21 @@ def refresh_session_from_cookie_if_needed(*, force: bool = False) -> bool:
     return False
 
 
-def get_authed_sb(*, force_refresh: bool = True):
+def get_authed_sb(*, force_refresh: bool = False):
     """
     Return a Supabase client authenticated with current access token.
     Caches by token to avoid rebuilding.
     """
     ensure_core()
     if force_refresh:
-        refresh_session_from_cookie_if_needed(force=True)
+        # Rate-limit refresh_session calls (network) to avoid 1~2s stalls on every navigation.
+        now_ts = time.time()
+        last_ts = float(st.session_state.get('_auth_last_refresh_ts', 0.0) or 0.0)
+        min_interval = float(st.session_state.get('_auth_refresh_min_interval_sec', 600) or 600)
+        need = (not st.session_state.get('user')) or (not st.session_state.get('access_token'))
+        if (now_ts - last_ts) >= min_interval or need:
+            refresh_session_from_cookie_if_needed(force=True)
+            st.session_state['_auth_last_refresh_ts'] = now_ts
     token = st.session_state.get("access_token")
     if not token:
         return None
@@ -855,33 +863,6 @@ def fetch_all_attempts_admin(sb_authed: Any, limit: int = 500):
 # ============================================================
 def render_top_nav(active: str = "home") -> None:
     import streamlit as st
-
-    # --- CRITICAL: remove Streamlit top gap ASAP (run every rerun) ---
-    st.markdown("""
-<style>
-/* Remove Streamlit header/toolbar space */
-header, header[data-testid="stHeader"]{
-  display:none !important;
-  height:0 !important;
-}
-/* Remove default top padding that causes 'first render gap' */
-[data-testid="stAppViewContainer"] > .main{
-  padding-top: 0rem !important;
-}
-[data-testid="stAppViewContainer"] > .main > div{
-  padding-top: 0rem !important;
-}
-.block-container{
-  padding-top: 0rem !important;
-  margin-top: 0rem !important;
-}
-/* In some versions, toolbar container leaves a spacer */
-[data-testid="stToolbar"], [data-testid="stDecoration"], [data-testid="stStatusWidget"]{
-  display:none !important;
-  height:0 !important;
-}
-</style>
-""", unsafe_allow_html=True)
     import textwrap
     from urllib.parse import urlencode
 
@@ -986,243 +967,6 @@ header, header[data-testid="stHeader"]{
 
     st.markdown(css, unsafe_allow_html=True)
     st.markdown(html, unsafe_allow_html=True)
-
-
-    # ✅ HOTENA_TOPNAV_SLIDE_V9 (single-wait: persist overlay across navigation to cover flash)
-    # Idea:
-    # 1) On click: show overlay immediately + store a short-lived flag in localStorage (dir + timestamp).
-    # 2) On next page load: if flag is fresh, immediately paint the SAME overlay (already "on"),
-    #    then auto-remove once Streamlit app container is present (covers the "flash/loading" separately).
-    try:
-        components.html(
-            r"""
-<script>
-(function(){
-  try{
-    var w = (window.parent && window.parent !== window) ? window.parent : window;
-    if (w.__HOTENA_TOPNAV_SLIDE_V9_BOUND__) return;
-    w.__HOTENA_TOPNAV_SLIDE_V9_BOUND__ = true;
-
-    var doc = w.document;
-    var ORDER = ['home','word','kanji','talk','my'];
-    var LS_KEY = '__HOTENA_NAV_TRANSITION__';
-
-    function now(){ return Date.now ? Date.now() : (+new Date()); }
-
-    function getPFromHref(href){
-      try{
-        if(!href) return null;
-        var u = new URL(href, w.location.href);
-        return u.searchParams.get('p');
-      }catch(e){
-        try{
-          var m = String(href).match(/[?&]p=([^&]+)/);
-          return m ? decodeURIComponent(m[1]) : null;
-        }catch(e2){ return null; }
-      }
-    }
-
-    function currentP(){
-      try{
-        var a = doc.querySelector('.hn-nav a.active');
-        if(!a) return null;
-        return getPFromHref(a.getAttribute('href') || '');
-      }catch(e){ return null; }
-    }
-
-    // inject CSS once
-    if (!doc.getElementById('__HOTENA_TOPNAV_SLIDE_V9_STYLE__')) {
-      var st = doc.createElement('style');
-      st.id = '__HOTENA_TOPNAV_SLIDE_V9_STYLE__';
-      st.textContent = `
-.hotena-nav-slide-overlay{
-  position: fixed;
-  inset: 0;
-  background: rgba(255,255,255,0.96);
-  z-index: 2147483647;
-  will-change: transform, opacity;
-  opacity: 0.98;
-  pointer-events: none;
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
-}
-.hotena-nav-slide-overlay::before{
-  content:"";
-  position:absolute;
-  top:0; bottom:0;
-  width: 46px;
-  opacity: 0.55;
-  pointer-events:none;
-}
-.hotena-nav-slide-overlay.from-right::before{
-  left:0;
-  background: linear-gradient(90deg, rgba(0,0,0,0.10), rgba(0,0,0,0.00));
-}
-.hotena-nav-slide-overlay.from-left::before{
-  right:0;
-  background: linear-gradient(270deg, rgba(0,0,0,0.10), rgba(0,0,0,0.00));
-}
-.hotena-nav-slide-overlay.from-right{ transform: translateX(115%); box-shadow: -18px 0 36px rgba(0,0,0,0.10); }
-.hotena-nav-slide-overlay.from-left{  transform: translateX(-115%); box-shadow:  18px 0 36px rgba(0,0,0,0.10); }
-.hotena-nav-slide-overlay.is-on{
-  transition: transform 320ms cubic-bezier(.2,.9,.2,1), opacity 260ms ease-out;
-  transform: translateX(0%);
-  opacity: 1;
-}
-/* for cross-navigation carry-over: already covering */
-.hotena-nav-slide-overlay.is-hold{
-  transform: translateX(0%) !important;
-  opacity: 1 !important;
-  transition: opacity 200ms ease-out;
-}
-.hotena-nav-slide-overlay.fade-out{
-  opacity: 0 !important;
-}
-
-.hotena-nav-page-shift-left{
-  transition: transform 220ms ease-out, filter 220ms ease-out;
-  transform: translateX(-14px) scale(0.997);
-  filter: saturate(0.98);
-}
-.hotena-nav-page-shift-right{
-  transition: transform 220ms ease-out, filter 220ms ease-out;
-  transform: translateX(14px) scale(0.997);
-  filter: saturate(0.98);
-}
-      `;
-      doc.head.appendChild(st);
-    }
-
-    function isModifiedClick(ev){
-      return ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey || ev.button === 1;
-    }
-
-    function addOverlay(dir, hold){
-      try{
-        var ov = doc.createElement('div');
-        ov.className = 'hotena-nav-slide-overlay ' + dir + (hold ? ' is-hold' : '');
-        (doc.body || doc.documentElement).appendChild(ov);
-        if(!hold){
-          void ov.offsetWidth;
-          w.requestAnimationFrame(function(){ ov.classList.add('is-on'); });
-        }
-        return ov;
-      }catch(e){ return null; }
-    }
-
-    function removeOverlaySmooth(ov){
-      if(!ov) return;
-      try{
-        ov.classList.add('fade-out');
-        w.setTimeout(function(){ try{ ov.remove(); }catch(e){} }, 240);
-      }catch(e){ try{ ov.remove(); }catch(e2){} }
-    }
-
-    // ---- Phase 2: on next page, if a fresh flag exists, hold overlay immediately to cover "flash/loading" ----
-    (function(){
-      try{
-        var raw = w.localStorage ? w.localStorage.getItem(LS_KEY) : null;
-        if(!raw) return;
-        var obj = null;
-        try{ obj = JSON.parse(raw); }catch(e){ obj = null; }
-        if(!obj || !obj.t || !obj.dir) return;
-
-        var age = now() - obj.t;
-        if(age < 0 || age > 2500) { w.localStorage.removeItem(LS_KEY); return; }
-
-        // paint overlay already covering
-        var ov = addOverlay(obj.dir, true);
-
-        // remove when app view container exists and has some content
-        var start = now();
-        var timer = w.setInterval(function(){
-          try{
-            var root = doc.querySelector('[data-testid="stAppViewContainer"]');
-            if(root && root.children && root.children.length > 0){
-              w.clearInterval(timer);
-              w.localStorage.removeItem(LS_KEY);
-              // short delay so first paint is stable
-              w.setTimeout(function(){ removeOverlaySmooth(ov); }, 120);
-            } else if(now() - start > 2400){
-              w.clearInterval(timer);
-              w.localStorage.removeItem(LS_KEY);
-              removeOverlaySmooth(ov);
-            }
-          }catch(e2){
-            w.clearInterval(timer);
-            try{ w.localStorage.removeItem(LS_KEY); }catch(e3){}
-            removeOverlaySmooth(ov);
-          }
-        }, 60);
-      }catch(e){}
-    })();
-
-    // ---- Phase 1: click handler: show overlay now + store flag; DO NOT block navigation ----
-    function handle(ev){
-      try{
-        var a = ev.target && ev.target.closest ? ev.target.closest('.hn-nav a') : null;
-        if(!a) return;
-        if(isModifiedClick(ev)) return;
-
-        var href = a.getAttribute('href') || '';
-        if(!href) return;
-        if(href.indexOf('p=') === -1) return;
-
-        var targetP = getPFromHref(href);
-        var curP = currentP();
-
-        var curIdx = ORDER.indexOf(curP || '');
-        var tarIdx = ORDER.indexOf(targetP || '');
-
-        var dir = 'from-right';
-        var shiftCls = 'hotena-nav-page-shift-left';
-        if (curIdx !== -1 && tarIdx !== -1) {
-          if (tarIdx < curIdx) {
-            dir = 'from-left';
-            shiftCls = 'hotena-nav-page-shift-right';
-          } else if (tarIdx > curIdx) {
-            dir = 'from-right';
-            shiftCls = 'hotena-nav-page-shift-left';
-          } else {
-            return;
-          }
-        }
-
-        // store short-lived flag for the NEXT page to keep overlay during initial render
-        try{
-          if(w.localStorage){
-            w.localStorage.setItem(LS_KEY, JSON.stringify({t: now(), dir: dir}));
-          }
-        }catch(e){}
-
-        // show overlay immediately on current page
-        var root = doc.querySelector('[data-testid="stAppViewContainer"]') || doc.body || doc.documentElement;
-        try{ root.classList.add(shiftCls); }catch(e){}
-
-        var ov = addOverlay(dir, false);
-
-        // cleanup in case navigation is instant/bfcache
-        w.setTimeout(function(){
-          try{ root.classList.remove('hotena-nav-page-shift-left'); }catch(e){}
-          try{ root.classList.remove('hotena-nav-page-shift-right'); }catch(e){}
-          // don't remove ov here aggressively; let navigation happen. but just in case, remove after 1.6s
-          removeOverlaySmooth(ov);
-        }, 1600);
-
-      }catch(e){}
-    }
-
-    doc.addEventListener('click', handle, true);
-
-  }catch(e){}
-})();
-</script>
-""",
-            height=0,
-        )
-    except Exception:
-        pass
-
 
 # ============================================================
 # ✅ SFX (Sound Effects) — shared tiny UX feedback sounds
