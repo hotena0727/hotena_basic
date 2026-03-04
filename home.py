@@ -856,13 +856,6 @@ def render_home_dashboard(sb_authed, user):
                 filled = max(0, min(3, filled))
         return " ".join(["●"] * filled + ["○"] * (3 - filled))
 
-
-
-def _hotena_play_page_transition():
-    # Render a full-screen overlay that slides in from the right.
-    st.markdown("<div class='hotena-page-transition'></div>", unsafe_allow_html=True)
-
-
     # ---- CSS ----
     st.markdown(
         """
@@ -1107,24 +1100,6 @@ def _hotena_play_page_transition():
 }
 .h-guide-btn:hover{filter:brightness(.98);}
 .h-guide-mini-t{font-size:.92rem;font-weight:800;color:rgba(15,23,42,1);margin:0;}
-
-
-
-
-/* ✅ Page transition (Coupang-like slide-in overlay) */
-.hotena-page-transition{
-  position:fixed;
-  top:0; left:0;
-  width:100vw; height:100vh;
-  background: rgba(255,255,255,0.98);
-  z-index: 2147483647;
-  transform: translateX(100%);
-  animation: hotenaSlideIn 240ms ease-out forwards;
-}
-@keyframes hotenaSlideIn{
-  from { transform: translateX(100%); }
-  to   { transform: translateX(0%); }
-}
 
 </style>
         """,
@@ -1414,13 +1389,10 @@ def _hotena_play_page_transition():
     st.markdown(f"<div class='cta_box cta_box_top'><b>{msg}</b></div>", unsafe_allow_html=True)
 
     if st.button(f"{rec_emoji} {rec_label} 시작", use_container_width=True, key="hub_cta_primary"):
-        _hotena_play_page_transition()
-        import time
-        time.sleep(0.18)  # 쿠팡 느낌의 전환 '맛' (너무 길지 않게)
-
         st.session_state["p"] = rec_kind
         st.query_params["p"] = rec_kind
         st.rerun()
+
     # ---- Wrong routine CTA (compact) ----
     st.markdown("<div style='height:0.25rem'></div>", unsafe_allow_html=True)
     c_wr1, c_wr2 = st.columns([2, 1])
@@ -1428,10 +1400,6 @@ def _hotena_play_page_transition():
         st.markdown("<div class='h-sub' style='margin-top:.10rem'>오답 루틴(반복오답)으로 복습까지 마무리해요.</div>", unsafe_allow_html=True)
     with c_wr2:
         if st.button("🔁 반복오답 루틴", use_container_width=True, key="hub_cta_wrongs"):
-            _hotena_play_page_transition()
-            import time
-            time.sleep(0.18)
-
             st.query_params["p"] = "my"
             st.session_state["p"] = "my"
             st.session_state["hub_page"] = "my"
