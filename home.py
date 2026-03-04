@@ -1642,63 +1642,195 @@ user = st.session_state.get("user")
 sb_authed = st.session_state.get("sb_authed")
 
 if not user:
-    # --- Pretty login card (Hub) ---
+    # --- Premium login (gradient + svg + google + micro animation) ---
+    # UI only: auth logic below stays the same.
     st.markdown(
-        """
+        '''
 <style>
-/* === Hotena Login (pretty card) === */
-.ha-login-bg{
-  margin-top: .10rem;
-  padding: .25rem 0 .70rem;
+/* === Hotena Premium Login === */
+.ha-login-hero{
+  margin-top: .25rem;
+  padding: 24px 0 28px;
+  border-radius: 24px;
+  background: radial-gradient(1200px 420px at 10% 0%, rgba(46,124,246,0.10), rgba(255,255,255,0) 55%),
+              radial-gradient(900px 360px at 95% 10%, rgba(15,107,63,0.09), rgba(255,255,255,0) 60%),
+              linear-gradient(180deg, rgba(255,255,255,0.75), rgba(255,255,255,0.95));
+  border: 1px solid rgba(15,23,42,0.06);
 }
+
+.ha-login-shell{
+  max-width: 440px;
+  margin: 0 auto;
+  padding: 0 2px;
+}
+
 .ha-login-card{
-  border: 1px solid rgba(49,51,63,0.14);
-  border-radius: 18px;
-  padding: 18px 16px 14px;
-  background: rgba(255,255,255,0.85);
-  box-shadow: 0 14px 38px rgba(0,0,0,0.08);
+  border: 1px solid rgba(49,51,63,0.10);
+  border-radius: 22px;
+  padding: 20px 18px 16px;
+  background: rgba(255,255,255,0.92);
+  box-shadow: 0 14px 34px rgba(0,0,0,0.06);
 }
+
 .ha-login-head{
-  display:flex; align-items:center; gap:10px;
-  margin-bottom: 10px;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom: 12px;
 }
-.ha-login-logo{
-  width: 40px; height: 40px; border-radius: 14px;
-  display:flex; align-items:center; justify-content:center;
-  border: 1px solid rgba(0,0,0,0.08);
-  background: linear-gradient(135deg, rgba(46,124,246,0.16), rgba(0,0,0,0.02));
+.ha-login-brand{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  min-width:0;
+}
+.ha-login-icon{
+  width: 42px;
+  height: 42px;
+  border-radius: 16px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border: 1px solid rgba(15,23,42,0.08);
+  background: linear-gradient(135deg, rgba(46,124,246,0.14), rgba(15,107,63,0.10));
+}
+.ha-login-ttl{
+  margin:0;
+  line-height:1.05;
+  min-width:0;
+}
+.ha-login-ttl b{
+  font-size: 1.22rem;
   font-weight: 900;
-  font-size: 18px;
 }
-.ha-login-ttl{margin:0; line-height:1.05;}
-.ha-login-ttl b{font-size:1.18rem; font-weight: 900;}
-.ha-login-ttl div{font-size:.90rem; opacity:.72; margin-top:.10rem;}
+.ha-login-ttl div{
+  font-size: .88rem;
+  opacity: .68;
+  margin-top: .18rem;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+.ha-login-badge{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding: .28rem .55rem;
+  border-radius: 999px;
+  border: 1px solid rgba(46,124,246,0.18);
+  background: rgba(46,124,246,0.07);
+  font-size: .82rem;
+  font-weight: 800;
+  opacity: .92;
+  white-space:nowrap;
+}
+.ha-login-badge.pulse{
+  animation: hotenaPulse 1.8s ease-in-out 0s 2;
+}
+@keyframes hotenaPulse{
+  0%{ transform: translateY(0); box-shadow: 0 0 0 rgba(46,124,246,0.0); }
+  35%{ transform: translateY(-2px); box-shadow: 0 10px 24px rgba(46,124,246,0.12); }
+  100%{ transform: translateY(0); box-shadow: 0 0 0 rgba(46,124,246,0.0); }
+}
+
 .ha-login-note{
   font-size: .86rem;
-  opacity: .74;
+  opacity: .72;
   margin: .10rem 0 .55rem;
+  line-height: 1.45;
 }
+
+.ha-login-divider{
+  margin: .55rem 0 .50rem;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  opacity: .72;
+  font-size: .82rem;
+}
+.ha-login-divider:before,
+.ha-login-divider:after{
+  content:"";
+  height:1px;
+  flex:1;
+  background: rgba(15,23,42,0.10);
+}
+
+.ha-btn-secondary button{
+  background: rgba(15,23,42,0.02) !important;
+  border: 1px solid rgba(15,23,42,0.12) !important;
+  color: rgba(15,23,42,0.90) !important;
+  border-radius: 16px !important;
+  font-weight: 700 !important;
+}
+.ha-btn-secondary button:hover{
+  background: rgba(15,23,42,0.04) !important;
+}
+
+.ha-google-row{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:10px;
+}
+.ha-google-ic{
+  width: 18px;
+  height: 18px;
+  display:inline-block;
+}
+
 .ha-login-foot{
   font-size: .82rem;
   opacity: .70;
-  margin-top: .55rem;
+  margin-top: .60rem;
 }
 </style>
-<div class="ha-login-bg">
-  <div class="ha-login-card">
-    <div class="ha-login-head">
-      <div class="ha-login-logo">は</div>
-      <div class="ha-login-ttl">
-        <b>하테나</b>
-        <div>단어 · 한자 · 회화 루틴을 한 곳에서</div>
+<div class="ha-login-hero">
+  <div class="ha-login-shell">
+    <div class="ha-login-card">
+      <div class="ha-login-head">
+        <div class="ha-login-brand">
+          <div class="ha-login-icon" aria-hidden="true">
+            <!-- book+sparkle (inline svg) -->
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M5 4.5c0-1.1.9-2 2-2h10a2 2 0 0 1 2 2V20c0 .55-.45 1-1 1H7a2 2 0 0 0-2 2V4.5Z" stroke="rgba(15,23,42,0.85)" stroke-width="1.6" stroke-linejoin="round"/>
+              <path d="M5 19a2 2 0 0 1 2-2h12" stroke="rgba(15,23,42,0.55)" stroke-width="1.6" stroke-linecap="round"/>
+              <path d="M14.8 6.2l.4 1.2 1.2.4-1.2.4-.4 1.2-.4-1.2-1.2-.4 1.2-.4.4-1.2Z" fill="rgba(46,124,246,0.85)"/>
+            </svg>
+          </div>
+          <div class="ha-login-ttl">
+            <b>하테나일본어</b>
+            <div>매일 10분, 실력이 쌓입니다</div>
+          </div>
+        </div>
+        <div class="ha-login-badge ''' + ( 'pulse' if (not st.session_state.get('_login_pulse_done', False)) else '' ) + '''">
+          오늘도 1세트부터
+        </div>
       </div>
+      <div class="ha-login-note">계정을 만들면 학습 기록이 저장되고, 기기/브라우저가 달라도 이어서 할 수 있어요.</div>
     </div>
-    <div class="ha-login-note">계정을 만들면 학습 기록이 저장되고, 기기/브라우저가 달라도 이어서 할 수 있어요.</div>
   </div>
 </div>
-""",
+''',
         unsafe_allow_html=True,
     )
+    st.session_state["_login_pulse_done"] = True
+
+    def _go_url(url: str):
+        # Open OAuth URL in the same tab (Streamlit-safe)
+        try:
+            components.html(
+                f"""<script>
+try {{
+  window.location.href = {json.dumps(url)};
+}} catch(e) {{}}
+</script>""",
+                height=0,
+            )
+        except Exception:
+            pass
 
     def _auth_success(res):
         st.session_state["user"] = res.user
@@ -1745,6 +1877,34 @@ if not user:
             except Exception:
                 st.error("로그인에 실패했습니다. 이메일/비밀번호를 확인해 주세요.")
 
+
+        # --- Google OAuth (optional) ---
+        st.markdown('<div class="ha-login-divider">또는</div>', unsafe_allow_html=True)
+        # Secondary button styling via key class
+        st.markdown("""<style>
+.st-key-hub_google_continue button{
+  background: rgba(15,23,42,0.02) !important;
+  border: 1px solid rgba(15,23,42,0.12) !important;
+  color: rgba(15,23,42,0.90) !important;
+  border-radius: 16px !important;
+  font-weight: 700 !important;
+}
+.st-key-hub_google_continue button:hover{
+  background: rgba(15,23,42,0.04) !important;
+}
+</style>""", unsafe_allow_html=True)
+
+        if st.button("Google로 계속하기", use_container_width=True, key="hub_google_continue"):
+            try:
+                # Supabase OAuth (requires provider configured in Supabase dashboard)
+                res_oauth = sb.auth.sign_in_with_oauth({"provider": "google"})
+                url = getattr(res_oauth, "url", None) or (res_oauth.get("url") if isinstance(res_oauth, dict) else None)
+                if url:
+                    _go_url(str(url))
+                else:
+                    st.error("Google 로그인 URL을 생성하지 못했습니다. (Supabase OAuth 설정을 확인해 주세요.)")
+            except Exception:
+                st.error("Google 로그인에 실패했습니다. (Supabase OAuth 설정을 확인해 주세요.)")
         st.markdown('<div class="ha-login-foot">※ 처음 이용이라면 <b>회원가입</b> 탭에서 계정을 만들어 주세요.</div>', unsafe_allow_html=True)
 
     with tab_signup:
