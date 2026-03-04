@@ -961,7 +961,11 @@ def render_top_nav(active: str = "home") -> None:
     st.markdown(html, unsafe_allow_html=True)
 
 
-    # ✅ HOTENA_TOPNAV_SLIDE_V8 (direction-aware + shadow + edge gradient)
+    # ✅ HOTENA_TOPNAV_SLIDE_V9 (single-wait: persist overlay across navigation to cover flash)
+    # Idea:
+    # 1) On click: show overlay immediately + store a short-lived flag in localStorage (dir + timestamp).
+    # 2) On next page load: if flag is fresh, immediately paint the SAME overlay (already "on"),
+    #    then auto-remove once Streamlit app container is present (covers the "flash/loading" separately).
     try:
         components.html(
             r"""
@@ -969,11 +973,14 @@ def render_top_nav(active: str = "home") -> None:
 (function(){
   try{
     var w = (window.parent && window.parent !== window) ? window.parent : window;
-    if (w.__HOTENA_TOPNAV_SLIDE_V8_BOUND__) return;
-    w.__HOTENA_TOPNAV_SLIDE_V8_BOUND__ = true;
+    if (w.__HOTENA_TOPNAV_SLIDE_V9_BOUND__) return;
+    w.__HOTENA_TOPNAV_SLIDE_V9_BOUND__ = true;
 
     var doc = w.document;
     var ORDER = ['home','word','kanji','talk','my'];
+    var LS_KEY = '__HOTENA_NAV_TRANSITION__';
+
+    function now(){ return Date.now ? Date.now() : (+new Date()); }
 
     function getPFromHref(href){
       try{
@@ -996,9 +1003,10 @@ def render_top_nav(active: str = "home") -> None:
       }catch(e){ return null; }
     }
 
-    if (!doc.getElementById('__HOTENA_TOPNAV_SLIDE_V8_STYLE__')) {
+    // inject CSS once
+    if (!doc.getElementById('__HOTENA_TOPNAV_SLIDE_V9_STYLE__')) {
       var st = doc.createElement('style');
-      st.id = '__HOTENA_TOPNAV_SLIDE_V8_STYLE__';
+      st.id = '__HOTENA_TOPNAV_SLIDE_V9_STYLE__';
       st.textContent = `
 .hotena-nav-slide-overlay{
   position: fixed;
@@ -1011,7 +1019,6 @@ def render_top_nav(active: str = "home") -> None:
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
 }
-/* edge highlight */
 .hotena-nav-slide-overlay::before{
   content:"";
   position:absolute;
@@ -1028,18 +1035,21 @@ def render_top_nav(active: str = "home") -> None:
   right:0;
   background: linear-gradient(270deg, rgba(0,0,0,0.10), rgba(0,0,0,0.00));
 }
-
-/* start positions */
-.hotena-nav-slide-overlay.from-right{ transform: translateX(115%); }
-.hotena-nav-slide-overlay.from-left{  transform: translateX(-115%); }
-/* shadow direction */
-.hotena-nav-slide-overlay.from-right{ box-shadow: -18px 0 36px rgba(0,0,0,0.10); }
-.hotena-nav-slide-overlay.from-left{  box-shadow:  18px 0 36px rgba(0,0,0,0.10); }
-
+.hotena-nav-slide-overlay.from-right{ transform: translateX(115%); box-shadow: -18px 0 36px rgba(0,0,0,0.10); }
+.hotena-nav-slide-overlay.from-left{  transform: translateX(-115%); box-shadow:  18px 0 36px rgba(0,0,0,0.10); }
 .hotena-nav-slide-overlay.is-on{
   transition: transform 320ms cubic-bezier(.2,.9,.2,1), opacity 260ms ease-out;
   transform: translateX(0%);
   opacity: 1;
+}
+/* for cross-navigation carry-over: already covering */
+.hotena-nav-slide-overlay.is-hold{
+  transform: translateX(0%) !important;
+  opacity: 1 !important;
+  transition: opacity 200ms ease-out;
+}
+.hotena-nav-slide-overlay.fade-out{
+  opacity: 0 !important;
 }
 
 .hotena-nav-page-shift-left{
@@ -1060,6 +1070,67 @@ def render_top_nav(active: str = "home") -> None:
       return ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey || ev.button === 1;
     }
 
+    function addOverlay(dir, hold){
+      try{
+        var ov = doc.createElement('div');
+        ov.className = 'hotena-nav-slide-overlay ' + dir + (hold ? ' is-hold' : '');
+        (doc.body || doc.documentElement).appendChild(ov);
+        if(!hold){
+          void ov.offsetWidth;
+          w.requestAnimationFrame(function(){ ov.classList.add('is-on'); });
+        }
+        return ov;
+      }catch(e){ return null; }
+    }
+
+    function removeOverlaySmooth(ov){
+      if(!ov) return;
+      try{
+        ov.classList.add('fade-out');
+        w.setTimeout(function(){ try{ ov.remove(); }catch(e){} }, 240);
+      }catch(e){ try{ ov.remove(); }catch(e2){} }
+    }
+
+    // ---- Phase 2: on next page, if a fresh flag exists, hold overlay immediately to cover "flash/loading" ----
+    (function(){
+      try{
+        var raw = w.localStorage ? w.localStorage.getItem(LS_KEY) : null;
+        if(!raw) return;
+        var obj = null;
+        try{ obj = JSON.parse(raw); }catch(e){ obj = null; }
+        if(!obj || !obj.t || !obj.dir) return;
+
+        var age = now() - obj.t;
+        if(age < 0 || age > 2500) { w.localStorage.removeItem(LS_KEY); return; }
+
+        // paint overlay already covering
+        var ov = addOverlay(obj.dir, true);
+
+        // remove when app view container exists and has some content
+        var start = now();
+        var timer = w.setInterval(function(){
+          try{
+            var root = doc.querySelector('[data-testid="stAppViewContainer"]');
+            if(root && root.children && root.children.length > 0){
+              w.clearInterval(timer);
+              w.localStorage.removeItem(LS_KEY);
+              // short delay so first paint is stable
+              w.setTimeout(function(){ removeOverlaySmooth(ov); }, 120);
+            } else if(now() - start > 2400){
+              w.clearInterval(timer);
+              w.localStorage.removeItem(LS_KEY);
+              removeOverlaySmooth(ov);
+            }
+          }catch(e2){
+            w.clearInterval(timer);
+            try{ w.localStorage.removeItem(LS_KEY); }catch(e3){}
+            removeOverlaySmooth(ov);
+          }
+        }, 60);
+      }catch(e){}
+    })();
+
+    // ---- Phase 1: click handler: show overlay now + store flag; DO NOT block navigation ----
     function handle(ev){
       try{
         var a = ev.target && ev.target.closest ? ev.target.closest('.hn-nav a') : null;
@@ -1078,7 +1149,6 @@ def render_top_nav(active: str = "home") -> None:
 
         var dir = 'from-right';
         var shiftCls = 'hotena-nav-page-shift-left';
-
         if (curIdx !== -1 && tarIdx !== -1) {
           if (tarIdx < curIdx) {
             dir = 'from-left';
@@ -1091,20 +1161,25 @@ def render_top_nav(active: str = "home") -> None:
           }
         }
 
+        // store short-lived flag for the NEXT page to keep overlay during initial render
+        try{
+          if(w.localStorage){
+            w.localStorage.setItem(LS_KEY, JSON.stringify({t: now(), dir: dir}));
+          }
+        }catch(e){}
+
+        // show overlay immediately on current page
         var root = doc.querySelector('[data-testid="stAppViewContainer"]') || doc.body || doc.documentElement;
         try{ root.classList.add(shiftCls); }catch(e){}
 
-        var ov = doc.createElement('div');
-        ov.className = 'hotena-nav-slide-overlay ' + dir;
-        (doc.body || doc.documentElement).appendChild(ov);
+        var ov = addOverlay(dir, false);
 
-        void ov.offsetWidth;
-        w.requestAnimationFrame(function(){ ov.classList.add('is-on'); });
-
+        // cleanup in case navigation is instant/bfcache
         w.setTimeout(function(){
-          try{ ov.remove(); }catch(e){}
           try{ root.classList.remove('hotena-nav-page-shift-left'); }catch(e){}
           try{ root.classList.remove('hotena-nav-page-shift-right'); }catch(e){}
+          // don't remove ov here aggressively; let navigation happen. but just in case, remove after 1.6s
+          removeOverlaySmooth(ov);
         }, 1600);
 
       }catch(e){}
