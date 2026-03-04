@@ -2830,6 +2830,17 @@ with st.container(border=True):
             if hasattr(st, 'fragment'):
                 _render_free_after_tts_4b2c = st.fragment(_render_free_after_tts_4b2c)
             _render_free_after_tts_4b2c()
+
+            # ✅ FREE: '대화/해설' 영역 발음듣기 소진 시에도 PRO 업그레이드 안내(발음체크와 동일)
+            if (not IS_PRO) and submitted and (_free_tts_remaining() <= 0):
+                st.markdown(
+                    '<div style="margin-top:6px;display:flex;align-items:center;gap:8px;">'
+                    '<span style="font-size:12px;background:#FFD54F;color:#000;padding:2px 6px;border-radius:8px;font-weight:800;">PRO</span>'
+                    '<span style="font-size:0.92rem;opacity:0.85;">발음 듣기는 PRO 전용 (무료 3회 소진)</span>'
+                    '</div>',
+                    unsafe_allow_html=True,
+                )
+                _render_upgrade_cta("✨ PRO로 업그레이드", "PRO에서는 발음듣기가 무제한입니다.")
         # ============================================================
         # ✅ 제출 이후에만 원포인트 + 스마트코치 표시
         # ============================================================
