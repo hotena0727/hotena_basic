@@ -960,7 +960,7 @@ def render_top_nav(active: str = "home") -> None:
     st.markdown(css, unsafe_allow_html=True)
 
 
-    # ✅ HOTENA_TOPNAV_SLIDE: Coupang-like slide transition on top-nav click
+    # ✅ HOTENA_TOPNAV_SLIDE_V2: stronger slide feel (parent-doc overlay + guaranteed animation frame)
     st.markdown(
         """
 <style>
@@ -970,54 +970,72 @@ def render_top_nav(active: str = "home") -> None:
   inset: 0;
   background: rgba(255,255,255,0.98);
   z-index: 2147483647;
-  transform: translateX(100%);
-  animation: hotenaNavSlideIn 240ms ease-out forwards;
+  transform: translateX(110%);
+  will-change: transform;
 }
-@keyframes hotenaNavSlideIn{
-  from { transform: translateX(100%); }
-  to   { transform: translateX(0%); }
+.hotena-nav-slide-overlay.is-on{
+  transition: transform 260ms ease-out;
+  transform: translateX(0%);
 }
 </style>
 <script>
 (function(){
   try{
-    if (window.__HOTENA_TOPNAV_SLIDE_BOUND__) return;
-    window.__HOTENA_TOPNAV_SLIDE_BOUND__ = true;
+    if (window.__HOTENA_TOPNAV_SLIDE_V2_BOUND__) return;
+    window.__HOTENA_TOPNAV_SLIDE_V2_BOUND__ = true;
+
+    function getDoc(){
+      try{ return (window.parent && window.parent.document) ? window.parent.document : document; }
+      catch(e){ return document; }
+    }
 
     function isModifiedClick(ev){
       return ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey || ev.button === 1;
     }
 
-    document.addEventListener('click', function(ev){
+    function handle(ev){
       try{
         var a = ev.target && ev.target.closest ? ev.target.closest('.hn-nav a') : null;
         if(!a) return;
-
-        // allow modified clicks / new tab
         if(isModifiedClick(ev)) return;
+
         var tgt = a.getAttribute('target') || '';
         if(tgt && tgt !== '_self') return;
 
         var href = a.getAttribute('href') || '';
         if(!href) return;
-
-        // only handle navigation that changes ?p=
         if(href.indexOf('p=') === -1) return;
 
         ev.preventDefault();
 
-        // overlay
-        try{
-          var ov = document.createElement('div');
-          ov.className = 'hotena-nav-slide-overlay';
-          document.body.appendChild(ov);
-        }catch(e){}
+        var doc = getDoc();
+        var body = doc.body || doc.documentElement;
 
+        // create overlay in PARENT document so it covers entire UI (Streamlit often runs in iframe)
+        var ov = doc.createElement('div');
+        ov.className = 'hotena-nav-slide-overlay';
+        body.appendChild(ov);
+
+        // force layout, then turn on transition
+        void ov.offsetWidth;
+        requestAnimationFrame(function(){
+          ov.classList.add('is-on');
+        });
+
+        // navigate after animation begins (give it enough time to be visible)
         setTimeout(function(){
-          window.location.href = href;
-        }, 120);
+          try{ window.location.href = href; } catch(e){ doc.location.href = href; }
+        }, 180);
       }catch(e){}
-    }, true);
+    }
+
+    // capture phase to run before Streamlit handlers
+    document.addEventListener('click', handle, true);
+    try{
+      if (window.parent && window.parent !== window){
+        window.parent.document.addEventListener('click', handle, true);
+      }
+    }catch(e){}
   }catch(e){}
 })();
 </script>
