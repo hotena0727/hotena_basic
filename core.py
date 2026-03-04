@@ -62,7 +62,8 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.0) -> None:
     [data-testid="block-container"]{{ padding-top: {pad} !important; }}
     /* Older Streamlit */
     .block-container{{ padding-top: {pad} !important; }}
-
+    section.main > div {{ padding-top: 0 !important; }}
+    
     /* In some layouts, the first vertical block adds extra margin */
     [data-testid="stVerticalBlock"] > div:first-child{{ margin-top: 0 !important; }}
 
