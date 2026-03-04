@@ -12,7 +12,6 @@ import os
 import base64
 import hashlib
 import json
-import textwrap
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Optional, Tuple
 
@@ -41,10 +40,15 @@ except Exception:  # pragma: no cover
 # - Keep small breathing room for our custom top nav
 # ============================================================
 def apply_global_ui_css(*, top_padding_rem: float = 0.0) -> None:
-    """Apply global layout CSS once per run.
+    """Apply global layout CSS once per Streamlit run.
 
-    Fix oversized top padding on mobile/PWA across Streamlit versions.
-    Targets both legacy (.block-container) and newer [data-testid="block-container"].
+    Goal: eliminate Streamlit's extra top spacing (especially on mobile/PWA) while
+    keeping behavior stable across Streamlit versions and across hard refresh (F5).
+
+    We inject CSS twice:
+    1) st.markdown: quick first paint inside the Streamlit doc
+    2) components.html: upsert a <style> tag in the *parent* document head, so
+       later Streamlit reflows don't overwrite our padding reset on refresh.
     """
     if st.session_state.get("_core_global_ui_css_applied"):
         return
@@ -52,36 +56,83 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.0) -> None:
 
     pad = f"{max(0.0, float(top_padding_rem))}rem"
 
-    css = textwrap.dedent(f"""
-    <style>
-    /* --- TOP SPACING FIX (mobile/PWA) --- */
-    [data-testid="stAppViewContainer"]{{ padding-top: 0 !important; }}
-    div[data-testid="stAppViewContainer"] > .main{{ padding-top: 0 !important; }}
+    css_rules = textwrap.dedent(f"""
+    /* --- Hotena: TOP SPACING FIX (mobile/PWA) --- */
+    html, body {{
+      margin: 0 !important;
+      padding-top: 0 !important;
+    }}
+
+    [data-testid="stAppViewContainer"] {{
+      padding-top: 0 !important;
+    }}
+    div[data-testid="stAppViewContainer"] > .main {{
+      padding-top: 0 !important;
+      margin-top: 0 !important;
+    }}
+
+    [data-testid="stMain"], section.main {{
+      padding-top: 0 !important;
+      margin-top: 0 !important;
+    }}
 
     /* Newer Streamlit */
-    [data-testid="block-container"]{{ padding-top: {pad} !important; }}
+    [data-testid="block-container"] {{
+      padding-top: {pad} !important;
+      margin-top: 0 !important;
+    }}
     /* Older Streamlit */
-    .block-container{{ padding-top: {pad} !important; }}
-    section.main > div {{ padding-top: 0 !important; }}
-    
-    /* In some layouts, the first vertical block adds extra margin */
-    [data-testid="stVerticalBlock"] > div:first-child{{ margin-top: 0 !important; }}
+    .block-container {{
+      padding-top: {pad} !important;
+      margin-top: 0 !important;
+    }}
 
-    /* ✅ Kill Streamlit default header COMPLETELY (no reserved space) */
-    header, header[data-testid="stHeader"]{{
+    section.main > div {{
+      padding-top: 0 !important;
+      margin-top: 0 !important;
+    }}
+
+    [data-testid="stVerticalBlock"] > div:first-child {{
+      margin-top: 0 !important;
+    }}
+
+    header, header[data-testid="stHeader"] {{
       display: none !important;
       height: 0 !important;
       min-height: 0 !important;
     }}
-
-    /* Safe-area: avoid extra blank gap on some Android devices */
-    html, body{{ padding-top: 0 !important; }}
-
-    </style>
+    div[data-testid="stToolbar"], div[data-testid="stDecoration"] {{
+      display: none !important;
+      height: 0 !important;
+      min-height: 0 !important;
+    }}
     """)
 
-    st.markdown(css, unsafe_allow_html=True)
+    st.markdown(f"<style>{css_rules}</style>", unsafe_allow_html=True)
 
+    try:
+        components.html(
+            f"""
+<script>
+(function(){{
+  try {{
+    var doc = (window.parent && window.parent.document) ? window.parent.document : document;
+    var id = "hn_global_ui_css";
+    var el = doc.getElementById(id);
+    if (!el) {{
+      el = doc.createElement("style");
+      el.id = id;
+      doc.head.appendChild(el);
+    }}
+    el.textContent = {json.dumps(css_rules)};
+  }} catch(e) {{}}
+}})();
+</script>
+""",
+            height=0,
+        )
+    except Exception:
+        pass
 
 def get_cfg(key: str) -> str:
     """Read from env first, then st.secrets safely. Returns '' if missing.
@@ -143,6 +194,46 @@ div[data-testid="stIFrame"]:has(iframe[title^="streamlit.components.v1."]) ifram
 </style>""",
         unsafe_allow_html=True,
     )
+
+    # 2) JS fallback: repeatedly collapse matching wrappers (in case :has isn't applied early enough)
+    try:
+        components.html(
+            """
+<script>
+(function(){
+  function kill(){
+    try{
+      var doc = (window.parent && window.parent.document) ? window.parent.document : document;
+      var frames = doc.querySelectorAll('iframe[title^="streamlit.components.v1."]');
+      frames.forEach(function(fr){
+        try{
+          fr.style.display='none';
+          fr.style.height='0px';
+          fr.style.minHeight='0px';
+          var wrap = fr.closest('[data-testid="stIFrame"]') || fr.parentElement;
+          if(wrap){
+            wrap.style.display='none';
+            wrap.style.height='0px';
+            wrap.style.minHeight='0px';
+            wrap.style.margin='0';
+            wrap.style.padding='0';
+          }
+        }catch(e){}
+      });
+    }catch(e){}
+  }
+  kill();
+  setTimeout(kill, 60);
+  setTimeout(kill, 220);
+  setTimeout(kill, 650);
+  var n=0, iv=setInterval(function(){ kill(); if(++n>=40) clearInterval(iv); }, 300);
+})();
+</script>
+""",
+            height=0,
+        )
+    except Exception:
+        pass
 
 
 
@@ -235,7 +326,6 @@ def ensure_core(
     Safe to call multiple times in the same run.
     """
     apply_global_ui_css(top_padding_rem=0.0)
-
     # 1) CFG
     cfg = st.session_state.get("cfg")
     if not isinstance(cfg, dict) or not cfg:
