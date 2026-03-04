@@ -1786,12 +1786,12 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
 <style>
   /* ✅ 무지/미니멀 A안 + 말풍선 각각 아웃라인(레이아웃 영향 없음: box-shadow) */
   .ttspair{{display:flex;flex-direction:column;gap:8px;}}
-  .ttspair .row{{display:flex;align-items:flex-start;gap:10px;line-height:1.35;}}
+  .ttspair .row{{display:flex;align-items:flex-start;gap:6px;line-height:1.35;}}}
   .ttspair .bubble{{border-radius:14px; box-shadow:0 0 0 1px rgba(0,0,0,.12);}}
   .ttspair .bubble-p{{box-shadow:0 0 0 1px rgba(0,0,0,.20);}}
   .ttspair .bubble-a{{box-shadow:0 0 0 1px rgba(0,0,0,.12);}}
 
-  .ttspair .lab{{min-width:52px;font-weight:650;opacity:.82;flex:0 0 auto;padding:10px 0 10px 10px;}}
+  .ttspair .lab{{min-width:48px;font-weight:650;opacity:.82;flex:0 0 auto;padding:10px 0 10px 0px;}}}
   .ttspair .txtwrap{{flex:1 1 auto;min-width:0;white-space:normal;overflow-wrap:anywhere;word-break:break-word;padding:10px 0;}}
   .ttspair .jp{{font-size:1.03rem;font-weight:560;line-height:1.35;letter-spacing:.01em;}}
   .ttspair .kr{{margin-top:3px;font-size:.86rem;line-height:1.25;opacity:.72;}}
@@ -2518,6 +2518,8 @@ with st.container(border=True):
                 selected = picked
                 submitted = True
 
+        # ✅ 정답 제출 버튼(제출 전) 렌더 — 전체 rerun 부담 줄이기
+
 
     # ============================================================
     # ✅ After submit
@@ -2692,9 +2694,6 @@ with st.container(border=True):
         # 상대/정답 스크립트 + 해설(제출 후에만)
         with st.container(border=True):
             hotena_title("assets/hotena_talk/icons_title/icon_pronounce_title.png", "대화/해설")
-        if hasattr(st, 'fragment'):
-            _render_submit_block_f0c2 = st.fragment(_render_submit_block_f0c2)
-        _render_submit_block_f0c2()
 
 
         # ✅ 상황(제출 전에도 보이지만, 결과 박스에도 다시 한 번 노출)
