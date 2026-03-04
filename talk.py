@@ -2150,8 +2150,22 @@ mastered_map = _get_mastered_map(resume_key)
 mastered_cnt = len(mastered_map)
 total_cnt = int(len(pool_df) if pool_df is not None else 0)
 remain_cnt = max(0, total_cnt - mastered_cnt)
-pct = int(round((mastered_cnt / total_cnt) * 100)) if total_cnt > 0 else 0
-is_done = (total_cnt > 0 and mastered_cnt >= total_cnt)
+
+# ✅ 세트 진도 기준:
+# - PRO: 10문제 = 1세트(SET_LEN)
+# - FREE: 3문제 = 1세트(FREE_SET_LEN)
+_set_size = int(SET_LEN if IS_PRO else FREE_SET_LEN)
+set_done = (mastered_cnt // _set_size) if (_set_size > 0) else 0
+set_total = int(math.ceil(total_cnt / _set_size)) if (total_cnt > 0 and _set_size > 0) else 0
+if set_total > 0:
+    set_done = max(0, min(set_done, set_total))
+
+# 표시용 퍼센트는 '세트 진도' 기준
+pct = int(round((set_done / set_total) * 100)) if set_total > 0 else 0
+# 문항 기준 퍼센트(참고용)
+pct_q = int(round((mastered_cnt / total_cnt) * 100)) if total_cnt > 0 else 0
+
+is_done = (set_total > 0 and set_done >= set_total)
 
 _badges = []
 if is_done:
@@ -2186,7 +2200,7 @@ with p1:
         <div class='ha-talk-prog-wrap'>
           <div class='ha-talk-prog-top'>
             <div>
-              <div class='ha-talk-prog-title'>📈 진도 {mastered_cnt}/{total_cnt} <span class='ha-talk-prog-sub'>(남은 {remain_cnt}) · {pct}%</span></div>
+              <div class='ha-talk-prog-title'>📈 세트 진도 {set_done}/{set_total} <span class='ha-talk-prog-sub'>(문항 {mastered_cnt}/{total_cnt} · 남은 {remain_cnt}) · {pct}%</span></div>
             </div>
             <div class='ha-talk-badges'>{''.join(_badges)}</div>
           </div>
@@ -2194,7 +2208,7 @@ with p1:
         """,
         unsafe_allow_html=True,
     )
-    st.progress((mastered_cnt / total_cnt) if total_cnt > 0 else 0.0)
+    st.progress((set_done / set_total) if set_total > 0 else 0.0)
 
 with p2:
     if st.button("🔄 새 세트", use_container_width=True, type="secondary", key=f"{NS}_new_set"):
