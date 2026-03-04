@@ -856,8 +856,16 @@ def render_top_nav(active: str = "home") -> None:
     css = textwrap.dedent("""        <style>
       /* Hide Streamlit default UI */
       #MainMenu { visibility: hidden; }
-      header, header[data-testid="stHeader"] { display:none !important; height:0 !important; }
-      footer { display:none !important; height:0 !important; }
+      header, header[data-testid="stHeader"]{
+        display:none !important;
+        height:0 !important;
+        min-height:0 !important;
+      }
+      footer{
+        display:none !important;
+        height:0 !important;
+        min-height:0 !important;
+      }
       [data-testid="stSidebar"] { display: none !important; }
       [data-testid="stSidebarNav"] { display: none !important; }
 
