@@ -56,6 +56,8 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
         f"""<style>
 /* --- TOP SPACING FIX (mobile/PWA) --- */
 [data-testid="stAppViewContainer"]{{ padding-top: 0 !important; }}
+div[data-testid="stAppViewContainer"] > .main{{ padding-top: 0 !important; }}
+
 /* Newer Streamlit */
 [data-testid="block-container"]{{ padding-top: {pad} !important; }}
 /* Older Streamlit */
@@ -64,9 +66,12 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
 /* In some layouts, the first vertical block adds extra margin */
 [data-testid="stVerticalBlock"] > div:first-child{{ margin-top: 0 !important; }}
 
-/* Optional: hide Streamlit default header space if present */
-header[data-testid="stHeader"]{{ height: 0 !important; }}
-header[data-testid="stHeader"] *{{ display:none !important; }}
+/* ✅ Kill Streamlit default header COMPLETELY (no reserved space) */
+header, header[data-testid="stHeader"]{{
+  display:none !important;
+  height:0 !important;
+  min-height:0 !important;
+}}
 
 /* Safe-area: avoid extra blank gap on some Android devices */
 html, body{{ padding-top: 0 !important; }}
@@ -851,8 +856,8 @@ def render_top_nav(active: str = "home") -> None:
     css = textwrap.dedent("""        <style>
       /* Hide Streamlit default UI */
       #MainMenu { visibility: hidden; }
-      header { visibility: hidden; }
-      footer { visibility: hidden; }
+      header, header[data-testid="stHeader"] { display:none !important; height:0 !important; }
+      footer { display:none !important; height:0 !important; }
       [data-testid="stSidebar"] { display: none !important; }
       [data-testid="stSidebarNav"] { display: none !important; }
 
