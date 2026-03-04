@@ -1,0 +1,9 @@
+# --- security ---
+.env
+**/.env
+**/.git
+*.pem
+*.key
+*.p12
+*.pfx
+**/secrets*
