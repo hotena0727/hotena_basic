@@ -1786,6 +1786,19 @@ if not user:
   opacity: .70;
   margin-top: .60rem;
 }
+
+.ha-login-ttl .ha-login-sub{
+  margin-top: 8px;
+  font-size: .92rem;
+  opacity: .72;
+}
+.ha-login-hope{
+  margin-top: 12px;
+  font-size: .92rem;
+  font-weight: 700;
+  color: rgba(46,124,246,0.95);
+  text-align: center;
+}
 </style>
 <div class="ha-login-hero">
   <div class="ha-login-shell">
@@ -1802,12 +1815,13 @@ if not user:
           </div>
           <div class="ha-login-ttl">
             <b>하테나일본어</b>
-            <div>매일 10분, 실력이 쌓입니다</div>
+            <div class="ha-login-sub">한글만 알면 누구나 할 수 있어요.</div>
           </div>
         </div>
         <div class="ha-login-badge ''' + ( 'pulse' if (not st.session_state.get('_login_pulse_done', False)) else '' ) + '''">
           오늘도 1세트부터
         </div>
+        <div class="ha-login-hope">이제, 일본어로 &quot;말할 수 있는 사람&quot;이 되어보세요.</div>
       </div>
       <div class="ha-login-note">계정을 만들면 학습 기록이 저장되고, 기기/브라우저가 달라도 이어서 할 수 있어요.</div>
     </div>
@@ -1876,36 +1890,6 @@ try {{
                     st.error("로그인에 실패했습니다. 이메일/비밀번호를 확인해 주세요.")
             except Exception:
                 st.error("로그인에 실패했습니다. 이메일/비밀번호를 확인해 주세요.")
-
-
-        # --- Google OAuth (optional) ---
-        st.markdown('<div class="ha-login-divider">또는</div>', unsafe_allow_html=True)
-        # Secondary button styling via key class
-        st.markdown("""<style>
-.st-key-hub_google_continue button{
-  background: rgba(15,23,42,0.02) !important;
-  border: 1px solid rgba(15,23,42,0.12) !important;
-  color: rgba(15,23,42,0.90) !important;
-  border-radius: 16px !important;
-  font-weight: 700 !important;
-}
-.st-key-hub_google_continue button:hover{
-  background: rgba(15,23,42,0.04) !important;
-}
-</style>""", unsafe_allow_html=True)
-
-        if st.button("Google로 계속하기", use_container_width=True, key="hub_google_continue"):
-            try:
-                # Supabase OAuth (requires provider configured in Supabase dashboard)
-                res_oauth = sb.auth.sign_in_with_oauth({"provider": "google"})
-                url = getattr(res_oauth, "url", None) or (res_oauth.get("url") if isinstance(res_oauth, dict) else None)
-                if url:
-                    _go_url(str(url))
-                else:
-                    st.error("Google 로그인 URL을 생성하지 못했습니다. (Supabase OAuth 설정을 확인해 주세요.)")
-            except Exception:
-                st.error("Google 로그인에 실패했습니다. (Supabase OAuth 설정을 확인해 주세요.)")
-        st.markdown('<div class="ha-login-foot">※ 처음 이용이라면 <b>회원가입</b> 탭에서 계정을 만들어 주세요.</div>', unsafe_allow_html=True)
 
     with tab_signup:
         with st.form("signup_form_pretty", clear_on_submit=False):
