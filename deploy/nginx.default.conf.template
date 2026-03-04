@@ -2,6 +2,14 @@ server {
     listen ${PORT};
     server_name _;
 
+    # ✅ 502/503/504를 "연결 중..." 화면으로 대체 + 자동 재시도(1초)
+    error_page 502 503 504 = @ha_retry;
+    location @ha_retry {
+        add_header Cache-Control "no-store" always;
+        add_header Content-Type "text/html; charset=utf-8" always;
+        return 200 '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="refresh" content="1"><title>연결 중…</title></head><body style="font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding:24px;line-height:1.6"><div style="max-width:520px;margin:0 auto"><h2 style="margin:0 0 10px">잠시만요…</h2><p style="margin:0 0 10px">서버를 준비 중입니다. 곧 자동으로 연결됩니다.</p><p style="margin:0;opacity:.7;font-size:13px">계속 같은 화면이면 새로고침 한 번만 부탁드립니다.</p></div></body></html>';
+    }
+
     location = /manifest.json {
         alias /app/static/pwa-manifest.json;
         add_header Content-Type "application/manifest+json" always;
@@ -27,10 +35,12 @@ server {
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
 
-        proxy_connect_timeout 30s;
-        proxy_send_timeout 30s;
+        # ✅ 콜드스타트/순간 끊김에서 502를 덜 보이게(nginx 내부 재시도)
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
         proxy_next_upstream error timeout http_502 http_503 http_504;
-        proxy_next_upstream_tries 3;
+        proxy_next_upstream_tries 10;
+        proxy_next_upstream_timeout 15s;
 
         proxy_read_timeout 86400;
     }
@@ -56,10 +66,12 @@ server {
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";
 
-        proxy_connect_timeout 30s;
-        proxy_send_timeout 30s;
+        # ✅ 콜드스타트/순간 끊김에서 502를 덜 보이게(nginx 내부 재시도)
+        proxy_connect_timeout 60s;
+        proxy_send_timeout 60s;
         proxy_next_upstream error timeout http_502 http_503 http_504;
-        proxy_next_upstream_tries 3;
+        proxy_next_upstream_tries 10;
+        proxy_next_upstream_timeout 15s;
 
         proxy_read_timeout 86400;
     }
