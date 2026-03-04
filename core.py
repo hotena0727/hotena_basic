@@ -73,16 +73,24 @@ header, header[data-testid="stHeader"]{{
   min-height:0 !important;
 }}
 
+/* Safe-area: avoid extra blank gap on some Android devices */
+html, body{{ padding-top: 0 !important; }}
 
-/* ✅ Also kill Streamlit toolbar/decoration bars that reserve top space */
-[data-testid="stToolbar"], [data-testid="stDecoration"], [data-testid="stStatusWidget"]{
+
+/* --- FORCE HIDE STREAMLIT COMPONENT IFRAMES (prevents refresh top gap) --- */
+div[data-testid="stIFrame"]{
+  display:none !important;
+  height:0 !important;
+  min-height:0 !important;
+  margin:0 !important;
+  padding:0 !important;
+}
+div[data-testid="stIFrame"] iframe{
   display:none !important;
   height:0 !important;
   min-height:0 !important;
 }
 
-/* Safe-area: avoid extra blank gap on some Android devices */
-html, body{{ padding-top: 0 !important; }}
 </style>""",
         unsafe_allow_html=True,
     )
@@ -278,7 +286,6 @@ def ensure_core(
     Safe to call multiple times in the same run.
     """
     apply_global_ui_css()
-    _hide_streamlit_component_iframes()
 
     # 1) CFG
     cfg = st.session_state.get("cfg")
@@ -877,7 +884,6 @@ def render_top_nav(active: str = "home") -> None:
       }
       [data-testid="stSidebar"] { display: none !important; }
       [data-testid="stSidebarNav"] { display: none !important; }
-      [data-testid="stToolbar"], [data-testid="stDecoration"], [data-testid="stStatusWidget"] { display:none !important; height:0 !important; min-height:0 !important; }
 
       .hn-topnav-wrap{
         position: fixed; left: 0; right: 0;
