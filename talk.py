@@ -2411,24 +2411,43 @@ with st.container(border=True):
         if rem > 0:
             if st.button(f"🔊 발음 듣기 (무료 {FREE_TTS_QUOTA-rem+1}/{FREE_TTS_QUOTA})", key=f"{qid}_free_tts_q", use_container_width=True):
                 _use_free_tts_once()
+                _au = resolve_audio_url(row.get('partner_mp3','') or row.get('partner_audio','') or row.get('partner_audio_url','') or '')
                 components.html(f"""<script>
 (function(){{
   try{{
+    const audioUrl = {{_au!r}};
     const synth = window.speechSynthesis;
     function pickJaVoice(){{
-      const voices = synth.getVoices() || [];
-      const ja = voices.filter(v => String(v.lang||"").toLowerCase().startsWith("ja"));
-      if (!ja.length) return null;
-      return ja.find(v => /google/i.test(v.name||""))
-          || ja.find(v => /日本|japanese/i.test(v.name||""))
-          || ja[0] || null;
+      try {{
+        const voices = (synth && synth.getVoices) ? (synth.getVoices() || []) : [];
+        const ja = voices.filter(v => String(v.lang||"").toLowerCase().startsWith("ja"));
+        if (!ja.length) return null;
+        return ja.find(v => /google/i.test(v.name||""))
+            || ja.find(v => /日本|japanese/i.test(v.name||""))
+            || ja[0] || null;
+      }} catch(e) {{ return null; }}
     }}
-    const u = new SpeechSynthesisUtterance({(row.get('partner_jp','') or '').replace(chr(10),' ')!r});
-    u.lang = "ja-JP";
-    const v = pickJaVoice();
-    if (v) u.voice = v;
-    synth.cancel();
-    synth.speak(u);
+    function speak(){{
+      try {{
+        if (!synth) return;
+        const u = new SpeechSynthesisUtterance({{(row.get('partner_jp','') or '').replace(chr(10),' ')!r}});
+        u.lang = "ja-JP";
+        const v = pickJaVoice();
+        if (v) u.voice = v;
+        synth.cancel();
+        synth.speak(u);
+      }} catch(e) {{}}
+    }}
+    if (audioUrl) {{
+      try {{
+        const a = new Audio(audioUrl);
+        a.play().catch(()=>speak());
+      }} catch(e) {{
+        speak();
+      }}
+    }} else {{
+      speak();
+    }}
   }}catch(e){{}}
 }})();
 </script>""", height=0)
@@ -2910,13 +2929,16 @@ if submitted:
                     if (not ask) and st.session_state.get(coach_answer_key):
                         coach_slot.info(st.session_state[coach_answer_key])
             
-            if _frag:
-                @_frag
-                def _render_smartcoach_frag():
+            if IS_PRO:
+                if _frag:
+                    @_frag
+                    def _render_smartcoach_frag():
+                        _render_smartcoach_block()
+                    _render_smartcoach_frag()
+                else:
                     _render_smartcoach_block()
-                _render_smartcoach_frag()
             else:
-                _render_smartcoach_block()# ============================================================
+                st.info("🤖 AI 스마트코치는 PRO 플랜에서만 이용 가능합니다.")# ============================================================
 # ✅ (추가) 정답 발음 확인 버튼용: 플레이어 없이 즉시 재생(JS Audio / TTS)
 # - 브라우저에 플레이어 UI가 뜨지 않게, new Audio().play()로만 재생
 # - JS 문자열은 % 포맷을 써서 f-string 중괄호 오류를 방지
