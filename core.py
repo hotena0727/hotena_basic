@@ -94,72 +94,6 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
     st.markdown(css, unsafe_allow_html=True)
 
 
-        # ✅ HOTENA_TOPNAV_SLIDE: Coupang-like slide transition on top-nav click
-        st.markdown(
-            """
-<style>
-/* slide overlay */
-.hotena-nav-slide-overlay{
-  position: fixed;
-  inset: 0;
-  background: rgba(255,255,255,0.98);
-  z-index: 2147483647;
-  transform: translateX(100%);
-  animation: hotenaNavSlideIn 240ms ease-out forwards;
-}
-@keyframes hotenaNavSlideIn{
-  from { transform: translateX(100%); }
-  to   { transform: translateX(0%); }
-}
-</style>
-<script>
-(function(){
-  try{
-    if (window.__HOTENA_TOPNAV_SLIDE_BOUND__) return;
-    window.__HOTENA_TOPNAV_SLIDE_BOUND__ = true;
-
-    function isModifiedClick(ev){
-      return ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey || ev.button === 1;
-    }
-
-    document.addEventListener('click', function(ev){
-      try{
-        var a = ev.target && ev.target.closest ? ev.target.closest('.hn-nav a') : null;
-        if(!a) return;
-
-        // allow modified clicks / new tab
-        if(isModifiedClick(ev)) return;
-        var tgt = a.getAttribute('target') || '';
-        if(tgt && tgt !== '_self') return;
-
-        var href = a.getAttribute('href') || '';
-        if(!href) return;
-
-        // only handle navigation that changes ?p=
-        if(href.indexOf('p=') === -1) return;
-
-        ev.preventDefault();
-
-        // overlay
-        try{
-          var ov = document.createElement('div');
-          ov.className = 'hotena-nav-slide-overlay';
-          document.body.appendChild(ov);
-        }catch(e){}
-
-        setTimeout(function(){
-          window.location.href = href;
-        }, 120);
-      }catch(e){}
-    }, true);
-  }catch(e){}
-})();
-</script>
-            """,
-            unsafe_allow_html=True,
-        )
-
-
 def get_cfg(key: str) -> str:
     """Read from env first, then st.secrets safely. Returns '' if missing.
 
@@ -1024,6 +958,73 @@ def render_top_nav(active: str = "home") -> None:
     """
 
     st.markdown(css, unsafe_allow_html=True)
+
+
+    # ✅ HOTENA_TOPNAV_SLIDE: Coupang-like slide transition on top-nav click
+    st.markdown(
+        """
+<style>
+/* slide overlay */
+.hotena-nav-slide-overlay{
+  position: fixed;
+  inset: 0;
+  background: rgba(255,255,255,0.98);
+  z-index: 2147483647;
+  transform: translateX(100%);
+  animation: hotenaNavSlideIn 240ms ease-out forwards;
+}
+@keyframes hotenaNavSlideIn{
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0%); }
+}
+</style>
+<script>
+(function(){
+  try{
+    if (window.__HOTENA_TOPNAV_SLIDE_BOUND__) return;
+    window.__HOTENA_TOPNAV_SLIDE_BOUND__ = true;
+
+    function isModifiedClick(ev){
+      return ev.metaKey || ev.ctrlKey || ev.shiftKey || ev.altKey || ev.button === 1;
+    }
+
+    document.addEventListener('click', function(ev){
+      try{
+        var a = ev.target && ev.target.closest ? ev.target.closest('.hn-nav a') : null;
+        if(!a) return;
+
+        // allow modified clicks / new tab
+        if(isModifiedClick(ev)) return;
+        var tgt = a.getAttribute('target') || '';
+        if(tgt && tgt !== '_self') return;
+
+        var href = a.getAttribute('href') || '';
+        if(!href) return;
+
+        // only handle navigation that changes ?p=
+        if(href.indexOf('p=') === -1) return;
+
+        ev.preventDefault();
+
+        // overlay
+        try{
+          var ov = document.createElement('div');
+          ov.className = 'hotena-nav-slide-overlay';
+          document.body.appendChild(ov);
+        }catch(e){}
+
+        setTimeout(function(){
+          window.location.href = href;
+        }, 120);
+      }catch(e){}
+    }, true);
+  }catch(e){}
+})();
+</script>
+        """,
+        unsafe_allow_html=True,
+    )
+
     st.markdown(html, unsafe_allow_html=True)
 
 # ============================================================
