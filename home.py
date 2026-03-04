@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 BUILD_STAMP = 'home-clean-no-spacer-v3 (fix run_module reload) 2026-02-22 KST (+09:00)'
+DEBUG_PREFLIGHT = False  # set True only when hunting SyntaxError/IndentationError
 from pathlib import Path
 import os
 import runpy
@@ -94,53 +95,67 @@ core.inject_pwa_once(app_name="하테나일본어", theme_color="#0F6B3F")
 # - Import (or reload) a module by name so it renders in the SAME Streamlit flow
 # ============================================================
 def run_module(module_name: str):
-    """Import (or reload) a module by name so it renders in the SAME Streamlit flow.
+    """Import a module by name and call its render().
 
-    Additionally performs a compile-time syntax/indentation check so Streamlit's
-    redaction doesn't hide the real line number.
+    ⚡ Speed notes:
+    - Streamlit already reruns the whole script on navigation, so `importlib.reload()` only adds extra work.
+    - The old 'preflight compile' is useful for debugging, but expensive if done on every navigation.
+      Keep it behind DEBUG_PREFLIGHT.
     """
+    import importlib
+    import sys
+    from pathlib import Path
+    import importlib.util
+
     try:
-        import sys
-        import importlib.util
-        from pathlib import Path
-
-        # --- Preflight compile to reveal exact SyntaxError/IndentationError line ---
-        spec = importlib.util.find_spec(module_name)
-        origin = getattr(spec, "origin", None) if spec else None
-        if origin and origin.endswith(".py") and Path(origin).exists():
-            src = Path(origin).read_text(encoding="utf-8")
-            try:
-                compile(src, origin, "exec")
-            except (SyntaxError, IndentationError) as se:
-                lineno = getattr(se, "lineno", None) or 0
-                msg = getattr(se, "msg", str(se))
-                text = (getattr(se, "text", "") or "").rstrip("\n")
-                st.error(f"❌ {module_name}.py 문법/들여쓰기 오류: {msg} (line {lineno})")
-                if text:
-                    st.code(f"{text}", language="python")
-                # show context
+        # ---- Optional debug-only preflight (turn on only when needed) ----
+        if DEBUG_PREFLIGHT:
+            spec = importlib.util.find_spec(module_name)
+            origin = getattr(spec, "origin", None) if spec else None
+            if origin and origin.endswith(".py") and Path(origin).exists():
+                src = Path(origin).read_text(encoding="utf-8")
                 try:
-                    lines = src.splitlines()
-                    start = max(lineno - 5, 1)
-                    end = min(lineno + 4, len(lines))
-                    ctx = "\n".join([f"{i:>4}: {lines[i-1]}" for i in range(start, end+1)])
-                    st.code(ctx, language="python")
-                except Exception:
-                    pass
-                st.stop()
+                    compile(src, origin, "exec")
+                except (SyntaxError, IndentationError) as se:
+                    lineno = getattr(se, "lineno", None) or 0
+                    msg = getattr(se, "msg", str(se))
+                    text = (getattr(se, "text", "") or "").rstrip("\n")
+                    st.error(f"❌ {module_name}.py 문법/들여쓰기 오류: {msg} (line {lineno})")
+                    if text:
+                        st.code(f"{text}", language="python")
+                    try:
+                        lines = src.splitlines()
+                        start = max(lineno - 5, 1)
+                        end = min(lineno + 4, len(lines))
+                        ctx = "\n".join([f"{i:>4}: {lines[i-1]}" for i in range(start, end + 1)])
+                        st.code(ctx, language="python")
+                    except Exception:
+                        pass
+                    st.stop()
 
-        # --- Import / reload ---
-        if module_name in sys.modules:
-            mod = importlib.reload(sys.modules[module_name])
-        else:
-            mod = importlib.import_module(module_name)
+        # ---- Fast path: cache module object in session_state ----
+        mod_cache = st.session_state.get("_mod_cache")
+        if not isinstance(mod_cache, dict):
+            mod_cache = {}
+            st.session_state["_mod_cache"] = mod_cache
 
+        mod = mod_cache.get(module_name)
+        if mod is None:
+            # Normal import (no reload)
+            if module_name in sys.modules:
+                mod = sys.modules[module_name]
+            else:
+                mod = importlib.import_module(module_name)
+            mod_cache[module_name] = mod
+
+        # ---- Render ----
         if hasattr(mod, "render") and callable(getattr(mod, "render")):
             mod.render()
 
     except Exception as e:
         st.exception(e)
         raise
+
 
 # ============================================================
 # ✅ LocalStorage / QueryParam persistence helpers
