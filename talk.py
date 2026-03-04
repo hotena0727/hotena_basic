@@ -257,12 +257,17 @@ def _inject_talk_ui_css():
     if st.session_state.get("_talk_ui_css_done", False):
         return
     st.session_state["_talk_ui_css_done"] = True
+
+    # FREE 플랜: '상대(말)' 라벨과 일본어 문장 간격을 더 타이트하게
+    _gap = "2px" if not IS_PRO else "6px"
+    _label_min = "44px" if not IS_PRO else "54px"
+
     st.markdown(
-        """
+        f"""
 <style>
-.talk-bubble-row{display:flex;gap:6px;align-items:flex-end;margin:6px 0;}
-.talk-bubble-label{min-width:54px;font-weight:800;opacity:.85;}
-.talk-bubble{
+.talk-bubble-row{{display:flex;gap:{_gap};align-items:flex-end;margin:6px 0;}}
+.talk-bubble-label{{min-width:{_label_min};font-weight:800;opacity:.85;white-space:nowrap;text-align:right;}}
+.talk-bubble{{
   display:inline-block;
   max-width:100%;
   padding:10px 12px;
@@ -271,11 +276,11 @@ def _inject_talk_ui_css():
   box-shadow:0 1px 0 rgba(0,0,0,.02);
   line-height:1.25;
   word-break:break-word;
-}
-.talk-bubble.partner{background:rgba(0,0,0,.02);}
-.talk-bubble.me{background:rgba(33,150,243,.08);}
-.talk-bubble-sub{font-size:.86rem;opacity:.70;margin-top:2px;}
-.talk-tts-col{display:flex;justify-content:flex-end;align-items:center;}
+}}
+.talk-bubble.partner{{background:rgba(0,0,0,.02);}}
+.talk-bubble.me{{background:rgba(33,150,243,.08);}}
+.talk-bubble-sub{{font-size:.86rem;opacity:.70;margin-top:2px;}}
+.talk-tts-col{{display:flex;justify-content:flex-end;align-items:center;}}
 </style>
 """,
         unsafe_allow_html=True,
@@ -1791,7 +1796,7 @@ def tts_inline_pair(partner_text: str, answer_text: str, qid: str, show_text: bo
   .ttspair .bubble-p{{box-shadow:0 0 0 1px rgba(0,0,0,.20);}}
   .ttspair .bubble-a{{box-shadow:0 0 0 1px rgba(0,0,0,.12);}}
 
-  .ttspair .lab{{min-width:52px;font-weight:650;opacity:.82;flex:0 0 auto;padding:10px 0 10px 10px;}}
+  .ttspair .lab{{min-width:52px;font-weight:650;opacity:.82;flex:0 0 auto;padding:10px 0 10px 10px;text-align:right;}}
   .ttspair .txtwrap{{flex:1 1 auto;min-width:0;white-space:normal;overflow-wrap:anywhere;word-break:break-word;padding:10px 0;}}
   .ttspair .jp{{font-size:1.03rem;font-weight:560;line-height:1.35;letter-spacing:.01em;}}
   .ttspair .kr{{margin-top:3px;font-size:.86rem;line-height:1.25;opacity:.72;}}
