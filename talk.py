@@ -2151,21 +2151,29 @@ mastered_cnt = len(mastered_map)
 total_cnt = int(len(pool_df) if pool_df is not None else 0)
 remain_cnt = max(0, total_cnt - mastered_cnt)
 
-# ✅ 세트 진도 기준:
-# - PRO: 10문제 = 1세트(SET_LEN)
-# - FREE: 3문제 = 1세트(FREE_SET_LEN)
-_set_size = int(SET_LEN if IS_PRO else FREE_SET_LEN)
-set_done = (mastered_cnt // _set_size) if (_set_size > 0) else 0
-set_total = int(math.ceil(total_cnt / _set_size)) if (total_cnt > 0 and _set_size > 0) else 0
-if set_total > 0:
-    set_done = max(0, min(set_done, set_total))
+# ✅ 세트 진도(현재 세션의 1세트 기준)
+# - 선우님 정의: "10문제 = 1세트" (FREE는 설정값에 따라 3문제 = 1세트)
+# - 여기서의 '세트 진도'는 전체 풀(pool) 대비가 아니라, '현재 세트(1세트)' 진행률입니다.
+#   따라서 항상 0/1 또는 1/1로 표시됩니다.
+_set_size = int(SET_LEN)
+_set_size = max(1, _set_size)
 
-# 표시용 퍼센트는 '세트 진도' 기준
-pct = int(round((set_done / set_total) * 100)) if set_total > 0 else 0
-# 문항 기준 퍼센트(참고용)
+# 현재 세트에서 몇 문항까지 진행했는지(0~_set_size)
+q_in_set = mastered_cnt % _set_size
+if mastered_cnt > 0 and (mastered_cnt % _set_size) == 0:
+    # 세트 경계(10,20,30...)에 도달했을 때는 '진행 문항'을 _set_size로 표시
+    q_in_set = _set_size
+
+set_done = 1 if mastered_cnt >= _set_size else 0
+set_total = 1
+
+# 퍼센트는 '현재 세트' 기준
+pct = int(round((q_in_set / _set_size) * 100)) if _set_size > 0 else 0
+
+# 참고용(전체 풀 대비) 퍼센트는 유지하되, 오해 없도록 별도 변수로만 둡니다.
 pct_q = int(round((mastered_cnt / total_cnt) * 100)) if total_cnt > 0 else 0
 
-is_done = (set_total > 0 and set_done >= set_total)
+is_done = (set_done >= set_total)
 
 _badges = []
 if is_done:
@@ -2200,7 +2208,7 @@ with p1:
         <div class='ha-talk-prog-wrap'>
           <div class='ha-talk-prog-top'>
             <div>
-              <div class='ha-talk-prog-title'>📈 세트 진도 {set_done}/{set_total} <span class='ha-talk-prog-sub'>(문항 {mastered_cnt}/{total_cnt} · 남은 {remain_cnt}) · {pct}%</span></div>
+              <div class='ha-talk-prog-title'>📈 세트 {set_done}/{set_total} <span class='ha-talk-prog-sub'>(문항 {q_in_set}/{_set_size} · 남은 {max(0, _set_size - q_in_set)}) · {pct}%</span></div>
             </div>
             <div class='ha-talk-badges'>{''.join(_badges)}</div>
           </div>
@@ -2208,7 +2216,7 @@ with p1:
         """,
         unsafe_allow_html=True,
     )
-    st.progress((set_done / set_total) if set_total > 0 else 0.0)
+    st.progress((q_in_set / _set_size) if _set_size > 0 else 0.0)
 
 with p2:
     if st.button("🔄 새 세트", use_container_width=True, type="secondary", key=f"{NS}_new_set"):
