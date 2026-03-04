@@ -22,6 +22,32 @@ except Exception:
     # In case Streamlit considers page config already set during a rerun/import edge case
     pass
 
+# ✅ First-paint TOP=0 hard reset (do this before importing modules)
+def _inject_top0_css_once():
+    if st.session_state.get("_top0_css_once"):
+        return
+    st.session_state["_top0_css_once"] = True
+    st.markdown(
+        """
+<style>
+/* --- Top padding/margin hard reset (first paint) --- */
+html, body { margin:0 !important; padding-top:0 !important; }
+[data-testid="stAppViewContainer"]{ padding-top:0 !important; }
+div[data-testid="stAppViewContainer"] > .main{ padding-top:0 !important; }
+[data-testid="block-container"], .block-container{ padding-top:0 !important; padding-bottom:0 !important; }
+section.main > div{ padding-top:0 !important; }
+
+/* Streamlit UI remnants that can reserve space */
+header, header[data-testid="stHeader"]{ display:none !important; height:0 !important; min-height:0 !important; }
+div[data-testid="stToolbar"]{ display:none !important; height:0 !important; }
+div[data-testid="stDecoration"]{ display:none !important; height:0 !important; }
+</style>
+""",
+        unsafe_allow_html=True,
+    )
+
+_inject_top0_css_once()
+
 import core
 import streamlit.components.v1 as components
 
