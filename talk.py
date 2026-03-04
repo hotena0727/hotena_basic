@@ -1400,7 +1400,6 @@ SUB_LABEL = {
     "work": "회사 기본",
     "meeting": "미팅/첫인사",
     "meetup": "첫만남",
-    "self_intro: "자기소개",
     # (확장 대비) 자주 쓰는 상황 키
     "cafe": "카페",
     "restaurant": "식당",
