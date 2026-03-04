@@ -55,8 +55,8 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.0) -> None:
     css = textwrap.dedent(f"""
     <style>
     /* Hide Streamlit default chrome */
-    #MainMenu { visibility: hidden; }
-    footer { visibility: hidden; }
+    #MainMenu {{ visibility: hidden; }}
+    footer {{ visibility: hidden; }}
 
     /* --- TOP SPACING FIX (mobile/PWA) --- */
     [data-testid="stAppViewContainer"]{{ padding-top: 0 !important; }}
@@ -865,7 +865,7 @@ def render_top_nav(active: str = "home") -> None:
 
     css = textwrap.dedent("""        <style>
       /* Hide Streamlit default UI */
-      #MainMenu { visibility: hidden; }
+      #MainMenu {{ visibility: hidden; }}
       header, header[data-testid="stHeader"]{
         display:none !important;
         height:0 !important;
