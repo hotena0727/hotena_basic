@@ -2415,7 +2415,7 @@ with st.container(border=True):
                 components.html(f"""<script>
 (function(){{
   try{{
-    const audioUrl = {{_au!r}};
+    const audioUrl = {_au!r};
     const synth = window.speechSynthesis;
     function pickJaVoice(){{
       try {{
@@ -2430,7 +2430,7 @@ with st.container(border=True):
     function speak(){{
       try {{
         if (!synth) return;
-        const u = new SpeechSynthesisUtterance({{(row.get('partner_jp','') or '').replace(chr(10),' ')!r}});
+        const u = new SpeechSynthesisUtterance({(row.get('partner_jp','') or '').replace(chr(10),' ')!r});
         u.lang = "ja-JP";
         const v = pickJaVoice();
         if (v) u.voice = v;
