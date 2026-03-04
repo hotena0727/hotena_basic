@@ -2317,7 +2317,7 @@ if mode == "review":
     st.progress(_rprog)
     st.caption(f"복습 진행: {idx+1}/{len(qids)}")
 else:
-    st.caption(f"문항 진행: {idx+1}/{len(qids)}")
+    st.caption(f"문항 진행: {idx+1}/{len(qids)} (이 {len(qids)}문항 = 1세트)")
 
 
 # ============================================================
@@ -3147,7 +3147,6 @@ def _render_pron_a3cfa850():
                     _rec_mime_key = f"{qid}__rec_mime"
                     _fmt = getattr(_audio, "type", None) or "audio/wav"
                     st.session_state[_rec_mime_key] = _fmt
-                    st.audio(_ab, format=_fmt)  # ✅ wav 고정 말고 실제 타입 사용
         else:
             remr = _free_record_remaining()
             if remr > 0:
@@ -3172,7 +3171,6 @@ def _render_pron_a3cfa850():
                         _rec_mime_key = f"{qid}__rec_mime"
                         _fmt = getattr(_audio, "type", None) or "audio/wav"
                         st.session_state[_rec_mime_key] = _fmt
-                        st.audio(_ab, format=_fmt)
             else:
                 st.markdown(
                     '''
