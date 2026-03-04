@@ -12,6 +12,7 @@ import os
 import base64
 import hashlib
 import json
+import textwrap
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Optional, Tuple
 
@@ -39,7 +40,7 @@ except Exception:  # pragma: no cover
 # - Fix oversized top padding on mobile/PWA across Streamlit versions
 # - Keep small breathing room for our custom top nav
 # ============================================================
-def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
+def apply_global_ui_css(*, top_padding_rem: float = 0.0) -> None:
     """Apply global layout CSS once per run.
 
     Fix oversized top padding on mobile/PWA across Streamlit versions.
@@ -79,6 +80,35 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
 
     st.markdown(css, unsafe_allow_html=True)
 
+def hide_component_iframe_placeholders() -> None:
+    """Hide Streamlit custom-component iframe placeholders that can create gray blocks / layout jumps.
+
+    CSS-only (no polling JS) to avoid slow initial loads.
+    """
+    if st.session_state.get("_hide_component_iframe_placeholders_done"):
+        return
+    st.session_state["_hide_component_iframe_placeholders_done"] = True
+
+    st.markdown(
+        """<style>
+/* Hide Streamlit custom component placeholders (gray blocks) */
+div[data-testid="stIFrame"]:has(iframe[title^="streamlit.components.v1."]){
+  display:none !important;
+  height:0 !important;
+  min-height:0 !important;
+  margin:0 !important;
+  padding:0 !important;
+}
+div[data-testid="stIFrame"]:has(iframe[title^="streamlit.components.v1."]) iframe{
+  display:none !important;
+  height:0 !important;
+  min-height:0 !important;
+}
+</style>""",
+        unsafe_allow_html=True,
+    )
+
+
 
 def get_cfg(key: str) -> str:
     """Read from env first, then st.secrets safely. Returns '' if missing.
@@ -112,155 +142,7 @@ def get_cfg(key: str) -> str:
         return ""
 
 
-def _hide_streamlit_component_iframes() -> None:
-    """Hide Streamlit custom-component iframes that are used only for JS/cookies and show as gray blocks on F5.
 
-    Uses CSS :has() (supported by modern Chromium/Safari) + JS fallback.
-    """
-    if st.session_state.get("_hide_streamlit_component_iframes_done"):
-        return
-    st.session_state["_hide_streamlit_component_iframes_done"] = True
-
-    # 1) CSS (preferred): hide any stIFrame wrapper that contains a streamlit.components iframe
-    st.markdown(
-        """<style>
-/* Hide Streamlit custom component placeholders (gray blocks) */
-div[data-testid="stIFrame"]:has(iframe[title^="streamlit.components.v1."]){
-  display:none !important;
-  height:0 !important;
-  min-height:0 !important;
-  margin:0 !important;
-  padding:0 !important;
-}
-div[data-testid="stIFrame"]:has(iframe[title^="streamlit.components.v1."]) iframe{
-  display:none !important;
-  height:0 !important;
-  min-height:0 !important;
-}
-</style>""",
-        unsafe_allow_html=True,
-    )
-
-    # 2) JS fallback: repeatedly collapse matching wrappers (in case :has isn't applied early enough)
-    try:
-        components.html(
-            """
-<script>
-(function(){
-  function kill(){
-    try{
-      var doc = (window.parent && window.parent.document) ? window.parent.document : document;
-      var frames = doc.querySelectorAll('iframe[title^="streamlit.components.v1."]');
-      frames.forEach(function(fr){
-        try{
-          fr.style.display='none';
-          fr.style.height='0px';
-          fr.style.minHeight='0px';
-          var wrap = fr.closest('[data-testid="stIFrame"]') || fr.parentElement;
-          if(wrap){
-            wrap.style.display='none';
-            wrap.style.height='0px';
-            wrap.style.minHeight='0px';
-            wrap.style.margin='0';
-            wrap.style.padding='0';
-          }
-        }catch(e){}
-      });
-    }catch(e){}
-  }
-  kill();
-  setTimeout(kill, 60);
-  setTimeout(kill, 220);
-  setTimeout(kill, 650);
-  var n=0, iv=setInterval(function(){ kill(); if(++n>=40) clearInterval(iv); }, 300);
-})();
-</script>
-""",
-            height=0,
-        )
-    except Exception:
-        pass
-
-
-
-# ============================================================
-# ✅ PWA / A2HS (Android/iOS 홈화면 추가) - ROOT assets version
-# - Expects these URLs to be served at ROOT:
-#   /app/static/pwa-manifest.json, /app/static/sw.js, /app/static/apple-touch-icon.png, /app/static/icon-192.png, /app/static/icon-512.png, /favicon.ico (optional)
-# - Safe to call multiple times; injects only once per session.
-# ============================================================
-def inject_pwa_once(
-    app_name: str = "Hotena",
-    theme_color: str = "#0F6B3F",
-    manifest_path: str = "/app/static/pwa-manifest.json",
-    sw_path: str = "/app/static/sw.js",
-    apple_touch_icon: str = "/app/static/apple-touch-icon.png",
-    icon_192: str = "/app/static/icon-192.png",
-    icon_512: str = "/app/static/icon-512.png",
-) -> None:
-    try:
-        if st.session_state.get("_pwa_injected", False):
-            return
-        st.session_state["_pwa_injected"] = True
-
-        js = f"""
-<script>
-(function() {{
-  try {{
-    const doc = (window.parent && window.parent.document) ? window.parent.document : document;
-    const nav = (window.parent && window.parent.navigator) ? window.parent.navigator : navigator;
-
-    // manifest
-    let m = doc.querySelector("link[rel='manifest']");
-    if (!m) {{ m = doc.createElement("link"); m.rel = "manifest"; doc.head.appendChild(m); }}
-    m.href = {json.dumps(manifest_path)};
-
-    // theme + iOS meta
-    const meta = (name, content) => {{
-      let el = doc.querySelector(`meta[name='${{name}}']`);
-      if (!el) {{ el = doc.createElement("meta"); el.name = name; doc.head.appendChild(el); }}
-      el.content = content;
-    }};
-    meta("theme-color", {json.dumps(theme_color)});
-    meta("apple-mobile-web-app-capable", "yes");
-    meta("apple-mobile-web-app-status-bar-style", "black-translucent");
-    meta("apple-mobile-web-app-title", {json.dumps(app_name)});
-
-    // iOS touch icon
-    let a = doc.querySelector("link[rel='apple-touch-icon']");
-    if (!a) {{ a = doc.createElement("link"); a.rel = "apple-touch-icon"; doc.head.appendChild(a); }}
-    a.setAttribute("sizes", "180x180");
-    a.href = {json.dumps(apple_touch_icon)};
-
-    // icons (harmless; helps some browsers)
-    function upsertIcon(href, sizes) {{
-      let i = doc.querySelector(`link[rel='icon'][sizes='${{sizes}}']`);
-      if (!i) {{
-        i = doc.createElement("link");
-        i.rel = "icon";
-        i.type = "image/png";
-        i.setAttribute("sizes", sizes);
-        doc.head.appendChild(i);
-      }}
-      i.href = href;
-    }}
-    upsertIcon({json.dumps(icon_192)}, "192x192");
-    upsertIcon({json.dumps(icon_512)}, "512x512");
-
-    // service worker (Android A2HS 핵심)
-    if ("serviceWorker" in nav) {{
-      window.addEventListener("load", function() {{
-        nav.serviceWorker.register({json.dumps(sw_path)}).catch(function(){{}});
-      }});
-    }}
-  }} catch (e) {{}}
-}})();
-</script>
-"""
-        components.html(js, height=0)
-    except Exception:
-        # Do not break the app for PWA injection failures
-        return
 
 def ensure_core(
     *,
@@ -271,7 +153,7 @@ def ensure_core(
     Ensure CFG/cookies/supabase anon client exist in st.session_state.
     Safe to call multiple times in the same run.
     """
-    apply_global_ui_css()
+    apply_global_ui_css(top_padding_rem=0.0)
 
     # 1) CFG
     cfg = st.session_state.get("cfg")

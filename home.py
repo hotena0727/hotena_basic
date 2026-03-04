@@ -22,46 +22,14 @@ except Exception:
     # In case Streamlit considers page config already set during a rerun/import edge case
     pass
 
-# ============================================================
-# ✅ Global: remove Streamlit top spacing (mobile/desktop)
-#    - Must run early (before any layout is drawn)
-# ============================================================
-def _inject_global_top_spacing_fix_once():
-    if st.session_state.get("_global_top_spacing_fix_injected", False):
-        return
-    st.session_state["_global_top_spacing_fix_injected"] = True
-    st.markdown(
-        """
-<style>
-/* Hide Streamlit default chrome */
-#MainMenu {visibility:hidden;}
-footer {visibility:hidden;}
-header, header[data-testid="stHeader"] {display:none !important; height:0 !important;}
-
-/* Remove default top padding */
-.block-container {
-  padding-top: 0rem !important;
-  margin-top: 0rem !important;
-}
-
-/* Some Streamlit versions wrap main differently */
-div[data-testid="stAppViewContainer"] > .main,
-div[data-testid="stAppViewContainer"] {
-  padding-top: 0rem !important;
-  margin-top: 0rem !important;
-}
-
-/* Extra safety for older/newer DOM shapes */
-section.main > div { padding-top: 0rem !important; }
-</style>
-""",
-        unsafe_allow_html=True,
-    )
-
-_inject_global_top_spacing_fix_once()
-
 import core
 import streamlit.components.v1 as components
+
+# ✅ Core global UI CSS (top padding = 0)
+try:
+    core.apply_global_ui_css(top_padding_rem=0.0)
+except Exception:
+    pass
 
 # ============================================================
 # ✅ Font: 일본식 한자(글리프) 우선 적용
