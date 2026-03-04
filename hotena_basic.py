@@ -117,7 +117,6 @@ div[data-testid="stRadio"] span{
   line-height: 1.32 !important;
 }
     </style>""", unsafe_allow_html=True)
-st.session_state["_top_compact_css_applied"] = True
 
 st.session_state['_page_config_set'] = True
 # ============================================================
