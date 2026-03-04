@@ -1372,7 +1372,8 @@ if "mode" in DF_BASE.columns:
 
 # --- tag(유형) 라벨: 기본값 + CSV에 없는 태그는 그대로 노출 ---
 TAG_LABELS = {
-    "aisatsu": "인사말",
+    "aisatsu": "인사",
+    "self_introduction": "자기소개",
     "understand": "이해",
     "travel": "여행",
     "shopping": "쇼핑",
@@ -1398,7 +1399,7 @@ SUB_LABEL = {
     "thanks": "감사",
     "apology": "사과",
     "work": "회사 기본",
-    "meeting": "미팅/첫인사",
+    "first_meeting": "첫 만남",
     "meetup": "첫만남",
     # (확장 대비) 자주 쓰는 상황 키
     "cafe": "카페",
@@ -1407,7 +1408,6 @@ SUB_LABEL = {
     "station": "역/지하철",
     "street": "길/거리",
     "dm": "DM/채팅",
-
     "phone": "전화",
     "basic": "기본",
     "daily": "일상",
