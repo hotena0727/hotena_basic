@@ -260,13 +260,15 @@ def _inject_talk_ui_css():
 
     # FREE 플랜: '상대(말)' 라벨과 일본어 문장 간격을 더 타이트하게
     _gap = "2px" if not IS_PRO else "6px"
-    _label_min = "44px" if not IS_PRO else "54px"
+    _label_min = "0px" if not IS_PRO else "54px"
+    _label_align = "left" if not IS_PRO else "right"
+    _label_pad = "4px" if not IS_PRO else "0px"
 
     st.markdown(
         f"""
 <style>
 .talk-bubble-row{{display:flex;gap:{_gap};align-items:flex-end;margin:6px 0;}}
-.talk-bubble-label{{min-width:{_label_min};font-weight:800;opacity:.85;white-space:nowrap;text-align:right;}}
+.talk-bubble-label{{min-width:{_label_min};font-weight:800;opacity:.85;white-space:nowrap;text-align:{_label_align};padding-right:{_label_pad};}}
 .talk-bubble{{
   display:inline-block;
   max-width:100%;
