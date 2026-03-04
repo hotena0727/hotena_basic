@@ -12,6 +12,7 @@ import os
 import base64
 import hashlib
 import json
+import textwrap
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Optional, Tuple
 
@@ -39,7 +40,7 @@ except Exception:  # pragma: no cover
 # - Fix oversized top padding on mobile/PWA across Streamlit versions
 # - Keep small breathing room for our custom top nav
 # ============================================================
-def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
+def apply_global_ui_css(*, top_padding_rem: float = 0.0) -> None:
     """Apply global layout CSS once per run.
 
     Fix oversized top padding on mobile/PWA across Streamlit versions.
@@ -53,6 +54,10 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
 
     css = textwrap.dedent(f"""
     <style>
+    /* Hide Streamlit default chrome */
+    #MainMenu {{ visibility: hidden; }}
+    footer {{ visibility: hidden; }}
+
     /* --- TOP SPACING FIX (mobile/PWA) --- */
     [data-testid="stAppViewContainer"]{{ padding-top: 0 !important; }}
     div[data-testid="stAppViewContainer"] > .main{{ padding-top: 0 !important; }}
@@ -74,24 +79,13 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
 
     /* Safe-area: avoid extra blank gap on some Android devices */
     html, body{{ padding-top: 0 !important; }}
-
-    /* --- FORCE HIDE STREAMLIT COMPONENT IFRAMES (prevents refresh top gap) --- */
-    div[data-testid="stIFrame"]{{
-      display: none !important;
-      height: 0 !important;
-      min-height: 0 !important;
-      margin: 0 !important;
-      padding: 0 !important;
-    }}
-    div[data-testid="stIFrame"] iframe{{
-      display: none !important;
-      height: 0 !important;
-      min-height: 0 !important;
-    }}
     </style>
     """)
 
     st.markdown(css, unsafe_allow_html=True)
+
+    # Hide gray placeholder iframes used by Streamlit custom components
+    _hide_streamlit_component_iframes()
 
 
 def get_cfg(key: str) -> str:
@@ -127,15 +121,14 @@ def get_cfg(key: str) -> str:
 
 
 def _hide_streamlit_component_iframes() -> None:
-    """Hide Streamlit custom-component iframes that are used only for JS/cookies and show as gray blocks on F5.
+    """Hide Streamlit custom-component iframes that are used only for JS/cookies and show as gray blocks.
 
-    Uses CSS :has() (supported by modern Chromium/Safari) + JS fallback.
+    ✅ CSS-only (no JS polling) to avoid slowing down initial render.
     """
     if st.session_state.get("_hide_streamlit_component_iframes_done"):
         return
     st.session_state["_hide_streamlit_component_iframes_done"] = True
 
-    # 1) CSS (preferred): hide any stIFrame wrapper that contains a streamlit.components iframe
     st.markdown(
         """<style>
 /* Hide Streamlit custom component placeholders (gray blocks) */
@@ -154,47 +147,6 @@ div[data-testid="stIFrame"]:has(iframe[title^="streamlit.components.v1."]) ifram
 </style>""",
         unsafe_allow_html=True,
     )
-
-    # 2) JS fallback: repeatedly collapse matching wrappers (in case :has isn't applied early enough)
-    try:
-        components.html(
-            """
-<script>
-(function(){
-  function kill(){
-    try{
-      var doc = (window.parent && window.parent.document) ? window.parent.document : document;
-      var frames = doc.querySelectorAll('iframe[title^="streamlit.components.v1."]');
-      frames.forEach(function(fr){
-        try{
-          fr.style.display='none';
-          fr.style.height='0px';
-          fr.style.minHeight='0px';
-          var wrap = fr.closest('[data-testid="stIFrame"]') || fr.parentElement;
-          if(wrap){
-            wrap.style.display='none';
-            wrap.style.height='0px';
-            wrap.style.minHeight='0px';
-            wrap.style.margin='0';
-            wrap.style.padding='0';
-          }
-        }catch(e){}
-      });
-    }catch(e){}
-  }
-  kill();
-  setTimeout(kill, 60);
-  setTimeout(kill, 220);
-  setTimeout(kill, 650);
-  var n=0, iv=setInterval(function(){ kill(); if(++n>=40) clearInterval(iv); }, 300);
-})();
-</script>
-""",
-            height=0,
-        )
-    except Exception:
-        pass
-
 
 
 # ============================================================
@@ -871,7 +823,7 @@ def render_top_nav(active: str = "home") -> None:
 
     css = textwrap.dedent("""        <style>
       /* Hide Streamlit default UI */
-      #MainMenu { visibility: hidden; }
+      #MainMenu {{ visibility: hidden; }}
       header, header[data-testid="stHeader"]{
         display:none !important;
         height:0 !important;
