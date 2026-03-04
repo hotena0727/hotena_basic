@@ -1642,195 +1642,14 @@ user = st.session_state.get("user")
 sb_authed = st.session_state.get("sb_authed")
 
 if not user:
-    # --- Premium login (gradient + svg + google + micro animation) ---
-    # UI only: auth logic below stays the same.
-    st.markdown(
-        '''
-<style>
-/* === Hotena Premium Login === */
-.ha-login-hero{
-  margin-top: .25rem;
-  padding: 24px 0 28px;
-  border-radius: 24px;
-  background: radial-gradient(1200px 420px at 10% 0%, rgba(46,124,246,0.10), rgba(255,255,255,0) 55%),
-              radial-gradient(900px 360px at 95% 10%, rgba(15,107,63,0.09), rgba(255,255,255,0) 60%),
-              linear-gradient(180deg, rgba(255,255,255,0.75), rgba(255,255,255,0.95));
-  border: 1px solid rgba(15,23,42,0.06);
-}
+    # --- Premium login (custom tabs + gradient + SVG + Google SVG) ---
+    # Only this login page is customized.
 
-.ha-login-shell{
-  max-width: 440px;
-  margin: 0 auto;
-  padding: 0 2px;
-}
-
-.ha-login-card{
-  border: 1px solid rgba(49,51,63,0.10);
-  border-radius: 22px;
-  padding: 20px 18px 16px;
-  background: rgba(255,255,255,0.92);
-  box-shadow: 0 14px 34px rgba(0,0,0,0.06);
-}
-
-.ha-login-head{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:12px;
-  margin-bottom: 12px;
-}
-.ha-login-brand{
-  display:flex;
-  align-items:center;
-  gap:10px;
-  min-width:0;
-}
-.ha-login-icon{
-  width: 42px;
-  height: 42px;
-  border-radius: 16px;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  border: 1px solid rgba(15,23,42,0.08);
-  background: linear-gradient(135deg, rgba(46,124,246,0.14), rgba(15,107,63,0.10));
-}
-.ha-login-ttl{
-  margin:0;
-  line-height:1.05;
-  min-width:0;
-}
-.ha-login-ttl b{
-  font-size: 1.22rem;
-  font-weight: 900;
-}
-.ha-login-ttl div{
-  font-size: .88rem;
-  opacity: .68;
-  margin-top: .18rem;
-  white-space:nowrap;
-  overflow:hidden;
-  text-overflow:ellipsis;
-}
-
-.ha-login-badge{
-  display:inline-flex;
-  align-items:center;
-  gap:6px;
-  padding: .28rem .55rem;
-  border-radius: 999px;
-  border: 1px solid rgba(46,124,246,0.18);
-  background: rgba(46,124,246,0.07);
-  font-size: .82rem;
-  font-weight: 800;
-  opacity: .92;
-  white-space:nowrap;
-}
-.ha-login-badge.pulse{
-  animation: hotenaPulse 1.8s ease-in-out 0s 2;
-}
-@keyframes hotenaPulse{
-  0%{ transform: translateY(0); box-shadow: 0 0 0 rgba(46,124,246,0.0); }
-  35%{ transform: translateY(-2px); box-shadow: 0 10px 24px rgba(46,124,246,0.12); }
-  100%{ transform: translateY(0); box-shadow: 0 0 0 rgba(46,124,246,0.0); }
-}
-
-.ha-login-note{
-  font-size: .86rem;
-  opacity: .72;
-  margin: .10rem 0 .55rem;
-  line-height: 1.45;
-}
-
-.ha-login-divider{
-  margin: .55rem 0 .50rem;
-  display:flex;
-  align-items:center;
-  gap:10px;
-  opacity: .72;
-  font-size: .82rem;
-}
-.ha-login-divider:before,
-.ha-login-divider:after{
-  content:"";
-  height:1px;
-  flex:1;
-  background: rgba(15,23,42,0.10);
-}
-
-.ha-btn-secondary button{
-  background: rgba(15,23,42,0.02) !important;
-  border: 1px solid rgba(15,23,42,0.12) !important;
-  color: rgba(15,23,42,0.90) !important;
-  border-radius: 16px !important;
-  font-weight: 700 !important;
-}
-.ha-btn-secondary button:hover{
-  background: rgba(15,23,42,0.04) !important;
-}
-
-.ha-google-row{
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  gap:10px;
-}
-.ha-google-ic{
-  width: 18px;
-  height: 18px;
-  display:inline-block;
-}
-
-.ha-login-foot{
-  font-size: .82rem;
-  opacity: .70;
-  margin-top: .60rem;
-}
-</style>
-<div class="ha-login-hero">
-  <div class="ha-login-shell">
-    <div class="ha-login-card">
-      <div class="ha-login-head">
-        <div class="ha-login-brand">
-          <div class="ha-login-icon" aria-hidden="true">
-            <!-- book+sparkle (inline svg) -->
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-              <path d="M5 4.5c0-1.1.9-2 2-2h10a2 2 0 0 1 2 2V20c0 .55-.45 1-1 1H7a2 2 0 0 0-2 2V4.5Z" stroke="rgba(15,23,42,0.85)" stroke-width="1.6" stroke-linejoin="round"/>
-              <path d="M5 19a2 2 0 0 1 2-2h12" stroke="rgba(15,23,42,0.55)" stroke-width="1.6" stroke-linecap="round"/>
-              <path d="M14.8 6.2l.4 1.2 1.2.4-1.2.4-.4 1.2-.4-1.2-1.2-.4 1.2-.4.4-1.2Z" fill="rgba(46,124,246,0.85)"/>
-            </svg>
-          </div>
-          <div class="ha-login-ttl">
-            <b>하테나일본어</b>
-            <div>매일 10분, 실력이 쌓입니다</div>
-          </div>
-        </div>
-        <div class="ha-login-badge ''' + ( 'pulse' if (not st.session_state.get('_login_pulse_done', False)) else '' ) + '''">
-          오늘도 1세트부터
-        </div>
-      </div>
-      <div class="ha-login-note">계정을 만들면 학습 기록이 저장되고, 기기/브라우저가 달라도 이어서 할 수 있어요.</div>
-    </div>
-  </div>
-</div>
-''',
-        unsafe_allow_html=True,
-    )
-    st.session_state["_login_pulse_done"] = True
-
-    def _go_url(url: str):
-        # Open OAuth URL in the same tab (Streamlit-safe)
-        try:
-            components.html(
-                f"""<script>
-try {{
-  window.location.href = {json.dumps(url)};
-}} catch(e) {{}}
-</script>""",
-                height=0,
-            )
-        except Exception:
-            pass
+    # first-view pulse
+    if "_login_pulse_done" not in st.session_state:
+        st.session_state["_login_pulse_done"] = False
+    if "_auth_mode" not in st.session_state:
+        st.session_state["_auth_mode"] = "login"  # or "signup"
 
     def _auth_success(res):
         st.session_state["user"] = res.user
@@ -1845,21 +1664,243 @@ try {{
         except Exception:
             pass
 
-        # ✅ persist encrypted tokens for refresh-proof login
-        try:
-            st.query_params["rt"] = _enc(res.session.refresh_token)
-            st.query_params["at"] = _enc(res.session.access_token)
-            _js_set_localstorage("hotena_rt", st.query_params.get("rt", ""))
-            _js_set_localstorage("hotena_at", st.query_params.get("at", ""))
-        except Exception:
-            pass
-
         st.rerun()
 
-    tab_login, tab_signup = st.tabs(["로그인", "회원가입"])
+    st.markdown(f"""
+<style>
+/* === Hotena Premium Login === */
+.ha-login-hero{{
+  margin-top: .25rem;
+  padding: 24px 0 28px;
+  border-radius: 24px;
+  background: radial-gradient(1200px 420px at 10% 0%, rgba(46,124,246,0.10), rgba(255,255,255,0) 55%),
+              radial-gradient(900px 360px at 95% 10%, rgba(15,107,63,0.08), rgba(255,255,255,0) 60%),
+              linear-gradient(180deg, rgba(255,255,255,0.78), rgba(255,255,255,0.96));
+  border: 1px solid rgba(15,23,42,0.06);
+}}
 
-    with tab_login:
-        with st.form("login_form_pretty", clear_on_submit=False):
+.ha-login-shell{{
+  max-width: 460px;
+  margin: 0 auto;
+  padding: 0 2px;
+}}
+
+.ha-login-card{{
+  border: 1px solid rgba(49,51,63,0.10);
+  border-radius: 22px;
+  padding: 20px 18px 16px;
+  background: rgba(255,255,255,0.92);
+  box-shadow: 0 14px 34px rgba(0,0,0,0.06);
+}}
+
+.ha-login-head{{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom: 10px;
+}}
+
+.ha-login-brand{{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  min-width:0;
+}}
+.ha-login-icon{{
+  width: 42px;
+  height: 42px;
+  border-radius: 16px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border: 1px solid rgba(15,23,42,0.08);
+  background: linear-gradient(135deg, rgba(46,124,246,0.14), rgba(15,107,63,0.10));
+}}
+.ha-login-ttl{{
+  margin:0;
+  line-height:1.05;
+  min-width:0;
+}}
+.ha-login-ttl b{{
+  font-size: 1.22rem;
+  font-weight: 900;
+}}
+.ha-login-ttl .sub{{
+  font-size: .88rem;
+  opacity: .68;
+  margin-top: .34rem; /* title과 줄 간격 */
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}}
+
+.ha-login-badge{{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding: .28rem .55rem;
+  border-radius: 999px;
+  border: 1px solid rgba(46,124,246,0.18);
+  background: rgba(46,124,246,0.07);
+  font-size: .82rem;
+  font-weight: 800;
+  opacity: .92;
+  white-space:nowrap;
+}}
+.ha-login-badge.pulse{{
+  animation: hotenaPulse 1.8s ease-in-out 0s 2;
+}}
+@keyframes hotenaPulse{{
+  0%{{ transform: translateY(0); box-shadow: 0 0 0 rgba(46,124,246,0.0); }}
+  35%{{ transform: translateY(-2px); box-shadow: 0 10px 24px rgba(46,124,246,0.12); }}
+  100%{{ transform: translateY(0); box-shadow: 0 0 0 rgba(46,124,246,0.0); }}
+}}
+
+.ha-login-hope{{
+  margin: .35rem 0 .40rem;
+  font-size: .92rem;
+  font-weight: 800;
+  color: rgba(46,124,246,0.95);
+  line-height: 1.35;
+}}
+
+.ha-login-note{{
+  font-size: .86rem;
+  opacity: .72;
+  margin: .10rem 0 .55rem;
+  line-height: 1.45;
+}}
+
+.ha-seg{{
+  margin-top: .55rem;
+  margin-bottom: .65rem;
+  border-radius: 16px;
+  padding: 4px;
+  background: rgba(15,23,42,0.04);
+  border: 1px solid rgba(15,23,42,0.08);
+}}
+.ha-seg .stButton > button{{
+  height: 42px !important;
+  border-radius: 14px !important;
+  font-weight: 900 !important;
+  border: 1px solid transparent !important;
+}}
+/* segment active/inactive styling by key */
+.st-key-auth_tab_login .stButton > button{{
+  background: {"rgba(255,255,255,0.96)" if (st.session_state.get('_auth_mode','login')=='login') else "rgba(15,23,42,0.00)"} !important;
+  border-color: {"rgba(15,23,42,0.08)" if (st.session_state.get('_auth_mode','login')=='login') else "transparent"} !important;
+  box-shadow: {"0 8px 18px rgba(0,0,0,0.06)" if (st.session_state.get('_auth_mode','login')=='login') else "none"} !important;
+}}
+.st-key-auth_tab_signup .stButton > button{{
+  background: {"rgba(255,255,255,0.96)" if (st.session_state.get('_auth_mode','login')=='signup') else "rgba(15,23,42,0.00)"} !important;
+  border-color: {"rgba(15,23,42,0.08)" if (st.session_state.get('_auth_mode','login')=='signup') else "transparent"} !important;
+  box-shadow: {"0 8px 18px rgba(0,0,0,0.06)" if (st.session_state.get('_auth_mode','login')=='signup') else "none"} !important;
+}}
+
+.stTextInput > div > div > input{{
+  border-radius: 14px !important;
+  height: 46px !important;
+}}
+
+.stButton > button{{
+  background:#2E7CF6 !important;
+  color:white !important;
+  border-radius: 16px !important;
+  font-weight: 900 !important;
+  height:48px !important;
+  border:none !important;
+}}
+.stButton > button:hover{{
+  background:#256be0 !important;
+}}
+
+.ha-login-divider{{
+  margin: .55rem 0 .50rem;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  opacity: .72;
+  font-size: .82rem;
+}}
+.ha-login-divider:before,
+.ha-login-divider:after{{
+  content:"";
+  height:1px;
+  flex:1;
+  background: rgba(15,23,42,0.10);
+}}
+
+a.ha-google-a{{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:10px;
+  width:100%;
+  height:46px;
+  border-radius:16px;
+  border:1px solid rgba(15,23,42,0.12);
+  background: rgba(255,255,255,0.96);
+  font-weight:900;
+  text-decoration:none;
+  color: rgba(15,23,42,0.92);
+}}
+a.ha-google-a:hover{{
+  background: rgba(15,23,42,0.03);
+}}
+
+.ha-login-foot{{
+  font-size: .82rem;
+  opacity: .70;
+  margin-top: .60rem;
+}}
+</style>
+<div class="ha-login-hero">
+  <div class="ha-login-shell">
+    <div class="ha-login-card">
+      <div class="ha-login-head">
+        <div class="ha-login-brand">
+          <div class="ha-login-icon" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path d="M5 4.5c0-1.1.9-2 2-2h10a2 2 0 0 1 2 2V20c0 .55-.45 1-1 1H7a2 2 0 0 0-2 2V4.5Z" stroke="rgba(15,23,42,0.85)" stroke-width="1.6" stroke-linejoin="round"/>
+              <path d="M5 19a2 2 0 0 1 2-2h12" stroke="rgba(15,23,42,0.55)" stroke-width="1.6" stroke-linecap="round"/>
+              <path d="M14.8 6.2l.4 1.2 1.2.4-1.2.4-.4 1.2-.4-1.2-1.2-.4 1.2-.4.4-1.2Z" fill="rgba(46,124,246,0.85)"/>
+            </svg>
+          </div>
+          <div class="ha-login-ttl">
+            <b>하테나일본어</b>
+            <div class="sub">한글만 알면 누구나 할 수 있어요.</div>
+          </div>
+        </div>
+        <div class="ha-login-badge {"pulse" if (not st.session_state.get('_login_pulse_done', False)) else ""}">
+          오늘도 1세트부터
+        </div>
+      </div>
+
+      <div class="ha-login-hope">이제, 일본어로 \"말할 수 있는 사람\"이 되어보세요.</div>
+      <div class="ha-login-note">계정을 만들면 학습 기록이 저장되고, 기기/브라우저가 달라도 이어서 할 수 있어요.</div>
+""", unsafe_allow_html=True)
+
+    # mark pulse done
+    st.session_state["_login_pulse_done"] = True
+
+    # custom tabs (segmented)
+    st.markdown('<div class="ha-seg">', unsafe_allow_html=True)
+    c1, c2 = st.columns(2, gap="small")
+    with c1:
+        if st.button("로그인", use_container_width=True, key="auth_tab_login"):
+            st.session_state["_auth_mode"] = "login"
+            st.rerun()
+    with c2:
+        if st.button("회원가입", use_container_width=True, key="auth_tab_signup"):
+            st.session_state["_auth_mode"] = "signup"
+            st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    mode = st.session_state.get("_auth_mode", "login")
+
+    if mode == "login":
+        with st.form("hub_login_form", clear_on_submit=False):
             email = st.text_input("이메일", key="hub_email", placeholder="example@email.com")
             pw = st.text_input("비밀번호", type="password", key="hub_pw", placeholder="비밀번호")
             submit = st.form_submit_button("로그인", use_container_width=True)
@@ -1867,64 +1908,68 @@ try {{
         if submit:
             if not email or not pw:
                 st.error("이메일/비밀번호를 입력해 주세요.")
-                st.stop()
-            try:
-                res = sb.auth.sign_in_with_password({"email": email, "password": pw})
-                if getattr(res, "session", None) and getattr(res.session, "access_token", None):
-                    _auth_success(res)
-                else:
+            else:
+                try:
+                    res = sb.auth.sign_in_with_password({"email": email, "password": pw})
+                    if getattr(res, "session", None) and getattr(res.session, "access_token", None):
+                        _auth_success(res)
+                    else:
+                        st.error("로그인에 실패했습니다.")
+                except Exception:
                     st.error("로그인에 실패했습니다. 이메일/비밀번호를 확인해 주세요.")
-            except Exception:
-                st.error("로그인에 실패했습니다. 이메일/비밀번호를 확인해 주세요.")
 
-
-        # --- Google OAuth (optional) ---
-        st.markdown('<div class="ha-login-divider">또는</div>', unsafe_allow_html=True)
-        # Secondary button styling via key class
-        st.markdown("""<style>
-.st-key-hub_google_continue button{
-  background: rgba(15,23,42,0.02) !important;
-  border: 1px solid rgba(15,23,42,0.12) !important;
-  color: rgba(15,23,42,0.90) !important;
-  border-radius: 16px !important;
-  font-weight: 700 !important;
-}
-.st-key-hub_google_continue button:hover{
-  background: rgba(15,23,42,0.04) !important;
-}
-</style>""", unsafe_allow_html=True)
-
-        if st.button("Google로 계속하기", use_container_width=True, key="hub_google_continue"):
-            try:
-                # Supabase OAuth (requires provider configured in Supabase dashboard)
-                res_oauth = sb.auth.sign_in_with_oauth({"provider": "google"})
-                url = getattr(res_oauth, "url", None) or (res_oauth.get("url") if isinstance(res_oauth, dict) else None)
-                if url:
-                    _go_url(str(url))
-                else:
-                    st.error("Google 로그인 URL을 생성하지 못했습니다. (Supabase OAuth 설정을 확인해 주세요.)")
-            except Exception:
-                st.error("Google 로그인에 실패했습니다. (Supabase OAuth 설정을 확인해 주세요.)")
-        st.markdown('<div class="ha-login-foot">※ 처음 이용이라면 <b>회원가입</b> 탭에서 계정을 만들어 주세요.</div>', unsafe_allow_html=True)
-
-    with tab_signup:
-        with st.form("signup_form_pretty", clear_on_submit=False):
+    else:
+        with st.form("hub_signup_form", clear_on_submit=False):
             email2 = st.text_input("이메일", key="hub_email2", placeholder="example@email.com")
-            pw2 = st.text_input("비밀번호", type="password", key="hub_pw2", placeholder="비밀번호 (6자 이상 권장)")
-            submit2 = st.form_submit_button("회원가입", use_container_width=True)
+            pw1 = st.text_input("비밀번호", type="password", key="hub_pw2", placeholder="비밀번호")
+            pw2 = st.text_input("비밀번호 확인", type="password", key="hub_pw3", placeholder="비밀번호 확인")
+            submit2 = st.form_submit_button("계정 만들기", use_container_width=True)
 
         if submit2:
-            if not email2 or not pw2:
+            if not email2 or not pw1:
                 st.error("이메일/비밀번호를 입력해 주세요.")
-                st.stop()
-            try:
-                res = sb.auth.sign_up({"email": email2, "password": pw2})
-                if getattr(res, "session", None) and getattr(res.session, "access_token", None):
-                    _auth_success(res)
-                else:
-                    st.success("회원가입 요청이 완료되었습니다. 이메일 인증이 필요할 수 있어요.")
-            except Exception:
-                st.error("회원가입에 실패했습니다. 이미 가입된 이메일이거나 비밀번호 조건이 맞지 않을 수 있어요.")
+            elif pw1 != pw2:
+                st.error("비밀번호가 일치하지 않습니다.")
+            else:
+                try:
+                    res = sb.auth.sign_up({"email": email2, "password": pw1})
+                    if getattr(res, "session", None) and getattr(res.session, "access_token", None):
+                        _auth_success(res)
+                    else:
+                        st.success("회원가입 요청이 완료되었습니다. 이메일 인증이 필요할 수 있어요.")
+                        st.session_state["_auth_mode"] = "login"
+                except Exception:
+                    st.error("회원가입에 실패했습니다. 이미 가입된 이메일이거나 비밀번호 조건이 맞지 않을 수 있어요.")
+
+    # Google OAuth (real logo in-button)
+    st.markdown('<div class="ha-login-divider">또는</div>', unsafe_allow_html=True)
+    oauth_url = None
+    try:
+        res_oauth = sb.auth.sign_in_with_oauth({"provider": "google"})
+        oauth_url = getattr(res_oauth, "url", None) or (res_oauth.get("url") if isinstance(res_oauth, dict) else None)
+    except Exception:
+        oauth_url = None
+
+    if oauth_url:
+        st.markdown(f'''
+<a class="ha-google-a" href="{str(oauth_url)}">
+  <span aria-hidden="true">
+    <svg width="18" height="18" viewBox="0 0 48 48">
+      <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.61l6.85-6.85C35.91 2.53 30.36 0 24 0 14.82 0 6.73 5.3 2.69 13.05l7.98 6.19C12.45 13.34 17.74 9.5 24 9.5z"/>
+      <path fill="#4285F4" d="M46.1 24.5c0-1.64-.15-3.22-.43-4.74H24v9.01h12.39c-.54 2.91-2.16 5.37-4.59 7.03l7.03 5.45c4.11-3.79 6.27-9.37 6.27-16.75z"/>
+      <path fill="#FBBC05" d="M10.67 28.24c-.48-1.43-.76-2.95-.76-4.54s.27-3.11.76-4.54l-7.98-6.19C.99 16.21 0 20.02 0 24c0 3.98.99 7.79 2.69 11.03l7.98-6.19z"/>
+      <path fill="#34A853" d="M24 48c6.48 0 11.93-2.14 15.9-5.81l-7.03-5.45c-1.95 1.31-4.45 2.09-8.87 2.09-6.26 0-11.55-3.84-13.43-9.09l-7.98 6.19C6.73 42.7 14.82 48 24 48z"/>
+      <path fill="none" d="M0 0h48v48H0z"/>
+    </svg>
+  </span>
+  Google로 계속하기
+</a>
+''', unsafe_allow_html=True)
+    else:
+        st.caption("Google 로그인을 사용하려면 Supabase OAuth에서 Google Provider 설정이 필요합니다.")
+
+    st.markdown('<div class="ha-login-foot">※ 처음 이용이라면 <b>회원가입</b> 탭에서 계정을 만들어 주세요.</div>', unsafe_allow_html=True)
+    st.markdown('</div></div></div>', unsafe_allow_html=True)
 
     st.stop()
 
