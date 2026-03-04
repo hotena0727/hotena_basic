@@ -257,12 +257,17 @@ def _inject_talk_ui_css():
     if st.session_state.get("_talk_ui_css_done", False):
         return
     st.session_state["_talk_ui_css_done"] = True
+
+    # FREE 플랜: '상대(말)' 라벨과 일본어 문장 간격을 더 타이트하게
+    _gap = "2px" if not IS_PRO else "6px"
+    _label_min = "44px" if not IS_PRO else "54px"
+
     st.markdown(
-        """
+        f"""
 <style>
-.talk-bubble-row{display:flex;gap:6px;align-items:flex-end;margin:6px 0;}
-.talk-bubble-label{min-width:54px;font-weight:800;opacity:.85;}
-.talk-bubble{
+.talk-bubble-row{{display:flex;gap:{_gap};align-items:flex-end;margin:6px 0;}}
+.talk-bubble-label{{min-width:{_label_min};font-weight:800;opacity:.85;white-space:nowrap;}}
+.talk-bubble{{
   display:inline-block;
   max-width:100%;
   padding:10px 12px;
@@ -271,11 +276,11 @@ def _inject_talk_ui_css():
   box-shadow:0 1px 0 rgba(0,0,0,.02);
   line-height:1.25;
   word-break:break-word;
-}
-.talk-bubble.partner{background:rgba(0,0,0,.02);}
-.talk-bubble.me{background:rgba(33,150,243,.08);}
-.talk-bubble-sub{font-size:.86rem;opacity:.70;margin-top:2px;}
-.talk-tts-col{display:flex;justify-content:flex-end;align-items:center;}
+}}
+.talk-bubble.partner{{background:rgba(0,0,0,.02);}}
+.talk-bubble.me{{background:rgba(33,150,243,.08);}}
+.talk-bubble-sub{{font-size:.86rem;opacity:.70;margin-top:2px;}}
+.talk-tts-col{{display:flex;justify-content:flex-end;align-items:center;}}
 </style>
 """,
         unsafe_allow_html=True,
