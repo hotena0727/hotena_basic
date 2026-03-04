@@ -2317,7 +2317,7 @@ if mode == "review":
     st.progress(_rprog)
     st.caption(f"복습 진행: {idx+1}/{len(qids)}")
 else:
-    st.caption(f"문항 진행: {idx+1}/{len(qids)} (이 {len(qids)}문항 = 1세트)")
+    st.caption(f"문항 진행: {idx+1}/{len(qids)}")
 
 
 # ============================================================
