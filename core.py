@@ -34,6 +34,45 @@ except Exception:  # pragma: no cover
 # ----------------------------
 # Config (env -> secrets)
 # ----------------------------
+# ============================================================
+# ✅ Global UI CSS (applied once per Streamlit run)
+# - Fix oversized top padding on mobile/PWA across Streamlit versions
+# - Keep small breathing room for our custom top nav
+# ============================================================
+def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
+    """Apply global layout CSS once per run.
+
+    We intentionally target both legacy (.block-container) and newer
+    [data-testid="block-container"] selectors because Streamlit's DOM
+    changed across versions.
+    """
+    if st.session_state.get("_core_global_ui_css_applied"):
+        return
+    st.session_state["_core_global_ui_css_applied"] = True
+
+    pad = f"{max(0.0, float(top_padding_rem))}rem"
+
+    st.markdown(
+        f"""<style>
+/* --- TOP SPACING FIX (mobile/PWA) --- */
+[data-testid="stAppViewContainer"]{{ padding-top: 0 !important; }}
+/* Newer Streamlit */
+[data-testid="block-container"]{{ padding-top: {pad} !important; }}
+/* Older Streamlit */
+.block-container{{ padding-top: {pad} !important; }}
+
+/* In some layouts, the first vertical block adds extra margin */
+[data-testid="stVerticalBlock"] > div:first-child{{ margin-top: 0 !important; }}
+
+/* Optional: hide Streamlit default header space if present */
+header[data-testid="stHeader"]{{ height: 0 !important; }}
+header[data-testid="stHeader"] *{{ display:none !important; }}
+
+/* Safe-area: avoid extra blank gap on some Android devices */
+html, body{{ padding-top: 0 !important; }}
+</style>""",
+        unsafe_allow_html=True,
+    )
 def get_cfg(key: str) -> str:
     """Read from env first, then st.secrets safely. Returns '' if missing.
 
@@ -225,6 +264,8 @@ def ensure_core(
     Ensure CFG/cookies/supabase anon client exist in st.session_state.
     Safe to call multiple times in the same run.
     """
+    apply_global_ui_css()
+
     # 1) CFG
     cfg = st.session_state.get("cfg")
     if not isinstance(cfg, dict) or not cfg:
