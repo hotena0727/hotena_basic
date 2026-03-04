@@ -7,13 +7,12 @@ import os
 import runpy
 import importlib
 import json
+import time
 import hashlib
 import base64
 from cryptography.fernet import Fernet
 from datetime import date, datetime, timedelta, timezone
 import streamlit as st
-import core
-import streamlit.components.v1 as components
 
 # ============================================================
 # ✅ Page Config (must be the first Streamlit command)
@@ -23,6 +22,47 @@ try:
 except Exception:
     # In case Streamlit considers page config already set during a rerun/import edge case
     pass
+
+# ============================================================
+# ✅ Global: remove Streamlit top spacing (mobile/desktop)
+#    - Must run early (before any layout is drawn)
+# ============================================================
+def _inject_global_top_spacing_fix_once():
+    if st.session_state.get("_global_top_spacing_fix_injected", False):
+        return
+    st.session_state["_global_top_spacing_fix_injected"] = True
+    st.markdown(
+        """
+<style>
+/* Hide Streamlit default chrome */
+#MainMenu {visibility:hidden;}
+footer {visibility:hidden;}
+header, header[data-testid="stHeader"] {display:none !important; height:0 !important;}
+
+/* Remove default top padding */
+.block-container {
+  padding-top: 0rem !important;
+  margin-top: 0rem !important;
+}
+
+/* Some Streamlit versions wrap main differently */
+div[data-testid="stAppViewContainer"] > .main,
+div[data-testid="stAppViewContainer"] {
+  padding-top: 0rem !important;
+  margin-top: 0rem !important;
+}
+
+/* Extra safety for older/newer DOM shapes */
+section.main > div { padding-top: 0rem !important; }
+</style>
+""",
+        unsafe_allow_html=True,
+    )
+
+_inject_global_top_spacing_fix_once()
+
+import core
+import streamlit.components.v1 as components
 
 # ============================================================
 # ✅ Font: 일본식 한자(글리프) 우선 적용
@@ -47,7 +87,8 @@ _inject_jp_font_once()
 
 # ✅ PWA/A2HS 공통 주입 (루트: /manifest.json, /sw.js, /apple-touch-icon.png, /icon-192.png, /icon-512.png)
 core.inject_pwa_once(app_name="하테나일본어", theme_color="#0F6B3F")
-core.apply_global_ui_css(top_padding_rem=0.0)
+
+
 
 # ============================================================
 # ✅ Module runner (NO runpy/run_path)
@@ -539,7 +580,14 @@ def refresh_session_from_cookie_if_needed(force: bool = False) -> bool:
 
 
 def get_authed_sb():
-    refresh_session_from_cookie_if_needed(force=True)
+    # Rate-limit refresh_session calls (network) to avoid 1~2s stalls on every navigation.
+    now_ts = time.time()
+    last_ts = float(st.session_state.get('_auth_last_refresh_ts', 0.0) or 0.0)
+    min_interval = float(st.session_state.get('_auth_refresh_min_interval_sec', 600) or 600)
+    need = (not st.session_state.get('user')) or (not st.session_state.get('access_token'))
+    if (now_ts - last_ts) >= min_interval or need:
+        refresh_session_from_cookie_if_needed(force=True)
+        st.session_state['_auth_last_refresh_ts'] = now_ts
     token = st.session_state.get("access_token")
     if not token:
         return None
