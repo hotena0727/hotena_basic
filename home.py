@@ -3566,32 +3566,3 @@ try:
     render_float_top_anchor_button()
 except Exception:
     pass
-
-
-def render_hotena_tabbar():
-    import streamlit as st
-    qp = st.query_params
-    p = qp.get("p","home")
-
-    def tab(name,icon,label):
-        active="active" if p==name else ""
-        return f'<a class="hotena-tab {active}" href="?p={name}"><span>{icon}</span>{label}</a>'
-
-    html = (
-        '<div class="hotena-tabbar">'
-        + tab("home","🏠","홈")
-        + tab("talk","💬","회화")
-        + tab("hotena_basic","📘","단어")
-        + tab("mypage","👤","마이")
-        + '</div>'
-    )
-
-    st.markdown(html,unsafe_allow_html=True)
-
-try:
-    import core
-    core.apply_hotena_mobile_ui()
-except Exception:
-    pass
-
-render_hotena_tabbar()
