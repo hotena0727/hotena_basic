@@ -3521,3 +3521,9 @@ def finalize_set_if_ready():
 _render_talk_tts_player()
 
 finalize_set_if_ready()
+
+# ✅ Render deferred JS snippets (single iframe at bottom)
+try:
+    core.flush_pending_components_html()
+except Exception:
+    pass

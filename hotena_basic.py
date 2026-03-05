@@ -3788,3 +3788,9 @@ if st.session_state.get("submitted", False):
     show_naver_talk = (SHOW_NAVER_TALK == "Y") or is_admin()
     if show_naver_talk:
         render_naver_talk()
+
+# ✅ Render deferred JS snippets (single iframe at bottom)
+try:
+    core.flush_pending_components_html()
+except Exception:
+    pass

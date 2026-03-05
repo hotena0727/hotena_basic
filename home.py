@@ -3571,3 +3571,9 @@ try:
     render_float_top_anchor_button()
 except Exception:
     pass
+
+# ✅ Render deferred JS snippets (single iframe at bottom)
+try:
+    core.flush_pending_components_html()
+except Exception:
+    pass

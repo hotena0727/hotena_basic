@@ -2583,3 +2583,9 @@ if __name__ == '__main__':
 def render():
     """Home hub에서 import 후 호출되는 진입점."""
     render_kanji_hub(HUB_MODE=True)
+
+# ✅ Render deferred JS snippets (single iframe at bottom)
+try:
+    core.flush_pending_components_html()
+except Exception:
+    pass

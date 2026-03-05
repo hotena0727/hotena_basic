@@ -2781,3 +2781,9 @@ def render() -> None:
         _render_notifications_tab()
 
     _wrap_end()
+
+# ✅ Render deferred JS snippets (single iframe at bottom)
+try:
+    core.flush_pending_components_html()
+except Exception:
+    pass
