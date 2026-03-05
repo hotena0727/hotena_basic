@@ -999,10 +999,6 @@ def render_top_nav(active: str = "home") -> None:
 
     st.markdown(css, unsafe_allow_html=True)
     st.markdown(html, unsafe_allow_html=True)
-    st.markdown(
-        "<div style='height:56px'></div>",
-        unsafe_allow_html=True
-    )
 # ============================================================
 # ✅ SFX (Sound Effects) — shared tiny UX feedback sounds
 # - session-level ON/OFF (default ON)
