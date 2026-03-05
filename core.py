@@ -77,17 +77,6 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.0) -> None:
       margin-top: 0 !important;
     }}
 
-    /* Newer Streamlit */
-    [data-testid="block-container"] {{
-      padding-top: {pad} !important;
-      margin-top: 0 !important;
-    }}
-    /* Older Streamlit */
-    .block-container {{
-      padding-top: {pad} !important;
-      margin-top: 0 !important;
-    }}
-
     section.main > div {{
       padding-top: 0 !important;
       margin-top: 0 !important;
