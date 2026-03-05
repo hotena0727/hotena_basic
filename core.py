@@ -73,7 +73,29 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.0) -> None:
       min-height: 0 !important;
     }}
 
-    /* Safe-area: avoid extra blank gap on some Android devices */
+    
+/* ✅ Hide Streamlit toolbar/decoration that can reserve top space */
+div[data-testid="stToolbar"],
+div[data-testid="stDecoration"],
+div[data-testid="stStatusWidget"],
+div[data-testid="stAppToolbar"],
+div[data-testid="stHeaderActionElements"]{
+  display: none !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* Some builds add a top 'stTop' spacer */
+div[data-testid="stTop"]{
+  margin: 0 !important;
+  padding: 0 !important;
+  height: 0 !important;
+  min-height: 0 !important;
+}
+
+/* Safe-area: avoid extra blank gap on some Android devices */
     html, body{{ padding-top: 0 !important; margin: 0 !important; }}
 /* prevent any accidental top margin */
 [data-testid="stAppViewContainer"], .stApp{{ margin-top: 0 !important; }}
