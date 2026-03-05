@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import os
 import time
 import streamlit as st
+import core
 import streamlit.components.v1 as components
 
 
@@ -2782,8 +2783,10 @@ def render() -> None:
 
     _wrap_end()
 
-# ✅ Render deferred JS snippets (single iframe at bottom)
+# ============================================================
+# ✅ Flush deferred components.html snippets (prevents top-gap)
+# ============================================================
 try:
-    core.flush_pending_components_html()
+    core.flush_deferred_components_html()
 except Exception:
     pass

@@ -3789,8 +3789,10 @@ if st.session_state.get("submitted", False):
     if show_naver_talk:
         render_naver_talk()
 
-# ✅ Render deferred JS snippets (single iframe at bottom)
+# ============================================================
+# ✅ Flush deferred components.html snippets (prevents top-gap)
+# ============================================================
 try:
-    core.flush_pending_components_html()
+    core.flush_deferred_components_html()
 except Exception:
     pass
