@@ -29,7 +29,7 @@ except Exception:
 # ============================================================
 import core
 try:
-    core.apply_global_ui_css(top_padding_rem=0.0, force=True)
+    core.apply_global_ui_css(top_padding_rem=0.0)
     core.hide_component_iframe_placeholders()
     core.install_layout_watcher()
 except Exception:
@@ -42,7 +42,7 @@ except Exception:
 def _inject_global_top_spacing_fix_once():
     """Deprecated (kept for compatibility).
 
-    Global top-gap fixes are handled centrally in core.apply_global_ui_css(top_padding_rem=0.0, force=True).
+    Global top-gap fixes are handled centrally in core.apply_global_ui_css().
     """
     st.session_state["_global_top_spacing_fix_injected"] = True
     return
