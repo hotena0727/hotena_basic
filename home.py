@@ -29,8 +29,9 @@ except Exception:
 # ============================================================
 import core
 try:
-    core.apply_global_ui_css(top_padding_rem=0.0)
+    core.apply_global_ui_css(top_padding_rem=0.0, force=True)
     core.hide_component_iframe_placeholders()
+    core.install_layout_watcher()
 except Exception:
     pass
 
@@ -41,7 +42,7 @@ except Exception:
 def _inject_global_top_spacing_fix_once():
     """Deprecated (kept for compatibility).
 
-    Global top-gap fixes are handled centrally in core.apply_global_ui_css().
+    Global top-gap fixes are handled centrally in core.apply_global_ui_css(top_padding_rem=0.0, force=True).
     """
     st.session_state["_global_top_spacing_fix_injected"] = True
     return
@@ -1467,7 +1468,7 @@ def render_plan_pill():
     st.markdown(
         f"""
 <style>
-.hub-plan-wrap{{display:flex;justify-content:flex-start;margin-top:0.05rem;margin-bottom:-0.55rem;}}
+.hub-plan-wrap{{display:flex;justify-content:flex-start;margin-top:0.05rem;margin-bottom: 0.35rem;}}
 .hub-plan-pill{{display:inline-flex;align-items:center;gap:.45rem;padding:.28rem .55rem;border-radius:999px;
   border:1px solid rgba(0,0,0,.10);font-size:.86rem;opacity:.92;background:rgba(0,0,0,.02);}}
 .hub-admin-gear{{display:inline-flex;align-items:center;justify-content:center;margin-left:8px;width:28px;height:28px;border-radius:999px;

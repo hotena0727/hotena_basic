@@ -39,45 +39,86 @@ except Exception:  # pragma: no cover
 # - Fix oversized top padding on mobile/PWA across Streamlit versions
 # - Keep small breathing room for our custom top nav
 # ============================================================
-def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
-    """Apply global layout CSS once per run.
+def apply_global_ui_css(*, top_padding_rem: float = 0.0, force: bool = False) -> None:
+    """Apply global layout CSS.
 
-    Fix oversized top padding on mobile/PWA across Streamlit versions.
-    Targets both legacy (.block-container) and newer [data-testid="block-container"].
+    - Keeps the fixed top nav from overlapping content by reserving space via padding-top.
+    - Prevents the one-time 'first click jump' by ensuring our style stays last in <head>.
     """
+    import streamlit as st
     import textwrap
-    if st.session_state.get("_core_global_ui_css_applied"):
-        return
-    st.session_state["_core_global_ui_css_applied"] = True
 
     pad = f"{max(0.0, float(top_padding_rem))}rem"
+    last = st.session_state.get("_core_global_ui_css_last_pad")
+    if (not force) and (last == pad):
+        return
+    st.session_state["_core_global_ui_css_last_pad"] = pad
 
-    css = textwrap.dedent(f"""
-    <style>
-    /* --- TOP SPACING FIX (mobile/PWA) --- */
-    [data-testid="stAppViewContainer"]{{ padding-top: 0 !important; }}
-    div[data-testid="stAppViewContainer"] > .main{{ padding-top: 0 !important; }}
+    css = textwrap.dedent("""
+    <style id="hotena-global-ui-css">
+    /* Hide Streamlit default UI */
+    #MainMenu { visibility: hidden; }
+    header, header[data-testid="stHeader"]{ display:none !important; height:0 !important; min-height:0 !important; }
+    div[data-testid="stToolbar"]{ display:none !important; height:0 !important; min-height:0 !important; visibility:hidden !important; }
+    footer{ display:none !important; height:0 !important; min-height:0 !important; }
 
-    /* Newer Streamlit */
-    [data-testid="block-container"]{{ padding-top: {pad} !important; }}
-    /* Older Streamlit */
-    .block-container{{ padding-top: {pad} !important; }}
+    html, body { margin-top:0 !important; padding-top:0 !important; }
+    [data-testid="stAppViewContainer"]{ margin-top:0 !important; padding-top:0 !important; }
+    div[data-testid="stAppViewContainer"] > .main{ margin-top:0 !important; padding-top:0 !important; }
 
-    /* In some layouts, the first vertical block adds extra margin */
-    [data-testid="stVerticalBlock"] > div:first-child{{ margin-top: 0 !important; }}
+    /* Reserve space for fixed top nav (and optional extra pad) */
+    [data-testid="block-container"]{
+      padding-top: calc(var(--hotena-nav-h, 56px) + __HOTENA_PAD__) !important;
+      margin-top: 0 !important;
+    }
+    .block-container{
+      padding-top: calc(var(--hotena-nav-h, 56px) + __HOTENA_PAD__) !important;
+      margin-top: 0 !important;
+    }
+    section.main > div.block-container{
+      padding-top: calc(var(--hotena-nav-h, 56px) + __HOTENA_PAD__) !important;
+      margin-top: 0 !important;
+    }
 
-    /* ✅ Kill Streamlit default header COMPLETELY (no reserved space) */
-    header, header[data-testid="stHeader"]{{
-      display: none !important;
-      height: 0 !important;
-      min-height: 0 !important;
-    }}
+    /* Reduce stray first-block spacing */
+    [data-testid="stVerticalBlock"] > div:first-child{ margin-top:0 !important; padding-top:0 !important; }
 
-    /* Safe-area: avoid extra blank gap on some Android devices */
-    html, body{{ padding-top: 0 !important; }}
     </style>
-    """)
 
+    <script>
+    (function(){
+      function ensureLast(){
+        try{
+          var el = document.getElementById('hotena-global-ui-css');
+          if(!el) return;
+          var head = document.head || document.getElementsByTagName('head')[0];
+          if(!head) return;
+          head.appendChild(el); // move to end -> wins cascade
+        }catch(e){}
+      }
+
+      // Immediately + shortly after load (Streamlit may append CSS late)
+      ensureLast();
+      var n=0, t=setInterval(function(){
+        ensureLast();
+        n++;
+        if(n>=25) clearInterval(t); // ~2.5s
+      }, 100);
+
+      // Re-assert right before first interaction (captures one-time jump)
+      function once(){
+        ensureLast();
+        window.removeEventListener('pointerdown', once, true);
+        window.removeEventListener('touchstart', once, true);
+        window.removeEventListener('keydown', once, true);
+      }
+      window.addEventListener('pointerdown', once, true);
+      window.addEventListener('touchstart', once, true);
+      window.addEventListener('keydown', once, true);
+    })();
+    </script>
+    """)
+    css = css.replace("__HOTENA_PAD__", pad)
     st.markdown(css, unsafe_allow_html=True)
 
 
@@ -190,14 +231,6 @@ div[data-testid="stIFrame"]:has(iframe[title^="streamlit.components.v1."]) ifram
 #   /app/static/pwa-manifest.json, /app/static/sw.js, /app/static/apple-touch-icon.png, /app/static/icon-192.png, /app/static/icon-512.png, /favicon.ico (optional)
 # - Safe to call multiple times; injects only once per session.
 # ============================================================
-
-def hide_component_iframe_placeholders() -> None:
-    """Public wrapper: hide gray placeholder iframes created by Streamlit components.
-
-    Call once early (e.g., in home.py) to prevent F5/layout jump issues.
-    """
-    _hide_streamlit_component_iframes()
-
 def inject_pwa_once(
     app_name: str = "Hotena",
     theme_color: str = "#0F6B3F",
@@ -865,6 +898,7 @@ def render_top_nav(active: str = "home") -> None:
         return "?" + urlencode(q, doseq=True)
 
     css = textwrap.dedent("""        <style>
+      :root{ --hotena-nav-h:56px; }
       /* Hide Streamlit default UI */
       #MainMenu { visibility: hidden; }
       header, header[data-testid="stHeader"]{
