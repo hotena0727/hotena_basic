@@ -1,8 +1,3 @@
-st.set_page_config(layout="wide")
-
-import core
-core.apply_global_ui_css()
-
 # home.py
 from __future__ import annotations
 
