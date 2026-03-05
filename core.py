@@ -39,13 +39,12 @@ except Exception:  # pragma: no cover
 # - Fix oversized top padding on mobile/PWA across Streamlit versions
 # - Keep small breathing room for our custom top nav
 # ============================================================
-def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
+def apply_global_ui_css(*, top_padding_rem: float = 0.0) -> None:
     """Apply global layout CSS once per run.
 
     Fix oversized top padding on mobile/PWA across Streamlit versions.
     Targets both legacy (.block-container) and newer [data-testid="block-container"].
     """
-    import textwrap
     if st.session_state.get("_core_global_ui_css_applied"):
         return
     st.session_state["_core_global_ui_css_applied"] = True
@@ -75,79 +74,26 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
 
     /* Safe-area: avoid extra blank gap on some Android devices */
     html, body{{ padding-top: 0 !important; }}
+
+    /* --- FORCE HIDE STREAMLIT COMPONENT IFRAMES (prevents refresh top gap) --- */
+    div[data-testid="stIFrame"]{{
+      display: none !important;
+      height: 0 !important;
+      min-height: 0 !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }}
+    div[data-testid="stIFrame"] iframe{{
+      display: none !important;
+      height: 0 !important;
+      min-height: 0 !important;
+    }}
     </style>
     """)
 
     st.markdown(css, unsafe_allow_html=True)
 
 
-
-
-    def install_layout_watcher() -> None:
-        """Install a tiny JS watcher that keeps the top padding collapsed.
-
-        Some Streamlit builds re-apply padding/margins after the first paint or after widgets rerun.
-        This watcher forces the key containers back to 0px, so the layout does not 'jump' upward
-        after interacting with radios/buttons.
-        """
-        try:
-            import streamlit as st
-            import streamlit.components.v1 as components
-        except Exception:
-            return
-
-        if st.session_state.get("_core_layout_watcher_installed"):
-            return
-        st.session_state["_core_layout_watcher_installed"] = True
-
-        components.html(
-            """
-<script>
-(function(){
-  function fix(){
-    try{
-      const sels = [
-        '[data-testid="stAppViewContainer"]',
-        'div[data-testid="stAppViewContainer"] > .main',
-        'section.main',
-        'div.main',
-        '[data-testid="block-container"]',
-        '.block-container'
-      ];
-      sels.forEach(sel=>{
-        document.querySelectorAll(sel).forEach(el=>{
-          el.style.paddingTop = '0px';
-          el.style.marginTop = '0px';
-        });
-      });
-      document.querySelectorAll('header, header[data-testid="stHeader"], div[data-testid="stToolbar"], div[data-testid="stDecoration"]').forEach(el=>{
-        el.style.display='none';
-        el.style.height='0px';
-        el.style.minHeight='0px';
-      });
-      // first vertical block sometimes adds extra top margin
-      document.querySelectorAll('[data-testid="stVerticalBlock"] > div:first-child').forEach(el=>{
-        el.style.marginTop='0px';
-      });
-    }catch(e){}
-  }
-  // run now and a few times right after first paint
-  fix();
-  requestAnimationFrame(fix);
-  setTimeout(fix, 50);
-  setTimeout(fix, 200);
-  setTimeout(fix, 800);
-
-  // keep enforcing on DOM changes (widget reruns)
-  try{
-    const mo = new MutationObserver(()=>fix());
-    mo.observe(document.documentElement, {subtree:true, childList:true, attributes:true});
-  }catch(e){}
-})();
-</script>
-""",
-            height=0,
-        )
 def get_cfg(key: str) -> str:
     """Read from env first, then st.secrets safely. Returns '' if missing.
 
@@ -257,14 +203,6 @@ div[data-testid="stIFrame"]:has(iframe[title^="streamlit.components.v1."]) ifram
 #   /app/static/pwa-manifest.json, /app/static/sw.js, /app/static/apple-touch-icon.png, /app/static/icon-192.png, /app/static/icon-512.png, /favicon.ico (optional)
 # - Safe to call multiple times; injects only once per session.
 # ============================================================
-
-def hide_component_iframe_placeholders() -> None:
-    """Public wrapper: hide gray placeholder iframes created by Streamlit components.
-
-    Call once early (e.g., in home.py) to prevent F5/layout jump issues.
-    """
-    _hide_streamlit_component_iframes()
-
 def inject_pwa_once(
     app_name: str = "Hotena",
     theme_color: str = "#0F6B3F",
