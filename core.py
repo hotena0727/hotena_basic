@@ -926,7 +926,7 @@ def render_top_nav(active: str = "home") -> None:
       [data-testid="stSidebarNav"] { display: none !important; }
 
       .hn-topnav-wrap{
-        position: fixed; left: 0; right: 0;
+        position: sticky; left: 0; right: 0;
         top: 0;
         z-index: 2147483000;
         background: rgba(255,255,255,0.94);
