@@ -94,6 +94,12 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
     st.markdown(css, unsafe_allow_html=True)
 
 
+
+    # ✅ Pin top spacing on first load (safe)
+    try:
+        apply_topgap_dom_guard()
+    except Exception:
+        pass
 def get_cfg(key: str) -> str:
     """Read from env first, then st.secrets safely. Returns '' if missing.
 
@@ -1118,3 +1124,68 @@ def play_sfx_once(key: str, name: str) -> None:
         return
     st.session_state[k] = True
     play_sfx(name)
+
+
+# ============================================================
+# ✅ Top-gap DOM guard (safe: does NOT hide component iframes)
+# Why:
+# - On first load (F5), Streamlit may temporarily add top padding / spacer.
+# - After the first interaction (rerun), the layout "settles" and moves up.
+# Fix:
+# - Inject a tiny JS (in a 0-height iframe) that patches the parent DOM styles
+#   and keeps them pinned via MutationObserver for a short window.
+# - This does NOT disable streamlit components (talk.py audio/etc stay alive).
+# ============================================================
+def apply_topgap_dom_guard(run_once_key: str = "_topgap_dom_guard_done") -> None:
+    try:
+        if st.session_state.get(run_once_key):
+            return
+        st.session_state[run_once_key] = True
+    except Exception:
+        pass
+
+    js = r"""<script>
+    (function(){
+      function apply(){
+        try{
+          var d = window.parent.document;
+          var header = d.querySelector('header[data-testid="stHeader"]');
+          if(header){ header.style.display='none'; header.style.height='0'; header.style.minHeight='0'; }
+
+          var app = d.querySelector('[data-testid="stAppViewContainer"]');
+          if(app){ app.style.paddingTop='0px'; app.style.marginTop='0px'; }
+
+          var main = d.querySelector('[data-testid="stAppViewContainer"] > .main');
+          if(main){ main.style.paddingTop='0px'; main.style.marginTop='0px'; }
+
+          var bc = d.querySelector('[data-testid="block-container"]');
+          if(bc){ bc.style.paddingTop='0px'; bc.style.marginTop='0px'; }
+
+          // remove first-block margin if Streamlit injects it
+          var vb = d.querySelector('div[data-testid="stVerticalBlock"]');
+          if(vb && vb.firstElementChild){
+            vb.firstElementChild.style.marginTop='0px';
+          }
+        }catch(e){}
+      }
+
+      apply();
+      // Re-apply a few times during hydration
+      var times = [50, 120, 240, 400, 700, 1100];
+      times.forEach(function(ms){ setTimeout(apply, ms); });
+
+      // Observe DOM mutations for ~1.5s, then stop.
+      try{
+        var d = window.parent.document;
+        var obs = new MutationObserver(function(){ apply(); });
+        obs.observe(d.body, {subtree:true, childList:true, attributes:true});
+        setTimeout(function(){ try{obs.disconnect();}catch(e){} }, 1500);
+      }catch(e){}
+    })();
+    </script>"""
+
+    try:
+        components.html(js, height=0)
+    except Exception:
+        pass
+
