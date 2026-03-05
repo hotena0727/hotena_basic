@@ -45,6 +45,7 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
     Fix oversized top padding on mobile/PWA across Streamlit versions.
     Targets both legacy (.block-container) and newer [data-testid="block-container"].
     """
+    import textwrap
     if st.session_state.get("_core_global_ui_css_applied"):
         return
     st.session_state["_core_global_ui_css_applied"] = True
@@ -74,20 +75,6 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
 
     /* Safe-area: avoid extra blank gap on some Android devices */
     html, body{{ padding-top: 0 !important; }}
-
-    /* --- FORCE HIDE STREAMLIT COMPONENT IFRAMES (prevents refresh top gap) --- */
-    div[data-testid="stIFrame"]{{
-      display: none !important;
-      height: 0 !important;
-      min-height: 0 !important;
-      margin: 0 !important;
-      padding: 0 !important;
-    }}
-    div[data-testid="stIFrame"] iframe{{
-      display: none !important;
-      height: 0 !important;
-      min-height: 0 !important;
-    }}
     </style>
     """)
 
@@ -203,6 +190,14 @@ div[data-testid="stIFrame"]:has(iframe[title^="streamlit.components.v1."]) ifram
 #   /app/static/pwa-manifest.json, /app/static/sw.js, /app/static/apple-touch-icon.png, /app/static/icon-192.png, /app/static/icon-512.png, /favicon.ico (optional)
 # - Safe to call multiple times; injects only once per session.
 # ============================================================
+
+def hide_component_iframe_placeholders() -> None:
+    """Public wrapper: hide gray placeholder iframes created by Streamlit components.
+
+    Call once early (e.g., in home.py) to prevent F5/layout jump issues.
+    """
+    _hide_streamlit_component_iframes()
+
 def inject_pwa_once(
     app_name: str = "Hotena",
     theme_color: str = "#0F6B3F",
