@@ -1556,10 +1556,11 @@ def render_reminder_settings(sb_authed, user):
         st.success("저장했습니다.")
 
 
-def fire_in_app_reminder_if_enabled(user):
-    """If reminder is enabled, schedule an in-app notification when the app is open.
-    ✅ Dedupe: only schedule ONCE per (user, KST date, HH:MM) so page navigation won't spam alerts.
-    """
+def fire_in_app_reminder_if_enabled\(user\):
+    \"\"\"If reminder is enabled, schedule an in-app notification when the app is open\.
+    ✅ Dedupe: only schedule ONCE per \(user, KST date, HH:MM\) so page navigation won\'t spam alerts\.
+    \"\"\"
+    import streamlit.components.v1 as components
     progress_all = st.session_state.get("progress_all", {}) or {}
     rem = progress_all.get("reminder") or {}
     enabled = bool(rem.get("enabled", True))
