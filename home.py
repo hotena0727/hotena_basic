@@ -60,6 +60,28 @@ section.main > div { padding-top: 0rem !important; }
 
 _inject_global_top_spacing_fix_once()
 
+# ============================================================
+# ✅ First-paint stabilizer (ONE rerun per browser session)
+# - Streamlit first load (F5) can paint with a transient top spacer.
+# - The next rerun (any click) uses the settled layout (content jumps up).
+# - We trigger exactly ONE automatic rerun right after the global CSS inject,
+#   so F5 lands on the same settled layout.
+# ============================================================
+def _force_first_paint_rerun_once():
+    try:
+        if st.session_state.get("_first_paint_rerun_done", False):
+            return
+        st.session_state["_first_paint_rerun_done"] = True
+        st.rerun()
+    except Exception:
+        try:
+            st.experimental_rerun()
+        except Exception:
+            pass
+
+_force_first_paint_rerun_once()
+
+
 import core
 import streamlit.components.v1 as components
 
