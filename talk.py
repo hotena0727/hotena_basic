@@ -1425,6 +1425,13 @@ SUB_LABEL = {
     # understand 등에서 쓰는 값들
     "confirm": "확인",
     "mixed": "혼합",
+    # CSV 원문이 영문 코드일 때 표시용 복원
+    "reason": "이유",
+    "hobby": "취미",
+    "reaction": "반응",
+    "self_intro": "자기소개",
+    "self_introduction": "자기소개",
+    "language_exchange": "언어교환",
 }
 
 def _sub_label(s: str) -> str:
@@ -1491,8 +1498,7 @@ if stage_val and "stage" in DF_SEL.columns:
 # ✅ 1) 유형(tag) — DF_SEL에 실제로 존재하는 것만 노출
 tag_options_all: list[str] = []
 if "tag" in DF_SEL.columns:
-    tag_options_all = [str(x).strip() for x in DF_SEL["tag"].astype(str).tolist() if str(x).strip()]
-    tag_options_all = list(dict.fromkeys(tag_options_all))
+    tag_options_all = list(dict.fromkeys([str(x).strip() for x in DF_SEL["tag"].astype(str).tolist() if str(x).strip()]))
 
 if not tag_options_all:
     st.warning("회화 문제가 없습니다. (CSV의 stage/tag/sub 확인)")
@@ -1512,8 +1518,8 @@ has_sub_col = "sub" in DF_SEL.columns
 subs_all: list[str] = []
 if has_sub_col:
     _df_for_subs = DF_SEL[DF_SEL["tag"].astype(str) == str(tag)].copy()
-    subs_all = [str(x).strip() for x in _df_for_subs["sub"].astype(str).tolist() if str(x).strip()]
-    subs_all = list(dict.fromkeys(subs_all))
+    subs_all = [x for x in _df_for_subs["sub"].astype(str).tolist() if str(x).strip()]
+subs_all = list(dict.fromkeys([str(x).strip() for x in subs_all if str(x).strip()]))
 
 if len(subs_all) >= 2:
     sub_options = ["__all__"] + subs_all
