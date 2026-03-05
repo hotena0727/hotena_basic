@@ -23,46 +23,13 @@ except Exception:
     pass
 
 # ============================================================
-# ✅ Global: remove Streamlit top spacing (mobile/desktop)
+# ============================================================
+# ✅ Global: remove Streamlit top spacing (mobile/PWA/desktop)
 #    - Must run early (before any layout is drawn)
 # ============================================================
-def _inject_global_top_spacing_fix_once():
-    if st.session_state.get("_global_top_spacing_fix_injected", False):
-        return
-    st.session_state["_global_top_spacing_fix_injected"] = True
-    st.markdown(
-        """
-
-<style>
-/* Hide Streamlit default chrome (and remove reserved heights) */
-#MainMenu { visibility:hidden; }
-footer { visibility:hidden; }
-header, header[data-testid="stHeader"] { display:none !important; height:0 !important; min-height:0 !important; }
-div[data-testid="stToolbar"], div[data-testid="stDecoration"] { display:none !important; height:0 !important; }
-
-/* Remove top padding/margins in BOTH legacy + current DOM */
-div[data-testid="stAppViewContainer"] { padding-top:0 !important; margin-top:0 !important; }
-div[data-testid="stAppViewContainer"] > .main { padding-top:0 !important; margin-top:0 !important; }
-
-[data-testid="block-container"] { padding-top:0rem !important; margin-top:0rem !important; }
-.main .block-container { padding-top:0rem !important; margin-top:0rem !important; }
-.block-container { padding-top:0rem !important; margin-top:0rem !important; }
-
-/* Some builds add a phantom spacer at the top of main */
-section.main > div:first-child,
-[data-testid="stVerticalBlock"] > div:first-child { margin-top:0 !important; padding-top:0 !important; }
-
-/* Safe-area quirks on mobile/PWA */
-html, body { padding-top:0 !important; margin-top:0 !important; }
-</style>
-
-""",
-        unsafe_allow_html=True,
-    )
-
-_inject_global_top_spacing_fix_once()
-
 import core
+core.apply_global_ui_css(top_padding_rem=0.0)
+
 import streamlit.components.v1 as components
 
 # ============================================================
