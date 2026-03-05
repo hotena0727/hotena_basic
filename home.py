@@ -3573,7 +3573,7 @@ except Exception:
     pass
 
 # ============================================================
-# ✅ Flush deferred components.html snippets (prevents top-gap)
+# ✅ Deferred components flush (keep at VERY bottom)
 # ============================================================
 try:
     core.flush_deferred_components_html()

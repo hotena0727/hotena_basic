@@ -142,7 +142,11 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
       height: 0 !important;
       min-height: 0 !important;
     }}
-    </style>
+    
+/* ✅ Final 1-line gap removal */
+[data-testid="block-container"]{ padding-top: 0rem !important; }
+div[data-testid="stVerticalBlock"] > div:first-child{ margin-top: 0 !important; }
+</style>
     """)
 
     st.markdown(css, unsafe_allow_html=True)
