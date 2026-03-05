@@ -18,6 +18,53 @@ from typing import Any, Callable, Optional, Tuple
 
 import streamlit as st
 import streamlit.components.v1 as components
+
+# ============================================================
+# ✅ Prevent top-gap artifacts from components.html()
+# Many pages use components.html(height=0) to inject small JS/CSS helpers.
+# Streamlit renders that as an iframe placeholder (striped/blank block) at the call site.
+# We monkeypatch components.html to DEFER those injections and render them at the bottom
+# via core.flush_deferred_components_html().
+# ============================================================
+_ORIG_COMPONENTS_HTML = components.html
+_COMPONENTS_HTML_PATCHED = False
+
+def _defer_components_html(html: str, height: int = 0, **kwargs):
+    # Store snippet; do NOT create an iframe now.
+    q = st.session_state.get("_deferred_components_html")
+    if not isinstance(q, list):
+        q = []
+    q.append((html, int(height), kwargs))
+    st.session_state["_deferred_components_html"] = q
+    return None
+
+def patch_components_html_deferred(force: bool = False) -> None:
+    """Monkeypatch components.html to defer iframe creation."""
+    global _COMPONENTS_HTML_PATCHED
+    if _COMPONENTS_HTML_PATCHED and not force:
+        return
+    components.html = _defer_components_html
+    _COMPONENTS_HTML_PATCHED = True
+
+def flush_deferred_components_html() -> None:
+    """Render any deferred components.html snippets (call once at page bottom)."""
+    q = st.session_state.get("_deferred_components_html")
+    if not q:
+        return
+    st.session_state["_deferred_components_html"] = []
+    for html, h, kwargs in q:
+        try:
+            _ORIG_COMPONENTS_HTML(html, height=h, **kwargs)
+        except Exception:
+            pass
+
+# Patch immediately on import (safe)
+try:
+    patch_components_html_deferred()
+except Exception:
+    pass
+
+
 from cryptography.fernet import Fernet
 
 try:
@@ -40,30 +87,6 @@ except Exception:  # pragma: no cover
 # - Fix oversized top padding on mobile/PWA across Streamlit versions
 # - Keep small breathing room for our custom top nav
 # ============================================================
-# ============================================================
-# ✅ Deferred components.html (single iframe, rendered at bottom)
-# - components.html creates an iframe placeholder that can appear as a big top gap.
-# - We enqueue snippets during page build, then render ONCE at the bottom.
-# ============================================================
-def enqueue_components_html(html: str) -> None:
-    q = st.session_state.get("_pending_components_html")
-    if not isinstance(q, list):
-        q = []
-    q.append(str(html))
-    st.session_state["_pending_components_html"] = q
-
-def flush_pending_components_html() -> None:
-    q = st.session_state.get("_pending_components_html")
-    if not q:
-        return
-    # Clear first to avoid duplicates on rerun
-    st.session_state["_pending_components_html"] = []
-    html = "\n".join(q)
-    try:
-        components.html(html, height=0)
-    except Exception:
-        pass
-
 def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
     """Apply global layout CSS once per run.
 
@@ -74,6 +97,12 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
         return
     st.session_state["_core_global_ui_css_applied"] = True
 
+
+    # Ensure components.html is deferred (prevents top-gap iframe placeholders)
+    try:
+        patch_components_html_deferred()
+    except Exception:
+        pass
     pad = f"{max(0.0, float(top_padding_rem))}rem"
 
     css = textwrap.dedent(f"""
@@ -113,32 +142,7 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
       height: 0 !important;
       min-height: 0 !important;
     }}
-    /* ✅ Collapse component iframe placeholders but allow scripts to run */
-div[data-testid="stIFrame"]{
-  position: absolute !important;
-  left: -10000px !important;
-  top: -10000px !important;
-  width: 0 !important;
-  height: 0 !important;
-  min-height: 0 !important;
-  max-height: 0 !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  overflow: hidden !important;
-  opacity: 0 !important;
-  pointer-events: none !important;
-  border: 0 !important;
-}
-div[data-testid="stIFrame"] iframe{
-  width: 0 !important;
-  height: 0 !important;
-  min-height: 0 !important;
-  max-height: 0 !important;
-  opacity: 0 !important;
-  pointer-events: none !important;
-  border: 0 !important;
-}
-</style>
+    </style>
     """)
 
     st.markdown(css, unsafe_allow_html=True)
@@ -207,7 +211,8 @@ div[data-testid="stIFrame"]:has(iframe[title^="streamlit.components.v1."]) ifram
 
     # 2) JS fallback: repeatedly collapse matching wrappers (in case :has isn't applied early enough)
     try:
-        enqueue_components_html("""
+        components.html(
+            """
 <script>
 (function(){
   function kill(){
@@ -238,7 +243,9 @@ div[data-testid="stIFrame"]:has(iframe[title^="streamlit.components.v1."]) ifram
   var n=0, iv=setInterval(function(){ kill(); if(++n>=40) clearInterval(iv); }, 300);
 })();
 </script>
-""")
+""",
+            height=0,
+        )
     except Exception:
         pass
 
@@ -318,7 +325,7 @@ def inject_pwa_once(
 }})();
 </script>
 """
-        enqueue_components_html(js)
+        components.html(js, height=0)
     except Exception:
         # Do not break the app for PWA injection failures
         return
@@ -431,7 +438,8 @@ def _js_bridge_localstorage_to_queryparam(ls_key: str, qp_key: str) -> None:
     """If localStorage has a value and query param doesn't, set it once."""
     if not _core_once_key('ls2qp', f"{ls_key}->{qp_key}"):
         return
-    enqueue_components_html(f"""
+    components.html(
+        f"""
 <script>
 (function () {{
   try {{
@@ -444,13 +452,16 @@ def _js_bridge_localstorage_to_queryparam(ls_key: str, qp_key: str) -> None:
   }} catch(e) {{}}
 }})();
 </script>
-        """)
+        """,
+        height=0,
+    )
 
 
 def _js_set_localstorage(ls_key: str, value: str) -> None:
     if not _core_once_key('ls_set', ls_key):
         return
-    enqueue_components_html(f"""
+    components.html(
+        f"""
 <script>
 (function () {{
   try {{
@@ -458,13 +469,16 @@ def _js_set_localstorage(ls_key: str, value: str) -> None:
   }} catch(e) {{}}
 }})();
 </script>
-        """)
+        """,
+        height=0,
+    )
 
 
 def _js_clear_localstorage(ls_key: str) -> None:
     if not _core_once_key('ls_rm', ls_key):
         return
-    enqueue_components_html(f"""
+    components.html(
+        f"""
 <script>
 (function () {{
   try {{
@@ -472,7 +486,9 @@ def _js_clear_localstorage(ls_key: str) -> None:
   }} catch(e) {{}}
 }})();
 </script>
-        """)
+        """,
+        height=0,
+    )
 
 
 # ----------------------------
@@ -649,7 +665,8 @@ def inject_top_anchor() -> None:
 
 def scroll_to_top(nonce: int = 0) -> None:
     inject_top_anchor()
-    enqueue_components_html(f"""
+    components.html(
+        f"""
         <script>
         (function () {{
           const doc = window.parent.document;
@@ -683,12 +700,15 @@ def scroll_to_top(nonce: int = 0) -> None:
         }})();
         </script>
         <!-- nonce:{nonce} -->
-        """)
+        """,
+        height=0,
+    )
 
 
 def render_floating_scroll_top() -> None:
     inject_top_anchor()
-    enqueue_components_html("""
+    components.html(
+        """
 <script>
 (function(){
   const doc = window.parent.document;
@@ -1131,7 +1151,9 @@ def play_sfx(name: str) -> None:
   }} catch(e) {{}}
 }})();
 </script>
-""")
+""",
+            height=0,
+        )
     except Exception:
         # absolute fallback (no JS): base64 wav
         if not b64:
