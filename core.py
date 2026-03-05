@@ -15,14 +15,16 @@ import json
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Optional, Tuple
 
+
+# NOTE: Ensure the name `core` always refers to this module itself.
+# Some pages (or older revisions) call `core.inject_pwa_once(...)` from within core.py.
+# If `core` is not bound to this module, that pattern can raise AttributeError.
+import sys as _sys
+core = _sys.modules[__name__]
+
 import streamlit as st
 import streamlit.components.v1 as components
 from cryptography.fernet import Fernet
-
-import sys as _sys
-# Ensure `core` refers to this module (guards against accidental shadowing)
-core = _sys.modules[__name__]
-
 
 try:
     # Streamlit Cookies Manager
