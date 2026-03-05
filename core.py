@@ -885,6 +885,34 @@ def render_top_nav(active: str = "home") -> None:
       [data-testid="stSidebar"] { display: none !important; }
       [data-testid="stSidebarNav"] { display: none !important; }
 
+      /* ✅ FORCE REMOVE TOP GAP (Streamlit reserves header/padding on first paint) */
+      :root{
+        --hn-topnav-offset: 62px; /* adjust if nav height changes */
+      }
+      /* Newer Streamlit container */
+      [data-testid="stAppViewContainer"] > .main{
+        padding-top: var(--hn-topnav-offset) !important;
+      }
+      [data-testid="stAppViewContainer"] > .main .block-container{
+        padding-top: 0 !important;
+        margin-top: 0 !important;
+      }
+      /* Fallback selectors (older Streamlit builds) */
+      section.main > div{
+        padding-top: var(--hn-topnav-offset) !important;
+      }
+      .main .block-container{
+        padding-top: 0 !important;
+        margin-top: 0 !important;
+      }
+      /* Also hide the toolbar space if present */
+      [data-testid="stToolbar"], [data-testid="stDecoration"], [data-testid="stStatusWidget"]{
+        display:none !important;
+        height:0 !important;
+        min-height:0 !important;
+      }
+
+
       .hn-topnav-wrap{
         position: fixed; left: 0; right: 0;
         top: 0;
