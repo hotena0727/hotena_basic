@@ -1402,6 +1402,7 @@ SUB_LABEL = {
     "meetup": "첫만남",    
     "first_meeting": "자기소개",
     "reason": "공부이유",    
+    "hobby": "취미",    
     # (확장 대비) 자주 쓰는 상황 키
     "cafe": "카페",
     "restaurant": "식당",
