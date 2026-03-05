@@ -17,7 +17,7 @@ import streamlit as st
 # ✅ Page Config (must be the first Streamlit command)
 # ============================================================
 try:
-    st.set_page_config(page_title="하테나일본어", layout="centered")
+    st.set_page_config(page_title="하테나일본어", layout="wide")
 except Exception:
     # In case Streamlit considers page config already set during a rerun/import edge case
     pass
