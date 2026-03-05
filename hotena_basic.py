@@ -3788,17 +3788,3 @@ if st.session_state.get("submitted", False):
     show_naver_talk = (SHOW_NAVER_TALK == "Y") or is_admin()
     if show_naver_talk:
         render_naver_talk()
-
-# ============================================================
-# ✅ Deferred components flush (keep at VERY bottom)
-# ============================================================
-try:
-    core.flush_deferred_components_html()
-except Exception:
-    pass
-
-
-try:
-    core.apply_topgap_final_override()
-except Exception:
-    pass
