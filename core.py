@@ -40,49 +40,44 @@ except Exception:  # pragma: no cover
 # - Keep small breathing room for our custom top nav
 # ============================================================
 def apply_global_ui_css(*, top_padding_rem: float = 0.0, force: bool = False) -> None:
-    """Apply global layout CSS.
+    """Apply global layout CSS (top padding / header removal).
 
-    Why 'force':
-    - On first widget interaction, Streamlit may append/refresh internal CSS and
-      briefly restore default top padding. Re-inserting our style as the last
-      <style> in <head> prevents the one-time 'jump'.
+    `force=True` re-inserts our <style> as the last style tag so it wins the cascade,
+    preventing the one-time 'first interaction' jump caused by late Streamlit CSS updates.
     """
-    import textwrap
     import streamlit as st
+    import textwrap
 
     pad = f"{max(0.0, float(top_padding_rem))}rem"
 
-    # Skip only if already applied with same pad and force is False
     last = st.session_state.get("_core_global_ui_css_last_pad")
     if (not force) and (last == pad):
         return
     st.session_state["_core_global_ui_css_last_pad"] = pad
 
-    css = textwrap.dedent(f"""
+    css = textwrap.dedent("""
     <style id="hotena-global-ui-css">
     /* --- Hotena: TOP SPACING FIX (mobile/PWA) --- */
-    html, body {{ padding-top: 0 !important; margin-top: 0 !important; }}
-    [data-testid="stAppViewContainer"]{{ padding-top: 0 !important; margin-top: 0 !important; }}
-    div[data-testid="stAppViewContainer"] > .main{{ padding-top: 0 !important; margin-top: 0 !important; }}
+    html, body { padding-top: 0 !important; margin-top: 0 !important; }
+    [data-testid="stAppViewContainer"]{ padding-top: 0 !important; margin-top: 0 !important; }
+    div[data-testid="stAppViewContainer"] > .main{ padding-top: 0 !important; margin-top: 0 !important; }
 
     /* Block container (new + old) */
-    [data-testid="block-container"]{{ padding-top: {pad} !important; margin-top: 0 !important; }}
-    .block-container{{ padding-top: {pad} !important; margin-top: 0 !important; }}
-    section.main > div.block-container{{ padding-top: {pad} !important; margin-top: 0 !important; }}
+    [data-testid="block-container"]{ padding-top: __HOTENA_PAD__ !important; margin-top: 0 !important; }
+    .block-container{ padding-top: __HOTENA_PAD__ !important; margin-top: 0 !important; }
+    section.main > div.block-container{ padding-top: __HOTENA_PAD__ !important; margin-top: 0 !important; }
 
     /* First vertical block sometimes adds extra margin */
-    [data-testid="stVerticalBlock"] > div:first-child{{ margin-top: 0 !important; padding-top: 0 !important; }}
+    [data-testid="stVerticalBlock"] > div:first-child{ margin-top: 0 !important; padding-top: 0 !important; }
 
     /* Hide Streamlit header/toolbar/footer completely */
-    header, header[data-testid="stHeader"]{{ display:none !important; height:0 !important; min-height:0 !important; }}
-    div[data-testid="stToolbar"]{{ display:none !important; height:0 !important; min-height:0 !important; visibility:hidden !important; }}
-    footer{{ display:none !important; height:0 !important; min-height:0 !important; }}
-
+    header, header[data-testid="stHeader"]{ display:none !important; height:0 !important; min-height:0 !important; }
+    div[data-testid="stToolbar"]{ display:none !important; height:0 !important; min-height:0 !important; visibility:hidden !important; }
+    footer{ display:none !important; height:0 !important; min-height:0 !important; }
     </style>
+
     <script>
     (function(){
-      // Ensure our style is always the last style tag (wins cascade),
-      // especially right before the first user interaction.
       function ensureHotenaStyleLast(){
         try{
           var el = document.getElementById('hotena-global-ui-css');
@@ -115,7 +110,7 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.0, force: bool = False) ->
     })();
     </script>
     """)
-
+    css = css.replace("__HOTENA_PAD__", pad)
     st.markdown(css, unsafe_allow_html=True)
 
 
