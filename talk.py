@@ -416,7 +416,8 @@ if not CSV_PATH.exists():
 
 
 @st.cache_data(show_spinner=False)
-def load_csv(path: Path) -> pd.DataFrame:
+def load_csv\(path: Path, cache_bust: float = 0\.0\) -> pd\.DataFrame:
+    _ = cache_bust  # cache bust by file mtime
     df = pd.read_csv(path, encoding="utf-8-sig")
     required = ["qid", "level", "tag", "situation_kr", "partner_jp", "answer_jp"]
     for c in required:
@@ -436,7 +437,7 @@ def load_csv(path: Path) -> pd.DataFrame:
     return df.fillna("")
 
 
-DF = load_csv(CSV_PATH)
+DF = load_csv(CSV_PATH, cache_bust=os.path.getmtime(CSV_PATH))
 
 # ============================================================
 # ✅ Labels
