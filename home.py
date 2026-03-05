@@ -29,9 +29,9 @@ except Exception:
 # ============================================================
 import core
 try:
-    core.apply_global_ui_css(top_padding_rem=0.0)
+    core.apply_global_ui_css(top_padding_rem=0.0, force=True)
     core.hide_component_iframe_placeholders()
-    core.install_layout_watcher()
+    core.install_layout_watcher(top_padding_px=0)
 except Exception:
     pass
 
@@ -3558,22 +3558,3 @@ try:
     render_float_top_anchor_button()
 except Exception:
     pass
-
-# ✅ (추가) 첫 인터랙션 점프를 '미리' 소모하기 위한 1회 리로드
-import streamlit.components.v1 as components
-
-components.html(
-    """
-<script>
-(function(){
-  try{
-    if (sessionStorage.getItem("hotena_warmup_reload_done") === "1") return;
-    sessionStorage.setItem("hotena_warmup_reload_done", "1");
-    setTimeout(function(){ window.location.reload(); }, 120);
-  }catch(e){}
-})();
-</script>
-""",
-    height=0,
-    scrolling=False,
-)

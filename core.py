@@ -39,13 +39,13 @@ except Exception:  # pragma: no cover
 # - Fix oversized top padding on mobile/PWA across Streamlit versions
 # - Keep small breathing room for our custom top nav
 # ============================================================
-def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
+def apply_global_ui_css(*, top_padding_rem: float = 0.0, force: bool = False) -> None:
     """Apply global layout CSS once per run.
 
     Fix oversized top padding on mobile/PWA across Streamlit versions.
     Targets both legacy (.block-container) and newer [data-testid="block-container"].
     """
-    if st.session_state.get("_core_global_ui_css_applied"):
+    if (not force) and st.session_state.get("_core_global_ui_css_applied"):
         return
     st.session_state["_core_global_ui_css_applied"] = True
 
@@ -53,7 +53,6 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
 
     css = textwrap.dedent(f"""
     <style>
-:root{--hotena-nav-h:56px;--hotena-pill-h:40px;}
     /* --- TOP SPACING FIX (mobile/PWA) --- */
     [data-testid="stAppViewContainer"]{{ padding-top: 0 !important; }}
     div[data-testid="stAppViewContainer"] > .main{{ padding-top: 0 !important; }}
@@ -75,20 +74,6 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
 
     /* Safe-area: avoid extra blank gap on some Android devices */
     html, body{{ padding-top: 0 !important; }}
-
-    /* --- FORCE HIDE STREAMLIT COMPONENT IFRAMES (prevents refresh top gap) --- */
-    div[data-testid="stIFrame"]{{
-      display: none !important;
-      height: 0 !important;
-      min-height: 0 !important;
-      margin: 0 !important;
-      padding: 0 !important;
-    }}
-    div[data-testid="stIFrame"] iframe{{
-      display: none !important;
-      height: 0 !important;
-      min-height: 0 !important;
-    }}
     </style>
     """)
 
@@ -1119,3 +1104,89 @@ def play_sfx_once(key: str, name: str) -> None:
         return
     st.session_state[k] = True
     play_sfx(name)
+
+
+def install_layout_watcher(*, top_padding_px: int = 0) -> None:
+    """Install a JS watcher that keeps the top spacing compact even on the first load.
+
+    On first page load, Streamlit may inject/override layout CSS *after* our initial <style>,
+    causing a one-time jump that disappears after the first rerun. This watcher re-appends
+    our style after the page is ready and keeps it last in <head>.
+    """
+    try:
+        js = f"""<script>
+(() => {{
+  const STYLE_ID = "hotena-topgap-style";
+  const css = `
+    [data-testid="stAppViewContainer"]{{padding-top:0 !important; margin-top:0 !important;}}
+    div[data-testid="stAppViewContainer"] > .main{{padding-top:0 !important; margin-top:0 !important;}}
+    [data-testid="block-container"]{{padding-top:{top_padding_px}px !important; margin-top:0 !important;}}
+    .block-container{{padding-top:{top_padding_px}px !important; margin-top:0 !important;}}
+    section.main > div.block-container{{padding-top:{top_padding_px}px !important; margin-top:0 !important;}}
+    header, header[data-testid="stHeader"]{{display:none !important; height:0 !important; min-height:0 !important;}}
+    div[data-testid="stToolbar"]{{display:none !important; height:0 !important; visibility:hidden !important;}}
+  `;
+
+  function ensureStyle() {{
+    try {{
+      let el = document.getElementById(STYLE_ID);
+      if (!el) {{
+        el = document.createElement("style");
+        el.id = STYLE_ID;
+        el.type = "text/css";
+        el.appendChild(document.createTextNode(css));
+        document.head.appendChild(el);
+      }} else {{
+        document.head.appendChild(el); // keep last => win cascade
+      }}
+    }} catch(e) {{}}
+  }}
+
+  function hardenInline() {{
+    try {{
+      const sel = [
+        '[data-testid="block-container"]',
+        'section.main > div.block-container',
+        'div[data-testid="stAppViewContainer"] > div.block-container',
+        '.block-container'
+      ];
+      sel.forEach(s => {{
+        document.querySelectorAll(s).forEach(n => {{
+          n.style.setProperty('padding-top', '{top_padding_px}px', 'important');
+          n.style.setProperty('margin-top', '0px', 'important');
+        }});
+      }});
+    }} catch(e) {{}}
+  }}
+
+  let scheduled = false;
+  function tick() {{
+    if (scheduled) return;
+    scheduled = true;
+    setTimeout(() => {{
+      scheduled = false;
+      ensureStyle();
+      hardenInline();
+    }}, 30);
+  }}
+
+  // run around first paint
+  ensureStyle(); hardenInline();
+  requestAnimationFrame(() => {{ ensureStyle(); hardenInline(); }});
+  setTimeout(() => {{ ensureStyle(); hardenInline(); }}, 0);
+  setTimeout(() => {{ ensureStyle(); hardenInline(); }}, 60);
+  setTimeout(() => {{ ensureStyle(); hardenInline(); }}, 220);
+  setTimeout(() => {{ ensureStyle(); hardenInline(); }}, 800);
+
+  document.addEventListener("DOMContentLoaded", tick);
+  window.addEventListener("load", tick);
+
+  try {{
+    const mo = new MutationObserver(() => tick());
+    mo.observe(document.documentElement, {{childList:true, subtree:true, attributes:true}});
+  }} catch(e) {{}}
+}})();
+</script>"""
+        components.html(js, height=0, scrolling=False)
+    except Exception:
+        pass
