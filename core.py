@@ -12,33 +12,125 @@ import os
 import base64
 import hashlib
 import json
+import textwrap
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Optional, Tuple
 
 import streamlit as st
 import streamlit.components.v1 as components
-from cryptography.fernet import Fernet
 
-try:
-    # Streamlit Cookies Manager
-    from streamlit_cookies_manager import EncryptedCookieManager
-except Exception:  # pragma: no cover
-    EncryptedCookieManager = None  # type: ignore
-
-try:
-    from supabase import create_client
-except Exception:  # pragma: no cover
-    create_client = None  # type: ignore
-
-
-# ----------------------------
-# Config (env -> secrets)
-# ----------------------------
 # ============================================================
-# ✅ Global UI CSS (applied once per Streamlit run)
-# - Fix oversized top padding on mobile/PWA across Streamlit versions
-# - Keep small breathing room for our custom top nav
+# ✅ Prevent top-gap artifacts from components.html()
+# Many pages use components.html(height=0) to inject small JS/CSS helpers.
+# Streamlit renders that as an iframe placeholder (striped/blank block) at the call site.
+# We monkeypatch components.html to DEFER those injections and render them at the bottom
+# via core.flush_deferred_components_html().
 # ============================================================
+_ORIG_COMPONENTS_HTML = components.html
+_COMPONENTS_HTML_PATCHED = False
+
+def _defer_components_html(html: str, height: int = 0, **kwargs):
+    """Defer components.html WITHOUT creating an iframe placeholder now.
+
+    We also dedupe by content hash to avoid accumulating multiple deferred items across reruns,
+    which can cause the page to 'creep upward' as placeholders collapse over time.
+    """
+    try:
+        s = (html or "").strip()
+    except Exception:
+        s = ""
+    if not s:
+        return None
+
+    seen = st.session_state.get("_deferred_components_seen")
+    if not isinstance(seen, set):
+        seen = set()
+
+    hkey = str(hash(s))
+    if hkey in seen:
+        return None
+    seen.add(hkey)
+    st.session_state["_deferred_components_seen"] = seen
+
+    q = st.session_state.get("_deferred_components_html")
+    if not isinstance(q, list):
+        q = []
+    q.append((s, int(height), kwargs))
+    st.session_state["_deferred_components_html"] = q
+    return None
+
+def patch_components_html_deferred(force: bool = False) -> None:
+    """Monkeypatch components.html to defer iframe creation."""
+    global _COMPONENTS_HTML_PATCHED
+    if _COMPONENTS_HTML_PATCHED and not force:
+        return
+    components.html = _defer_components_html
+    _COMPONENTS_HTML_PATCHED = True
+
+def flush_deferred_components_html() -> None:
+    """Render deferred snippets in ONE iframe (call once at page bottom).
+
+    Rendering N snippets as N iframes can still cause visible layout shifts.
+    We merge snippets into a single HTML string and render once.
+    """
+    q = st.session_state.get("_deferred_components_html")
+    if not q:
+        return
+
+    # Clear first to avoid duplicates on rerun
+    st.session_state["_deferred_components_html"] = []
+
+    html_parts = []
+    max_h = 0
+    merged_kwargs = {}
+    for html, h, kwargs in q:
+        try:
+            if html:
+                html_parts.append(html)
+            if int(h) > max_h:
+                max_h = int(h)
+            # keep last kwargs (rarely used; safe)
+            if isinstance(kwargs, dict):
+                merged_kwargs = kwargs
+        except Exception:
+            pass
+
+    if not html_parts:
+        return
+
+    merged = "\n".join(html_parts)
+    try:
+        _ORIG_COMPONENTS_HTML(merged, height=max_h, **merged_kwargs)
+    except Exception:
+        pass
+
+def apply_topgap_final_override() -> None:
+    css = """<style>
+    /* FINAL OVERRIDE: after hydration/flush */
+    [data-testid="block-container"]{ padding-top: 0rem !important; }
+    div[data-testid="stVerticalBlock"] > div:first-child{ margin-top: 0 !important; }
+
+    /* If Streamlit top artifacts exist, collapse them */
+    div[data-testid="stToolbar"],
+    div[data-testid="stDecoration"],
+    div[data-testid="stTop"],
+    header, header[data-testid="stHeader"]{
+      height: 0 !important;
+      min-height: 0 !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      overflow: hidden !important;
+      border: 0 !important;
+    }
+    </style>"""
+    st.markdown(css, unsafe_allow_html=True)
+
+
+    # ✅ Stabilize first paint: one-time rerun so F5 matches interactive layout
+    try:
+        force_first_paint_rerun()
+    except Exception:
+        pass
 def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
     """Apply global layout CSS once per run.
 
@@ -49,6 +141,12 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
         return
     st.session_state["_core_global_ui_css_applied"] = True
 
+
+    # Ensure components.html is deferred (prevents top-gap iframe placeholders)
+    try:
+        patch_components_html_deferred()
+    except Exception:
+        pass
     pad = f"{max(0.0, float(top_padding_rem))}rem"
 
     css = textwrap.dedent(f"""
@@ -88,7 +186,20 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
       height: 0 !important;
       min-height: 0 !important;
     }}
-    </style>
+    
+
+/* ✅ Stabilize layout: remove any Streamlit-managed top offsets on first load */
+html, body { margin: 0 !important; padding: 0 !important; }
+.stApp, .stAppViewContainer { margin: 0 !important; padding: 0 !important; }
+div[data-testid="stAppViewContainer"] { margin-top: 0 !important; padding-top: 0 !important; }
+div[data-testid="stAppViewContainer"] > .main { margin-top: 0 !important; padding-top: 0 !important; }
+section.main { margin-top: 0 !important; padding-top: 0 !important; }
+[data-testid="block-container"], div.block-container { margin-top: 0 !important; padding-top: 0 !important; }
+
+    /* ✅ Final 1-line gap removal */
+[data-testid="block-container"]{ padding-top: 0rem !important; }
+div[data-testid="stVerticalBlock"] > div:first-child{ margin-top: 0 !important; }
+</style>
     """)
 
     st.markdown(css, unsafe_allow_html=True)
@@ -96,26 +207,28 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
 
 
 
-
-
-    # ✅ Make F5 first-load layout match interactive reruns
-    force_first_paint_rerun()# ============================================================
-# ✅ First-paint stabilizer (ONE rerun per session)
-# - F5 first load can paint with transient top spacing.
-# - A subsequent rerun (e.g., widget interaction) often settles layout.
-# - We trigger exactly one automatic rerun right after CSS injection.
+# ============================================================
+# ✅ First-paint stabilizer
+# Why:
+# - Streamlit first page load (F5) often paints with a transient top spacer.
+# - The next rerun (e.g., clicking a radio) uses the "settled" layout, so content jumps up.
+# Fix:
+# - Trigger exactly ONE automatic rerun per session right after global CSS is applied.
+# - This makes F5 land on the same settled layout as interactive reruns.
 # ============================================================
 def force_first_paint_rerun(key: str = "_core_first_paint_rerun_done") -> None:
     try:
         if st.session_state.get(key):
             return
         st.session_state[key] = True
-        if hasattr(st, "rerun"):
-            st.rerun()
-        else:
-            st.experimental_rerun()
+        # immediately rerun to settle layout
+        st.rerun()
     except Exception:
-        pass
+        # fallback for older Streamlit
+        try:
+            st.experimental_rerun()
+        except Exception:
+            pass
 
 def get_cfg(key: str) -> str:
     """Read from env first, then st.secrets safely. Returns '' if missing.

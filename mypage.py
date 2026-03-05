@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import os
 import time
 import streamlit as st
+import core
 import streamlit.components.v1 as components
 
 
@@ -2781,3 +2782,17 @@ def render() -> None:
         _render_notifications_tab()
 
     _wrap_end()
+
+# ============================================================
+# ✅ Deferred components flush (keep at VERY bottom)
+# ============================================================
+try:
+    core.flush_deferred_components_html()
+except Exception:
+    pass
+
+
+try:
+    core.apply_topgap_final_override()
+except Exception:
+    pass
