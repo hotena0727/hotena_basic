@@ -60,6 +60,7 @@ def _inject_jp_font_once():
         """
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
+:root{--hotena-pill-h:40px;}
 html, body, [class*="css"]  {
   font-family: 'Noto Sans JP','Noto Sans KR','Yu Gothic','Hiragino Kaku Gothic ProN','Meiryo','Apple SD Gothic Neo',sans-serif !important;
 }
@@ -1468,8 +1469,8 @@ def render_plan_pill():
     st.markdown(
         f"""
 <style>
-.hub-plan-wrap{{display:flex;justify-content:flex-start;margin-top:0.05rem;margin-bottom:-0.55rem;}}
-.hub-plan-pill{{display:inline-flex;align-items:center;gap:.45rem;padding:.28rem .55rem;border-radius:999px;
+.hub-plan-wrap{position:fixed;left:0;right:0;top:var(--hotena-nav-h,56px);z-index:2147482000;display:flex;justify-content:flex-start;padding:0 12px;margin:0;pointer-events:none;}}
+.hub-plan-pill{pointer-events:auto;{display:inline-flex;align-items:center;gap:.45rem;padding:.28rem .55rem;border-radius:999px;
   border:1px solid rgba(0,0,0,.10);font-size:.86rem;opacity:.92;background:rgba(0,0,0,.02);}}
 .hub-admin-gear{{display:inline-flex;align-items:center;justify-content:center;margin-left:8px;width:28px;height:28px;border-radius:999px;
   text-decoration:none !important;border:1px solid rgba(0,0,0,.10);background:rgba(0,0,0,.02);font-size:16px;line-height:1;}}
@@ -3558,22 +3559,3 @@ try:
     render_float_top_anchor_button()
 except Exception:
     pass
-
-# ✅ (추가) 첫 인터랙션 점프를 '미리' 소모하기 위한 1회 리로드
-import streamlit.components.v1 as components
-
-components.html(
-    """
-<script>
-(function(){
-  try{
-    if (sessionStorage.getItem("hotena_warmup_reload_done") === "1") return;
-    sessionStorage.setItem("hotena_warmup_reload_done", "1");
-    setTimeout(function(){ window.location.reload(); }, 120);
-  }catch(e){}
-})();
-</script>
-""",
-    height=0,
-    scrolling=False,
-)
