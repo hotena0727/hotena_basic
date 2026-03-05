@@ -29,7 +29,7 @@ except Exception:
 # ============================================================
 import core
 try:
-    core.apply_global_ui_css(top_padding_rem=0.0, force=True)
+    core.apply_global_ui_css(top_padding_rem=0.0)
     core.hide_component_iframe_placeholders()
     core.install_layout_watcher()
 except Exception:
@@ -42,7 +42,7 @@ except Exception:
 def _inject_global_top_spacing_fix_once():
     """Deprecated (kept for compatibility).
 
-    Global top-gap fixes are handled centrally in core.apply_global_ui_css(top_padding_rem=0.0, force=True).
+    Global top-gap fixes are handled centrally in core.apply_global_ui_css().
     """
     st.session_state["_global_top_spacing_fix_injected"] = True
     return
@@ -60,6 +60,7 @@ def _inject_jp_font_once():
         """
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
 <style>
+:root{--hotena-pill-h:40px;}
 html, body, [class*="css"]  {
   font-family: 'Noto Sans JP','Noto Sans KR','Yu Gothic','Hiragino Kaku Gothic ProN','Meiryo','Apple SD Gothic Neo',sans-serif !important;
 }
@@ -1468,8 +1469,8 @@ def render_plan_pill():
     st.markdown(
         f"""
 <style>
-.hub-plan-wrap{{display:flex;justify-content:flex-start;margin-top:0.05rem;margin-bottom: 0.35rem;}}
-.hub-plan-pill{{display:inline-flex;align-items:center;gap:.45rem;padding:.28rem .55rem;border-radius:999px;
+.hub-plan-wrap{position:fixed;left:0;right:0;top:var(--hotena-nav-h,56px);z-index:2147482000;display:flex;justify-content:flex-start;padding:0 12px;margin:0;pointer-events:none;}}
+.hub-plan-pill{pointer-events:auto;{display:inline-flex;align-items:center;gap:.45rem;padding:.28rem .55rem;border-radius:999px;
   border:1px solid rgba(0,0,0,.10);font-size:.86rem;opacity:.92;background:rgba(0,0,0,.02);}}
 .hub-admin-gear{{display:inline-flex;align-items:center;justify-content:center;margin-left:8px;width:28px;height:28px;border-radius:999px;
   text-decoration:none !important;border:1px solid rgba(0,0,0,.10);background:rgba(0,0,0,.02);font-size:16px;line-height:1;}}
@@ -3485,7 +3486,6 @@ if isinstance(p, str) and p:
 page = st.session_state.get("hub_page", "home")
 core.render_top_nav(active=page)
 
-st.markdown("<div class=\"hotena-nav-spacer\"></div>", unsafe_allow_html=True)
 # ✅ Plan pill should sit right under the top nav (reduces top whitespace)
 render_plan_pill()
 

@@ -53,6 +53,7 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
 
     css = textwrap.dedent(f"""
     <style>
+:root{--hotena-nav-h:56px;--hotena-pill-h:40px;}
     /* --- TOP SPACING FIX (mobile/PWA) --- */
     [data-testid="stAppViewContainer"]{{ padding-top: 0 !important; }}
     div[data-testid="stAppViewContainer"] > .main{{ padding-top: 0 !important; }}
@@ -88,8 +89,6 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
       height: 0 !important;
       min-height: 0 !important;
     }}
-    
-    .hotena-nav-spacer{height: calc(var(--hotena-nav-h,56px) + env(safe-area-inset-top,0px)); display:block;}
     </style>
     """)
 
@@ -153,9 +152,7 @@ div[data-testid="stIFrame"]:has(iframe[title^="streamlit.components.v1."]) ifram
   height:0 !important;
   min-height:0 !important;
 }
-
-    .hotena-nav-spacer{height: calc(var(--hotena-nav-h,56px) + env(safe-area-inset-top,0px)); display:block;}
-    </style>""",
+</style>""",
         unsafe_allow_html=True,
     )
 
@@ -945,9 +942,7 @@ def render_top_nav(active: str = "home") -> None:
         .hn-nav a{ font-size: 13.5px; padding: 10px 0; }
         .hn-nav a.active::after{ left: 30%; width: 40%; }
       }
-
-    .hotena-nav-spacer{height: calc(var(--hotena-nav-h,56px) + env(safe-area-inset-top,0px)); display:block;}
-    </style>
+</style>
     """)
 
     html = f"""        <div class="hn-topnav-wrap">
