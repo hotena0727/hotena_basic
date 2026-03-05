@@ -74,10 +74,6 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.0, force: bool = False) ->
 
     /* Safe-area: avoid extra blank gap on some Android devices */
     html, body{{ padding-top: 0 !important; }}
-
-    /* --- REMOVE EXTRA TOP GAPS ACROSS STREAMLIT VERSIONS --- */
-    [data-testid="stMainBlockContainer"], [data-testid="stMain"]{ padding-top: 0 !important; margin-top: 0 !important; }
-    [data-testid="stToolbar"], [data-testid="stDecoration"]{ display:none !important; height:0 !important; min-height:0 !important; }
     </style>
     """)
 
@@ -1110,58 +1106,87 @@ def play_sfx_once(key: str, name: str) -> None:
     play_sfx(name)
 
 
-def hide_component_iframe_placeholders() -> None:
-    """Hide only Streamlit component iframe placeholders (safe)."""
-    try:
-        _hide_streamlit_component_iframes()
-    except Exception:
-        pass
+def install_layout_watcher(*, top_padding_px: int = 0) -> None:
+    """Install a JS watcher that keeps the top spacing compact even on the first load.
 
-
-def install_layout_watcher() -> None:
-    """Install a tiny JS watcher that repeatedly forces top spacing to 0.
-    This helps when Streamlit re-mounts containers after widget interactions.
+    On first page load, Streamlit may inject/override layout CSS *after* our initial <style>,
+    causing a one-time jump that disappears after the first rerun. This watcher re-appends
+    our style after the page is ready and keeps it last in <head>.
     """
-    if st.session_state.get("_core_layout_watcher_installed"):
-        return
-    st.session_state["_core_layout_watcher_installed"] = True
     try:
-        import streamlit.components.v1 as components
-        components.html(
-            """<script>
-(function(){
-  function fix(){
-    try{
-      const sels = [
+        js = f"""<script>
+(() => {{
+  const STYLE_ID = "hotena-topgap-style";
+  const css = `
+    [data-testid="stAppViewContainer"]{{padding-top:0 !important; margin-top:0 !important;}}
+    div[data-testid="stAppViewContainer"] > .main{{padding-top:0 !important; margin-top:0 !important;}}
+    [data-testid="block-container"]{{padding-top:{top_padding_px}px !important; margin-top:0 !important;}}
+    .block-container{{padding-top:{top_padding_px}px !important; margin-top:0 !important;}}
+    section.main > div.block-container{{padding-top:{top_padding_px}px !important; margin-top:0 !important;}}
+    header, header[data-testid="stHeader"]{{display:none !important; height:0 !important; min-height:0 !important;}}
+    div[data-testid="stToolbar"]{{display:none !important; height:0 !important; visibility:hidden !important;}}
+  `;
+
+  function ensureStyle() {{
+    try {{
+      let el = document.getElementById(STYLE_ID);
+      if (!el) {{
+        el = document.createElement("style");
+        el.id = STYLE_ID;
+        el.type = "text/css";
+        el.appendChild(document.createTextNode(css));
+        document.head.appendChild(el);
+      }} else {{
+        document.head.appendChild(el); // keep last => win cascade
+      }}
+    }} catch(e) {{}}
+  }}
+
+  function hardenInline() {{
+    try {{
+      const sel = [
         '[data-testid="block-container"]',
-        '.block-container',
-        '[data-testid="stMainBlockContainer"]',
-        '[data-testid="stAppViewContainer"]',
-        'div[data-testid="stAppViewContainer"] > .main'
+        'section.main > div.block-container',
+        'div[data-testid="stAppViewContainer"] > div.block-container',
+        '.block-container'
       ];
-      sels.forEach(s=>{
-        document.querySelectorAll(s).forEach(el=>{
-          el.style.paddingTop='0px';
-          el.style.marginTop='0px';
-        });
-      });
-      const hdr=document.querySelector('header[data-testid="stHeader"], header');
-      if(hdr){ hdr.style.display='none'; hdr.style.height='0px'; hdr.style.minHeight='0px'; }
-      const tb=document.querySelector('[data-testid="stToolbar"]');
-      if(tb){ tb.style.display='none'; tb.style.height='0px'; tb.style.minHeight='0px'; }
-      const deco=document.querySelector('[data-testid="stDecoration"]');
-      if(deco){ deco.style.display='none'; deco.style.height='0px'; deco.style.minHeight='0px'; }
-    }catch(e){}
-  }
-  fix();
-  try{
-    const mo=new MutationObserver(()=>fix());
-    mo.observe(document.documentElement,{subtree:true,childList:true,attributes:true});
-    setTimeout(fix,50); setTimeout(fix,150); setTimeout(fix,300); setTimeout(fix,600);
-  }catch(e){}
-})();
-</script>""",
-            height=0,
-        )
+      sel.forEach(s => {{
+        document.querySelectorAll(s).forEach(n => {{
+          n.style.setProperty('padding-top', '{top_padding_px}px', 'important');
+          n.style.setProperty('margin-top', '0px', 'important');
+        }});
+      }});
+    }} catch(e) {{}}
+  }}
+
+  let scheduled = false;
+  function tick() {{
+    if (scheduled) return;
+    scheduled = true;
+    setTimeout(() => {{
+      scheduled = false;
+      ensureStyle();
+      hardenInline();
+    }}, 30);
+  }}
+
+  // run around first paint
+  ensureStyle(); hardenInline();
+  requestAnimationFrame(() => {{ ensureStyle(); hardenInline(); }});
+  setTimeout(() => {{ ensureStyle(); hardenInline(); }}, 0);
+  setTimeout(() => {{ ensureStyle(); hardenInline(); }}, 60);
+  setTimeout(() => {{ ensureStyle(); hardenInline(); }}, 220);
+  setTimeout(() => {{ ensureStyle(); hardenInline(); }}, 800);
+
+  document.addEventListener("DOMContentLoaded", tick);
+  window.addEventListener("load", tick);
+
+  try {{
+    const mo = new MutationObserver(() => tick());
+    mo.observe(document.documentElement, {{childList:true, subtree:true, attributes:true}});
+  }} catch(e) {{}}
+}})();
+</script>"""
+        components.html(js, height=0, scrolling=False)
     except Exception:
         pass

@@ -31,7 +31,7 @@ import core
 try:
     core.apply_global_ui_css(top_padding_rem=0.0, force=True)
     core.hide_component_iframe_placeholders()
-    core.install_layout_watcher()
+    core.install_layout_watcher(top_padding_px=0)
 except Exception:
     pass
 
@@ -123,12 +123,6 @@ def run_module(module_name: str):
 
         if hasattr(mod, "render") and callable(getattr(mod, "render")):
             mod.render()
-            # ✅ Re-apply global UI CSS after page render (prevents first-load jump)
-            try:
-                core.apply_global_ui_css(top_padding_rem=0.0, force=True)
-                core.hide_component_iframe_placeholders()
-            except Exception:
-                pass
 
     except Exception as e:
         st.exception(e)
