@@ -32,28 +32,30 @@ def _inject_global_top_spacing_fix_once():
     st.session_state["_global_top_spacing_fix_injected"] = True
     st.markdown(
         """
+
 <style>
-/* Hide Streamlit default chrome */
-#MainMenu {visibility:hidden;}
-footer {visibility:hidden;}
-header, header[data-testid="stHeader"] {display:none !important; height:0 !important;}
+/* Hide Streamlit default chrome (and remove reserved heights) */
+#MainMenu { visibility:hidden; }
+footer { visibility:hidden; }
+header, header[data-testid="stHeader"] { display:none !important; height:0 !important; min-height:0 !important; }
+div[data-testid="stToolbar"], div[data-testid="stDecoration"] { display:none !important; height:0 !important; }
 
-/* Remove default top padding */
-.block-container {
-  padding-top: 0rem !important;
-  margin-top: 0rem !important;
-}
+/* Remove top padding/margins in BOTH legacy + current DOM */
+div[data-testid="stAppViewContainer"] { padding-top:0 !important; margin-top:0 !important; }
+div[data-testid="stAppViewContainer"] > .main { padding-top:0 !important; margin-top:0 !important; }
 
-/* Some Streamlit versions wrap main differently */
-div[data-testid="stAppViewContainer"] > .main,
-div[data-testid="stAppViewContainer"] {
-  padding-top: 0rem !important;
-  margin-top: 0rem !important;
-}
+[data-testid="block-container"] { padding-top:0rem !important; margin-top:0rem !important; }
+.main .block-container { padding-top:0rem !important; margin-top:0rem !important; }
+.block-container { padding-top:0rem !important; margin-top:0rem !important; }
 
-/* Extra safety for older/newer DOM shapes */
-section.main > div { padding-top: 0rem !important; }
+/* Some builds add a phantom spacer at the top of main */
+section.main > div:first-child,
+[data-testid="stVerticalBlock"] > div:first-child { margin-top:0 !important; padding-top:0 !important; }
+
+/* Safe-area quirks on mobile/PWA */
+html, body { padding-top:0 !important; margin-top:0 !important; }
 </style>
+
 """,
         unsafe_allow_html=True,
     )
@@ -83,26 +85,6 @@ html, body, [class*="css"]  {
     )
 
 _inject_jp_font_once()
-
-
-# ============================================================
-# ✅ Boot-time one-shot rerun to settle initial layout
-#    - Some Streamlit builds keep extra top space until first interaction.
-#    - A single rerun right after global CSS/font injection often collapses it.
-# ============================================================
-def _boot_rerun_once_for_layout():
-    if st.session_state.get("_boot_rerun_done_for_layout", False):
-        return
-    st.session_state["_boot_rerun_done_for_layout"] = True
-    try:
-        st.rerun()
-    except Exception:
-        try:
-            st.experimental_rerun()
-        except Exception:
-            pass
-
-_boot_rerun_once_for_layout()
 
 # ✅ PWA/A2HS 공통 주입 (루트: /manifest.json, /sw.js, /apple-touch-icon.png, /icon-192.png, /icon-512.png)
 core.inject_pwa_once(app_name="하테나일본어", theme_color="#0F6B3F")
