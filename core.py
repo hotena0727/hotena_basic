@@ -39,12 +39,11 @@ except Exception:  # pragma: no cover
 # - Fix oversized top padding on mobile/PWA across Streamlit versions
 # - Keep small breathing room for our custom top nav
 # ============================================================
-def apply_global_ui_css(*, top_padding_rem: float = 0.0) -> None:
+def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
     """Apply global layout CSS once per run.
 
-    Goal: remove Streamlit's initial reserved top space (header/toolbar & safe-area)
-    without touching any other layout/styling.
-    Works across Streamlit versions by targeting both legacy and data-testid selectors.
+    Fix oversized top padding on mobile/PWA across Streamlit versions.
+    Targets both legacy (.block-container) and newer [data-testid="block-container"].
     """
     if st.session_state.get("_core_global_ui_css_applied"):
         return
@@ -54,45 +53,45 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.0) -> None:
 
     css = textwrap.dedent(f"""
     <style>
-      /* 1) Remove Streamlit header/toolbar reserved height */
-      header, header[data-testid="stHeader"] {{
-        display: none !important;
-        height: 0 !important;
-        min-height: 0 !important;
-      }}
+    /* --- TOP SPACING FIX (mobile/PWA) --- */
+    [data-testid="stAppViewContainer"]{{ padding-top: 0 !important; }}
+    div[data-testid="stAppViewContainer"] > .main{{ padding-top: 0 !important; }}
 
-      /* 2) Remove app container top padding (varies by version) */
-      [data-testid="stAppViewContainer"] {{
-        padding-top: 0 !important;
-        margin-top: 0 !important;
-      }}
-      div[data-testid="stAppViewContainer"] > .main {{
-        padding-top: 0 !important;
-        margin-top: 0 !important;
-      }}
+    /* Newer Streamlit */
+    [data-testid="block-container"]{{ padding-top: {pad} !important; }}
+    /* Older Streamlit */
+    .block-container{{ padding-top: {pad} !important; }}
 
-      /* 3) Main content container top padding */
-      [data-testid="block-container"] {{
-        padding-top: {pad} !important;
-      }}
-      .block-container {{
-        padding-top: {pad} !important;
-      }}
+    /* In some layouts, the first vertical block adds extra margin */
+    [data-testid="stVerticalBlock"] > div:first-child{{ margin-top: 0 !important; }}
 
-      /* 4) First block sometimes adds extra margin on first paint */
-      [data-testid="stVerticalBlock"] > div:first-child {{
-        margin-top: 0 !important;
-      }}
+    /* ✅ Kill Streamlit default header COMPLETELY (no reserved space) */
+    header, header[data-testid="stHeader"]{{
+      display: none !important;
+      height: 0 !important;
+      min-height: 0 !important;
+    }}
 
-      /* 5) Avoid extra safe-area padding on some Android PWAs */
-      html, body {{
-        padding-top: 0 !important;
-        margin-top: 0 !important;
-      }}
+    /* Safe-area: avoid extra blank gap on some Android devices */
+    html, body{{ padding-top: 0 !important; }}
+
+    /* --- FORCE HIDE STREAMLIT COMPONENT IFRAMES (prevents refresh top gap) --- */
+    div[data-testid="stIFrame"]{{
+      display: none !important;
+      height: 0 !important;
+      min-height: 0 !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }}
+    div[data-testid="stIFrame"] iframe{{
+      display: none !important;
+      height: 0 !important;
+      min-height: 0 !important;
+    }}
     </style>
     """)
-    st.markdown(css, unsafe_allow_html=True)
 
+    st.markdown(css, unsafe_allow_html=True)
 
 
 def get_cfg(key: str) -> str:
