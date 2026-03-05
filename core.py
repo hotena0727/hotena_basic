@@ -42,8 +42,10 @@ except Exception:  # pragma: no cover
 def apply_global_ui_css(*, top_padding_rem: float = 0.0, force: bool = False) -> None:
     """Apply global layout CSS.
 
-    - Keeps the fixed top nav from overlapping content by reserving space via padding-top.
-    - Prevents the one-time 'first click jump' by ensuring our style stays last in <head>.
+    Streamlit can append internal CSS both after first paint and after early reruns,
+    which can cause the layout to 'settle' over 1~2 interactions. We keep our CSS
+    as the *last* style tag in <head> using a persistent MutationObserver so the
+    visual position is stable from the first interaction.
     """
     import streamlit as st
     import textwrap
@@ -82,11 +84,14 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.0, force: bool = False) ->
 
     /* Reduce stray first-block spacing */
     [data-testid="stVerticalBlock"] > div:first-child{ margin-top:0 !important; padding-top:0 !important; }
-
     </style>
 
     <script>
     (function(){
+      // Install only once per page load
+      if (window.__hotenaTopGapFixInstalled) return;
+      window.__hotenaTopGapFixInstalled = true;
+
       function ensureLast(){
         try{
           var el = document.getElementById('hotena-global-ui-css');
@@ -97,24 +102,41 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.0, force: bool = False) ->
         }catch(e){}
       }
 
-      // Immediately + shortly after load (Streamlit may append CSS late)
+      // Keep our style last even when Streamlit appends styles later
+      function installHeadObserver(){
+        try{
+          var head = document.head || document.getElementsByTagName('head')[0];
+          if(!head) return;
+
+          var obs = new MutationObserver(function(muts){
+            // Any head mutations may change cascade order
+            ensureLast();
+          });
+          obs.observe(head, { childList: true, subtree: false });
+          window.__hotenaHeadObserver = obs;
+        }catch(e){}
+      }
+
+      // Run now + after load
       ensureLast();
+      installHeadObserver();
+
+      // Short burst after startup (some deployments append CSS late)
       var n=0, t=setInterval(function(){
         ensureLast();
         n++;
-        if(n>=25) clearInterval(t); // ~2.5s
+        if(n>=60) clearInterval(t); // ~6s
       }, 100);
 
-      // Re-assert right before first interaction (captures one-time jump)
-      function once(){
+      // Re-assert on every interaction (cheap) to prevent 1st/2nd click settling
+      function onAny(){
         ensureLast();
-        window.removeEventListener('pointerdown', once, true);
-        window.removeEventListener('touchstart', once, true);
-        window.removeEventListener('keydown', once, true);
       }
-      window.addEventListener('pointerdown', once, true);
-      window.addEventListener('touchstart', once, true);
-      window.addEventListener('keydown', once, true);
+      window.addEventListener('pointerdown', onAny, true);
+      window.addEventListener('touchstart', onAny, true);
+      window.addEventListener('keydown', onAny, true);
+      window.addEventListener('focus', onAny, true);
+      document.addEventListener('visibilitychange', onAny, true);
     })();
     </script>
     """)
@@ -898,7 +920,6 @@ def render_top_nav(active: str = "home") -> None:
         return "?" + urlencode(q, doseq=True)
 
     css = textwrap.dedent("""        <style>
-      :root{ --hotena-nav-h:56px; }
       /* Hide Streamlit default UI */
       #MainMenu { visibility: hidden; }
       header, header[data-testid="stHeader"]{
