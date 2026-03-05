@@ -62,7 +62,8 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.0) -> None:
       margin: 0 !important;
       padding-top: 0 !important;
     }}
-
+    main{ padding-top: 0 !important; }
+    .main{ padding-top: 0 !important; }
     [data-testid="stAppViewContainer"] {{
       padding-top: 0 !important;
     }}
