@@ -42,10 +42,10 @@ except Exception:  # pragma: no cover
 def apply_global_ui_css(*, top_padding_rem: float = 0.0, force: bool = False) -> None:
     """Apply global layout CSS.
 
-    Streamlit can append internal CSS both after first paint and after early reruns,
-    which can cause the layout to 'settle' over 1~2 interactions. We keep our CSS
-    as the *last* style tag in <head> using a persistent MutationObserver so the
-    visual position is stable from the first interaction.
+    Streamlit sometimes injects style tags into both <head> and inside the app DOM (body)
+    after early reruns. If our overrides live only in <head>, later body styles can win.
+    This function keeps ONE style tag as the LAST child of <body> and re-appends it
+    whenever Streamlit mutates head/body, preventing 1st/2nd interaction 'settling'.
     """
     import streamlit as st
     import textwrap
@@ -88,55 +88,55 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.0, force: bool = False) ->
 
     <script>
     (function(){
-      // Install only once per page load
-      if (window.__hotenaTopGapFixInstalled) return;
-      window.__hotenaTopGapFixInstalled = true;
+      // Install once per page load
+      if (window.__hotenaTopGapFixInstalledV13) return;
+      window.__hotenaTopGapFixInstalledV13 = true;
 
-      function ensureLast(){
+      function moveStyleToBodyEnd(){
         try{
           var el = document.getElementById('hotena-global-ui-css');
           if(!el) return;
-          var head = document.head || document.getElementsByTagName('head')[0];
-          if(!head) return;
-          head.appendChild(el); // move to end -> wins cascade
+
+          var body = document.body;
+          if(!body) return;
+          body.appendChild(el); // ensure last in BODY (beats later head styles and most app DOM styles)
         }catch(e){}
       }
 
-      // Keep our style last even when Streamlit appends styles later
-      function installHeadObserver(){
+      function burst(){
+        var n=0;
+        var t=setInterval(function(){
+          moveStyleToBodyEnd();
+          n++;
+          if(n>=120) clearInterval(t); // ~12s
+        }, 100);
+      }
+
+      function observe(node){
         try{
-          var head = document.head || document.getElementsByTagName('head')[0];
-          if(!head) return;
-
-          var obs = new MutationObserver(function(muts){
-            // Any head mutations may change cascade order
-            ensureLast();
-          });
-          obs.observe(head, { childList: true, subtree: false });
-          window.__hotenaHeadObserver = obs;
+          if(!node) return;
+          var obs = new MutationObserver(function(){ moveStyleToBodyEnd(); });
+          obs.observe(node, { childList:true, subtree:true, attributes:false });
+          return obs;
         }catch(e){}
       }
 
-      // Run now + after load
-      ensureLast();
-      installHeadObserver();
+      // initial + burst
+      moveStyleToBodyEnd();
+      burst();
 
-      // Short burst after startup (some deployments append CSS late)
-      var n=0, t=setInterval(function(){
-        ensureLast();
-        n++;
-        if(n>=60) clearInterval(t); // ~6s
-      }, 100);
+      // observe BOTH head and body; Streamlit may inject to either
+      observe(document.head);
+      observe(document.body);
 
-      // Re-assert on every interaction (cheap) to prevent 1st/2nd click settling
-      function onAny(){
-        ensureLast();
-      }
+      // re-assert on every interaction
+      function onAny(){ moveStyleToBodyEnd(); }
       window.addEventListener('pointerdown', onAny, true);
       window.addEventListener('touchstart', onAny, true);
       window.addEventListener('keydown', onAny, true);
       window.addEventListener('focus', onAny, true);
       document.addEventListener('visibilitychange', onAny, true);
+      window.addEventListener('resize', onAny, true);
     })();
     </script>
     """)
