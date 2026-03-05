@@ -76,18 +76,8 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
     html, body{{ padding-top: 0 !important; }}
 
     /* --- FORCE HIDE STREAMLIT COMPONENT IFRAMES (prevents refresh top gap) --- */
-    div[data-testid="stIFrame"]{{
-      display: none !important;
-      height: 0 !important;
-      min-height: 0 !important;
-      margin: 0 !important;
-      padding: 0 !important;
-    }}
-    div[data-testid="stIFrame"] iframe{{
-      display: none !important;
-      height: 0 !important;
-      min-height: 0 !important;
-    }}
+    div[data-testid="stIFrame"]{ margin:0 !important; padding:0 !important; }
+    div[data-testid="stIFrame"]{ margin:0 !important; padding:0 !important; }
     </style>
     """)
 
@@ -127,82 +117,14 @@ def get_cfg(key: str) -> str:
 
 
 def _hide_streamlit_component_iframes() -> None:
-    """Hide Streamlit custom-component iframes that are used only for JS/cookies and show as gray blocks on F5.
+    """(Disabled) Do NOT hide Streamlit component iframes globally.
 
-    Uses CSS :has() (supported by modern Chromium/Safari) + JS fallback.
+    Previous versions hid all iframes with title prefix streamlit.components.v1.* to remove
+    placeholder blocks on first paint. That also hid real UI elements on some pages
+    (e.g., talk pronunciation / explanation blocks). Keep components visible.
     """
-    if st.session_state.get("_hide_streamlit_component_iframes_done"):
-        return
-    st.session_state["_hide_streamlit_component_iframes_done"] = True
+    return
 
-    # 1) CSS (preferred): hide any stIFrame wrapper that contains a streamlit.components iframe
-    st.markdown(
-        """<style>
-/* Hide Streamlit custom component placeholders (gray blocks) */
-div[data-testid="stIFrame"]:has(iframe[title^="streamlit.components.v1."]){
-  display:none !important;
-  height:0 !important;
-  min-height:0 !important;
-  margin:0 !important;
-  padding:0 !important;
-}
-div[data-testid="stIFrame"]:has(iframe[title^="streamlit.components.v1."]) iframe{
-  display:none !important;
-  height:0 !important;
-  min-height:0 !important;
-}
-</style>""",
-        unsafe_allow_html=True,
-    )
-
-    # 2) JS fallback: repeatedly collapse matching wrappers (in case :has isn't applied early enough)
-    try:
-        components.html(
-            """
-<script>
-(function(){
-  function kill(){
-    try{
-      var doc = (window.parent && window.parent.document) ? window.parent.document : document;
-      var frames = doc.querySelectorAll('iframe[title^="streamlit.components.v1."]');
-      frames.forEach(function(fr){
-        try{
-          fr.style.display='none';
-          fr.style.height='0px';
-          fr.style.minHeight='0px';
-          var wrap = fr.closest('[data-testid="stIFrame"]') || fr.parentElement;
-          if(wrap){
-            wrap.style.display='none';
-            wrap.style.height='0px';
-            wrap.style.minHeight='0px';
-            wrap.style.margin='0';
-            wrap.style.padding='0';
-          }
-        }catch(e){}
-      });
-    }catch(e){}
-  }
-  kill();
-  setTimeout(kill, 60);
-  setTimeout(kill, 220);
-  setTimeout(kill, 650);
-  var n=0, iv=setInterval(function(){ kill(); if(++n>=40) clearInterval(iv); }, 300);
-})();
-</script>
-""",
-            height=0,
-        )
-    except Exception:
-        pass
-
-
-
-# ============================================================
-# ✅ PWA / A2HS (Android/iOS 홈화면 추가) - ROOT assets version
-# - Expects these URLs to be served at ROOT:
-#   /app/static/pwa-manifest.json, /app/static/sw.js, /app/static/apple-touch-icon.png, /app/static/icon-192.png, /app/static/icon-512.png, /favicon.ico (optional)
-# - Safe to call multiple times; injects only once per session.
-# ============================================================
 def inject_pwa_once(
     app_name: str = "Hotena",
     theme_color: str = "#0F6B3F",

@@ -3571,3 +3571,11 @@ try:
     render_float_top_anchor_button()
 except Exception:
     pass
+
+# ============================================================
+# ✅ Flush deferred components.html snippets (prevents top-gap)
+# ============================================================
+try:
+    core.flush_deferred_components_html()
+except Exception:
+    pass
