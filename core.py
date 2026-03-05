@@ -97,30 +97,25 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
 
 
 
-    # ✅ Stabilize first paint so F5 matches interactive reruns
-    try:
-        force_first_paint_rerun()
-    except Exception:
-        pass
-# ============================================================
+
+    # ✅ Make F5 first-load layout match interactive reruns
+    force_first_paint_rerun()# ============================================================
 # ✅ First-paint stabilizer (ONE rerun per session)
-# Why:
-# - Streamlit first load (F5) may paint with transient top spacing.
-# - The next rerun (e.g., clicking a widget) uses the settled layout.
-# Fix:
-# - Trigger exactly one automatic rerun per session right after CSS is applied.
+# - F5 first load can paint with transient top spacing.
+# - A subsequent rerun (e.g., widget interaction) often settles layout.
+# - We trigger exactly one automatic rerun right after CSS injection.
 # ============================================================
 def force_first_paint_rerun(key: str = "_core_first_paint_rerun_done") -> None:
     try:
         if st.session_state.get(key):
             return
         st.session_state[key] = True
-        st.rerun()
-    except Exception:
-        try:
+        if hasattr(st, "rerun"):
+            st.rerun()
+        else:
             st.experimental_rerun()
-        except Exception:
-            pass
+    except Exception:
+        pass
 
 def get_cfg(key: str) -> str:
     """Read from env first, then st.secrets safely. Returns '' if missing.
