@@ -933,6 +933,10 @@ def render_top_nav(active: str = "home") -> None:
         backdrop-filter: blur(10px);
         -webkit-backdrop-filter: blur(10px);
         border-bottom: 1px solid rgba(0,0,0,0.06);
+        height: 56px;   /* 추가 */
+      }
+      [data-testid="block-container"]{
+        padding-top: 56px !important;
       }
       .hn-topnav{
         max-width: 1100px;
