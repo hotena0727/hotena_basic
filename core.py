@@ -105,24 +105,53 @@ def flush_deferred_components_html() -> None:
         pass
 
 def apply_topgap_final_override() -> None:
-    css = """<style>
-    /* FINAL OVERRIDE: after hydration/flush */
-    [data-testid="block-container"]{ padding-top: 0rem !important; }
-    div[data-testid="stVerticalBlock"] > div:first-child{ margin-top: 0 !important; }
+    """Re-apply top-gap overrides after hydration/flush, and mask tiny jump during reruns."""
+    import time as _time
+    nonce = str(_time.time_ns())
 
-    /* If Streamlit top artifacts exist, collapse them */
-    div[data-testid="stToolbar"],
-    div[data-testid="stDecoration"],
-    div[data-testid="stTop"],
-    header, header[data-testid="stHeader"]{
-      height: 0 !important;
-      min-height: 0 !important;
-      margin: 0 !important;
-      padding: 0 !important;
-      overflow: hidden !important;
-      border: 0 !important;
-    }
-    </style>"""
+    css = f"""<style>
+        /* FINAL OVERRIDE: after hydration/flush */
+        /* ✅ Stabilize layout: remove any Streamlit-managed top offsets on first load */
+        html, body {{ margin: 0 !important; padding: 0 !important; }}
+        .stApp, .stAppViewContainer {{ margin: 0 !important; padding: 0 !important; }}
+        div[data-testid="stAppViewContainer"] {{ margin-top: 0 !important; padding-top: 0 !important; }}
+        div[data-testid="stAppViewContainer"] > .main {{ margin-top: 0 !important; padding-top: 0 !important; }}
+        section.main {{ margin-top: 0 !important; padding-top: 0 !important; }}
+        [data-testid="block-container"], div.block-container {{ margin-top: 0 !important; padding-top: 0 !important; }}
+
+        [data-testid="block-container"]{{ padding-top: 0rem !important; }}
+        div[data-testid="stVerticalBlock"] > div:first-child{{ margin-top: 0 !important; }}
+
+        /* If Streamlit top artifacts exist, collapse them */
+        div[data-testid="stToolbar"],
+        div[data-testid="stDecoration"],
+        div[data-testid="stTop"],
+        header, header[data-testid="stHeader"]{{
+          height: 0 !important;
+          min-height: 0 !important;
+          margin: 0 !important;
+          padding: 0 !important;
+          overflow: hidden !important;
+          border: 0 !important;
+        }}
+
+        /* ✅ RERUN MASK: briefly cover top area to hide layout jump on first paint */
+        @keyframes topmask_hide_{{nonce}} {{
+          0%   {{ opacity: 1; }}
+          100% {{ opacity: 0; }}
+        }}
+        .stApp::before {{
+          content: "";
+          position: fixed;
+          top: 0; left: 0; right: 0;
+          height: 180px;
+          background: #fff;
+          z-index: 999999;
+          pointer-events: none;
+          opacity: 1;
+          animation: topmask_hide_{{nonce}} 1ms linear 260ms forwards;
+        }}
+        </style>"""
     st.markdown(css, unsafe_allow_html=True)
 
 def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
