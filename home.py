@@ -31,7 +31,6 @@ import core
 try:
     core.apply_global_ui_css(top_padding_rem=0.0)
     core.hide_component_iframe_placeholders()
-    core.install_layout_watcher()
 except Exception:
     pass
 
