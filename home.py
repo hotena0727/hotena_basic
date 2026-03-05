@@ -3557,3 +3557,9 @@ try:
     render_float_top_anchor_button()
 except Exception:
     pass
+
+# --- Ensure global CSS wins even after page-specific CSS injections ---
+try:
+    core.apply_global_ui_css(top_padding_rem=0.0, force=True)
+except Exception:
+    pass

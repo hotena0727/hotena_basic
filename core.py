@@ -39,14 +39,14 @@ except Exception:  # pragma: no cover
 # - Fix oversized top padding on mobile/PWA across Streamlit versions
 # - Keep small breathing room for our custom top nav
 # ============================================================
-def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
+def apply_global_ui_css(*, top_padding_rem: float = 0.5, force: bool = False) -> None:
     """Apply global layout CSS once per run.
 
     Fix oversized top padding on mobile/PWA across Streamlit versions.
     Targets both legacy (.block-container) and newer [data-testid="block-container"].
     """
     import textwrap
-    if st.session_state.get("_core_global_ui_css_applied"):
+    if (not force) and st.session_state.get("_core_global_ui_css_applied"):
         return
     st.session_state["_core_global_ui_css_applied"] = True
 
@@ -72,6 +72,19 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
       height: 0 !important;
       min-height: 0 !important;
     }}
+
+
+    /* Remove Streamlit top decoration/toolbar that can reserve space on first paint */
+    [data-testid="stDecoration"], div[data-testid="stDecoration"]{
+      display:none !important;
+      height:0 !important;
+      min-height:0 !important;
+    }
+    [data-testid="stToolbar"], div[data-testid="stToolbar"]{
+      display:none !important;
+      height:0 !important;
+      min-height:0 !important;
+    }
 
     /* Safe-area: avoid extra blank gap on some Android devices */
     html, body{{ padding-top: 0 !important; }}
