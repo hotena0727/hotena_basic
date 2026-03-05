@@ -3521,11 +3521,3 @@ def finalize_set_if_ready():
 _render_talk_tts_player()
 
 finalize_set_if_ready()
-
-# ============================================================
-# ✅ Flush deferred components.html snippets (prevents top-gap)
-# ============================================================
-try:
-    core.flush_deferred_components_html()
-except Exception:
-    pass

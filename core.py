@@ -12,59 +12,11 @@ import os
 import base64
 import hashlib
 import json
-import textwrap
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Optional, Tuple
 
 import streamlit as st
 import streamlit.components.v1 as components
-
-# ============================================================
-# ✅ Prevent top-gap artifacts from components.html()
-# Many pages use components.html(height=0) to inject small JS/CSS helpers.
-# Streamlit renders that as an iframe placeholder (striped/blank block) at the call site.
-# We monkeypatch components.html to DEFER those injections and render them at the bottom
-# via core.flush_deferred_components_html().
-# ============================================================
-_ORIG_COMPONENTS_HTML = components.html
-_COMPONENTS_HTML_PATCHED = False
-
-def _defer_components_html(html: str, height: int = 0, **kwargs):
-    # Store snippet; do NOT create an iframe now.
-    q = st.session_state.get("_deferred_components_html")
-    if not isinstance(q, list):
-        q = []
-    q.append((html, int(height), kwargs))
-    st.session_state["_deferred_components_html"] = q
-    return None
-
-def patch_components_html_deferred(force: bool = False) -> None:
-    """Monkeypatch components.html to defer iframe creation."""
-    global _COMPONENTS_HTML_PATCHED
-    if _COMPONENTS_HTML_PATCHED and not force:
-        return
-    components.html = _defer_components_html
-    _COMPONENTS_HTML_PATCHED = True
-
-def flush_deferred_components_html() -> None:
-    """Render any deferred components.html snippets (call once at page bottom)."""
-    q = st.session_state.get("_deferred_components_html")
-    if not q:
-        return
-    st.session_state["_deferred_components_html"] = []
-    for html, h, kwargs in q:
-        try:
-            _ORIG_COMPONENTS_HTML(html, height=h, **kwargs)
-        except Exception:
-            pass
-
-# Patch immediately on import (safe)
-try:
-    patch_components_html_deferred()
-except Exception:
-    pass
-
-
 from cryptography.fernet import Fernet
 
 try:
@@ -97,12 +49,6 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
         return
     st.session_state["_core_global_ui_css_applied"] = True
 
-
-    # Ensure components.html is deferred (prevents top-gap iframe placeholders)
-    try:
-        patch_components_html_deferred()
-    except Exception:
-        pass
     pad = f"{max(0.0, float(top_padding_rem))}rem"
 
     css = textwrap.dedent(f"""
