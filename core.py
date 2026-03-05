@@ -30,11 +30,32 @@ _ORIG_COMPONENTS_HTML = components.html
 _COMPONENTS_HTML_PATCHED = False
 
 def _defer_components_html(html: str, height: int = 0, **kwargs):
-    # Store snippet; do NOT create an iframe now.
+    """Defer components.html WITHOUT creating an iframe placeholder now.
+
+    We also dedupe by content hash to avoid accumulating multiple deferred items across reruns,
+    which can cause the page to 'creep upward' as placeholders collapse over time.
+    """
+    try:
+        s = (html or "").strip()
+    except Exception:
+        s = ""
+    if not s:
+        return None
+
+    seen = st.session_state.get("_deferred_components_seen")
+    if not isinstance(seen, set):
+        seen = set()
+
+    hkey = str(hash(s))
+    if hkey in seen:
+        return None
+    seen.add(hkey)
+    st.session_state["_deferred_components_seen"] = seen
+
     q = st.session_state.get("_deferred_components_html")
     if not isinstance(q, list):
         q = []
-    q.append((html, int(height), kwargs))
+    q.append((s, int(height), kwargs))
     st.session_state["_deferred_components_html"] = q
     return None
 
@@ -47,46 +68,69 @@ def patch_components_html_deferred(force: bool = False) -> None:
     _COMPONENTS_HTML_PATCHED = True
 
 def flush_deferred_components_html() -> None:
-    """Render any deferred components.html snippets (call once at page bottom)."""
+    """Render deferred snippets in ONE iframe (call once at page bottom).
+
+    Rendering N snippets as N iframes can still cause visible layout shifts.
+    We merge snippets into a single HTML string and render once.
+    """
     q = st.session_state.get("_deferred_components_html")
     if not q:
         return
+
+    # Clear first to avoid duplicates on rerun
     st.session_state["_deferred_components_html"] = []
+
+    html_parts = []
+    max_h = 0
+    merged_kwargs = {}
     for html, h, kwargs in q:
         try:
-            _ORIG_COMPONENTS_HTML(html, height=h, **kwargs)
+            if html:
+                html_parts.append(html)
+            if int(h) > max_h:
+                max_h = int(h)
+            # keep last kwargs (rarely used; safe)
+            if isinstance(kwargs, dict):
+                merged_kwargs = kwargs
         except Exception:
             pass
 
-# Patch immediately on import (safe)
-try:
-    patch_components_html_deferred()
-except Exception:
-    pass
+    if not html_parts:
+        return
+
+    merged = "\n".join(html_parts)
+    try:
+        _ORIG_COMPONENTS_HTML(merged, height=max_h, **merged_kwargs)
+    except Exception:
+        pass
+
+def apply_topgap_final_override() -> None:
+    css = """<style>
+    /* FINAL OVERRIDE: after hydration/flush */
+    [data-testid="block-container"]{ padding-top: 0rem !important; }
+    div[data-testid="stVerticalBlock"] > div:first-child{ margin-top: 0 !important; }
+
+    /* If Streamlit top artifacts exist, collapse them */
+    div[data-testid="stToolbar"],
+    div[data-testid="stDecoration"],
+    div[data-testid="stTop"],
+    header, header[data-testid="stHeader"]{
+      height: 0 !important;
+      min-height: 0 !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      overflow: hidden !important;
+      border: 0 !important;
+    }
+    </style>"""
+    st.markdown(css, unsafe_allow_html=True)
 
 
-from cryptography.fernet import Fernet
-
-try:
-    # Streamlit Cookies Manager
-    from streamlit_cookies_manager import EncryptedCookieManager
-except Exception:  # pragma: no cover
-    EncryptedCookieManager = None  # type: ignore
-
-try:
-    from supabase import create_client
-except Exception:  # pragma: no cover
-    create_client = None  # type: ignore
-
-
-# ----------------------------
-# Config (env -> secrets)
-# ----------------------------
-# ============================================================
-# ✅ Global UI CSS (applied once per Streamlit run)
-# - Fix oversized top padding on mobile/PWA across Streamlit versions
-# - Keep small breathing room for our custom top nav
-# ============================================================
+    # ✅ Stabilize first paint: one-time rerun so F5 matches interactive layout
+    try:
+        force_first_paint_rerun()
+    except Exception:
+        pass
 def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
     """Apply global layout CSS once per run.
 
@@ -142,11 +186,49 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
       height: 0 !important;
       min-height: 0 !important;
     }}
-    </style>
+    
+
+/* ✅ Stabilize layout: remove any Streamlit-managed top offsets on first load */
+html, body { margin: 0 !important; padding: 0 !important; }
+.stApp, .stAppViewContainer { margin: 0 !important; padding: 0 !important; }
+div[data-testid="stAppViewContainer"] { margin-top: 0 !important; padding-top: 0 !important; }
+div[data-testid="stAppViewContainer"] > .main { margin-top: 0 !important; padding-top: 0 !important; }
+section.main { margin-top: 0 !important; padding-top: 0 !important; }
+[data-testid="block-container"], div.block-container { margin-top: 0 !important; padding-top: 0 !important; }
+
+    /* ✅ Final 1-line gap removal */
+[data-testid="block-container"]{ padding-top: 0rem !important; }
+div[data-testid="stVerticalBlock"] > div:first-child{ margin-top: 0 !important; }
+</style>
     """)
 
     st.markdown(css, unsafe_allow_html=True)
 
+
+
+
+# ============================================================
+# ✅ First-paint stabilizer
+# Why:
+# - Streamlit first page load (F5) often paints with a transient top spacer.
+# - The next rerun (e.g., clicking a radio) uses the "settled" layout, so content jumps up.
+# Fix:
+# - Trigger exactly ONE automatic rerun per session right after global CSS is applied.
+# - This makes F5 land on the same settled layout as interactive reruns.
+# ============================================================
+def force_first_paint_rerun(key: str = "_core_first_paint_rerun_done") -> None:
+    try:
+        if st.session_state.get(key):
+            return
+        st.session_state[key] = True
+        # immediately rerun to settle layout
+        st.rerun()
+    except Exception:
+        # fallback for older Streamlit
+        try:
+            st.experimental_rerun()
+        except Exception:
+            pass
 
 def get_cfg(key: str) -> str:
     """Read from env first, then st.secrets safely. Returns '' if missing.

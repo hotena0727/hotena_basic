@@ -2585,9 +2585,15 @@ def render():
     render_kanji_hub(HUB_MODE=True)
 
 # ============================================================
-# ✅ Flush deferred components.html snippets (prevents top-gap)
+# ✅ Deferred components flush (keep at VERY bottom)
 # ============================================================
 try:
     core.flush_deferred_components_html()
+except Exception:
+    pass
+
+
+try:
+    core.apply_topgap_final_override()
 except Exception:
     pass
