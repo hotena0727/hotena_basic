@@ -1,12 +1,16 @@
 
+# --- HOTENA CORE (stable UI version) ---
 import streamlit as st
 
 def apply_global_ui_css():
     st.markdown("""
 <style>
-header {visibility:hidden;}
-header[data-testid="stHeader"]{display:none;}
 
+/* Hide Streamlit header */
+header {visibility:hidden;}
+header[data-testid="stHeader"] {display:none !important;}
+
+/* Remove top spacing */
 [data-testid="stAppViewContainer"]{
     padding-top:0rem !important;
 }
@@ -16,24 +20,42 @@ header[data-testid="stHeader"]{display:none;}
     margin-top:0rem !important;
 }
 
+/* Older Streamlit compatibility */
 .block-container{
     padding-top:0rem !important;
     margin-top:0rem !important;
 }
 
+/* Hide footer */
 footer {visibility:hidden;}
+
+/* Prevent layout jump */
+html, body, [class*="css"]  {
+    margin-top:0px !important;
+    padding-top:0px !important;
+}
+
 </style>
 """, unsafe_allow_html=True)
 
-def ensure_core():
-    pass
 
 def render_top_nav(active="home"):
-    st.markdown(
-        f"""
-        <div style="position:sticky;top:0;background:white;padding:8px 0;border-bottom:1px solid #eee;">
-        <b>HOTENA</b> | <span style="color:#888;">{active}</span>
-        </div>
-        """,
-        unsafe_allow_html=True
-    )
+    nav_html = f"""
+<div style="
+position:sticky;
+top:0;
+z-index:999;
+background:white;
+border-bottom:1px solid #eee;
+padding:10px 0;
+font-weight:600;
+">
+&nbsp;&nbsp;HOTENA &nbsp;&nbsp;|&nbsp;&nbsp; {active}
+</div>
+"""
+    st.markdown(nav_html, unsafe_allow_html=True)
+
+
+def ensure_core():
+    # placeholder for compatibility with existing modules
+    pass
