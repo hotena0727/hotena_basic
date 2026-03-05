@@ -1483,7 +1483,8 @@ def render_plan_pill():
         f"""
 <style>
 /* ✅ Plan badge: consistent spacing across pages */
-.hub-plan-wrap{{display:flex;justify-content:flex-start;margin-top:0.25rem;margin-bottom:0rem;}}
+.hub-before-plan-gap{{height:10px;display:block;}}  /* <- pushes the badge down uniformly */
+.hub-plan-wrap{{display:flex;justify-content:flex-start;margin-top:0rem;margin-bottom:0rem;}}
 .hub-plan-pill{{display:inline-flex;align-items:center;gap:.45rem;padding:.28rem .55rem;border-radius:999px;
   border:1px solid rgba(0,0,0,.10);font-size:.86rem;opacity:.92;background:rgba(0,0,0,.02);}}
 .hub-admin-gear{{display:inline-flex;align-items:center;justify-content:center;margin-left:8px;width:28px;height:28px;border-radius:999px;
@@ -1498,11 +1499,10 @@ def render_plan_pill():
 .hub-after-plan-gap + div h1,
 .hub-after-plan-gap + div h2,
 .hub-after-plan-gap + div h3{{margin-top:0 !important; padding-top:0 !important;}}
-
-/* Also normalize the first block wrapper margin if Streamlit adds one */
 .hub-after-plan-gap + div > div:first-child{{margin-top:0 !important;}}
 </style>
 
+<span class="hub-before-plan-gap"></span>
 <div class="hub-plan-wrap">
   <div class="hub-plan-pill">{txt}{gear}</div>
 </div>
@@ -1510,6 +1510,7 @@ def render_plan_pill():
 """,
         unsafe_allow_html=True,
     )
+
 
 def render_daily_goal_home(sb_authed, user_id: str):
     """Home dashboard: daily goal (sets-based). 1 set == 10 questions (quiz_len)."""
