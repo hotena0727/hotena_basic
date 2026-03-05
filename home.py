@@ -1482,19 +1482,31 @@ def render_plan_pill():
     st.markdown(
         f"""
 <style>
-.hub-plan-wrap{{display:flex;justify-content:flex-start;margin-top:0.05rem;margin-bottom:0rem;}}
+/* ✅ Plan badge: consistent spacing across pages */
+.hub-plan-wrap{{display:flex;justify-content:flex-start;margin-top:0.25rem;margin-bottom:0rem;}}
 .hub-plan-pill{{display:inline-flex;align-items:center;gap:.45rem;padding:.28rem .55rem;border-radius:999px;
   border:1px solid rgba(0,0,0,.10);font-size:.86rem;opacity:.92;background:rgba(0,0,0,.02);}}
 .hub-admin-gear{{display:inline-flex;align-items:center;justify-content:center;margin-left:8px;width:28px;height:28px;border-radius:999px;
   text-decoration:none !important;border:1px solid rgba(0,0,0,.10);background:rgba(0,0,0,.02);font-size:16px;line-height:1;}}
 .hub-admin-gear:hover{{background:rgba(0,0,0,.04);}}
-/* Fixed, explicit spacing AFTER the pill (so all pages start from same baseline) */
-.hub-after-pill{{height:18px;}}
+.hub-plan-pill a{{text-decoration:none !important;}}
+
+/* ✅ Fixed gap below badge (this is the ONLY spacing we rely on) */
+.hub-after-plan-gap{{height:16px;display:block;}}
+
+/* ✅ Normalize the very first heading after the badge */
+.hub-after-plan-gap + div h1,
+.hub-after-plan-gap + div h2,
+.hub-after-plan-gap + div h3{{margin-top:0 !important; padding-top:0 !important;}}
+
+/* Also normalize the first block wrapper margin if Streamlit adds one */
+.hub-after-plan-gap + div > div:first-child{{margin-top:0 !important;}}
 </style>
+
 <div class="hub-plan-wrap">
   <div class="hub-plan-pill">{txt}{gear}</div>
 </div>
-<div class="hub-after-pill"></div>
+<span class="hub-after-plan-gap"></span>
 """,
         unsafe_allow_html=True,
     )
@@ -3503,7 +3515,6 @@ core.render_top_nav(active=page)
 # ✅ Plan pill should sit right under the top nav (reduces top whitespace)
 render_plan_pill()
 
-st.markdown('<div class=\"hub-after-pill\"></div>', unsafe_allow_html=True)
 if page == "admin":
     if not st.session_state.get("is_admin"):
         st.warning("관리자만 접근할 수 있습니다.")
@@ -3572,19 +3583,5 @@ else:
 # ✅ Always render bottom-right '맨 위로' shortcut
 try:
     render_float_top_anchor_button()
-except Exception:
-    pass
-
-# ============================================================
-# ✅ Deferred components flush (keep at VERY bottom)
-# ============================================================
-try:
-    core.flush_deferred_components_html()
-except Exception:
-    pass
-
-
-try:
-    core.apply_topgap_final_override()
 except Exception:
     pass
