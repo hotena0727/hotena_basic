@@ -2577,7 +2577,7 @@ with st.container(border=True):
                 st.session_state[sel_key] = picked
                 st.session_state[submitted_key] = True
                 # ✅ fragment 내부 클릭일 때도 '전체 화면'이 다시 그려지도록 강제 rerun
-                pass  # st.rerun() removed (avoid double-rerun on widget interaction)
+                st.rerun()  # 필요: fragment 클릭은 전체 rerun이 자동이 아님
 
         # ✅ 렌더(버튼 표시)
         if hasattr(st, 'fragment'):
