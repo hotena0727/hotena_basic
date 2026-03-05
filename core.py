@@ -30,11 +30,32 @@ _ORIG_COMPONENTS_HTML = components.html
 _COMPONENTS_HTML_PATCHED = False
 
 def _defer_components_html(html: str, height: int = 0, **kwargs):
-    # Store snippet; do NOT create an iframe now.
+    """Defer components.html WITHOUT creating an iframe placeholder now.
+
+    We also dedupe by content hash to avoid accumulating multiple deferred items across reruns,
+    which can cause the page to 'creep upward' as placeholders collapse over time.
+    """
+    try:
+        s = (html or "").strip()
+    except Exception:
+        s = ""
+    if not s:
+        return None
+
+    seen = st.session_state.get("_deferred_components_seen")
+    if not isinstance(seen, set):
+        seen = set()
+
+    hkey = str(hash(s))
+    if hkey in seen:
+        return None
+    seen.add(hkey)
+    st.session_state["_deferred_components_seen"] = seen
+
     q = st.session_state.get("_deferred_components_html")
     if not isinstance(q, list):
         q = []
-    q.append((html, int(height), kwargs))
+    q.append((s, int(height), kwargs))
     st.session_state["_deferred_components_html"] = q
     return None
 
@@ -47,54 +68,42 @@ def patch_components_html_deferred(force: bool = False) -> None:
     _COMPONENTS_HTML_PATCHED = True
 
 def flush_deferred_components_html() -> None:
-    """Render any deferred components.html snippets (call once at page bottom)."""
+    """Render deferred snippets in ONE iframe (call once at page bottom).
+
+    Rendering N snippets as N iframes can still cause visible layout shifts.
+    We merge snippets into a single HTML string and render once.
+    """
     q = st.session_state.get("_deferred_components_html")
     if not q:
         return
+
+    # Clear first to avoid duplicates on rerun
     st.session_state["_deferred_components_html"] = []
+
+    html_parts = []
+    max_h = 0
+    merged_kwargs = {}
     for html, h, kwargs in q:
         try:
-            _ORIG_COMPONENTS_HTML(html, height=h, **kwargs)
+            if html:
+                html_parts.append(html)
+            if int(h) > max_h:
+                max_h = int(h)
+            # keep last kwargs (rarely used; safe)
+            if isinstance(kwargs, dict):
+                merged_kwargs = kwargs
         except Exception:
             pass
 
-# Patch immediately on import (safe)
-try:
-    patch_components_html_deferred()
-except Exception:
-    pass
+    if not html_parts:
+        return
 
+    merged = "\n".join(html_parts)
+    try:
+        _ORIG_COMPONENTS_HTML(merged, height=max_h, **merged_kwargs)
+    except Exception:
+        pass
 
-from cryptography.fernet import Fernet
-
-try:
-    # Streamlit Cookies Manager
-    from streamlit_cookies_manager import EncryptedCookieManager
-except Exception:  # pragma: no cover
-    EncryptedCookieManager = None  # type: ignore
-
-try:
-    from supabase import create_client
-except Exception:  # pragma: no cover
-    create_client = None  # type: ignore
-
-
-# ----------------------------
-# Config (env -> secrets)
-# ----------------------------
-# ============================================================
-# ✅ Global UI CSS (applied once per Streamlit run)
-# - Fix oversized top padding on mobile/PWA across Streamlit versions
-# - Keep small breathing room for our custom top nav
-# ============================================================
-
-
-# ============================================================
-# ✅ Final top-gap override (run at the VERY bottom of each page)
-# Purpose:
-# - On first load (F5), Streamlit hydrates UI in phases, so a brief top-gap can appear.
-# - Re-applying a tiny override CSS after deferred components flush stabilizes layout.
-# ============================================================
 def apply_topgap_final_override() -> None:
     css = """<style>
     /* FINAL OVERRIDE: after hydration/flush */
