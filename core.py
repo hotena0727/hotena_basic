@@ -53,6 +53,7 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
 
     css = textwrap.dedent(f"""
     <style>
+:root{--hotena-nav-h:56px;--hotena-pill-h:40px;}
     /* --- TOP SPACING FIX (mobile/PWA) --- */
     [data-testid="stAppViewContainer"]{{ padding-top: 0 !important; }}
     div[data-testid="stAppViewContainer"] > .main{{ padding-top: 0 !important; }}
@@ -886,7 +887,7 @@ def render_top_nav(active: str = "home") -> None:
       [data-testid="stSidebarNav"] { display: none !important; }
 
       .hn-topnav-wrap{
-        position: sticky; left: 0; right: 0;
+        position: fixed; left: 0; right: 0;
         top: 0;
         z-index: 2147483000;
         background: rgba(255,255,255,0.94);
