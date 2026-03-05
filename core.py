@@ -925,7 +925,7 @@ def render_top_nav(active: str = "home") -> None:
     /* ===== TOP NAV ===== */
 
     .hn-topnav-wrap{
-        position:sticky;
+        position:fixed;
         top:0;
         left:0;
         right:0;
