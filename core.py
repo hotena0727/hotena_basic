@@ -39,16 +39,11 @@ except Exception:  # pragma: no cover
 # - Fix oversized top padding on mobile/PWA across Streamlit versions
 # - Keep small breathing room for our custom top nav
 # ============================================================
-def apply_global_ui_css(*, top_padding_rem: float = 0.0) -> None:
-    """Apply global layout CSS once per Streamlit run.
+def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
+    """Apply global layout CSS once per run.
 
-    Goal: eliminate Streamlit's extra top spacing (especially on mobile/PWA) while
-    keeping behavior stable across Streamlit versions and across hard refresh (F5).
-
-    We inject CSS twice:
-    1) st.markdown: quick first paint inside the Streamlit doc
-    2) components.html: upsert a <style> tag in the *parent* document head, so
-       later Streamlit reflows don't overwrite our padding reset on refresh.
+    Fix oversized top padding on mobile/PWA across Streamlit versions.
+    Targets both legacy (.block-container) and newer [data-testid="block-container"].
     """
     if st.session_state.get("_core_global_ui_css_applied"):
         return
@@ -56,73 +51,48 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.0) -> None:
 
     pad = f"{max(0.0, float(top_padding_rem))}rem"
 
-    css_rules = textwrap.dedent(f"""
-    /* --- Hotena: TOP SPACING FIX (mobile/PWA) --- */
-    html, body {{
+    css = textwrap.dedent(f"""
+    <style>
+    /* --- TOP SPACING FIX (mobile/PWA) --- */
+    [data-testid="stAppViewContainer"]{{ padding-top: 0 !important; }}
+    div[data-testid="stAppViewContainer"] > .main{{ padding-top: 0 !important; }}
+
+    /* Newer Streamlit */
+    [data-testid="block-container"]{{ padding-top: {pad} !important; }}
+    /* Older Streamlit */
+    .block-container{{ padding-top: {pad} !important; }}
+
+    /* In some layouts, the first vertical block adds extra margin */
+    [data-testid="stVerticalBlock"] > div:first-child{{ margin-top: 0 !important; }}
+
+    /* ✅ Kill Streamlit default header COMPLETELY (no reserved space) */
+    header, header[data-testid="stHeader"]{{
+      display: none !important;
+      height: 0 !important;
+      min-height: 0 !important;
+    }}
+
+    /* Safe-area: avoid extra blank gap on some Android devices */
+    html, body{{ padding-top: 0 !important; }}
+
+    /* --- FORCE HIDE STREAMLIT COMPONENT IFRAMES (prevents refresh top gap) --- */
+    div[data-testid="stIFrame"]{{
+      display: none !important;
+      height: 0 !important;
+      min-height: 0 !important;
       margin: 0 !important;
-      padding-top: 0 !important;
+      padding: 0 !important;
     }}
-    main{ padding-top: 0 !important; }
-    .main{ padding-top: 0 !important; }
-    [data-testid="stAppViewContainer"] {{
-      padding-top: 0 !important;
-    }}
-    div[data-testid="stAppViewContainer"] > .main {{
-      padding-top: 0 !important;
-      margin-top: 0 !important;
-    }}
-
-    [data-testid="stMain"], section.main {{
-      padding-top: 0 !important;
-      margin-top: 0 !important;
-    }}
-
-    section.main > div {{
-      padding-top: 0 !important;
-      margin-top: 0 !important;
-    }}
-
-    [data-testid="stVerticalBlock"] > div:first-child {{
-      margin-top: 0 !important;
-    }}
-
-    header, header[data-testid="stHeader"] {{
+    div[data-testid="stIFrame"] iframe{{
       display: none !important;
       height: 0 !important;
       min-height: 0 !important;
     }}
-    div[data-testid="stToolbar"], div[data-testid="stDecoration"] {{
-      display: none !important;
-      height: 0 !important;
-      min-height: 0 !important;
-    }}
+    </style>
     """)
 
-    st.markdown(f"<style>{css_rules}</style>", unsafe_allow_html=True)
+    st.markdown(css, unsafe_allow_html=True)
 
-    try:
-        components.html(
-            f"""
-<script>
-(function(){{
-  try {{
-    var doc = (window.parent && window.parent.document) ? window.parent.document : document;
-    var id = "hn_global_ui_css";
-    var el = doc.getElementById(id);
-    if (!el) {{
-      el = doc.createElement("style");
-      el.id = id;
-      doc.head.appendChild(el);
-    }}
-    el.textContent = {json.dumps(css_rules)};
-  }} catch(e) {{}}
-}})();
-</script>
-""",
-            height=0,
-        )
-    except Exception:
-        pass
 
 def get_cfg(key: str) -> str:
     """Read from env first, then st.secrets safely. Returns '' if missing.
@@ -315,7 +285,8 @@ def ensure_core(
     Ensure CFG/cookies/supabase anon client exist in st.session_state.
     Safe to call multiple times in the same run.
     """
-    apply_global_ui_css(top_padding_rem=0.0)
+    apply_global_ui_css()
+
     # 1) CFG
     cfg = st.session_state.get("cfg")
     if not isinstance(cfg, dict) or not cfg:
@@ -887,6 +858,7 @@ def render_top_nav(active: str = "home") -> None:
     import textwrap
     from urllib.parse import urlencode
 
+    # preserve all existing query params; only set p
     try:
         qp = dict(st.query_params)
     except Exception:
@@ -897,108 +869,97 @@ def render_top_nav(active: str = "home") -> None:
         q["p"] = p
         return "?" + urlencode(q, doseq=True)
 
-    css = textwrap.dedent("""
-    <style>
+    css = textwrap.dedent("""        <style>
+      /* Hide Streamlit default UI */
+      #MainMenu { visibility: hidden; }
+      header, header[data-testid="stHeader"]{
+        display:none !important;
+        height:0 !important;
+        min-height:0 !important;
+      }
+      footer{
+        display:none !important;
+        height:0 !important;
+        min-height:0 !important;
+      }
+      [data-testid="stSidebar"] { display: none !important; }
+      [data-testid="stSidebarNav"] { display: none !important; }
 
-    /* Streamlit 기본 UI 제거 */
-    #MainMenu { visibility:hidden; }
-    header {display:none !important;}
-    footer {display:none !important;}
-    [data-testid="stSidebar"] {display:none !important;}
-
-    /* 🔥 핵심 : 상단 padding 완전 제거 */
-    .block-container{
-        padding-top:0 !important;
-        margin-top:0 !important;
-    }
-
-    section.main > div{
-        padding-top:0 !important;
-        margin-top:0 !important;
-    }
-
-    .stApp{
-        padding-top:0 !important;
-        margin-top:0 !important;
-    }
-
-    /* ===== TOP NAV ===== */
-
-    .hn-topnav-wrap{
-        position:fixed;
-        top:0;
-        left:0;
-        right:0;
-        z-index:9999;
-
-        background:rgba(255,255,255,0.95);
-        backdrop-filter:blur(10px);
-        border-bottom:1px solid rgba(0,0,0,0.06);
-    }
-
-    .hn-topnav{
-        max-width:1100px;
-        margin:0 auto;
-        padding:10px 12px;
-    }
-
-    .hn-nav{
+      .hn-topnav-wrap{
+        position: fixed; left: 0; right: 0;
+        top: 0;
+        z-index: 2147483000;
+        background: rgba(255,255,255,0.94);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border-bottom: 1px solid rgba(0,0,0,0.06);
+      }
+      .hn-topnav{
+        max-width: 1100px;
+        margin: 0 auto;
+        padding: 10px 12px;
+      }
+      .hn-nav{
         display:flex;
-        justify-content:space-between;
         align-items:center;
-    }
-
-    .hn-nav a{
-        flex:1;
+        justify-content:space-between;
+        gap: 6px;
+      }
+      .hn-nav a{
+        flex: 1 1 0;
         text-align:center;
         text-decoration:none !important;
-        color:rgba(0,0,0,0.55);
-        font-size:14px;
-        font-weight:650;
-        padding:10px 0;
-        border-radius:10px;
-        position:relative;
-    }
-
-    .hn-nav a:hover{
-        background:rgba(0,0,0,0.03);
-        color:rgba(0,0,0,0.85);
-    }
-
-    .hn-nav a.active{
-        color:rgba(0,0,0,0.95);
-    }
-
-    .hn-nav a.active::after{
+        color: rgba(0,0,0,0.55);
+        font-size: 14px;
+        font-weight: 650;
+        letter-spacing: -0.2px;
+        padding: 10px 0;
+        border-radius: 10px;
+        position: relative;
+      }
+      .hn-nav a:hover{
+        color: rgba(0,0,0,0.82);
+        background: rgba(0,0,0,0.03);
+      }
+      .hn-nav a.active{
+        color: rgba(0,0,0,0.90);
+      }
+      .hn-nav a.active::after{
         content:"";
         position:absolute;
-        left:32%;
-        bottom:6px;
-        width:36%;
-        height:2px;
-        background:#2f80ed;
-        border-radius:2px;
-    }
+        left: 32%;
+        bottom: 6px;
+        width: 36%;
+        height: 2px;
+        background: #2f80ed;
+        border-radius: 2px;
+      }
 
-    </style>
+      @media (max-width: 820px){
+        .hn-topnav{ padding: 10px 10px; }
+        .hn-nav{ gap: 4px; }
+        .hn-nav a{ font-size: 13.5px; padding: 10px 0; }
+        .hn-nav a.active::after{ left: 30%; width: 40%; }
+      }
+</style>
     """)
 
-    html = f"""
-    <div class="hn-topnav-wrap">
-        <div class="hn-topnav">
-            <div class="hn-nav">
-                <a href="{_href('home')}" class="{'active' if active=='home' else ''}">홈</a>
-                <a href="{_href('word')}" class="{'active' if active=='word' else ''}">단어</a>
-                <a href="{_href('kanji')}" class="{'active' if active=='kanji' else ''}">한자</a>
-                <a href="{_href('talk')}" class="{'active' if active=='talk' else ''}">회화</a>
-                <a href="{_href('my')}" class="{'active' if active=='my' else ''}">MY</a>
-            </div>
+    html = f"""        <div class="hn-topnav-wrap">
+      <div class="hn-topnav">
+        <div class="hn-nav" role="navigation" aria-label="Primary">
+          <a href="{_href('home')}" target="_self" class="{'active' if active=='home' else ''}">홈</a>
+          <a href="{_href('word')}" target="_self" class="{'active' if active=='word' else ''}">단어</a>
+          <a href="{_href('kanji')}" target="_self" class="{'active' if active=='kanji' else ''}">한자</a>
+          <a href="{_href('talk')}" target="_self" class="{'active' if active=='talk' else ''}">회화</a>
+          <a href="{_href('my')}" target="_self" class="{'active' if active=='my' else ''}">MY</a>
         </div>
+      </div>
     </div>
     """
 
     st.markdown(css, unsafe_allow_html=True)
     st.markdown(html, unsafe_allow_html=True)
+
 # ============================================================
 # ✅ SFX (Sound Effects) — shared tiny UX feedback sounds
 # - session-level ON/OFF (default ON)
