@@ -927,6 +927,11 @@ def render_top_nav(active: str = "home") -> None:
         margin-top:0 !important;
     }
 
+    [data-testid="stAppViewContainer"] > .main{
+        padding-top:0 !important;
+        margin-top:0 !important;
+    }
+    
     /* ===== TOP NAV ===== */
 
     .hn-topnav-wrap{
