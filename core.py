@@ -40,77 +40,43 @@ except Exception:  # pragma: no cover
 # - Keep small breathing room for our custom top nav
 # ============================================================
 def apply_global_ui_css(*, top_padding_rem: float = 0.0, force: bool = False) -> None:
-    """Apply global layout CSS (top padding / header removal).
+    """Apply global layout CSS once per run.
 
-    `force=True` re-inserts our <style> as the last style tag so it wins the cascade,
-    preventing the one-time 'first interaction' jump caused by late Streamlit CSS updates.
+    Fix oversized top padding on mobile/PWA across Streamlit versions.
+    Targets both legacy (.block-container) and newer [data-testid="block-container"].
     """
-    import streamlit as st
-    import textwrap
+    if (not force) and st.session_state.get("_core_global_ui_css_applied"):
+        return
+    st.session_state["_core_global_ui_css_applied"] = True
 
     pad = f"{max(0.0, float(top_padding_rem))}rem"
 
-    last = st.session_state.get("_core_global_ui_css_last_pad")
-    if (not force) and (last == pad):
-        return
-    st.session_state["_core_global_ui_css_last_pad"] = pad
+    css = textwrap.dedent(f"""
+    <style>
+    /* --- TOP SPACING FIX (mobile/PWA) --- */
+    [data-testid="stAppViewContainer"]{{ padding-top: 0 !important; }}
+    div[data-testid="stAppViewContainer"] > .main{{ padding-top: 0 !important; }}
 
-    css = textwrap.dedent("""
-    <style id="hotena-global-ui-css">
-    /* --- Hotena: TOP SPACING FIX (mobile/PWA) --- */
-    html, body { padding-top: 0 !important; margin-top: 0 !important; }
-    [data-testid="stAppViewContainer"]{ padding-top: 0 !important; margin-top: 0 !important; }
-    div[data-testid="stAppViewContainer"] > .main{ padding-top: 0 !important; margin-top: 0 !important; }
+    /* Newer Streamlit */
+    [data-testid="block-container"]{{ padding-top: {pad} !important; }}
+    /* Older Streamlit */
+    .block-container{{ padding-top: {pad} !important; }}
 
-    /* Block container (new + old) */
-    [data-testid="block-container"]{ padding-top: __HOTENA_PAD__ !important; margin-top: 0 !important; }
-    .block-container{ padding-top: __HOTENA_PAD__ !important; margin-top: 0 !important; }
-    section.main > div.block-container{ padding-top: __HOTENA_PAD__ !important; margin-top: 0 !important; }
+    /* In some layouts, the first vertical block adds extra margin */
+    [data-testid="stVerticalBlock"] > div:first-child{{ margin-top: 0 !important; }}
 
-    /* First vertical block sometimes adds extra margin */
-    [data-testid="stVerticalBlock"] > div:first-child{ margin-top: 0 !important; padding-top: 0 !important; }
+    /* ✅ Kill Streamlit default header COMPLETELY (no reserved space) */
+    header, header[data-testid="stHeader"]{{
+      display: none !important;
+      height: 0 !important;
+      min-height: 0 !important;
+    }}
 
-    /* Hide Streamlit header/toolbar/footer completely */
-    header, header[data-testid="stHeader"]{ display:none !important; height:0 !important; min-height:0 !important; }
-    div[data-testid="stToolbar"]{ display:none !important; height:0 !important; min-height:0 !important; visibility:hidden !important; }
-    footer{ display:none !important; height:0 !important; min-height:0 !important; }
+    /* Safe-area: avoid extra blank gap on some Android devices */
+    html, body{{ padding-top: 0 !important; }}
     </style>
-
-    <script>
-    (function(){
-      function ensureHotenaStyleLast(){
-        try{
-          var el = document.getElementById('hotena-global-ui-css');
-          if(!el) return;
-          var head = document.head || document.getElementsByTagName('head')[0];
-          if(!head) return;
-          head.appendChild(el);
-        }catch(e){}
-      }
-
-      // Run now + a few times shortly after load (Streamlit may add CSS late)
-      ensureHotenaStyleLast();
-      var n=0;
-      var t=setInterval(function(){
-        ensureHotenaStyleLast();
-        n++;
-        if(n>=20) clearInterval(t); // ~2s
-      }, 100);
-
-      // One-time: re-assert right BEFORE first interaction (captures the jump)
-      function once(){
-        ensureHotenaStyleLast();
-        window.removeEventListener('pointerdown', once, true);
-        window.removeEventListener('keydown', once, true);
-        window.removeEventListener('touchstart', once, true);
-      }
-      window.addEventListener('pointerdown', once, true);
-      window.addEventListener('touchstart', once, true);
-      window.addEventListener('keydown', once, true);
-    })();
-    </script>
     """)
-    css = css.replace("__HOTENA_PAD__", pad)
+
     st.markdown(css, unsafe_allow_html=True)
 
 
@@ -906,7 +872,7 @@ def render_top_nav(active: str = "home") -> None:
       [data-testid="stSidebarNav"] { display: none !important; }
 
       .hn-topnav-wrap{
-        position: sticky; left: 0; right: 0;
+        position: fixed; left: 0; right: 0;
         top: 0;
         z-index: 2147483000;
         background: rgba(255,255,255,0.94);
@@ -1138,3 +1104,89 @@ def play_sfx_once(key: str, name: str) -> None:
         return
     st.session_state[k] = True
     play_sfx(name)
+
+
+def install_layout_watcher(*, top_padding_px: int = 0) -> None:
+    """Install a JS watcher that keeps the top spacing compact even on the first load.
+
+    On first page load, Streamlit may inject/override layout CSS *after* our initial <style>,
+    causing a one-time jump that disappears after the first rerun. This watcher re-appends
+    our style after the page is ready and keeps it last in <head>.
+    """
+    try:
+        js = f"""<script>
+(() => {{
+  const STYLE_ID = "hotena-topgap-style";
+  const css = `
+    [data-testid="stAppViewContainer"]{{padding-top:0 !important; margin-top:0 !important;}}
+    div[data-testid="stAppViewContainer"] > .main{{padding-top:0 !important; margin-top:0 !important;}}
+    [data-testid="block-container"]{{padding-top:{top_padding_px}px !important; margin-top:0 !important;}}
+    .block-container{{padding-top:{top_padding_px}px !important; margin-top:0 !important;}}
+    section.main > div.block-container{{padding-top:{top_padding_px}px !important; margin-top:0 !important;}}
+    header, header[data-testid="stHeader"]{{display:none !important; height:0 !important; min-height:0 !important;}}
+    div[data-testid="stToolbar"]{{display:none !important; height:0 !important; visibility:hidden !important;}}
+  `;
+
+  function ensureStyle() {{
+    try {{
+      let el = document.getElementById(STYLE_ID);
+      if (!el) {{
+        el = document.createElement("style");
+        el.id = STYLE_ID;
+        el.type = "text/css";
+        el.appendChild(document.createTextNode(css));
+        document.head.appendChild(el);
+      }} else {{
+        document.head.appendChild(el); // keep last => win cascade
+      }}
+    }} catch(e) {{}}
+  }}
+
+  function hardenInline() {{
+    try {{
+      const sel = [
+        '[data-testid="block-container"]',
+        'section.main > div.block-container',
+        'div[data-testid="stAppViewContainer"] > div.block-container',
+        '.block-container'
+      ];
+      sel.forEach(s => {{
+        document.querySelectorAll(s).forEach(n => {{
+          n.style.setProperty('padding-top', '{top_padding_px}px', 'important');
+          n.style.setProperty('margin-top', '0px', 'important');
+        }});
+      }});
+    }} catch(e) {{}}
+  }}
+
+  let scheduled = false;
+  function tick() {{
+    if (scheduled) return;
+    scheduled = true;
+    setTimeout(() => {{
+      scheduled = false;
+      ensureStyle();
+      hardenInline();
+    }}, 30);
+  }}
+
+  // run around first paint
+  ensureStyle(); hardenInline();
+  requestAnimationFrame(() => {{ ensureStyle(); hardenInline(); }});
+  setTimeout(() => {{ ensureStyle(); hardenInline(); }}, 0);
+  setTimeout(() => {{ ensureStyle(); hardenInline(); }}, 60);
+  setTimeout(() => {{ ensureStyle(); hardenInline(); }}, 220);
+  setTimeout(() => {{ ensureStyle(); hardenInline(); }}, 800);
+
+  document.addEventListener("DOMContentLoaded", tick);
+  window.addEventListener("load", tick);
+
+  try {{
+    const mo = new MutationObserver(() => tick());
+    mo.observe(document.documentElement, {{childList:true, subtree:true, attributes:true}});
+  }} catch(e) {{}}
+}})();
+</script>"""
+        components.html(js, height=0, scrolling=False)
+    except Exception:
+        pass
