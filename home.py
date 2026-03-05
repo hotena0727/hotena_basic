@@ -18,6 +18,20 @@ import streamlit as st
 # ============================================================
 try:
     st.set_page_config(page_title="하테나일본어", layout="centered")
+
+# --- HOTENA FIRST-PAINT TOP FIX (safe version) ---
+st.markdown("""
+<style>
+html, body {margin:0 !important; padding:0 !important;}
+header, [data-testid="stHeader"] {display:none !important; height:0 !important;}
+[data-testid="stToolbar"] {display:none !important; height:0 !important;}
+[data-testid="stDecoration"] {display:none !important; height:0 !important;}
+[data-testid="stAppViewContainer"]{padding-top:0 !important; margin-top:0 !important;}
+.block-container{padding-top:0 !important; margin-top:0 !important;}
+section.main > div{padding-top:0 !important;}
+</style>
+""", unsafe_allow_html=True)
+
 except Exception:
     # In case Streamlit considers page config already set during a rerun/import edge case
     pass
@@ -203,6 +217,20 @@ import html as html_module  # ✅ for html escaping in admin cards
 # ============================================================
 # (moved to top) st.set_page_config(page_title="하테나일본어", layout="centered")
 
+# --- HOTENA FIRST-PAINT TOP FIX (safe version) ---
+st.markdown("""
+<style>
+html, body {margin:0 !important; padding:0 !important;}
+header, [data-testid="stHeader"] {display:none !important; height:0 !important;}
+[data-testid="stToolbar"] {display:none !important; height:0 !important;}
+[data-testid="stDecoration"] {display:none !important; height:0 !important;}
+[data-testid="stAppViewContainer"]{padding-top:0 !important; margin-top:0 !important;}
+.block-container{padding-top:0 !important; margin-top:0 !important;}
+section.main > div{padding-top:0 !important;}
+</style>
+""", unsafe_allow_html=True)
+
+
 # ✅ Anchor for bottom-right '맨 위로' button
 st.markdown('<div id="hotena-top"></div>', unsafe_allow_html=True)
 
@@ -377,7 +405,7 @@ div[data-testid="stMetric"]{
     unsafe_allow_html=True,
 )
 st.session_state["_page_config_set"] = True  # children should not call set_page_config
-st.session_state["_top_compact_css_applied"] = True
+
 BASE_DIR = Path(__file__).resolve().parent
 
 # ============================================================
