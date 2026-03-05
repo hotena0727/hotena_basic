@@ -71,7 +71,7 @@ html, body, [class*="css"]  {
 _inject_jp_font_once()
 
 # ✅ PWA/A2HS 공통 주입 (루트: /manifest.json, /sw.js, /apple-touch-icon.png, /icon-192.png, /icon-512.png)
-core.inject_pwa_once(app_name="하테나일본어", theme_color="#0F6B3F")
+core.inject_pwa_once(app_name="하테나일본어", theme_color="146eb2")
 
 
 
@@ -1349,7 +1349,7 @@ def render_home_dashboard(sb_authed, user):
 
     rows_html = """<div class='h-rows'>""" + \
         _row("?p=word", "📘 단어", int(w["sets"]), int(w["q"]), "word") + \
-        _row("?p=kanji", "🈶 한자", int(k["sets"]), int(k["q"]), "kanji") + \
+        _row("?p=kanji", "漢 한자", int(k["sets"]), int(k["q"]), "kanji") + \
         _row("?p=talk", "💬 회화", int(t["sets"]), int(t["q"]), "talk") + \
         """</div>"""
     st.markdown(rows_html, unsafe_allow_html=True)
@@ -1358,7 +1358,7 @@ def render_home_dashboard(sb_authed, user):
     remaining = max(0, goal_sets - done_total)
     kinds = [
         ("word", "📘", "단어", int(w["sets"])),
-        ("kanji", "🈶", "한자", int(k["sets"])),
+        ("kanji", "漢", "한자", int(k["sets"])),
         ("talk", "💬", "회화", int(t["sets"])),
     ]
     order = {"talk": 0, "kanji": 1, "word": 2}
