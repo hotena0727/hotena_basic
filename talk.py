@@ -2577,7 +2577,7 @@ with st.container(border=True):
                 st.session_state[sel_key] = picked
                 st.session_state[submitted_key] = True
                 # ✅ fragment 내부 클릭일 때도 '전체 화면'이 다시 그려지도록 강제 rerun
-                pass  # st.rerun() removed (avoid double-rerun on widget interaction)
+                st.rerun()  # 필요: fragment 클릭은 전체 rerun이 자동이 아님
 
         # ✅ 렌더(버튼 표시)
         if hasattr(st, 'fragment'):
@@ -3405,9 +3405,9 @@ def _render_pron_a3cfa850():
         # ✅ 보상 조건을 못 맞춰도, 다음 문제로는 넘어갈 수 있게(보상만 미지급)
         if st.button("➡️ 다음 문제로 (보상 없이)", use_container_width=True, key=f"{NS}_go_next_no_reward_{qid}"):
             _go_next_question()
-            st.rerun()  # 필요: fragment 클릭에서 다음 문제로 즉시 이동
 
 
+            st.rerun()  # 필요: fragment/부분렌더에서도 다음 문제로 즉시 전환
         if st.session_state.get(reward_key):
             hotena_title("assets/hotena_talk/icons_title/icon_reward_title.png", "말하기 완료 보상")
             st.success("+2 XP 🎤 (말하기 완료 보상)")
@@ -3415,7 +3415,7 @@ def _render_pron_a3cfa850():
 
             if st.button("➡️ 다음 문제 풀기", use_container_width=True, key=f"{NS}_go_next_after_reward_{qid}"):
                 _go_next_question()
-                st.rerun()  # 필요: fragment 클릭에서 다음 문제로 즉시 이동
+                st.rerun()  # 필요: fragment/부분렌더에서도 다음 문제로 즉시 전환
         # st.rerun()  # Streamlit은 버튼 클릭 시 자동 rerun됩니다.
 
 
