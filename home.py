@@ -151,7 +151,7 @@ def _js_bridge_localstorage_to_queryparam(ls_key: str, qp_key: str):
   }} catch(e) {{}}
 }})();
 </script>""".replace("LS_KEY", ls_key).replace("QP_KEY", qp_key),
-            height=1,
+            height=0,
             scrolling=False,
         )
     except Exception:
@@ -166,7 +166,7 @@ try {{
   localStorage.setItem({json.dumps("K")}, {json.dumps("V")});
 }} catch(e) {{}}
 </script>""".replace("K", key).replace("V", value),
-            height=1,
+            height=0,
             scrolling=False,
         )
     except Exception:
@@ -180,7 +180,7 @@ try {{
   localStorage.removeItem({json.dumps("K")});
 }} catch(e) {{}}
 </script>""".replace("K", key),
-            height=1,
+            height=0,
             scrolling=False,
         )
     except Exception:
@@ -1651,7 +1651,7 @@ def fire_in_app_reminder_if_enabled(user):
 }})();
 </script>
 """,
-        height=1,
+        height=0,
         scrolling=False,
     )
 
@@ -1894,7 +1894,7 @@ try {{
   window.location.href = {json.dumps(url)};
 }} catch(e) {{}}
 </script>""",
-                height=1,
+                height=0,
                 scrolling=False,
             )
         except Exception:
