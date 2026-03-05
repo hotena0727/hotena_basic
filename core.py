@@ -39,7 +39,7 @@ except Exception:  # pragma: no cover
 # - Fix oversized top padding on mobile/PWA across Streamlit versions
 # - Keep small breathing room for our custom top nav
 # ============================================================
-def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
+def apply_global_ui_css(*, top_padding_rem: float = 0.0) -> None:
     """Apply global layout CSS once per run.
 
     Fix oversized top padding on mobile/PWA across Streamlit versions.
@@ -53,6 +53,19 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
 
     css = textwrap.dedent(f"""
     <style>
+    /* --- HARD RESET FOR TOP GAP (Streamlit header/toolbar safe-area) --- */
+    :root{ --header-height: 0px !important; }
+    html, body{ margin: 0 !important; padding: 0 !important; }
+    [data-testid="stApp"]{ margin-top: 0 !important; padding-top: 0 !important; }
+    section.main{ padding-top: 0 !important; margin-top: 0 !important; }
+    [data-testid="stToolbar"], [data-testid="stDecoration"], [data-testid="stStatusWidget"]{
+      display:none !important;
+      height:0 !important;
+      min-height:0 !important;
+      margin:0 !important;
+      padding:0 !important;
+      visibility:hidden !important;
+    }
     /* --- TOP SPACING FIX (mobile/PWA) --- */
     [data-testid="stAppViewContainer"]{{ padding-top: 0 !important; }}
     div[data-testid="stAppViewContainer"] > .main{{ padding-top: 0 !important; }}
@@ -884,34 +897,6 @@ def render_top_nav(active: str = "home") -> None:
       }
       [data-testid="stSidebar"] { display: none !important; }
       [data-testid="stSidebarNav"] { display: none !important; }
-
-      /* ✅ FORCE REMOVE TOP GAP (Streamlit reserves header/padding on first paint) */
-      :root{
-        --hn-topnav-offset: 62px; /* adjust if nav height changes */
-      }
-      /* Newer Streamlit container */
-      [data-testid="stAppViewContainer"] > .main{
-        padding-top: var(--hn-topnav-offset) !important;
-      }
-      [data-testid="stAppViewContainer"] > .main .block-container{
-        padding-top: 0 !important;
-        margin-top: 0 !important;
-      }
-      /* Fallback selectors (older Streamlit builds) */
-      section.main > div{
-        padding-top: var(--hn-topnav-offset) !important;
-      }
-      .main .block-container{
-        padding-top: 0 !important;
-        margin-top: 0 !important;
-      }
-      /* Also hide the toolbar space if present */
-      [data-testid="stToolbar"], [data-testid="stDecoration"], [data-testid="stStatusWidget"]{
-        display:none !important;
-        height:0 !important;
-        min-height:0 !important;
-      }
-
 
       .hn-topnav-wrap{
         position: fixed; left: 0; right: 0;
