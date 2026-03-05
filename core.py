@@ -31,43 +31,6 @@ except Exception:  # pragma: no cover
     create_client = None  # type: ignore
 
 
-# ============================================================
-# ✅ Patch: components.html() default height causes top "ghost gap"
-# - Many pages inject only <script> via components.html(...)
-# - Streamlit default height=150 adds a blank spacer that may
-#   appear/disappear on rerun, causing the "moves up on click" effect.
-# - We only auto-set height=0 when the HTML contains <script> and
-#   the caller did not pass an explicit height.
-# ============================================================
-def _patch_components_html_for_scripts() -> None:
-    if st.session_state.get("_core_components_html_patched"):
-        return
-    st.session_state["_core_components_html_patched"] = True
-
-    try:
-        import streamlit.components.v1 as _components
-    except Exception:
-        return
-
-    _orig = getattr(_components, "html", None)
-    if not callable(_orig):
-        return
-
-    def _html_patched(*args, **kwargs):  # type: ignore
-        try:
-            if "height" not in kwargs:
-                html = args[0] if args else kwargs.get("html", "")
-                if isinstance(html, str) and ("<script" in html.lower()):
-                    kwargs["height"] = 0
-                    kwargs.setdefault("scrolling", False)
-        except Exception:
-            pass
-        return _orig(*args, **kwargs)
-
-    _components.html = _html_patched  # type: ignore
-
-
-
 # ----------------------------
 # Config (env -> secrets)
 # ----------------------------
@@ -76,13 +39,13 @@ def _patch_components_html_for_scripts() -> None:
 # - Fix oversized top padding on mobile/PWA across Streamlit versions
 # - Keep small breathing room for our custom top nav
 # ============================================================
-def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
+def apply_global_ui_css(*, top_padding_rem: float = 0.0, force: bool = False) -> None:
     """Apply global layout CSS once per run.
 
     Fix oversized top padding on mobile/PWA across Streamlit versions.
     Targets both legacy (.block-container) and newer [data-testid="block-container"].
     """
-    if st.session_state.get("_core_global_ui_css_applied"):
+    if (not force) and st.session_state.get("_core_global_ui_css_applied"):
         return
     st.session_state["_core_global_ui_css_applied"] = True
 
@@ -111,11 +74,10 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
 
     /* Safe-area: avoid extra blank gap on some Android devices */
     html, body{{ padding-top: 0 !important; }}
-    div[data-testid="stIFrame"] iframe{{
-      display: none !important;
-      height: 0 !important;
-      min-height: 0 !important;
-    }}
+
+    /* --- REMOVE EXTRA TOP GAPS ACROSS STREAMLIT VERSIONS --- */
+    [data-testid="stMainBlockContainer"], [data-testid="stMain"]{ padding-top: 0 !important; margin-top: 0 !important; }
+    [data-testid="stToolbar"], [data-testid="stDecoration"]{ display:none !important; height:0 !important; min-height:0 !important; }
     </style>
     """)
 
@@ -1146,3 +1108,60 @@ def play_sfx_once(key: str, name: str) -> None:
         return
     st.session_state[k] = True
     play_sfx(name)
+
+
+def hide_component_iframe_placeholders() -> None:
+    """Hide only Streamlit component iframe placeholders (safe)."""
+    try:
+        _hide_streamlit_component_iframes()
+    except Exception:
+        pass
+
+
+def install_layout_watcher() -> None:
+    """Install a tiny JS watcher that repeatedly forces top spacing to 0.
+    This helps when Streamlit re-mounts containers after widget interactions.
+    """
+    if st.session_state.get("_core_layout_watcher_installed"):
+        return
+    st.session_state["_core_layout_watcher_installed"] = True
+    try:
+        import streamlit.components.v1 as components
+        components.html(
+            """<script>
+(function(){
+  function fix(){
+    try{
+      const sels = [
+        '[data-testid="block-container"]',
+        '.block-container',
+        '[data-testid="stMainBlockContainer"]',
+        '[data-testid="stAppViewContainer"]',
+        'div[data-testid="stAppViewContainer"] > .main'
+      ];
+      sels.forEach(s=>{
+        document.querySelectorAll(s).forEach(el=>{
+          el.style.paddingTop='0px';
+          el.style.marginTop='0px';
+        });
+      });
+      const hdr=document.querySelector('header[data-testid="stHeader"], header');
+      if(hdr){ hdr.style.display='none'; hdr.style.height='0px'; hdr.style.minHeight='0px'; }
+      const tb=document.querySelector('[data-testid="stToolbar"]');
+      if(tb){ tb.style.display='none'; tb.style.height='0px'; tb.style.minHeight='0px'; }
+      const deco=document.querySelector('[data-testid="stDecoration"]');
+      if(deco){ deco.style.display='none'; deco.style.height='0px'; deco.style.minHeight='0px'; }
+    }catch(e){}
+  }
+  fix();
+  try{
+    const mo=new MutationObserver(()=>fix());
+    mo.observe(document.documentElement,{subtree:true,childList:true,attributes:true});
+    setTimeout(fix,50); setTimeout(fix,150); setTimeout(fix,300); setTimeout(fix,600);
+  }catch(e){}
+})();
+</script>""",
+            height=0,
+        )
+    except Exception:
+        pass
