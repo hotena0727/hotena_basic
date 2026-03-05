@@ -128,216 +128,55 @@ def get_cfg(key: str) -> str:
 
 
 def _hide_streamlit_component_iframes() -> None:
-    """Hide Streamlit custom-component iframes that are used only for JS/cookies and show as gray blocks on F5.
+    """Collapse Streamlit custom-component iframes (components.html) WITHOUT creating new iframes.
 
-    Uses CSS :has() (supported by modern Chromium/Safari) + JS fallback.
+    The 'big blank/striped blocks' come from the iframe placeholder itself.
+    We fix it using CSS-only rules that target the iframe title prefix.
     """
-    if st.session_state.get("_hide_streamlit_component_iframes_done"):
+    if st.session_state.get("_core_hide_component_iframes_done"):
         return
-    st.session_state["_hide_streamlit_component_iframes_done"] = True
+    st.session_state["_core_hide_component_iframes_done"] = True
 
-    # 1) CSS (preferred): hide any stIFrame wrapper that contains a streamlit.components iframe
-    st.markdown(
-        """<style>
-/* Hide Streamlit custom component placeholders (gray blocks) */
-div[data-testid="stIFrame"]:has(iframe[title^="streamlit.components.v1."]){
-  display:none !important;
-  height:0 !important;
-  min-height:0 !important;
-  margin:0 !important;
-  padding:0 !important;
-}
-div[data-testid="stIFrame"]:has(iframe[title^="streamlit.components.v1."]) iframe{
-  display:none !important;
-  height:0 !important;
-  min-height:0 !important;
-}
-</style>""",
-        unsafe_allow_html=True,
-    )
+    css = """<style>
+    /* Target Streamlit component iframes by title */
+    iframe[title^="streamlit.components.v1."]{
+      height: 0 !important;
+      min-height: 0 !important;
+      max-height: 0 !important;
+      display: none !important;
+    }
 
-    # 2) JS fallback: repeatedly collapse matching wrappers (in case :has isn't applied early enough)
-    try:
-        components.html(
-            """
-<script>
-(function(){
-  function kill(){
-    try{
-      var doc = (window.parent && window.parent.document) ? window.parent.document : document;
-      var frames = doc.querySelectorAll('iframe[title^="streamlit.components.v1."]');
-      frames.forEach(function(fr){
-        try{
-          fr.style.display='none';
-          fr.style.height='0px';
-          fr.style.minHeight='0px';
-          var wrap = fr.closest('[data-testid="stIFrame"]') || fr.parentElement;
-          if(wrap){
-            wrap.style.display='none';
-            wrap.style.height='0px';
-            wrap.style.minHeight='0px';
-            wrap.style.margin='0';
-            wrap.style.padding='0';
-          }
-        }catch(e){}
-      });
-    }catch(e){}
-  }
-  kill();
-  setTimeout(kill, 60);
-  setTimeout(kill, 220);
-  setTimeout(kill, 650);
-  var n=0, iv=setInterval(function(){ kill(); if(++n>=40) clearInterval(iv); }, 300);
-})();
-</script>
-""",
-            height=0,
-        )
-    except Exception:
-        pass
+    /* Collapse their wrapper containers */
+    div[data-testid="stIFrame"]{
+      height: 0 !important;
+      min-height: 0 !important;
+      max-height: 0 !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      overflow: hidden !important;
+      border: 0 !important;
+    }
 
+    /* Modern browsers: if wrapper has such iframe, collapse */
+    div[data-testid="stIFrame"]:has(iframe[title^="streamlit.components.v1."]){
+      display: none !important;
+      height: 0 !important;
+      min-height: 0 !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
 
-
-# ============================================================
-# ✅ PWA / A2HS (Android/iOS 홈화면 추가) - ROOT assets version
-# - Expects these URLs to be served at ROOT:
-#   /app/static/pwa-manifest.json, /app/static/sw.js, /app/static/apple-touch-icon.png, /app/static/icon-192.png, /app/static/icon-512.png, /favicon.ico (optional)
-# - Safe to call multiple times; injects only once per session.
-# ============================================================
-def inject_pwa_once(
-    app_name: str = "Hotena",
-    theme_color: str = "#0F6B3F",
-    manifest_path: str = "/app/static/pwa-manifest.json",
-    sw_path: str = "/app/static/sw.js",
-    apple_touch_icon: str = "/app/static/apple-touch-icon.png",
-    icon_192: str = "/app/static/icon-192.png",
-    icon_512: str = "/app/static/icon-512.png",
-) -> None:
-    try:
-        if st.session_state.get("_pwa_injected", False):
-            return
-        st.session_state["_pwa_injected"] = True
-
-        js = f"""
-<script>
-(function() {{
-  try {{
-    const doc = (window.parent && window.parent.document) ? window.parent.document : document;
-    const nav = (window.parent && window.parent.navigator) ? window.parent.navigator : navigator;
-
-    // manifest
-    let m = doc.querySelector("link[rel='manifest']");
-    if (!m) {{ m = doc.createElement("link"); m.rel = "manifest"; doc.head.appendChild(m); }}
-    m.href = {json.dumps(manifest_path)};
-
-    // theme + iOS meta
-    const meta = (name, content) => {{
-      let el = doc.querySelector(`meta[name='${{name}}']`);
-      if (!el) {{ el = doc.createElement("meta"); el.name = name; doc.head.appendChild(el); }}
-      el.content = content;
-    }};
-    meta("theme-color", {json.dumps(theme_color)});
-    meta("apple-mobile-web-app-capable", "yes");
-    meta("apple-mobile-web-app-status-bar-style", "black-translucent");
-    meta("apple-mobile-web-app-title", {json.dumps(app_name)});
-
-    // iOS touch icon
-    let a = doc.querySelector("link[rel='apple-touch-icon']");
-    if (!a) {{ a = doc.createElement("link"); a.rel = "apple-touch-icon"; doc.head.appendChild(a); }}
-    a.setAttribute("sizes", "180x180");
-    a.href = {json.dumps(apple_touch_icon)};
-
-    // icons (harmless; helps some browsers)
-    function upsertIcon(href, sizes) {{
-      let i = doc.querySelector(`link[rel='icon'][sizes='${{sizes}}']`);
-      if (!i) {{
-        i = doc.createElement("link");
-        i.rel = "icon";
-        i.type = "image/png";
-        i.setAttribute("sizes", sizes);
-        doc.head.appendChild(i);
-      }}
-      i.href = href;
-    }}
-    upsertIcon({json.dumps(icon_192)}, "192x192");
-    upsertIcon({json.dumps(icon_512)}, "512x512");
-
-    // service worker (Android A2HS 핵심)
-    if ("serviceWorker" in nav) {{
-      window.addEventListener("load", function() {{
-        nav.serviceWorker.register({json.dumps(sw_path)}).catch(function(){{}});
-      }});
-    }}
-  }} catch (e) {{}}
-}})();
-</script>
-"""
-        components.html(js, height=0)
-    except Exception:
-        # Do not break the app for PWA injection failures
-        return
-
-def ensure_core(
-    *,
-    cookie_prefix: str = "hotena_beginner_",
-    localstorage_keys: Tuple[str, str] = ("hotena_rt", "hotena_at"),
-) -> dict[str, str]:
-    """
-    Ensure CFG/cookies/supabase anon client exist in st.session_state.
-    Safe to call multiple times in the same run.
-    """
-    apply_global_ui_css()
-
-    # 1) CFG
-    cfg = st.session_state.get("cfg")
-    if not isinstance(cfg, dict) or not cfg:
-        cfg = {
-            "COOKIE_PASSWORD": get_cfg("COOKIE_PASSWORD"),
-            "SUPABASE_URL": get_cfg("SUPABASE_URL"),
-            "SUPABASE_ANON_KEY": get_cfg("SUPABASE_ANON_KEY"),
-        }
-
-        # Stable fallback for cookie password (prevents "logout on refresh")
-        fallback = hashlib.sha256((cfg.get("SUPABASE_ANON_KEY") or "").encode("utf-8")).hexdigest()
-        if not cfg.get("COOKIE_PASSWORD"):
-            cfg["COOKIE_PASSWORD"] = fallback
-
-        st.session_state["cfg"] = cfg
-
-    missing = [k for k, v in cfg.items() if not v]
-    if missing:
-        st.error(f"설정값이 없습니다: {', '.join(missing)} (Cloud Run env 또는 Streamlit secrets 확인)")
-        st.stop()
-
-    # 2) Cookie manager (render only once)
-    if "cookies" not in st.session_state:
-        if EncryptedCookieManager is None:
-            st.error("streamlit-cookies-manager가 설치되지 않았습니다.")
-            st.stop()
-
-        cookies = EncryptedCookieManager(prefix=cookie_prefix, password=str(cfg["COOKIE_PASSWORD"]))
-        if not cookies.ready():
-            st.info("잠깐만요! 곧 시작할게요🙂")
-            st.stop()
-        st.session_state["cookies"] = cookies
-
-    # 3) Save lock (avoid DuplicateElementKey in same run)
-    if "_cookie_save_lock" not in st.session_state:
-        st.session_state["_cookie_save_lock"] = False
-
-    # 4) Supabase anon client
-    if "sb" not in st.session_state:
-        if create_client is None:
-            st.error("supabase-py가 설치되지 않았습니다.")
-            st.stop()
-        st.session_state["sb"] = create_client(cfg["SUPABASE_URL"], cfg["SUPABASE_ANON_KEY"])
-
-    # store localstorage keys for auth bridge
-    st.session_state["_core_ls_rt"] = localstorage_keys[0]
-    st.session_state["_core_ls_at"] = localstorage_keys[1]
-
-    return cfg
-
+    /* Extra defensive wrappers sometimes used by Streamlit */
+    div.element-container:has(iframe[title^="streamlit.components.v1."]),
+    div.stElementContainer:has(iframe[title^="streamlit.components.v1."]){
+      display: none !important;
+      height: 0 !important;
+      min-height: 0 !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+    </style>"""
+    st.markdown(css, unsafe_allow_html=True)
 
 def _cookies_save_once_per_run() -> None:
     if st.session_state.get("_cookie_save_lock"):
