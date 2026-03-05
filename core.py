@@ -39,94 +39,6 @@ except Exception:  # pragma: no cover
 # - Fix oversized top padding on mobile/PWA across Streamlit versions
 # - Keep small breathing room for our custom top nav
 # ============================================================
-
-def inject_topgap_monkeypatch(*, top_padding_px: int = 0) -> None:
-    """Hard-fix the 'first load top blank space' that can re-appear on refresh (F5).
-
-    We inject a tiny script into the *parent* document (PWA / mobile webview included)
-    and keep re-applying with a MutationObserver so Streamlit's hydration can't bring
-    the padding back.
-    """
-    if st.session_state.get("_core_topgap_monkeypatch_done"):
-        return
-    st.session_state["_core_topgap_monkeypatch_done"] = True
-
-    top_padding_px = int(max(0, top_padding_px))
-
-    js = f"""
-<script>
-(function() {{
-  try {{
-    var doc = (window.parent && window.parent.document) ? window.parent.document : document;
-    var STYLE_ID = "hn_topgap_fix_v1";
-    var css = `
-      header, header[data-testid="stHeader"] {{
-        display:none !important;
-        height:0 !important;
-        min-height:0 !important;
-      }}
-      div[data-testid="stToolbar"]{{ display:none !important; }}
-
-      /* primary padding reset */
-      section.main > div.block-container {{
-        padding-top: {top_padding_px}px !important;
-        margin-top: 0 !important;
-      }}
-      [data-testid="block-container"] {{
-        padding-top: {top_padding_px}px !important;
-        margin-top: 0 !important;
-      }}
-
-      /* first block margin reset */
-      [data-testid="stVerticalBlock"] > div:first-child {{
-        margin-top: 0 !important;
-        padding-top: 0 !important;
-      }}
-
-      /* guard: some builds apply padding on main/app container */
-      [data-testid="stAppViewContainer"], div[data-testid="stAppViewContainer"] > .main {{
-        padding-top: 0 !important;
-      }}
-    `;
-    function apply() {{
-      var st = doc.getElementById(STYLE_ID);
-      if (!st) {{
-        st = doc.createElement("style");
-        st.id = STYLE_ID;
-        doc.head.appendChild(st);
-      }}
-      if (st.textContent !== css) st.textContent = css;
-    }}
-    apply();
-
-    // Keep re-applying after hydration / rerenders
-    if (!doc.__hnTopgapObs) {{
-      var target = doc.body;
-      var obs = new MutationObserver(function() {{ apply(); }});
-      obs.observe(target, {{subtree:true, childList:true, attributes:true}});
-      doc.__hnTopgapObs = obs;
-    }}
-
-    // extra delayed applies for slow devices
-    setTimeout(apply, 50);
-    setTimeout(apply, 250);
-    setTimeout(apply, 800);
-  }} catch(e) {{}}
-}})();
-</script>
-"""
-    try:
-        components.html(js, height=0)
-    except Exception:
-        # fallback: iframe-local only (still better than nothing)
-        st.markdown(f"""<style>
-        header, header[data-testid="stHeader"]{{display:none !important;height:0 !important;min-height:0 !important;}}
-        div[data-testid="stToolbar"]{{display:none !important;}}
-        section.main > div.block-container{{padding-top:{top_padding_px}px !important;margin-top:0 !important;}}
-        [data-testid="block-container"]{{padding-top:{top_padding_px}px !important;margin-top:0 !important;}}
-        [data-testid="stVerticalBlock"] > div:first-child{{margin-top:0 !important;padding-top:0 !important;}}
-        </style>""", unsafe_allow_html=True)
-
 def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
     """Apply global layout CSS once per run.
 
@@ -136,8 +48,6 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
     if st.session_state.get("_core_global_ui_css_applied"):
         return
     st.session_state["_core_global_ui_css_applied"] = True
-    # ✅ Hard-fix refresh (F5) top-gap by enforcing CSS in parent document
-    inject_topgap_monkeypatch(top_padding_px=int(float(top_padding_rem)*16) if top_padding_rem else 0)
 
     pad = f"{max(0.0, float(top_padding_rem))}rem"
 
@@ -165,11 +75,52 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
     /* Safe-area: avoid extra blank gap on some Android devices */
     html, body{{ padding-top: 0 !important; }}
 
+    /* --- FORCE HIDE STREAMLIT COMPONENT IFRAMES (prevents refresh top gap) --- */
+    div[data-testid="stIFrame"]{{
+      display: none !important;
+      height: 0 !important;
+      min-height: 0 !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }}
+    div[data-testid="stIFrame"] iframe{{
+      display: none !important;
+      height: 0 !important;
+      min-height: 0 !important;
+    }}
     </style>
     """)
 
     st.markdown(css, unsafe_allow_html=True)
 
+
+
+
+
+    # ✅ Stabilize first paint so F5 matches interactive reruns
+    try:
+        force_first_paint_rerun()
+    except Exception:
+        pass
+# ============================================================
+# ✅ First-paint stabilizer (ONE rerun per session)
+# Why:
+# - Streamlit first load (F5) may paint with transient top spacing.
+# - The next rerun (e.g., clicking a widget) uses the settled layout.
+# Fix:
+# - Trigger exactly one automatic rerun per session right after CSS is applied.
+# ============================================================
+def force_first_paint_rerun(key: str = "_core_first_paint_rerun_done") -> None:
+    try:
+        if st.session_state.get(key):
+            return
+        st.session_state[key] = True
+        st.rerun()
+    except Exception:
+        try:
+            st.experimental_rerun()
+        except Exception:
+            pass
 
 def get_cfg(key: str) -> str:
     """Read from env first, then st.secrets safely. Returns '' if missing.
