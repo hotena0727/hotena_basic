@@ -1400,8 +1400,6 @@ SUB_LABEL = {
     "apology": "사과",
     "work": "회사 기본",
     "meetup": "첫만남",    
-    "reason": "공부이유",    
-    "hobby": "취미",        
     "first_meeting": "자기소개",
     # (확장 대비) 자주 쓰는 상황 키
     "cafe": "카페",
@@ -3525,15 +3523,9 @@ _render_talk_tts_player()
 finalize_set_if_ready()
 
 # ============================================================
-# ✅ Deferred components flush (keep at VERY bottom)
+# ✅ Flush deferred components.html snippets (prevents top-gap)
 # ============================================================
 try:
     core.flush_deferred_components_html()
-except Exception:
-    pass
-
-
-try:
-    core.apply_topgap_final_override()
 except Exception:
     pass
