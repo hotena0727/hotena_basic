@@ -31,6 +31,10 @@ st.markdown("""
     margin-right: auto;
 }
 
+[data-testid="block-container"] > div:first-child {
+    margin-top: 0 !important;
+}
+
 /* 모바일 여백 */
 @media (max-width: 768px){
     [data-testid="block-container"]{
