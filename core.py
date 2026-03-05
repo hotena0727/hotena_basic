@@ -181,7 +181,16 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
       min-height: 0 !important;
     }}
     
-/* ✅ Final 1-line gap removal */
+
+/* ✅ Stabilize layout: remove any Streamlit-managed top offsets on first load */
+html, body { margin: 0 !important; padding: 0 !important; }
+.stApp, .stAppViewContainer { margin: 0 !important; padding: 0 !important; }
+div[data-testid="stAppViewContainer"] { margin-top: 0 !important; padding-top: 0 !important; }
+div[data-testid="stAppViewContainer"] > .main { margin-top: 0 !important; padding-top: 0 !important; }
+section.main { margin-top: 0 !important; padding-top: 0 !important; }
+[data-testid="block-container"], div.block-container { margin-top: 0 !important; padding-top: 0 !important; }
+
+    /* ✅ Final 1-line gap removal */
 [data-testid="block-container"]{ padding-top: 0rem !important; }
 div[data-testid="stVerticalBlock"] > div:first-child{ margin-top: 0 !important; }
 </style>
