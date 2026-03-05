@@ -907,6 +907,11 @@ def render_top_nav(active: str = "home") -> None:
     [data-testid="stSidebar"] {display:none !important;}
 
     /* 🔥 핵심 : 상단 padding 완전 제거 */
+    section.main > div {
+      padding-top: 0 !important;
+      margin-top: 0 !important;
+    }
+
     .block-container{
         padding-top:0 !important;
         margin-top:0 !important;
