@@ -1400,6 +1400,8 @@ SUB_LABEL = {
     "apology": "사과",
     "work": "회사 기본",
     "meetup": "첫만남",    
+    "reason": "공부이유",    
+    "hobby": "취미",        
     "first_meeting": "자기소개",
     # (확장 대비) 자주 쓰는 상황 키
     "cafe": "카페",
