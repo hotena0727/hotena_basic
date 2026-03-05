@@ -89,49 +89,30 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
       height: 0 !important;
       min-height: 0 !important;
     }}
-    </style>
+    /* Streamlit component iframes can create BIG striped placeholders.
+   We collapse ALL component iframe containers to 0-height (safe for this app because we don't rely on custom components). */
+div[data-testid="stIFrame"]{
+  height: 0 !important;
+  min-height: 0 !important;
+  max-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  border: 0 !important;
+}
+div[data-testid="stIFrame"] iframe{
+  height: 0 !important;
+  min-height: 0 !important;
+  max-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  border: 0 !important;
+}
+</style>
     """)
 
     st.markdown(css, unsafe_allow_html=True)
-
-
-# ============================================================
-# ✅ Hide zero-height Streamlit component iframe placeholders
-# - components.html(height=0) sometimes still leaves a visible striped block
-# - We only hide ZERO-height iframes/containers to avoid breaking real components
-# ============================================================
-def hide_component_iframe_placeholders() -> None:
-    if st.session_state.get("_core_iframe_placeholders_hidden"):
-        return
-    st.session_state["_core_iframe_placeholders_hidden"] = True
-
-    css = """<style>
-    /* Hide only zero-height component frames (safe) */
-    div[data-testid="stIFrame"][style*="height: 0px"],
-    div[data-testid="stIFrame"][style*="height:0px"],
-    div[data-testid="stIFrame"][style*="height: 1px"],
-    div[data-testid="stIFrame"][style*="height:1px"]{
-      display: none !important;
-      height: 0 !important;
-      min-height: 0 !important;
-      margin: 0 !important;
-      padding: 0 !important;
-    }
-    div[data-testid="stIFrame"] iframe[height="0"],
-    div[data-testid="stIFrame"] iframe[height="1"],
-    div[data-testid="stIFrame"] iframe[style*="height: 0px"],
-    div[data-testid="stIFrame"] iframe[style*="height:0px"],
-    div[data-testid="stIFrame"] iframe[style*="height: 1px"],
-    div[data-testid="stIFrame"] iframe[style*="height:1px"]{
-      display: none !important;
-      height: 0 !important;
-      min-height: 0 !important;
-      margin: 0 !important;
-      padding: 0 !important;
-    }
-    </style>"""
-    st.markdown(css, unsafe_allow_html=True)
-
 
 
 def get_cfg(key: str) -> str:
