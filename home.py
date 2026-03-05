@@ -40,6 +40,31 @@ div[data-testid="stIFrame"]{
 
 # ✅ Global top spacing fix
 core.apply_global_ui_css(top_padding_rem=0.0)
+st.markdown("""
+<style>
+/* ✅ 네비 아래 첫 블록/iframe 자리로 생기는 1칸 공백 제거 */
+div[data-testid="stAppViewContainer"] > .main > div:first-child{
+  margin-top: 0 !important;
+  padding-top: 0 !important;
+}
+
+/* ✅ components.html(0높이) 같은 stIFrame placeholder가 네비 아래에 생기는 현상 압살 */
+div[data-testid="stIFrame"]{
+  height: 0 !important;
+  min-height: 0 !important;
+  max-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  border: 0 !important;
+}
+div[data-testid="stIFrame"] iframe{
+  height: 0 !important;
+  min-height: 0 !important;
+  max-height: 0 !important;
+}
+</style>
+""", unsafe_allow_html=True)
 # ============================================================
 # ✅ Global: remove Streamlit top spacing (mobile/desktop)
 #    - Must run early (before any layout is drawn)
