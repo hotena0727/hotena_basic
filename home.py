@@ -17,33 +17,10 @@ import streamlit as st
 # ✅ Page Config (must be the first Streamlit command)
 # ============================================================
 try:
-    st.set_page_config(page_title="하테나일본어", layout="wide")
+    st.set_page_config(page_title="하테나일본어", layout="centered")
 except Exception:
     # In case Streamlit considers page config already set during a rerun/import edge case
     pass
-
-st.markdown("""
-<style>
-/* 콘텐츠 폭을 centered처럼 제한 */
-[data-testid="block-container"]{
-    max-width: 980px;
-    margin-left: auto;
-    margin-right: auto;
-}
-
-[data-testid="block-container"] > div:first-child {
-    margin-top: 0 !important;
-}
-
-/* 모바일 여백 */
-@media (max-width: 768px){
-    [data-testid="block-container"]{
-        padding-left: 16px;
-        padding-right: 16px;
-    }
-}
-</style>
-""", unsafe_allow_html=True)
 
 # ✅ First-paint TOP=0 hard reset (do this before importing modules)
 def _inject_top0_css_once():
