@@ -1488,16 +1488,13 @@ def render_plan_pill():
 .hub-admin-gear{{display:inline-flex;align-items:center;justify-content:center;margin-left:8px;width:28px;height:28px;border-radius:999px;
   text-decoration:none !important;border:1px solid rgba(0,0,0,.10);background:rgba(0,0,0,.02);font-size:16px;line-height:1;}}
 .hub-admin-gear:hover{{background:rgba(0,0,0,.04);}}
-
-.hub-after-pill{{height:16px;}}
-/* Make the very first block after the pill start flush */
-div:has(.hub-plan-wrap) + div h1, div:has(.hub-plan-wrap) + div h2, div:has(.hub-plan-wrap) + div h3{{margin-top:0 !important;}}
-div:has(.hub-plan-wrap) + div [data-testid="stMarkdownContainer"] > p:first-child{{margin-top:0 !important;}}
-.hub-plan-pill a{{text-decoration:none !important;}}
+/* Fixed, explicit spacing AFTER the pill (so all pages start from same baseline) */
+.hub-after-pill{{height:18px;}}
 </style>
 <div class="hub-plan-wrap">
   <div class="hub-plan-pill">{txt}{gear}</div>
 </div>
+<div class="hub-after-pill"></div>
 """,
         unsafe_allow_html=True,
     )

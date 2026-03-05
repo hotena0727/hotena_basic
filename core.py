@@ -122,7 +122,15 @@ def apply_topgap_final_override() -> None:
       overflow: hidden !important;
       border: 0 !important;
     }
-    </style>"""
+    
+/* ✅ Normalize top margin of the FIRST markdown heading/paragraph in any block */
+[data-testid="stMarkdownContainer"] > h1:first-child,
+[data-testid="stMarkdownContainer"] > h2:first-child,
+[data-testid="stMarkdownContainer"] > h3:first-child,
+[data-testid="stMarkdownContainer"] > p:first-child{
+  margin-top: 0 !important;
+}
+</style>"""
     st.markdown(css, unsafe_allow_html=True)
 
 
