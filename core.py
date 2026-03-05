@@ -1157,3 +1157,46 @@ def play_sfx_once(key: str, name: str) -> None:
         return
     st.session_state[k] = True
     play_sfx(name)
+
+
+def apply_hotena_mobile_ui():
+    import streamlit as st
+    st.markdown("""
+<style>
+.block-container{padding-bottom:70px !important;}
+.hotena-tabbar{
+position:fixed;bottom:0;left:0;right:0;height:60px;background:#ffffff;
+border-top:1px solid #eee;display:flex;justify-content:space-around;
+align-items:center;z-index:9999;font-size:12px;
+}
+.hotena-tab{text-align:center;flex:1;color:#666;text-decoration:none;}
+.hotena-tab.active{color:#ff4b4b;font-weight:600;}
+.hotena-tab span{display:block;font-size:20px;}
+</style>
+""", unsafe_allow_html=True)
+
+    st.markdown("""
+<script>
+let startX=0,endX=0;
+document.addEventListener("touchstart",(e)=>{startX=e.changedTouches[0].screenX;});
+document.addEventListener("touchend",(e)=>{endX=e.changedTouches[0].screenX;handleSwipe();});
+
+function handleSwipe(){
+let diff=startX-endX;
+if(Math.abs(diff)<70) return;
+const pages=["home","talk","hotena_basic","mypage"];
+const url=new URL(window.location);
+let p=url.searchParams.get("p")||"home";
+let i=pages.indexOf(p);
+
+if(diff>0 && i<pages.length-1){
+url.searchParams.set("p",pages[i+1]);
+window.location=url;
+}
+if(diff<0 && i>0){
+url.searchParams.set("p",pages[i-1]);
+window.location=url;
+}
+}
+</script>
+""", unsafe_allow_html=True)
