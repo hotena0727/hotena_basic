@@ -12,6 +12,7 @@ import base64
 from cryptography.fernet import Fernet
 from datetime import date, datetime, timedelta, timezone
 import streamlit as st
+import core
 
 # ============================================================
 # ✅ Page Config (must be the first Streamlit command)
@@ -34,7 +35,6 @@ def _inject_global_top_spacing_fix_once():
     return
 
 
-import core
 import streamlit.components.v1 as components
 
 # ============================================================
