@@ -935,10 +935,10 @@ def run_db(callable_fn):
         if is_jwt_expired_error(e):
             ok = refresh_session_from_cookie_if_needed(force=True)
             if ok:
-                # st.rerun()  # removed: avoid double-rerun on widget interaction
+                pass  # st.rerun() removed (avoid double-rerun on widget interaction)
             clear_auth_everywhere()
             st.warning("세션이 만료되었습니다. 다시 로그인해 주세요.")
-            # st.rerun()  # removed: avoid double-rerun on widget interaction
+            pass  # st.rerun() removed (avoid double-rerun on widget interaction)
         raise
 def refresh_session_from_cookie_if_needed(force: bool = False) -> bool:
     # 이미 세션이 있으면 OK
@@ -1440,7 +1440,7 @@ def auth_box():
 
                 st.session_state.pop("is_admin_cached", None)
                 st.success("로그인 완료!")
-                # st.rerun()  # removed: avoid double-rerun on widget interaction
+                pass  # st.rerun() removed (avoid double-rerun on widget interaction)
 
             except Exception:
                 st.error("로그인 실패: 이메일/비밀번호 또는 이메일 인증 상태를 확인해주세요.")
@@ -1478,7 +1478,7 @@ def auth_box():
                 st.session_state.signup_done = True
                 st.session_state.auth_mode = "login"
                 st.session_state["login_email"] = email.strip()
-                # st.rerun()  # removed: avoid double-rerun on widget interaction
+                pass  # st.rerun() removed (avoid double-rerun on widget interaction)
 
             except Exception as e:
                 msg = str(e).lower()
@@ -1487,7 +1487,7 @@ def auth_box():
                     st.session_state["login_email"] = email.strip()
                     st.session_state.signup_done = False
                     st.warning("이메일 발송 제한에 걸렸습니다. 잠시 후 다시 시도해주세요.")
-                    # st.rerun()  # removed: avoid double-rerun on widget interaction
+                    pass  # st.rerun() removed (avoid double-rerun on widget interaction)
 
                 st.error("회원가입 실패(에러 확인):")
                 st.exception(e)
@@ -2145,7 +2145,7 @@ def render_admin_dashboard():
 
     if st.button("← 돌아가기", use_container_width=True, key="btn_admin_back"):
         st.session_state.page = "quiz"
-        # st.rerun()  # removed: avoid double-rerun on widget interaction
+        pass  # st.rerun() removed (avoid double-rerun on widget interaction)
 
     sb_authed_local = get_authed_sb()
     if sb_authed_local is None:
@@ -2173,7 +2173,7 @@ def render_my_dashboard():
 
     if st.button("← 돌아가기", use_container_width=True, key="btn_my_back"):
         st.session_state.page = "quiz"
-        # st.rerun()  # removed: avoid double-rerun on widget interaction
+        pass  # st.rerun() removed (avoid double-rerun on widget interaction)
 
     u = st.session_state.get("user")
     if not u:
@@ -2218,7 +2218,7 @@ def render_my_dashboard():
 
                 st.success("전체 학습 기록이 완전 초기화되었습니다.")
                 st.session_state.page = "quiz"
-                # st.rerun()  # removed: avoid double-rerun on widget interaction
+                pass  # st.rerun() removed (avoid double-rerun on widget interaction)
 
             except Exception as e:
                 st.error("초기화 실패: RLS 정책(삭제 권한) 또는 테이블/컬럼 확인이 필요합니다.")
@@ -2801,7 +2801,7 @@ if st.session_state.page == "admin":
     if not is_admin():
         st.session_state.page = "quiz"
         st.warning("관리자 권한이 없습니다.")
-        # st.rerun()  # removed: avoid double-rerun on widget interaction
+        pass  # st.rerun() removed (avoid double-rerun on widget interaction)
     render_admin_dashboard()
     st.stop()
 
@@ -3146,7 +3146,7 @@ if st.session_state.pos_group == "other":
             new_quiz = build_quiz(st.session_state.quiz_type, st.session_state.pos_group)
             start_quiz_state(new_quiz, st.session_state.quiz_type, clear_wrongs=True)
             st.session_state["_scroll_top_once"] = True
-            # st.rerun()  # removed: avoid double-rerun on widget interaction
+            pass  # st.rerun() removed (avoid double-rerun on widget interaction)
 
 st.markdown('<div class="qtype_hint jp">✨유형을 선택하세요</div>', unsafe_allow_html=True)
 
@@ -3220,7 +3220,7 @@ with cbtn1:
         mark_quiz_as_seen(new_quiz, st.session_state.quiz_type, st.session_state.pos_group)
         start_quiz_state(new_quiz, st.session_state.quiz_type, clear_wrongs=True)
         st.session_state["_scroll_top_once"] = True
-        # st.rerun()  # removed: avoid double-rerun on widget interaction
+        pass  # st.rerun() removed (avoid double-rerun on widget interaction)
         
 
 def reset_mastery_current():
@@ -3236,7 +3236,7 @@ def reset_mastery_current():
     mark_quiz_as_seen(new_quiz, st.session_state.quiz_type, st.session_state.pos_group)
     start_quiz_state(new_quiz, st.session_state.quiz_type, clear_wrongs=True)
     st.session_state["_scroll_top_once"] = True
-    # st.rerun()  # removed: avoid double-rerun on widget interaction
+    pass  # st.rerun() removed (avoid double-rerun on widget interaction)
 
 with cbtn2:
     if st.button("맞힌 단어 제외 초기화", disabled=locked, use_container_width=True, key="btn_reset_mastery"):
@@ -3342,7 +3342,7 @@ def render_today_goal_progress():
 
     if st.button("🔁 오늘 목표 리셋", use_container_width=True, key="btn_reset_today_goal"):
         reset_today_done()
-        # st.rerun()  # removed: avoid double-rerun on widget interaction
+        pass  # st.rerun() removed (avoid double-rerun on widget interaction)
 
     st.divider()
 
@@ -3773,7 +3773,7 @@ if st.session_state.get("submitted", False):
             st.session_state.free_limit_applied_this_attempt = False
             mark_quiz_as_seen(new_quiz, st.session_state.quiz_type, st.session_state.pos_group)
             st.session_state["_scroll_top_once"] = True
-            # st.rerun()  # removed: avoid double-rerun on widget interaction
+            pass  # st.rerun() removed (avoid double-rerun on widget interaction)
 
     with cB:
         # 오답이 있을 때만 활성화(없으면 disabled)
@@ -3793,7 +3793,7 @@ if st.session_state.get("submitted", False):
             )
             start_quiz_state(retry_quiz, st.session_state.quiz_type, clear_wrongs=True)
             st.session_state["_scroll_top_once"] = True
-            # st.rerun()  # removed: avoid double-rerun on widget interaction
+            pass  # st.rerun() removed (avoid double-rerun on widget interaction)
 
     show_naver_talk = (SHOW_NAVER_TALK == "Y") or is_admin()
     if show_naver_talk:

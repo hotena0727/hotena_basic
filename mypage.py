@@ -1599,7 +1599,7 @@ def _go_home() -> None:
     st.session_state["page"] = "home"
     st.session_state["current_page"] = "home"
 
-    # st.rerun()  # removed: avoid double-rerun on widget interaction
+    pass  # st.rerun() removed (avoid double-rerun on widget interaction)
 
 
 def _logout() -> None:
@@ -1699,7 +1699,7 @@ def _logout() -> None:
     except Exception:
         pass
 
-    # st.rerun()  # removed: avoid double-rerun on widget interaction
+    pass  # st.rerun() removed (avoid double-rerun on widget interaction)
 # ---------------------------
 # Mini widget
 # ---------------------------
@@ -2093,7 +2093,7 @@ def _render_top_summary(wrongs: List[Dict[str, Any]], attempts: List[Dict[str, A
                     st.session_state["myp_wrong_quiz_ans"] = {}
                     st.session_state["myp_wrong_quiz_done"] = False
                     st.toast("TOP10 복습을 시작합니다.")
-                    # st.rerun()  # removed: avoid double-rerun on widget interaction
+                    pass  # st.rerun() removed (avoid double-rerun on widget interaction)
                 else:
                     st.info("아직 저장된 오답이 없습니다.")
             except Exception:
@@ -2158,7 +2158,7 @@ def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None
             st.session_state["myp_wrong_quiz"] = _build_wrong_quiz_for_app(quiz_app, wrongs_for_quiz, int(quiz_n))
             st.session_state["myp_wrong_quiz_ans"] = {}
             st.session_state["myp_wrong_quiz_done"] = False
-            # st.rerun()  # removed: avoid double-rerun on widget interaction
+            pass  # st.rerun() removed (avoid double-rerun on widget interaction)
 
     quiz = st.session_state.get("myp_wrong_quiz") or []
     # 버튼을 눌렀는데 문제가 생성되지 않는 경우(뜻 데이터 없음 등)
@@ -2197,7 +2197,7 @@ def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None
                 ans[i] = st.session_state.get(f"mq_{i}")
             st.session_state["myp_wrong_quiz_ans"] = ans
             st.session_state["myp_wrong_quiz_done"] = True
-            # st.rerun()  # removed: avoid double-rerun on widget interaction
+            pass  # st.rerun() removed (avoid double-rerun on widget interaction)
 
         # 닫기 버튼은 폼 밖(즉시 동작)
         if st.button("시험 닫기", use_container_width=True, key="myp_wrong_quiz_close"):
@@ -2206,7 +2206,7 @@ def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None
             st.session_state["myp_wrong_quiz_done"] = False
             for i in range(1, len(quiz) + 1):
                 st.session_state.pop(f"mq_{i}", None)
-            # st.rerun()  # removed: avoid double-rerun on widget interaction
+            pass  # st.rerun() removed (avoid double-rerun on widget interaction)
 
         # ✅ 결과표시는 세션에 저장된 답으로 계산
         if st.session_state.get("myp_wrong_quiz_done"):
@@ -2364,7 +2364,7 @@ def _render_wrongs(wrongs: List[Dict[str, Any]], wrongs_table: str = "") -> None
         with c_more2:
             if st.button("더 보기 (+5개)", key="myp_wrongs_more", use_container_width=True):
                 st.session_state["myp_wrongs_show_n"] = min(len(filtered), show_n + 5)
-                # st.rerun()  # removed: avoid double-rerun on widget interaction
+                pass  # st.rerun() removed (avoid double-rerun on widget interaction)
     else:
         st.caption("끝까지 다 봤어요 🙂")
 
@@ -2537,7 +2537,7 @@ def _render_msgs(msgs: List[Dict[str, Any]]) -> None:
                         sb.table("user_messages").update({"read_at": datetime.utcnow().isoformat()}).eq("id", mid).execute()
                         st.success("읽음 처리 완료")
                         _invalidate_cached("myp_cache_msgs")
-                        # st.rerun()  # removed: avoid double-rerun on widget interaction
+                        pass  # st.rerun() removed (avoid double-rerun on widget interaction)
                     except Exception:
                         st.warning("읽음 처리에 실패했습니다. (RLS 확인)")
 
