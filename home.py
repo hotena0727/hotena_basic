@@ -24,8 +24,17 @@ except Exception:
     pass
 
 
+
+# ✅ Hide zero-height component placeholders (prevents big striped blocks)
+try:
+    core.hide_component_iframe_placeholders()
+except Exception:
+    pass
+
 # ✅ Global top spacing fix (single source of truth)
 core.apply_global_ui_css(top_padding_rem=0.0)
+# ✅ Global top spacing fix (single source of truth)
+
 # ============================================================
 # ✅ Global: remove Streamlit top spacing (mobile/desktop)
 #    - Must run early (before any layout is drawn)

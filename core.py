@@ -12,7 +12,6 @@ import os
 import base64
 import hashlib
 import json
-import textwrap
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Optional, Tuple
 
@@ -40,76 +39,99 @@ except Exception:  # pragma: no cover
 # - Fix oversized top padding on mobile/PWA across Streamlit versions
 # - Keep small breathing room for our custom top nav
 # ============================================================
-def apply_global_ui_css(*, top_padding_rem: float = 0.0) -> None:
+def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
     """Apply global layout CSS once per run.
 
-    Centralized 'top gap' fix across Streamlit versions.
-    Uses a simple token-replace approach to avoid f-string brace SyntaxErrors.
+    Fix oversized top padding on mobile/PWA across Streamlit versions.
+    Targets both legacy (.block-container) and newer [data-testid="block-container"].
     """
     if st.session_state.get("_core_global_ui_css_applied"):
         return
     st.session_state["_core_global_ui_css_applied"] = True
 
-    try:
-        pad_val = max(0.0, float(top_padding_rem))
-    except Exception:
-        pad_val = 0.0
-    pad = f"{pad_val}rem"
+    pad = f"{max(0.0, float(top_padding_rem))}rem"
 
-    css = """
-<style>
-/* --- TOP SPACING FIX (mobile/PWA) --- */
-[data-testid="stAppViewContainer"]{ padding-top: 0 !important; margin-top: 0 !important; }
-div[data-testid="stAppViewContainer"] > .main{ padding-top: 0 !important; margin-top: 0 !important; }
+    css = textwrap.dedent(f"""
+    <style>
+    /* --- TOP SPACING FIX (mobile/PWA) --- */
+    [data-testid="stAppViewContainer"]{{ padding-top: 0 !important; }}
+    div[data-testid="stAppViewContainer"] > .main{{ padding-top: 0 !important; }}
 
-/* Newer Streamlit */
-[data-testid="block-container"]{ padding-top: __PAD__ !important; }
-/* Older Streamlit */
-.block-container{ padding-top: __PAD__ !important; }
+    /* Newer Streamlit */
+    [data-testid="block-container"]{{ padding-top: {pad} !important; }}
+    /* Older Streamlit */
+    .block-container{{ padding-top: {pad} !important; }}
 
-/* In some layouts, the first vertical block adds extra margin */
-[data-testid="stVerticalBlock"] > div:first-child{ margin-top: 0 !important; }
-div[data-testid="stAppViewContainer"] > .main > div:first-child{ margin-top: 0 !important; padding-top: 0 !important; }
+    /* In some layouts, the first vertical block adds extra margin */
+    [data-testid="stVerticalBlock"] > div:first-child{{ margin-top: 0 !important; }}
 
-/* ✅ Kill Streamlit default header COMPLETELY (no reserved space) */
-header, header[data-testid="stHeader"]{
-  display: none !important;
-  height: 0 !important;
-  min-height: 0 !important;
-  margin: 0 !important;
-  padding: 0 !important;
-}
+    /* ✅ Kill Streamlit default header COMPLETELY (no reserved space) */
+    header, header[data-testid="stHeader"]{{
+      display: none !important;
+      height: 0 !important;
+      min-height: 0 !important;
+    }}
 
-/* ✅ Hide Streamlit toolbar/decoration that can reserve top space (varies by version) */
-div[data-testid="stToolbar"],
-div[data-testid="stDecoration"],
-div[data-testid="stStatusWidget"],
-div[data-testid="stAppToolbar"],
-div[data-testid="stHeaderActionElements"]{
-  display: none !important;
-  height: 0 !important;
-  min-height: 0 !important;
-  margin: 0 !important;
-  padding: 0 !important;
-}
-div[data-testid="stTop"]{
-  margin: 0 !important;
-  padding: 0 !important;
-  height: 0 !important;
-  min-height: 0 !important;
-}
+    /* Safe-area: avoid extra blank gap on some Android devices */
+    html, body{{ padding-top: 0 !important; }}
 
-/* Safe-area: avoid extra blank gap on some Android devices */
-html, body{ padding-top: 0 !important; margin: 0 !important; }
+    /* --- FORCE HIDE STREAMLIT COMPONENT IFRAMES (prevents refresh top gap) --- */
+    div[data-testid="stIFrame"]{{
+      display: none !important;
+      height: 0 !important;
+      min-height: 0 !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }}
+    div[data-testid="stIFrame"] iframe{{
+      display: none !important;
+      height: 0 !important;
+      min-height: 0 !important;
+    }}
+    </style>
+    """)
 
-/* Streamlit component containers: remove spacing, but don't hide them */
-div[data-testid="stIFrame"]{ margin: 0 !important; padding: 0 !important; }
-div[data-testid="stIFrame"] iframe{ margin: 0 !important; padding: 0 !important; }
-</style>
-"""
-
-    css = css.replace("__PAD__", pad)
     st.markdown(css, unsafe_allow_html=True)
+
+
+# ============================================================
+# ✅ Hide zero-height Streamlit component iframe placeholders
+# - components.html(height=0) sometimes still leaves a visible striped block
+# - We only hide ZERO-height iframes/containers to avoid breaking real components
+# ============================================================
+def hide_component_iframe_placeholders() -> None:
+    if st.session_state.get("_core_iframe_placeholders_hidden"):
+        return
+    st.session_state["_core_iframe_placeholders_hidden"] = True
+
+    css = """<style>
+    /* Hide only zero-height component frames (safe) */
+    div[data-testid="stIFrame"][style*="height: 0px"],
+    div[data-testid="stIFrame"][style*="height:0px"],
+    div[data-testid="stIFrame"][style*="height: 1px"],
+    div[data-testid="stIFrame"][style*="height:1px"]{
+      display: none !important;
+      height: 0 !important;
+      min-height: 0 !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+    div[data-testid="stIFrame"] iframe[height="0"],
+    div[data-testid="stIFrame"] iframe[height="1"],
+    div[data-testid="stIFrame"] iframe[style*="height: 0px"],
+    div[data-testid="stIFrame"] iframe[style*="height:0px"],
+    div[data-testid="stIFrame"] iframe[style*="height: 1px"],
+    div[data-testid="stIFrame"] iframe[style*="height:1px"]{
+      display: none !important;
+      height: 0 !important;
+      min-height: 0 !important;
+      margin: 0 !important;
+      padding: 0 !important;
+    }
+    </style>"""
+    st.markdown(css, unsafe_allow_html=True)
+
+
 
 def get_cfg(key: str) -> str:
     """Read from env first, then st.secrets safely. Returns '' if missing.
@@ -167,6 +189,7 @@ div[data-testid="stIFrame"]:has(iframe[title^="streamlit.components.v1."]) ifram
   display:none !important;
   height:0 !important;
   min-height:0 !important;
+}
 </style>""",
         unsafe_allow_html=True,
     )
@@ -956,6 +979,7 @@ def render_top_nav(active: str = "home") -> None:
         .hn-nav{ gap: 4px; }
         .hn-nav a{ font-size: 13.5px; padding: 10px 0; }
         .hn-nav a.active::after{ left: 30%; width: 40%; }
+      }
 </style>
     """)
 
