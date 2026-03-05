@@ -40,6 +40,30 @@ except Exception:  # pragma: no cover
 # - Fix oversized top padding on mobile/PWA across Streamlit versions
 # - Keep small breathing room for our custom top nav
 # ============================================================
+# ============================================================
+# ✅ Deferred components.html (single iframe, rendered at bottom)
+# - components.html creates an iframe placeholder that can appear as a big top gap.
+# - We enqueue snippets during page build, then render ONCE at the bottom.
+# ============================================================
+def enqueue_components_html(html: str) -> None:
+    q = st.session_state.get("_pending_components_html")
+    if not isinstance(q, list):
+        q = []
+    q.append(str(html))
+    st.session_state["_pending_components_html"] = q
+
+def flush_pending_components_html() -> None:
+    q = st.session_state.get("_pending_components_html")
+    if not q:
+        return
+    # Clear first to avoid duplicates on rerun
+    st.session_state["_pending_components_html"] = []
+    html = "\n".join(q)
+    try:
+        components.html(html, height=0)
+    except Exception:
+        pass
+
 def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
     """Apply global layout CSS once per run.
 
@@ -89,7 +113,32 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
       height: 0 !important;
       min-height: 0 !important;
     }}
-    </style>
+    /* ✅ Collapse component iframe placeholders but allow scripts to run */
+div[data-testid="stIFrame"]{
+  position: absolute !important;
+  left: -10000px !important;
+  top: -10000px !important;
+  width: 0 !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  max-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  border: 0 !important;
+}
+div[data-testid="stIFrame"] iframe{
+  width: 0 !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  max-height: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  border: 0 !important;
+}
+</style>
     """)
 
     st.markdown(css, unsafe_allow_html=True)
@@ -158,8 +207,7 @@ div[data-testid="stIFrame"]:has(iframe[title^="streamlit.components.v1."]) ifram
 
     # 2) JS fallback: repeatedly collapse matching wrappers (in case :has isn't applied early enough)
     try:
-        components.html(
-            """
+        enqueue_components_html("""
 <script>
 (function(){
   function kill(){
@@ -190,9 +238,7 @@ div[data-testid="stIFrame"]:has(iframe[title^="streamlit.components.v1."]) ifram
   var n=0, iv=setInterval(function(){ kill(); if(++n>=40) clearInterval(iv); }, 300);
 })();
 </script>
-""",
-            height=0,
-        )
+""")
     except Exception:
         pass
 
@@ -204,31 +250,6 @@ div[data-testid="stIFrame"]:has(iframe[title^="streamlit.components.v1."]) ifram
 #   /app/static/pwa-manifest.json, /app/static/sw.js, /app/static/apple-touch-icon.png, /app/static/icon-192.png, /app/static/icon-512.png, /favicon.ico (optional)
 # - Safe to call multiple times; injects only once per session.
 # ============================================================
-# ============================================================
-# ✅ Deferred components.html renderer
-# - components.html creates an iframe placeholder. If called near the top of a page,
-#   it can look like a "top gap" or a striped block.
-# - We enqueue snippets and render them once at the BOTTOM of the page.
-# ============================================================
-def enqueue_components_html(html: str, height: int = 0) -> None:
-    q = st.session_state.get("_pending_components_html")
-    if not isinstance(q, list):
-        q = []
-    q.append((html, int(height)))
-    st.session_state["_pending_components_html"] = q
-
-def flush_pending_components_html() -> None:
-    q = st.session_state.get("_pending_components_html")
-    if not q:
-        return
-    # Clear first to avoid duplicates on rerun
-    st.session_state["_pending_components_html"] = []
-    for html, h in q:
-        try:
-            components.html(html, height=h)
-        except Exception:
-            pass
-
 def inject_pwa_once(
     app_name: str = "Hotena",
     theme_color: str = "#0F6B3F",
@@ -297,8 +318,7 @@ def inject_pwa_once(
 }})();
 </script>
 """
-        # Defer rendering to the bottom of the page to avoid top-gap artifacts
-        enqueue_components_html(js, height=0)
+        enqueue_components_html(js)
     except Exception:
         # Do not break the app for PWA injection failures
         return
@@ -411,8 +431,7 @@ def _js_bridge_localstorage_to_queryparam(ls_key: str, qp_key: str) -> None:
     """If localStorage has a value and query param doesn't, set it once."""
     if not _core_once_key('ls2qp', f"{ls_key}->{qp_key}"):
         return
-    components.html(
-        f"""
+    enqueue_components_html(f"""
 <script>
 (function () {{
   try {{
@@ -425,16 +444,13 @@ def _js_bridge_localstorage_to_queryparam(ls_key: str, qp_key: str) -> None:
   }} catch(e) {{}}
 }})();
 </script>
-        """,
-        height=0,
-    )
+        """)
 
 
 def _js_set_localstorage(ls_key: str, value: str) -> None:
     if not _core_once_key('ls_set', ls_key):
         return
-    components.html(
-        f"""
+    enqueue_components_html(f"""
 <script>
 (function () {{
   try {{
@@ -442,16 +458,13 @@ def _js_set_localstorage(ls_key: str, value: str) -> None:
   }} catch(e) {{}}
 }})();
 </script>
-        """,
-        height=0,
-    )
+        """)
 
 
 def _js_clear_localstorage(ls_key: str) -> None:
     if not _core_once_key('ls_rm', ls_key):
         return
-    components.html(
-        f"""
+    enqueue_components_html(f"""
 <script>
 (function () {{
   try {{
@@ -459,9 +472,7 @@ def _js_clear_localstorage(ls_key: str) -> None:
   }} catch(e) {{}}
 }})();
 </script>
-        """,
-        height=0,
-    )
+        """)
 
 
 # ----------------------------
@@ -638,8 +649,7 @@ def inject_top_anchor() -> None:
 
 def scroll_to_top(nonce: int = 0) -> None:
     inject_top_anchor()
-    components.html(
-        f"""
+    enqueue_components_html(f"""
         <script>
         (function () {{
           const doc = window.parent.document;
@@ -673,15 +683,12 @@ def scroll_to_top(nonce: int = 0) -> None:
         }})();
         </script>
         <!-- nonce:{nonce} -->
-        """,
-        height=0,
-    )
+        """)
 
 
 def render_floating_scroll_top() -> None:
     inject_top_anchor()
-    components.html(
-        """
+    enqueue_components_html("""
 <script>
 (function(){
   const doc = window.parent.document;
@@ -1124,9 +1131,7 @@ def play_sfx(name: str) -> None:
   }} catch(e) {{}}
 }})();
 </script>
-""",
-            height=0,
-        )
+""")
     except Exception:
         # absolute fallback (no JS): base64 wav
         if not b64:

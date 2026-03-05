@@ -85,6 +85,7 @@ html, body, [class*="css"]  {
 _inject_jp_font_once()
 
 # ✅ PWA/A2HS 공통 주입 (루트: /manifest.json, /sw.js, /apple-touch-icon.png, /icon-192.png, /icon-512.png)
+core.inject_pwa_once(app_name="하테나일본어", theme_color="#0F6B3F")
 
 
 
@@ -3571,14 +3572,7 @@ try:
 except Exception:
     pass
 
-# ============================================================
-# ✅ Deferred PWA injection (render at bottom to avoid top gap)
-# ============================================================
-try:
-    core.inject_pwa_once(app_name="하테나일본어", theme_color="#0F6B3F")
-except Exception:
-    pass
-
+# ✅ Render deferred JS snippets (single iframe at bottom)
 try:
     core.flush_pending_components_html()
 except Exception:
