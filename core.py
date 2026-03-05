@@ -12,7 +12,6 @@ import os
 import base64
 import hashlib
 import json
-import textwrap
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Optional, Tuple
 
@@ -89,27 +88,7 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
       height: 0 !important;
       min-height: 0 !important;
     }}
-    /* Streamlit component iframes can create BIG striped placeholders.
-   We collapse ALL component iframe containers to 0-height (safe for this app because we don't rely on custom components). */
-div[data-testid="stIFrame"]{
-  height: 0 !important;
-  min-height: 0 !important;
-  max-height: 0 !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  overflow: hidden !important;
-  border: 0 !important;
-}
-div[data-testid="stIFrame"] iframe{
-  height: 0 !important;
-  min-height: 0 !important;
-  max-height: 0 !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  overflow: hidden !important;
-  border: 0 !important;
-}
-</style>
+    </style>
     """)
 
     st.markdown(css, unsafe_allow_html=True)

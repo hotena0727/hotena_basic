@@ -12,7 +12,6 @@ import base64
 from cryptography.fernet import Fernet
 from datetime import date, datetime, timedelta, timezone
 import streamlit as st
-import core
 
 # ============================================================
 # ✅ Page Config (must be the first Streamlit command)
@@ -23,27 +22,45 @@ except Exception:
     # In case Streamlit considers page config already set during a rerun/import edge case
     pass
 
-
-
-# ✅ Hide zero-height component placeholders (prevents big striped blocks)
-try:
-    core.hide_component_iframe_placeholders()
-except Exception:
-    pass
-
-# ✅ Global top spacing fix (single source of truth)
-core.apply_global_ui_css(top_padding_rem=0.0)
-# ✅ Global top spacing fix (single source of truth)
-
 # ============================================================
 # ✅ Global: remove Streamlit top spacing (mobile/desktop)
 #    - Must run early (before any layout is drawn)
 # ============================================================
 def _inject_global_top_spacing_fix_once():
-    # (disabled) top spacing is handled centrally in core.apply_global_ui_css().
-    return
+    if st.session_state.get("_global_top_spacing_fix_injected", False):
+        return
+    st.session_state["_global_top_spacing_fix_injected"] = True
+    st.markdown(
+        """
+<style>
+/* Hide Streamlit default chrome */
+#MainMenu {visibility:hidden;}
+footer {visibility:hidden;}
+header, header[data-testid="stHeader"] {display:none !important; height:0 !important;}
 
+/* Remove default top padding */
+.block-container {
+  padding-top: 0rem !important;
+  margin-top: 0rem !important;
+}
 
+/* Some Streamlit versions wrap main differently */
+div[data-testid="stAppViewContainer"] > .main,
+div[data-testid="stAppViewContainer"] {
+  padding-top: 0rem !important;
+  margin-top: 0rem !important;
+}
+
+/* Extra safety for older/newer DOM shapes */
+section.main > div { padding-top: 0rem !important; }
+</style>
+""",
+        unsafe_allow_html=True,
+    )
+
+_inject_global_top_spacing_fix_once()
+
+import core
 import streamlit.components.v1 as components
 
 # ============================================================
@@ -204,7 +221,9 @@ except Exception:
 
 
 # ============================================================
-# (Top spacing is handled by core.apply_global_ui_css only)
+# ✅ TOP SPACING FIX (PC + Mobile)
+# - Remove Streamlit's default top padding/space
+# - Applied once per session
 # ============================================================
 if not st.session_state.get("_top_compact_css_applied"):
     st.markdown("""<style>
@@ -266,7 +285,7 @@ div[data-testid="stAppViewContainer"]{
 div[data-testid="stAppViewContainer"] .stButton > button,
 div[data-testid="stAppViewContainer"] button[kind]{
   min-height: 44px !important;
-  padding-top: 0rem !important;
+  padding-top: 0.55rem !important;
   padding-bottom: 0.55rem !important;
   font-size: 16px !important;
   border-radius: 12px !important;
@@ -285,7 +304,7 @@ div[data-testid="stAppViewContainer"] div[role="combobox"]{
 
 /* Expander: make summary easier to tap */
 div[data-testid="stExpander"] summary{
-  padding-top: 0rem !important;
+  padding-top: 0.35rem !important;
   padding-bottom: 0.35rem !important;
 }
 
@@ -299,7 +318,7 @@ div[data-testid="stMetric"]{
   div[data-testid="stAppViewContainer"] .block-container{
     padding-left: 1.0rem !important;
     padding-right: 1.0rem !important;
-    padding-top: 0rem !important;
+    padding-top: 0.15rem !important;
     padding-bottom: 1.5rem !important;
   }
 
