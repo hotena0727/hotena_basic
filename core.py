@@ -50,12 +50,6 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
         return
     st.session_state["_core_global_ui_css_applied"] = True
 
-
-    # Collapse component iframe placeholders (prevents big blank blocks)
-    try:
-        _hide_streamlit_component_iframes()
-    except Exception:
-        pass
     pad = f"{max(0.0, float(top_padding_rem))}rem"
 
     css = textwrap.dedent(f"""
@@ -134,47 +128,73 @@ def get_cfg(key: str) -> str:
 
 
 def _hide_streamlit_component_iframes() -> None:
-    """Collapse Streamlit custom-component iframe placeholders (CSS-only).
+    """Hide Streamlit custom-component iframes that are used only for JS/cookies and show as gray blocks on F5.
 
-    Important: do NOT call components.html() here, because that creates another iframe,
-    which can re-introduce the blank/striped block we are trying to remove.
+    Uses CSS :has() (supported by modern Chromium/Safari) + JS fallback.
     """
-    if st.session_state.get("_core_hide_component_iframes_done"):
+    if st.session_state.get("_hide_streamlit_component_iframes_done"):
         return
-    st.session_state["_core_hide_component_iframes_done"] = True
+    st.session_state["_hide_streamlit_component_iframes_done"] = True
 
-    css = """<style>
-    /* Target Streamlit component iframes by title */
-    iframe[title^="streamlit.components.v1."]{
-      display: none !important;
-      height: 0 !important;
-      min-height: 0 !important;
-      max-height: 0 !important;
-    }
+    # 1) CSS (preferred): hide any stIFrame wrapper that contains a streamlit.components iframe
+    st.markdown(
+        """<style>
+/* Hide Streamlit custom component placeholders (gray blocks) */
+div[data-testid="stIFrame"]:has(iframe[title^="streamlit.components.v1."]){
+  display:none !important;
+  height:0 !important;
+  min-height:0 !important;
+  margin:0 !important;
+  padding:0 !important;
+}
+div[data-testid="stIFrame"]:has(iframe[title^="streamlit.components.v1."]) iframe{
+  display:none !important;
+  height:0 !important;
+  min-height:0 !important;
+}
+</style>""",
+        unsafe_allow_html=True,
+    )
 
-    /* Collapse their wrapper containers */
-    div[data-testid="stIFrame"]{
-      display: none !important;
-      height: 0 !important;
-      min-height: 0 !important;
-      max-height: 0 !important;
-      margin: 0 !important;
-      padding: 0 !important;
-      overflow: hidden !important;
-      border: 0 !important;
-    }
-
-    /* Fallback wrapper names */
-    div.element-container:has(iframe[title^="streamlit.components.v1."]),
-    div.stElementContainer:has(iframe[title^="streamlit.components.v1."]){
-      display: none !important;
-      height: 0 !important;
-      min-height: 0 !important;
-      margin: 0 !important;
-      padding: 0 !important;
-    }
-    </style>"""
-    st.markdown(css, unsafe_allow_html=True)
+    # 2) JS fallback: repeatedly collapse matching wrappers (in case :has isn't applied early enough)
+    try:
+        components.html(
+            """
+<script>
+(function(){
+  function kill(){
+    try{
+      var doc = (window.parent && window.parent.document) ? window.parent.document : document;
+      var frames = doc.querySelectorAll('iframe[title^="streamlit.components.v1."]');
+      frames.forEach(function(fr){
+        try{
+          fr.style.display='none';
+          fr.style.height='0px';
+          fr.style.minHeight='0px';
+          var wrap = fr.closest('[data-testid="stIFrame"]') || fr.parentElement;
+          if(wrap){
+            wrap.style.display='none';
+            wrap.style.height='0px';
+            wrap.style.minHeight='0px';
+            wrap.style.margin='0';
+            wrap.style.padding='0';
+          }
+        }catch(e){}
+      });
+    }catch(e){}
+  }
+  kill();
+  setTimeout(kill, 60);
+  setTimeout(kill, 220);
+  setTimeout(kill, 650);
+  var n=0, iv=setInterval(function(){ kill(); if(++n>=40) clearInterval(iv); }, 300);
+})();
+</script>
+""",
+            height=0,
+        )
+    except Exception:
+        pass
 
 
 
@@ -184,6 +204,31 @@ def _hide_streamlit_component_iframes() -> None:
 #   /app/static/pwa-manifest.json, /app/static/sw.js, /app/static/apple-touch-icon.png, /app/static/icon-192.png, /app/static/icon-512.png, /favicon.ico (optional)
 # - Safe to call multiple times; injects only once per session.
 # ============================================================
+# ============================================================
+# ✅ Deferred components.html renderer
+# - components.html creates an iframe placeholder. If called near the top of a page,
+#   it can look like a "top gap" or a striped block.
+# - We enqueue snippets and render them once at the BOTTOM of the page.
+# ============================================================
+def enqueue_components_html(html: str, height: int = 0) -> None:
+    q = st.session_state.get("_pending_components_html")
+    if not isinstance(q, list):
+        q = []
+    q.append((html, int(height)))
+    st.session_state["_pending_components_html"] = q
+
+def flush_pending_components_html() -> None:
+    q = st.session_state.get("_pending_components_html")
+    if not q:
+        return
+    # Clear first to avoid duplicates on rerun
+    st.session_state["_pending_components_html"] = []
+    for html, h in q:
+        try:
+            components.html(html, height=h)
+        except Exception:
+            pass
+
 def inject_pwa_once(
     app_name: str = "Hotena",
     theme_color: str = "#0F6B3F",
@@ -252,7 +297,8 @@ def inject_pwa_once(
 }})();
 </script>
 """
-        components.html(js, height=0)
+        # Defer rendering to the bottom of the page to avoid top-gap artifacts
+        enqueue_components_html(js, height=0)
     except Exception:
         # Do not break the app for PWA injection failures
         return

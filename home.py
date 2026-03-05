@@ -12,7 +12,6 @@ import base64
 from cryptography.fernet import Fernet
 from datetime import date, datetime, timedelta, timezone
 import streamlit as st
-import core
 
 # ============================================================
 # ✅ Page Config (must be the first Streamlit command)
@@ -22,49 +21,7 @@ try:
 except Exception:
     # In case Streamlit considers page config already set during a rerun/import edge case
     pass
-st.markdown("""
-<style>
-/* DEBUG: 위 공간 먹는 놈 찾기 (임시) */
-header, header[data-testid="stHeader"],
-div[data-testid="stToolbar"],
-div[data-testid="stDecoration"],
-div[data-testid="stTop"],
-div[data-testid="stStatusWidget"],
-div[data-testid="stAppToolbar"],
-div[data-testid="stIFrame"]{
-  outline: 3px solid red !important;
-  background: rgba(255,0,0,0.06) !important;
-}
-</style>
-""", unsafe_allow_html=True)
 
-# ✅ Global top spacing fix
-core.apply_global_ui_css(top_padding_rem=0.0)
-st.markdown("""
-<style>
-/* ✅ 네비 아래 첫 블록/iframe 자리로 생기는 1칸 공백 제거 */
-div[data-testid="stAppViewContainer"] > .main > div:first-child{
-  margin-top: 0 !important;
-  padding-top: 0 !important;
-}
-
-/* ✅ components.html(0높이) 같은 stIFrame placeholder가 네비 아래에 생기는 현상 압살 */
-div[data-testid="stIFrame"]{
-  height: 0 !important;
-  min-height: 0 !important;
-  max-height: 0 !important;
-  margin: 0 !important;
-  padding: 0 !important;
-  overflow: hidden !important;
-  border: 0 !important;
-}
-div[data-testid="stIFrame"] iframe{
-  height: 0 !important;
-  min-height: 0 !important;
-  max-height: 0 !important;
-}
-</style>
-""", unsafe_allow_html=True)
 # ============================================================
 # ✅ Global: remove Streamlit top spacing (mobile/desktop)
 #    - Must run early (before any layout is drawn)
@@ -103,6 +60,7 @@ section.main > div { padding-top: 0rem !important; }
 
 _inject_global_top_spacing_fix_once()
 
+import core
 import streamlit.components.v1 as components
 
 # ============================================================
@@ -127,7 +85,6 @@ html, body, [class*="css"]  {
 _inject_jp_font_once()
 
 # ✅ PWA/A2HS 공통 주입 (루트: /manifest.json, /sw.js, /apple-touch-icon.png, /icon-192.png, /icon-512.png)
-core.inject_pwa_once(app_name="하테나일본어", theme_color="#146eb2")
 
 
 
@@ -3611,5 +3568,18 @@ else:
 # ✅ Always render bottom-right '맨 위로' shortcut
 try:
     render_float_top_anchor_button()
+except Exception:
+    pass
+
+# ============================================================
+# ✅ Deferred PWA injection (render at bottom to avoid top gap)
+# ============================================================
+try:
+    core.inject_pwa_once(app_name="하테나일본어", theme_color="#0F6B3F")
+except Exception:
+    pass
+
+try:
+    core.flush_pending_components_html()
 except Exception:
     pass
