@@ -42,10 +42,10 @@ except Exception:  # pragma: no cover
 def apply_global_ui_css(*, top_padding_rem: float = 0.0, force: bool = False) -> None:
     """Apply global layout CSS.
 
-    Streamlit sometimes injects style tags into both <head> and inside the app DOM (body)
-    after early reruns. If our overrides live only in <head>, later body styles can win.
-    This function keeps ONE style tag as the LAST child of <body> and re-appends it
-    whenever Streamlit mutates head/body, preventing 1st/2nd interaction 'settling'.
+    Stable approach:
+    - Keep top nav fixed.
+    - Do NOT rely on Streamlit container padding-top (can 'settle' over 1~2 reruns).
+    - Instead, reserve space with a real DOM spacer element (.hotena-nav-spacer) inserted by home.py.
     """
     import streamlit as st
     import textwrap
@@ -58,7 +58,6 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.0, force: bool = False) ->
 
     css = textwrap.dedent("""
     <style id="hotena-global-ui-css">
-    /* Hide Streamlit default UI */
     #MainMenu { visibility: hidden; }
     header, header[data-testid="stHeader"]{ display:none !important; height:0 !important; min-height:0 !important; }
     div[data-testid="stToolbar"]{ display:none !important; height:0 !important; min-height:0 !important; visibility:hidden !important; }
@@ -68,77 +67,21 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.0, force: bool = False) ->
     [data-testid="stAppViewContainer"]{ margin-top:0 !important; padding-top:0 !important; }
     div[data-testid="stAppViewContainer"] > .main{ margin-top:0 !important; padding-top:0 !important; }
 
-    /* Reserve space for fixed top nav (and optional extra pad) */
-    [data-testid="block-container"]{
-      padding-top: calc(var(--hotena-nav-h, 56px) + __HOTENA_PAD__) !important;
-      margin-top: 0 !important;
-    }
-    .block-container{
-      padding-top: calc(var(--hotena-nav-h, 56px) + __HOTENA_PAD__) !important;
-      margin-top: 0 !important;
-    }
-    section.main > div.block-container{
-      padding-top: calc(var(--hotena-nav-h, 56px) + __HOTENA_PAD__) !important;
-      margin-top: 0 !important;
+    /* IMPORTANT: don't fight Streamlit's padding-top settling; keep it minimal */
+    [data-testid="block-container"]{ padding-top: __HOTENA_PAD__ !important; margin-top:0 !important; }
+    .block-container{ padding-top: __HOTENA_PAD__ !important; margin-top:0 !important; }
+    section.main > div.block-container{ padding-top: __HOTENA_PAD__ !important; margin-top:0 !important; }
+
+    /* Real spacer that reserves space for fixed nav (+ safe-area) in normal flow */
+    .hotena-nav-spacer{
+      height: calc(var(--hotena-nav-h, 56px) + env(safe-area-inset-top, 0px));
+      min-height: calc(var(--hotena-nav-h, 56px) + env(safe-area-inset-top, 0px));
+      display: block;
     }
 
-    /* Reduce stray first-block spacing */
+    /* Prevent first block adding extra top margin */
     [data-testid="stVerticalBlock"] > div:first-child{ margin-top:0 !important; padding-top:0 !important; }
     </style>
-
-    <script>
-    (function(){
-      // Install once per page load
-      if (window.__hotenaTopGapFixInstalledV13) return;
-      window.__hotenaTopGapFixInstalledV13 = true;
-
-      function moveStyleToBodyEnd(){
-        try{
-          var el = document.getElementById('hotena-global-ui-css');
-          if(!el) return;
-
-          var body = document.body;
-          if(!body) return;
-          body.appendChild(el); // ensure last in BODY (beats later head styles and most app DOM styles)
-        }catch(e){}
-      }
-
-      function burst(){
-        var n=0;
-        var t=setInterval(function(){
-          moveStyleToBodyEnd();
-          n++;
-          if(n>=120) clearInterval(t); // ~12s
-        }, 100);
-      }
-
-      function observe(node){
-        try{
-          if(!node) return;
-          var obs = new MutationObserver(function(){ moveStyleToBodyEnd(); });
-          obs.observe(node, { childList:true, subtree:true, attributes:false });
-          return obs;
-        }catch(e){}
-      }
-
-      // initial + burst
-      moveStyleToBodyEnd();
-      burst();
-
-      // observe BOTH head and body; Streamlit may inject to either
-      observe(document.head);
-      observe(document.body);
-
-      // re-assert on every interaction
-      function onAny(){ moveStyleToBodyEnd(); }
-      window.addEventListener('pointerdown', onAny, true);
-      window.addEventListener('touchstart', onAny, true);
-      window.addEventListener('keydown', onAny, true);
-      window.addEventListener('focus', onAny, true);
-      document.addEventListener('visibilitychange', onAny, true);
-      window.addEventListener('resize', onAny, true);
-    })();
-    </script>
     """)
     css = css.replace("__HOTENA_PAD__", pad)
     st.markdown(css, unsafe_allow_html=True)

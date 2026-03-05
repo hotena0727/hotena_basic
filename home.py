@@ -3485,6 +3485,7 @@ if isinstance(p, str) and p:
 page = st.session_state.get("hub_page", "home")
 core.render_top_nav(active=page)
 
+st.markdown("<div class=\"hotena-nav-spacer\"></div>", unsafe_allow_html=True)
 # ✅ Plan pill should sit right under the top nav (reduces top whitespace)
 render_plan_pill()
 
