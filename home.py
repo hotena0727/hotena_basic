@@ -31,6 +31,7 @@ import core
 try:
     core.apply_global_ui_css(top_padding_rem=0.0)
     core.hide_component_iframe_placeholders()
+    core.install_layout_watcher()
 except Exception:
     pass
 
@@ -152,7 +153,6 @@ def _js_bridge_localstorage_to_queryparam(ls_key: str, qp_key: str):
 }})();
 </script>""".replace("LS_KEY", ls_key).replace("QP_KEY", qp_key),
             height=0,
-            scrolling=False,
         )
     except Exception:
         pass
@@ -167,7 +167,6 @@ try {{
 }} catch(e) {{}}
 </script>""".replace("K", key).replace("V", value),
             height=0,
-            scrolling=False,
         )
     except Exception:
         pass
@@ -181,7 +180,6 @@ try {{
 }} catch(e) {{}}
 </script>""".replace("K", key),
             height=0,
-            scrolling=False,
         )
     except Exception:
         pass
@@ -1652,7 +1650,6 @@ def fire_in_app_reminder_if_enabled(user):
 </script>
 """,
         height=0,
-        scrolling=False,
     )
 
 # ============================================================
@@ -1895,7 +1892,6 @@ try {{
 }} catch(e) {{}}
 </script>""",
                 height=0,
-                scrolling=False,
             )
         except Exception:
             pass
@@ -3560,11 +3556,5 @@ else:
 # ✅ Always render bottom-right '맨 위로' shortcut
 try:
     render_float_top_anchor_button()
-except Exception:
-    pass
-
-# --- Ensure global CSS wins even after page-specific CSS injections ---
-try:
-    core.apply_global_ui_css(top_padding_rem=0.0, force=True)
 except Exception:
     pass
