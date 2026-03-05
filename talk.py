@@ -1385,7 +1385,18 @@ TAG_LABELS = {
 }
 
 def _tag_label(t: str) -> str:
-    t = str(t)
+    t = str(t).strip()
+    # ✅ 1) CSV에 tag_kr 컬럼이 있으면 그 값을 우선 사용 (UI 표시용)
+    try:
+        if "tag_kr" in DF_BASE.columns:
+            s = DF_BASE.loc[DF_BASE["tag"].astype(str) == t, "tag_kr"]
+            if len(s):
+                v = str(s.iloc[0] or "").strip()
+                if v and v.lower() not in ("nan", "none"):
+                    return v
+    except Exception:
+        pass
+    # ✅ 2) fallback: 코드 내 라벨(없으면 원문)
     return TAG_LABELS.get(t, t)
 
 # ✅ sub(상황) 라벨
@@ -1417,7 +1428,26 @@ SUB_LABEL = {
 }
 
 def _sub_label(s: str) -> str:
-    s = str(s)
+    s = str(s).strip()
+    if s == "__all__":
+        return "전체"
+
+    # ✅ 1) CSV에 sub_kr 컬럼이 있으면 그 값을 우선 사용 (UI 표시용)
+    try:
+        if "sub_kr" in DF_BASE.columns and "sub" in DF_BASE.columns:
+            cur_tag = str(st.session_state.get(f"{NS}_tag") or "").strip()
+            df = DF_BASE
+            if cur_tag and "tag" in df.columns:
+                df = df[df["tag"].astype(str) == cur_tag]
+            srs = df.loc[df["sub"].astype(str) == s, "sub_kr"]
+            if len(srs):
+                v = str(srs.iloc[0] or "").strip()
+                if v and v.lower() not in ("nan", "none"):
+                    return v
+    except Exception:
+        pass
+
+    # ✅ 2) fallback: 코드 내 라벨(없으면 원문)
     return SUB_LABEL.get(s, s)
 
 # ✅ 코스(stage) 라벨 — "CSV에 있는 코스만" 노출
