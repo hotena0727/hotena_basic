@@ -13,7 +13,6 @@ from cryptography.fernet import Fernet
 from datetime import date, datetime, timedelta, timezone
 import streamlit as st
 
-import core
 # ============================================================
 # ✅ Page Config (must be the first Streamlit command)
 # ============================================================
@@ -31,10 +30,11 @@ core.apply_global_ui_css(top_padding_rem=0.0)
 #    - Must run early (before any layout is drawn)
 # ============================================================
 def _inject_global_top_spacing_fix_once():
-    # NOTE: kept for backwards compatibility, but we now centralize top spacing in core.apply_global_ui_css().
+    # (disabled) top spacing is handled centrally in core.apply_global_ui_css().
     return
 
-_inject_global_top_spacing_fix_once()
+
+import core
 import streamlit.components.v1 as components
 
 # ============================================================
@@ -195,9 +195,7 @@ except Exception:
 
 
 # ============================================================
-# ✅ TOP SPACING FIX (PC + Mobile)
-# - Remove Streamlit's default top padding/space
-# - Applied once per session
+# (Top spacing is handled by core.apply_global_ui_css only)
 # ============================================================
 if not st.session_state.get("_top_compact_css_applied"):
     st.markdown("""<style>
@@ -259,7 +257,7 @@ div[data-testid="stAppViewContainer"]{
 div[data-testid="stAppViewContainer"] .stButton > button,
 div[data-testid="stAppViewContainer"] button[kind]{
   min-height: 44px !important;
-  padding-top: 0.55rem !important;
+  padding-top: 0rem !important;
   padding-bottom: 0.55rem !important;
   font-size: 16px !important;
   border-radius: 12px !important;
@@ -278,7 +276,7 @@ div[data-testid="stAppViewContainer"] div[role="combobox"]{
 
 /* Expander: make summary easier to tap */
 div[data-testid="stExpander"] summary{
-  padding-top: 0.35rem !important;
+  padding-top: 0rem !important;
   padding-bottom: 0.35rem !important;
 }
 
