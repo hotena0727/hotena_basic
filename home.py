@@ -29,9 +29,15 @@ except Exception:
 # ============================================================
 import core
 try:
-    core.apply_global_ui_css(top_padding_rem=0.0, force=True)
+    core.apply_global_ui_css(top_padding_rem=0.0)
     core.hide_component_iframe_placeholders()
-    core.install_layout_watcher(top_padding_px=0)
+    core.install_layout_watcher()
+
+    # ✅ UI bootstrap: first load can render with a transient top gap.
+    #    Run one automatic rerun so the app starts in the settled layout state.
+    if not st.session_state.get('_ui_bootstrap_rerun_done'):
+        st.session_state['_ui_bootstrap_rerun_done'] = True
+        st.rerun()
 except Exception:
     pass
 

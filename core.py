@@ -31,6 +31,43 @@ except Exception:  # pragma: no cover
     create_client = None  # type: ignore
 
 
+# ============================================================
+# ✅ Patch: components.html() default height causes top "ghost gap"
+# - Many pages inject only <script> via components.html(...)
+# - Streamlit default height=150 adds a blank spacer that may
+#   appear/disappear on rerun, causing the "moves up on click" effect.
+# - We only auto-set height=0 when the HTML contains <script> and
+#   the caller did not pass an explicit height.
+# ============================================================
+def _patch_components_html_for_scripts() -> None:
+    if st.session_state.get("_core_components_html_patched"):
+        return
+    st.session_state["_core_components_html_patched"] = True
+
+    try:
+        import streamlit.components.v1 as _components
+    except Exception:
+        return
+
+    _orig = getattr(_components, "html", None)
+    if not callable(_orig):
+        return
+
+    def _html_patched(*args, **kwargs):  # type: ignore
+        try:
+            if "height" not in kwargs:
+                html = args[0] if args else kwargs.get("html", "")
+                if isinstance(html, str) and ("<script" in html.lower()):
+                    kwargs["height"] = 0
+                    kwargs.setdefault("scrolling", False)
+        except Exception:
+            pass
+        return _orig(*args, **kwargs)
+
+    _components.html = _html_patched  # type: ignore
+
+
+
 # ----------------------------
 # Config (env -> secrets)
 # ----------------------------
@@ -39,13 +76,13 @@ except Exception:  # pragma: no cover
 # - Fix oversized top padding on mobile/PWA across Streamlit versions
 # - Keep small breathing room for our custom top nav
 # ============================================================
-def apply_global_ui_css(*, top_padding_rem: float = 0.0, force: bool = False) -> None:
+def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
     """Apply global layout CSS once per run.
 
     Fix oversized top padding on mobile/PWA across Streamlit versions.
     Targets both legacy (.block-container) and newer [data-testid="block-container"].
     """
-    if (not force) and st.session_state.get("_core_global_ui_css_applied"):
+    if st.session_state.get("_core_global_ui_css_applied"):
         return
     st.session_state["_core_global_ui_css_applied"] = True
 
@@ -74,6 +111,11 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.0, force: bool = False) ->
 
     /* Safe-area: avoid extra blank gap on some Android devices */
     html, body{{ padding-top: 0 !important; }}
+    div[data-testid="stIFrame"] iframe{{
+      display: none !important;
+      height: 0 !important;
+      min-height: 0 !important;
+    }}
     </style>
     """)
 
@@ -1104,89 +1146,3 @@ def play_sfx_once(key: str, name: str) -> None:
         return
     st.session_state[k] = True
     play_sfx(name)
-
-
-def install_layout_watcher(*, top_padding_px: int = 0) -> None:
-    """Install a JS watcher that keeps the top spacing compact even on the first load.
-
-    On first page load, Streamlit may inject/override layout CSS *after* our initial <style>,
-    causing a one-time jump that disappears after the first rerun. This watcher re-appends
-    our style after the page is ready and keeps it last in <head>.
-    """
-    try:
-        js = f"""<script>
-(() => {{
-  const STYLE_ID = "hotena-topgap-style";
-  const css = `
-    [data-testid="stAppViewContainer"]{{padding-top:0 !important; margin-top:0 !important;}}
-    div[data-testid="stAppViewContainer"] > .main{{padding-top:0 !important; margin-top:0 !important;}}
-    [data-testid="block-container"]{{padding-top:{top_padding_px}px !important; margin-top:0 !important;}}
-    .block-container{{padding-top:{top_padding_px}px !important; margin-top:0 !important;}}
-    section.main > div.block-container{{padding-top:{top_padding_px}px !important; margin-top:0 !important;}}
-    header, header[data-testid="stHeader"]{{display:none !important; height:0 !important; min-height:0 !important;}}
-    div[data-testid="stToolbar"]{{display:none !important; height:0 !important; visibility:hidden !important;}}
-  `;
-
-  function ensureStyle() {{
-    try {{
-      let el = document.getElementById(STYLE_ID);
-      if (!el) {{
-        el = document.createElement("style");
-        el.id = STYLE_ID;
-        el.type = "text/css";
-        el.appendChild(document.createTextNode(css));
-        document.head.appendChild(el);
-      }} else {{
-        document.head.appendChild(el); // keep last => win cascade
-      }}
-    }} catch(e) {{}}
-  }}
-
-  function hardenInline() {{
-    try {{
-      const sel = [
-        '[data-testid="block-container"]',
-        'section.main > div.block-container',
-        'div[data-testid="stAppViewContainer"] > div.block-container',
-        '.block-container'
-      ];
-      sel.forEach(s => {{
-        document.querySelectorAll(s).forEach(n => {{
-          n.style.setProperty('padding-top', '{top_padding_px}px', 'important');
-          n.style.setProperty('margin-top', '0px', 'important');
-        }});
-      }});
-    }} catch(e) {{}}
-  }}
-
-  let scheduled = false;
-  function tick() {{
-    if (scheduled) return;
-    scheduled = true;
-    setTimeout(() => {{
-      scheduled = false;
-      ensureStyle();
-      hardenInline();
-    }}, 30);
-  }}
-
-  // run around first paint
-  ensureStyle(); hardenInline();
-  requestAnimationFrame(() => {{ ensureStyle(); hardenInline(); }});
-  setTimeout(() => {{ ensureStyle(); hardenInline(); }}, 0);
-  setTimeout(() => {{ ensureStyle(); hardenInline(); }}, 60);
-  setTimeout(() => {{ ensureStyle(); hardenInline(); }}, 220);
-  setTimeout(() => {{ ensureStyle(); hardenInline(); }}, 800);
-
-  document.addEventListener("DOMContentLoaded", tick);
-  window.addEventListener("load", tick);
-
-  try {{
-    const mo = new MutationObserver(() => tick());
-    mo.observe(document.documentElement, {{childList:true, subtree:true, attributes:true}});
-  }} catch(e) {{}}
-}})();
-</script>"""
-        components.html(js, height=0, scrolling=False)
-    except Exception:
-        pass
