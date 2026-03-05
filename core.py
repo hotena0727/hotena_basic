@@ -12,6 +12,7 @@ import os
 import base64
 import hashlib
 import json
+import textwrap
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Optional, Tuple
 
@@ -75,23 +76,19 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
     /* Safe-area: avoid extra blank gap on some Android devices */
     html, body{{ padding-top: 0 !important; }}
 
-    /* --- COLLAPSE STREAMLIT COMPONENT IFRAMES (prevents refresh top gap) --- */
-    div[data-testid="stIFrame"]{
+    /* --- FORCE HIDE STREAMLIT COMPONENT IFRAMES (prevents refresh top gap) --- */
+    div[data-testid="stIFrame"]{{
+      display: none !important;
       height: 0 !important;
       min-height: 0 !important;
       margin: 0 !important;
       padding: 0 !important;
-      overflow: hidden !important;
-      visibility: hidden !important;
-    }
-    div[data-testid="stIFrame"] iframe{
+    }}
+    div[data-testid="stIFrame"] iframe{{
+      display: none !important;
       height: 0 !important;
       min-height: 0 !important;
-      margin: 0 !important;
-      padding: 0 !important;
-      overflow: hidden !important;
-      visibility: hidden !important;
-    }
+    }}
     </style>
     """)
 
@@ -159,14 +156,46 @@ div[data-testid="stIFrame"]:has(iframe[title^="streamlit.components.v1."]) ifram
         unsafe_allow_html=True,
     )
 
-
-
-def hide_component_iframe_placeholders() -> None:
-    """Public wrapper: collapse Streamlit component iframe placeholders."""
+    # 2) JS fallback: repeatedly collapse matching wrappers (in case :has isn't applied early enough)
     try:
-        _hide_streamlit_component_iframes()
+        components.html(
+            """
+<script>
+(function(){
+  function kill(){
+    try{
+      var doc = (window.parent && window.parent.document) ? window.parent.document : document;
+      var frames = doc.querySelectorAll('iframe[title^="streamlit.components.v1."]');
+      frames.forEach(function(fr){
+        try{
+          fr.style.display='none';
+          fr.style.height='0px';
+          fr.style.minHeight='0px';
+          var wrap = fr.closest('[data-testid="stIFrame"]') || fr.parentElement;
+          if(wrap){
+            wrap.style.display='none';
+            wrap.style.height='0px';
+            wrap.style.minHeight='0px';
+            wrap.style.margin='0';
+            wrap.style.padding='0';
+          }
+        }catch(e){}
+      });
+    }catch(e){}
+  }
+  kill();
+  setTimeout(kill, 60);
+  setTimeout(kill, 220);
+  setTimeout(kill, 650);
+  var n=0, iv=setInterval(function(){ kill(); if(++n>=40) clearInterval(iv); }, 300);
+})();
+</script>
+""",
+            height=0,
+        )
     except Exception:
         pass
+
 
 
 # ============================================================
