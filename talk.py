@@ -2112,14 +2112,14 @@ if f"{NS}_set_qids" not in st.session_state:
                         st.session_state[mode_key] = "review"
                         st.session_state[review_opt_key] = "random"
                         _clear_talk_daily_state(resume_key)
-                        st.rerun()
+                        # st.rerun()  # removed: avoid double-rerun on widget interaction
                 with c2:
                     if st.button("🕒 복습(오래된)", use_container_width=True, key=f"{NS}_review_oldest"):
                         reset_set()
                         st.session_state[mode_key] = "review"
                         st.session_state[review_opt_key] = "oldest"
                         _clear_talk_daily_state(resume_key)
-                        st.rerun()
+                        # st.rerun()  # removed: avoid double-rerun on widget interaction
                 with c3:
                     if st.button("🔁 진도 초기화", use_container_width=True, key=f"{NS}_reset_mastery"):
                         _reset_mastery(resume_key)
@@ -2127,7 +2127,7 @@ if f"{NS}_set_qids" not in st.session_state:
                         reset_set()
                         _clear_talk_daily_state(resume_key)
                         st.session_state[mode_key] = "learn"
-                        st.rerun()
+                        # st.rerun()  # removed: avoid double-rerun on widget interaction
             st.stop()
 
         # 1) 오늘 진행 복구 시도(남은 풀 기준으로만)
@@ -2276,7 +2276,7 @@ with p2:
                     st.session_state[f"{NS}_mode"] = "review"
                     st.session_state[f"{NS}_review_opt"] = "today"
                     _clear_talk_daily_state(resume_key)
-                    st.rerun()
+                    # st.rerun()  # removed: avoid double-rerun on widget interaction
             with c_today[1]:
                 st.caption("틀린 것·오래된 것·랜덤을 섞어 5문제로 자동 구성합니다.")
 
@@ -2296,13 +2296,13 @@ with p2:
                     st.session_state[f"{NS}_mode"] = "review"
                     st.session_state[f"{NS}_review_opt"] = _opt
                     _clear_talk_daily_state(resume_key)
-                    st.rerun()
+                    # st.rerun()  # removed: avoid double-rerun on widget interaction
             with c_b:
                 if st.button("학습 모드", use_container_width=True, key=f"{NS}_learn_mode"):
                     reset_set()
                     st.session_state[f"{NS}_mode"] = "learn"
                     _clear_talk_daily_state(resume_key)
-                    st.rerun()
+                    # st.rerun()  # removed: avoid double-rerun on widget interaction
     else:
         with st.expander("📚 복습", expanded=False):
             c_today = st.columns([1,2])
@@ -2318,7 +2318,7 @@ with p2:
                     st.session_state[f"{NS}_mode"] = "review"
                     st.session_state[f"{NS}_review_opt"] = "today"
                     _clear_talk_daily_state(resume_key)
-                    st.rerun()
+                    # st.rerun()  # removed: avoid double-rerun on widget interaction
             with c_today[1]:
                 st.caption("틀린 것·오래된 것·랜덤을 섞어 5문제로 자동 구성합니다.")
 
@@ -2333,12 +2333,12 @@ with p2:
                 st.session_state[f"{NS}_review_opt"] = _opt
                 reset_set()
                 _clear_talk_daily_state(resume_key)
-                st.rerun()
+                # st.rerun()  # removed: avoid double-rerun on widget interaction
             if st.button("학습 모드", use_container_width=True, key=f"{NS}_learn_mode"):
                 reset_set()
                 st.session_state[f"{NS}_mode"] = "learn"
                 _clear_talk_daily_state(resume_key)
-                st.rerun()
+                # st.rerun()  # removed: avoid double-rerun on widget interaction
 
 
 # ✅ 세트 진행(학습/복습)
@@ -2363,14 +2363,14 @@ if mode == "review" and (idx is None or idx >= len(qids)):
                 reset_set()
                 st.session_state[mode_key] = "learn"
                 _clear_talk_daily_state(resume_key)
-                st.rerun()
+                # st.rerun()  # removed: avoid double-rerun on widget interaction
         with c2:
             if st.button("복습 다시", use_container_width=True, key=f"{NS}_review_done_restart"):
                 reset_set()
                 st.session_state[mode_key] = "review"
                 st.session_state[review_opt_key] = review_opt
                 _clear_talk_daily_state(resume_key)
-                st.rerun()
+                # st.rerun()  # removed: avoid double-rerun on widget interaction
     st.stop()
 
 # ============================================================
@@ -2437,7 +2437,7 @@ def _go_next_question():
         st.session_state.pop(f"{NS}_radio_{qid}", None)
         st.session_state.pop(f"{NS}_speak_done_{qid}", None)
         st.session_state.pop(f"{NS}_reward_ready_{qid}", None)
-        st.rerun()
+        # st.rerun()  # removed: avoid double-rerun on widget interaction
 
     # 일반적인 다음 문제 이동
     st.session_state[f"{NS}_idx"] = nxt
@@ -2452,7 +2452,7 @@ def _go_next_question():
     st.session_state.pop(f"{NS}_radio_{qid}", None)
     st.session_state.pop(f"{NS}_speak_done_{qid}", None)
     st.session_state.pop(f"{NS}_reward_ready_{qid}", None)
-    st.rerun()
+    # st.rerun()  # removed: avoid double-rerun on widget interaction
 
 # ✅ FAB에서 URL queryparam으로 다음 이동 요청
 try:
@@ -2577,7 +2577,7 @@ with st.container(border=True):
                 st.session_state[sel_key] = picked
                 st.session_state[submitted_key] = True
                 # ✅ fragment 내부 클릭일 때도 '전체 화면'이 다시 그려지도록 강제 rerun
-                st.rerun()
+                # st.rerun()  # removed: avoid double-rerun on widget interaction
 
         # ✅ 렌더(버튼 표시)
         if hasattr(st, 'fragment'):

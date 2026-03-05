@@ -1124,7 +1124,7 @@ def render_home_dashboard(sb_authed, user):
                 save_progress(sb_authed, user.id, progress_all)  # type: ignore[name-defined]
             except Exception:
                 pass
-            st.rerun()
+            # st.rerun()  # removed: avoid double-rerun on widget interaction
 
         st.markdown('<div class="h-guide-wrap">', unsafe_allow_html=True)
         if _collapsed:
@@ -1328,7 +1328,7 @@ def render_home_dashboard(sb_authed, user):
         with cclose:
             if st.button("닫기", use_container_width=True, key="hub_goal_close"):
                 st.session_state["show_goal_settings"] = False
-                st.rerun()
+                # st.rerun()  # removed: avoid double-rerun on widget interaction
 
 
     # ---- rows (clickable) ----
@@ -1983,7 +1983,7 @@ if "hub_page" not in st.session_state:
 
 def go(page: str):
     st.session_state["hub_page"] = page
-    st.rerun()
+    # st.rerun()  # removed: avoid double-rerun on widget interaction
 
 
 def _clear_training_ui_state():
@@ -2025,7 +2025,7 @@ def _clear_training_ui_state():
 def nav_to(page: str):
     _clear_training_ui_state()
     st.session_state["hub_page"] = page
-    st.rerun()
+    # st.rerun()  # removed: avoid double-rerun on widget interaction
 
 
 def hub_logout():
@@ -2056,7 +2056,7 @@ def hub_logout():
     ]:
         st.session_state.pop(k, None)
 
-    st.rerun()
+    # st.rerun()  # removed: avoid double-rerun on widget interaction
 
 # ============================================================
 # ✅ Bottom Nav (Mobile) + Training Header (A/B)
@@ -2197,7 +2197,7 @@ def render_user_inbox_section(sb_authed, user_id: str):
             if unread and st.button("읽음 처리", key=f"um_read_{m.get('id')}"):
                 try:
                     um_mark_read(sb_authed, [str(m.get("id"))])
-                    st.rerun()
+                    # st.rerun()  # removed: avoid double-rerun on widget interaction
                 except Exception as e:
                     st.error(f"읽음 처리 실패: {e}")
 
@@ -2206,7 +2206,7 @@ def render_user_inbox_section(sb_authed, user_id: str):
         if st.button("모두 읽음 처리", use_container_width=True, key="um_read_all"):
             try:
                 um_mark_read(sb_authed, unread_ids)
-                st.rerun()
+                # st.rerun()  # removed: avoid double-rerun on widget interaction
             except Exception as e:
                 st.error(f"읽음 처리 실패: {e}")
 
@@ -2995,7 +2995,7 @@ def render_admin_dashboard(sb_authed):
                                         try:
                                             base = new_until or date.today()
                                             st.session_state["admin_detail_until"] = base + timedelta(days=30)
-                                            st.rerun()
+                                            # st.rerun()  # removed: avoid double-rerun on widget interaction
                                         except Exception:
                                             pass
                                 with b2:
@@ -3003,13 +3003,13 @@ def render_admin_dashboard(sb_authed):
                                         try:
                                             base = new_until or date.today()
                                             st.session_state["admin_detail_until"] = base + timedelta(days=90)
-                                            st.rerun()
+                                            # st.rerun()  # removed: avoid double-rerun on widget interaction
                                         except Exception:
                                             pass
                                 with b3:
                                     if st.button("만료일 제거", key="admin_until_clear"):
                                         st.session_state["admin_detail_until"] = None
-                                        st.rerun()
+                                        # st.rerun()  # removed: avoid double-rerun on widget interaction
 
                                 # save action (re-uses existing rpc if available)
                                 confirm_save = st.checkbox("변경사항 저장 전 확인", value=False, key="admin_detail_confirm_save")
@@ -3170,15 +3170,15 @@ def render_admin_dashboard(sb_authed):
                                     with t1:
                                         if st.button("시험 독려", use_container_width=True, key="tpl_exam"):
                                             um_template_set("JLPT 시험 대비", "이번 주는 ‘실전 루틴’으로 갑시다.\n- 매일 1세트(10문제)\n- 오답만 다시 풀기\n- 주말엔 독해 1지문\n오늘도 10분만 같이 가요.")
-                                            st.rerun()
+                                            # st.rerun()  # removed: avoid double-rerun on widget interaction
                                     with t2:
                                         if st.button("루틴 독려", use_container_width=True, key="tpl_routine"):
                                             um_template_set("오늘도 루틴 체크", "딱 10분만 해도 루틴은 살아 있습니다.\n오늘 1세트만 하고 ‘완료’ 찍고 가요.\n하테나가 계속 옆에서 밀어드릴게요.")
-                                            st.rerun()
+                                            # st.rerun()  # removed: avoid double-rerun on widget interaction
                                     with t3:
                                         if st.button("합격 축하", use_container_width=True, key="tpl_congrats"):
                                             um_template_set("합격 축하합니다!", "정말 고생 많으셨습니다.\n이번 결과는 실력 + 루틴이 만든 성과예요.\n이제 다음 단계도 하테나랑 같이 가요 🙂")
-                                            st.rerun()
+                                            # st.rerun()  # removed: avoid double-rerun on widget interaction
 
                                     msg_title = st.text_input("제목(선택)", key="admin_msg_title")
                                     msg_body  = st.text_area("내용", height=140, key="admin_msg_body", placeholder="학생에게 보낼 메시지를 입력하세요.")
@@ -3206,7 +3206,7 @@ def render_admin_dashboard(sb_authed):
                                                     )
                                                     st.success("보냈습니다.")
                                                     st.session_state["_admin_msg_clear"] = True
-                                                    st.rerun()
+                                                    # st.rerun()  # removed: avoid double-rerun on widget interaction
                                                 except Exception as e:
                                                     st.error(f"전송 실패: {e}")
                                             else:
@@ -3233,7 +3233,7 @@ def render_admin_dashboard(sb_authed):
                                                             um_bulk_send(sb_authed, payloads[i:i+chunk])
                                                         st.success(f"플랜({target_plan}) 회원 {len(ids)}명에게 발송했습니다.")
                                                         st.session_state["_admin_msg_clear"] = True
-                                                        st.rerun()
+                                                        # st.rerun()  # removed: avoid double-rerun on widget interaction
                                                 except Exception as e:
                                                     st.error(f"전체 발송 실패: {e}")
 
