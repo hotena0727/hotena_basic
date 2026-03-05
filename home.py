@@ -152,6 +152,7 @@ def _js_bridge_localstorage_to_queryparam(ls_key: str, qp_key: str):
 }})();
 </script>""".replace("LS_KEY", ls_key).replace("QP_KEY", qp_key),
             height=0,
+            scrolling=False,
         )
     except Exception:
         pass
@@ -166,6 +167,7 @@ try {{
 }} catch(e) {{}}
 </script>""".replace("K", key).replace("V", value),
             height=0,
+            scrolling=False,
         )
     except Exception:
         pass
@@ -179,6 +181,7 @@ try {{
 }} catch(e) {{}}
 </script>""".replace("K", key),
             height=0,
+            scrolling=False,
         )
     except Exception:
         pass
@@ -1649,6 +1652,7 @@ def fire_in_app_reminder_if_enabled(user):
 </script>
 """,
         height=0,
+        scrolling=False,
     )
 
 # ============================================================
@@ -1891,6 +1895,7 @@ try {{
 }} catch(e) {{}}
 </script>""",
                 height=0,
+                scrolling=False,
             )
         except Exception:
             pass
