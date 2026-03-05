@@ -84,6 +84,26 @@ html, body, [class*="css"]  {
 
 _inject_jp_font_once()
 
+
+# ============================================================
+# ✅ Boot-time one-shot rerun to settle initial layout
+#    - Some Streamlit builds keep extra top space until first interaction.
+#    - A single rerun right after global CSS/font injection often collapses it.
+# ============================================================
+def _boot_rerun_once_for_layout():
+    if st.session_state.get("_boot_rerun_done_for_layout", False):
+        return
+    st.session_state["_boot_rerun_done_for_layout"] = True
+    try:
+        st.rerun()
+    except Exception:
+        try:
+            st.experimental_rerun()
+        except Exception:
+            pass
+
+_boot_rerun_once_for_layout()
+
 # ✅ PWA/A2HS 공통 주입 (루트: /manifest.json, /sw.js, /apple-touch-icon.png, /icon-192.png, /icon-512.png)
 core.inject_pwa_once(app_name="하테나일본어", theme_color="#0F6B3F")
 
