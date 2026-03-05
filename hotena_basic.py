@@ -3789,10 +3789,8 @@ if st.session_state.get("submitted", False):
     if show_naver_talk:
         render_naver_talk()
 
-# ============================================================
-# ✅ Deferred components flush (keep at VERY bottom)
-# ============================================================
+# ✅ Render deferred JS snippets (single iframe at bottom)
 try:
-    core.flush_deferred_components_html()
+    core.flush_pending_components_html()
 except Exception:
     pass

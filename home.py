@@ -3572,10 +3572,8 @@ try:
 except Exception:
     pass
 
-# ============================================================
-# ✅ Deferred components flush (keep at VERY bottom)
-# ============================================================
+# ✅ Render deferred JS snippets (single iframe at bottom)
 try:
-    core.flush_deferred_components_html()
+    core.flush_pending_components_html()
 except Exception:
     pass
