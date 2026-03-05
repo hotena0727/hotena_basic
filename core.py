@@ -15,13 +15,6 @@ import json
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Optional, Tuple
 
-
-# NOTE: Ensure the name `core` always refers to this module itself.
-# Some pages (or older revisions) call `core.inject_pwa_once(...)` from within core.py.
-# If `core` is not bound to this module, that pattern can raise AttributeError.
-import sys as _sys
-core = _sys.modules[__name__]
-
 import streamlit as st
 import streamlit.components.v1 as components
 from cryptography.fernet import Fernet
@@ -46,7 +39,7 @@ except Exception:  # pragma: no cover
 # - Fix oversized top padding on mobile/PWA across Streamlit versions
 # - Keep small breathing room for our custom top nav
 # ============================================================
-def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
+def apply_global_ui_css(*, top_padding_rem: float = 0.0) -> None:
     """Apply global layout CSS once per run.
 
     Fix oversized top padding on mobile/PWA across Streamlit versions.
@@ -64,10 +57,21 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
     [data-testid="stAppViewContainer"]{{ padding-top: 0 !important; }}
     div[data-testid="stAppViewContainer"] > .main{{ padding-top: 0 !important; }}
 
+    /* Streamlit containers that may reserve top space (varies by version) */
+    [data-testid="stAppViewBlockContainer"]{ padding-top: 0 !important; margin-top: 0 !important; }
+    [data-testid="stMainBlockContainer"]{ padding-top: 0 !important; margin-top: 0 !important; }
+    section.main, section.main > div{ padding-top: 0 !important; margin-top: 0 !important; }
+    div[data-testid="stAppViewContainer"] .main{ padding-top: 0 !important; margin-top: 0 !important; }
+    div[data-testid="stAppViewContainer"] .block-container{ margin-top: 0 !important; }
+
+    /* Toolbars/decoration can reserve space before CSS hydration */
+    div[data-testid="stToolbar"]{ display:none !important; height:0 !important; min-height:0 !important; visibility:hidden !important; }
+    div[data-testid="stDecoration"]{ display:none !important; height:0 !important; min-height:0 !important; visibility:hidden !important; }
+
     /* Newer Streamlit */
-    [data-testid="block-container"]{{ padding-top: {pad} !important; }}
+    [data-testid="block-container"]{{ padding-top: {pad} !important; margin-top: 0 !important; }}
     /* Older Streamlit */
-    .block-container{{ padding-top: {pad} !important; }}
+    .block-container{{ padding-top: {pad} !important; margin-top: 0 !important; }}
 
     /* In some layouts, the first vertical block adds extra margin */
     [data-testid="stVerticalBlock"] > div:first-child{{ margin-top: 0 !important; }}
