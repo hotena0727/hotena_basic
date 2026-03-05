@@ -12,7 +12,29 @@ import base64
 from cryptography.fernet import Fernet
 from datetime import date, datetime, timedelta, timezone
 import streamlit as st
+
 import core
+# ============================================================
+# ✅ Page Config (must be the first Streamlit command)
+# ============================================================
+try:
+    st.set_page_config(page_title="하테나일본어", layout="centered")
+except Exception:
+    # In case Streamlit considers page config already set during a rerun/import edge case
+    pass
+
+
+# ✅ Global top spacing fix (single source of truth)
+core.apply_global_ui_css(top_padding_rem=0.0)
+# ============================================================
+# ✅ Global: remove Streamlit top spacing (mobile/desktop)
+#    - Must run early (before any layout is drawn)
+# ============================================================
+def _inject_global_top_spacing_fix_once():
+    # NOTE: kept for backwards compatibility, but we now centralize top spacing in core.apply_global_ui_css().
+    return
+
+_inject_global_top_spacing_fix_once()
 import streamlit.components.v1 as components
 
 # ============================================================
@@ -158,7 +180,7 @@ import html as html_module  # ✅ for html escaping in admin cards
 # ============================================================
 # ✅ Page Config (Hub only)
 # ============================================================
-st.set_page_config(page_title="하테나일본어", layout="centered")
+# (moved to top) st.set_page_config(page_title="하테나일본어", layout="centered")
 
 # ✅ Anchor for bottom-right '맨 위로' button
 st.markdown('<div id="hotena-top"></div>', unsafe_allow_html=True)
@@ -270,7 +292,7 @@ div[data-testid="stMetric"]{
   div[data-testid="stAppViewContainer"] .block-container{
     padding-left: 1.0rem !important;
     padding-right: 1.0rem !important;
-    padding-top: 0.15rem !important;
+    padding-top: 0rem !important;
     padding-bottom: 1.5rem !important;
   }
 
