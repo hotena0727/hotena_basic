@@ -73,18 +73,19 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.0) -> None:
     }}
 
     /* Safe-area: avoid extra blank gap on some Android devices */
-    html, body{{ padding-top: 0 !important; }}
+    html, body{{ padding-top: 0 !important; margin: 0 !important; }}
+/* prevent any accidental top margin */
+[data-testid="stAppViewContainer"], .stApp{{ margin-top: 0 !important; }}
 
     /* --- Streamlit component containers: remove spacing, but don't hide them --- */
-div[data-testid="stIFrame"]{
+div[data-testid="stIFrame"]{{
   margin: 0 !important;
   padding: 0 !important;
-}
-div[data-testid="stIFrame"] iframe{
+}}
+div[data-testid="stIFrame"] iframe{{
   margin: 0 !important;
   padding: 0 !important;
-}
-}
+}}
     </style>
     """)
 
@@ -147,7 +148,6 @@ div[data-testid="stIFrame"]:has(iframe[title^="streamlit.components.v1."]) ifram
   display:none !important;
   height:0 !important;
   min-height:0 !important;
-}
 </style>""",
         unsafe_allow_html=True,
     )
@@ -937,7 +937,6 @@ def render_top_nav(active: str = "home") -> None:
         .hn-nav{ gap: 4px; }
         .hn-nav a{ font-size: 13.5px; padding: 10px 0; }
         .hn-nav a.active::after{ left: 30%; width: 40%; }
-      }
 </style>
     """)
 
