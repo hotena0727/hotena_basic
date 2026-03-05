@@ -22,7 +22,21 @@ try:
 except Exception:
     # In case Streamlit considers page config already set during a rerun/import edge case
     pass
-
+st.markdown("""
+<style>
+/* DEBUG: 위 공간 먹는 놈 찾기 (임시) */
+header, header[data-testid="stHeader"],
+div[data-testid="stToolbar"],
+div[data-testid="stDecoration"],
+div[data-testid="stTop"],
+div[data-testid="stStatusWidget"],
+div[data-testid="stAppToolbar"],
+div[data-testid="stIFrame"]{
+  outline: 3px solid red !important;
+  background: rgba(255,0,0,0.06) !important;
+}
+</style>
+""", unsafe_allow_html=True)
 
 # ✅ Global top spacing fix
 core.apply_global_ui_css(top_padding_rem=0.0)
