@@ -1482,7 +1482,7 @@ def render_plan_pill():
     st.markdown(
         f"""
 <style>
-.hub-plan-wrap{{display:flex;justify-content:flex-start;margin-top:0.05rem;margin-bottom:0rem;}}}
+.hub-plan-wrap{{display:flex;justify-content:flex-start;margin-top:0.05rem;margin-bottom:0rem;}}
 .hub-plan-pill{{display:inline-flex;align-items:center;gap:.45rem;padding:.28rem .55rem;border-radius:999px;
   border:1px solid rgba(0,0,0,.10);font-size:.86rem;opacity:.92;background:rgba(0,0,0,.02);}}
 .hub-admin-gear{{display:inline-flex;align-items:center;justify-content:center;margin-left:8px;width:28px;height:28px;border-radius:999px;
