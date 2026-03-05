@@ -1469,8 +1469,8 @@ def render_plan_pill():
     st.markdown(
         f"""
 <style>
-.hub-plan-wrap{position:fixed;left:0;right:0;top:var(--hotena-nav-h,56px);z-index:2147482000;display:flex;justify-content:flex-start;padding:0 12px;margin:0;pointer-events:none;}}
-.hub-plan-pill{pointer-events:auto;{display:inline-flex;align-items:center;gap:.45rem;padding:.28rem .55rem;border-radius:999px;
+.hub-plan-wrap{{position:fixed;left:0;right:0;top:var(--hotena-nav-h,56px);z-index:2147482000;display:flex;justify-content:flex-start;padding:0 12px;margin:0;pointer-events:none;}}
+.hub-plan-pill{{pointer-events:auto;display:inline-flex;align-items:center;gap:.45rem;padding:.28rem .55rem;border-radius:999px;
   border:1px solid rgba(0,0,0,.10);font-size:.86rem;opacity:.92;background:rgba(0,0,0,.02);}}
 .hub-admin-gear{{display:inline-flex;align-items:center;justify-content:center;margin-left:8px;width:28px;height:28px;border-radius:999px;
   text-decoration:none !important;border:1px solid rgba(0,0,0,.10);background:rgba(0,0,0,.02);font-size:16px;line-height:1;}}
@@ -1483,7 +1483,6 @@ def render_plan_pill():
 """,
         unsafe_allow_html=True,
     )
-
 def render_daily_goal_home(sb_authed, user_id: str):
     """Home dashboard: daily goal (sets-based). 1 set == 10 questions (quiz_len)."""
     progress_all = st.session_state.get("progress_all", {}) or {}
