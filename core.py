@@ -43,38 +43,44 @@ except Exception:  # pragma: no cover
 def apply_global_ui_css(*, top_padding_rem: float = 0.0) -> None:
     """Apply global layout CSS once per run.
 
-    Fix oversized top padding on mobile/PWA across Streamlit versions.
-    Targets both legacy (.block-container) and newer [data-testid="block-container"].
+    Centralized 'top gap' fix across Streamlit versions.
+    Uses a simple token-replace approach to avoid f-string brace SyntaxErrors.
     """
     if st.session_state.get("_core_global_ui_css_applied"):
         return
     st.session_state["_core_global_ui_css_applied"] = True
 
-    pad = f"{max(0.0, float(top_padding_rem))}rem"
+    try:
+        pad_val = max(0.0, float(top_padding_rem))
+    except Exception:
+        pad_val = 0.0
+    pad = f"{pad_val}rem"
 
-    css = textwrap.dedent(f"""
-    <style>
-    /* --- TOP SPACING FIX (mobile/PWA) --- */
-    [data-testid="stAppViewContainer"]{{ padding-top: 0 !important; }}
-    div[data-testid="stAppViewContainer"] > .main{{ padding-top: 0 !important; }}
+    css = """
+<style>
+/* --- TOP SPACING FIX (mobile/PWA) --- */
+[data-testid="stAppViewContainer"]{ padding-top: 0 !important; margin-top: 0 !important; }
+div[data-testid="stAppViewContainer"] > .main{ padding-top: 0 !important; margin-top: 0 !important; }
 
-    /* Newer Streamlit */
-    [data-testid="block-container"]{{ padding-top: {pad} !important; }}
-    /* Older Streamlit */
-    .block-container{{ padding-top: {pad} !important; }}
+/* Newer Streamlit */
+[data-testid="block-container"]{ padding-top: __PAD__ !important; }
+/* Older Streamlit */
+.block-container{ padding-top: __PAD__ !important; }
 
-    /* In some layouts, the first vertical block adds extra margin */
-    [data-testid="stVerticalBlock"] > div:first-child{{ margin-top: 0 !important; }}
+/* In some layouts, the first vertical block adds extra margin */
+[data-testid="stVerticalBlock"] > div:first-child{ margin-top: 0 !important; }
+div[data-testid="stAppViewContainer"] > .main > div:first-child{ margin-top: 0 !important; padding-top: 0 !important; }
 
-    /* ✅ Kill Streamlit default header COMPLETELY (no reserved space) */
-    header, header[data-testid="stHeader"]{{
-      display: none !important;
-      height: 0 !important;
-      min-height: 0 !important;
-    }}
+/* ✅ Kill Streamlit default header COMPLETELY (no reserved space) */
+header, header[data-testid="stHeader"]{
+  display: none !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
 
-    
-/* ✅ Hide Streamlit toolbar/decoration that can reserve top space */
+/* ✅ Hide Streamlit toolbar/decoration that can reserve top space (varies by version) */
 div[data-testid="stToolbar"],
 div[data-testid="stDecoration"],
 div[data-testid="stStatusWidget"],
@@ -86,8 +92,6 @@ div[data-testid="stHeaderActionElements"]{
   margin: 0 !important;
   padding: 0 !important;
 }
-
-/* Some builds add a top 'stTop' spacer */
 div[data-testid="stTop"]{
   margin: 0 !important;
   padding: 0 !important;
@@ -96,24 +100,16 @@ div[data-testid="stTop"]{
 }
 
 /* Safe-area: avoid extra blank gap on some Android devices */
-    html, body{{ padding-top: 0 !important; margin: 0 !important; }}
-/* prevent any accidental top margin */
-[data-testid="stAppViewContainer"], .stApp{{ margin-top: 0 !important; }}
+html, body{ padding-top: 0 !important; margin: 0 !important; }
 
-    /* --- Streamlit component containers: remove spacing, but don't hide them --- */
-div[data-testid="stIFrame"]{{
-  margin: 0 !important;
-  padding: 0 !important;
-}}
-div[data-testid="stIFrame"] iframe{{
-  margin: 0 !important;
-  padding: 0 !important;
-}}
-    </style>
-    """)
+/* Streamlit component containers: remove spacing, but don't hide them */
+div[data-testid="stIFrame"]{ margin: 0 !important; padding: 0 !important; }
+div[data-testid="stIFrame"] iframe{ margin: 0 !important; padding: 0 !important; }
+</style>
+"""
 
+    css = css.replace("__PAD__", pad)
     st.markdown(css, unsafe_allow_html=True)
-
 
 def get_cfg(key: str) -> str:
     """Read from env first, then st.secrets safely. Returns '' if missing.
