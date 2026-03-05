@@ -2790,3 +2790,9 @@ try:
     core.flush_deferred_components_html()
 except Exception:
     pass
+
+
+try:
+    core.apply_topgap_final_override()
+except Exception:
+    pass

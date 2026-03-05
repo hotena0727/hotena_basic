@@ -87,6 +87,35 @@ except Exception:  # pragma: no cover
 # - Fix oversized top padding on mobile/PWA across Streamlit versions
 # - Keep small breathing room for our custom top nav
 # ============================================================
+
+
+# ============================================================
+# ✅ Final top-gap override (run at the VERY bottom of each page)
+# Purpose:
+# - On first load (F5), Streamlit hydrates UI in phases, so a brief top-gap can appear.
+# - Re-applying a tiny override CSS after deferred components flush stabilizes layout.
+# ============================================================
+def apply_topgap_final_override() -> None:
+    css = """<style>
+    /* FINAL OVERRIDE: after hydration/flush */
+    [data-testid="block-container"]{ padding-top: 0rem !important; }
+    div[data-testid="stVerticalBlock"] > div:first-child{ margin-top: 0 !important; }
+
+    /* If Streamlit top artifacts exist, collapse them */
+    div[data-testid="stToolbar"],
+    div[data-testid="stDecoration"],
+    div[data-testid="stTop"],
+    header, header[data-testid="stHeader"]{
+      height: 0 !important;
+      min-height: 0 !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      overflow: hidden !important;
+      border: 0 !important;
+    }
+    </style>"""
+    st.markdown(css, unsafe_allow_html=True)
+
 def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
     """Apply global layout CSS once per run.
 
