@@ -31,6 +31,43 @@ except Exception:  # pragma: no cover
     create_client = None  # type: ignore
 
 
+# ============================================================
+# ✅ Patch: components.html() default height causes top "ghost gap"
+# - Many pages inject only <script> via components.html(...)
+# - Streamlit default height=150 adds a blank spacer that may
+#   appear/disappear on rerun, causing the "moves up on click" effect.
+# - We only auto-set height=0 when the HTML contains <script> and
+#   the caller did not pass an explicit height.
+# ============================================================
+def _patch_components_html_for_scripts() -> None:
+    if st.session_state.get("_core_components_html_patched"):
+        return
+    st.session_state["_core_components_html_patched"] = True
+
+    try:
+        import streamlit.components.v1 as _components
+    except Exception:
+        return
+
+    _orig = getattr(_components, "html", None)
+    if not callable(_orig):
+        return
+
+    def _html_patched(*args, **kwargs):  # type: ignore
+        try:
+            if "height" not in kwargs:
+                html = args[0] if args else kwargs.get("html", "")
+                if isinstance(html, str) and ("<script" in html.lower()):
+                    kwargs["height"] = 0
+                    kwargs.setdefault("scrolling", False)
+        except Exception:
+            pass
+        return _orig(*args, **kwargs)
+
+    _components.html = _html_patched  # type: ignore
+
+
+
 # ----------------------------
 # Config (env -> secrets)
 # ----------------------------
@@ -39,7 +76,7 @@ except Exception:  # pragma: no cover
 # - Fix oversized top padding on mobile/PWA across Streamlit versions
 # - Keep small breathing room for our custom top nav
 # ============================================================
-def apply_global_ui_css(*, top_padding_rem: float = 0.0) -> None:
+def apply_global_ui_css(*, top_padding_rem: float = 0.5) -> None:
     """Apply global layout CSS once per run.
 
     Fix oversized top padding on mobile/PWA across Streamlit versions.
@@ -74,15 +111,6 @@ def apply_global_ui_css(*, top_padding_rem: float = 0.0) -> None:
 
     /* Safe-area: avoid extra blank gap on some Android devices */
     html, body{{ padding-top: 0 !important; }}
-
-    /* --- FORCE HIDE STREAMLIT COMPONENT IFRAMES (prevents refresh top gap) --- */
-    div[data-testid="stIFrame"]{{
-      display: none !important;
-      height: 0 !important;
-      min-height: 0 !important;
-      margin: 0 !important;
-      padding: 0 !important;
-    }}
     div[data-testid="stIFrame"] iframe{{
       display: none !important;
       height: 0 !important;
