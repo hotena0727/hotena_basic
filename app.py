@@ -6,6 +6,16 @@ import random
 import pandas as pd
 import streamlit as st
 
+
+# --- Global UI (single source of truth) ---
+try:
+    import core
+    core.apply_global_ui_css(top_padding_rem=0.0)
+    if hasattr(core, "hide_component_iframe_placeholders"):
+        core.hide_component_iframe_placeholders()
+except Exception:
+    pass
+
 import core
 # -------------------------------
 # OK 한자 헤더 중복 방지 플래그

@@ -7,6 +7,16 @@ from typing import Any, Dict, List, Optional, Tuple
 import os
 import time
 import streamlit as st
+
+# --- Global UI (single source of truth) ---
+try:
+    import core
+    core.apply_global_ui_css(top_padding_rem=0.0)
+    if hasattr(core, "hide_component_iframe_placeholders"):
+        core.hide_component_iframe_placeholders()
+except Exception:
+    pass
+
 import streamlit.components.v1 as components
 
 
