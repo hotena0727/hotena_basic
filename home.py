@@ -36,30 +36,23 @@ def _inject_global_top_spacing_fix_once():
 /* Hide Streamlit default chrome */
 #MainMenu {visibility:hidden;}
 footer {visibility:hidden;}
-header, header[data-testid="stHeader"] {display:none !important; height:0 !important; min-height:0 !important;}
+header, header[data-testid="stHeader"] {display:none !important; height:0 !important;}
 
-/* Remove any browser/page top margin */
-html, body { margin:0 !important; padding:0 !important; }
-
-/* Streamlit containers (covers old/new DOM) */
-div[data-testid="stApp"],
-div[data-testid="stAppViewContainer"],
-div[data-testid="stAppViewContainer"] > .main,
-div[data-testid="stAppViewBlockContainer"],
-section.main,
-section.main > div,
-section.main > div.block-container,
-div.block-container,
-div.block-container > div:first-child{
-  margin-top: 0 !important;
-  padding-top: 0 !important;
+/* Remove default top padding */
+.block-container {
+  padding-top: 0rem !important;
+  margin-top: 0rem !important;
 }
 
-/* Safe-area top inset sometimes adds space on mobile; neutralize */
-div[data-testid="stAppViewContainer"]{ padding-top: 0 !important; }
+/* Some Streamlit versions wrap main differently */
+div[data-testid="stAppViewContainer"] > .main,
+div[data-testid="stAppViewContainer"] {
+  padding-top: 0rem !important;
+  margin-top: 0rem !important;
+}
 
-/* Ensure no hidden header reserves space */
-div[data-testid="stToolbar"]{ display:none !important; height:0 !important; visibility:hidden !important; }
+/* Extra safety for older/newer DOM shapes */
+section.main > div { padding-top: 0rem !important; }
 </style>
 """,
         unsafe_allow_html=True,
@@ -266,13 +259,6 @@ div[data-testid="stAppViewContainer"]{
   padding-top: 0 !important;
   margin-top: 0 !important;
 }
-
-/* New DOM: block container testid */
-div[data-testid="stAppViewBlockContainer"]{
-  padding-top: 0 !important;
-  margin-top: 0 !important;
-}
-
 div[data-testid="stAppViewContainer"] .block-container{
   padding-top: 0 !important;
   margin-top: 0 !important;
