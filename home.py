@@ -1348,18 +1348,18 @@ def render_home_dashboard(sb_authed, user):
 </a>"""
 
     rows_html = """<div class='h-rows'>""" + \
-        _row("?p=word", "📘 단어", int(w["sets"]), int(w["q"]), "word") + \
-        _row("?p=kanji", "漢 한자", int(k["sets"]), int(k["q"]), "kanji") + \
-        _row("?p=talk", "💬 회화", int(t["sets"]), int(t["q"]), "talk") + \
+        _row("?p=word", "🗂️ 단어", int(w["sets"]), int(w["q"]), "word") + \
+        _row("?p=kanji", "🈯 한자", int(k["sets"]), int(k["q"]), "kanji") + \
+        _row("?p=talk", "🗣️ 회화", int(t["sets"]), int(t["q"]), "talk") + \
         """</div>"""
     st.markdown(rows_html, unsafe_allow_html=True)
 
     # ---- Smart CTA (button set) ----
     remaining = max(0, goal_sets - done_total)
     kinds = [
-        ("word", "📘", "단어", int(w["sets"])),
-        ("kanji", "漢", "한자", int(k["sets"])),
-        ("talk", "💬", "회화", int(t["sets"])),
+        ("word", "🗂️", "단어", int(w["sets"])),
+        ("kanji", "🈯", "한자", int(k["sets"])),
+        ("talk", "🗣️", "회화", int(t["sets"])),
     ]
     order = {"talk": 0, "kanji": 1, "word": 2}
     kinds.sort(key=lambda x: (x[3], order.get(x[0], 9)))
