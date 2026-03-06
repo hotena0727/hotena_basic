@@ -1402,7 +1402,7 @@ def _tag_label(t: str) -> str:
 # ✅ sub(상황) 라벨
 SUB_LABEL = {
     "__all__": "전체",
-    # aisatsu 쪽에서 쓰는 값들
+    # aisatsu / 실전회화에서 자주 쓰는 값들
     "home": "집/가정",
     "morning": "아침",
     "day": "낮/친구",
@@ -1410,8 +1410,14 @@ SUB_LABEL = {
     "thanks": "감사",
     "apology": "사과",
     "work": "회사 기본",
-    "meetup": "첫만남",    
-    "first_meeting": "자기소개",
+    "meetup": "첫만남(자기소개)",
+    "first_meeting": "첫만남(자기소개)",
+    "self_intro": "첫만남(자기소개)",
+    "self_introduction": "첫만남(자기소개)",
+    "language_exchange": "언어교환(모임)",
+    "reason": "이유(동기)",
+    "hobby": "취미(관심사)",
+    "reaction": "반응(맞장구)",
     # (확장 대비) 자주 쓰는 상황 키
     "cafe": "카페",
     "restaurant": "식당",
@@ -1425,13 +1431,6 @@ SUB_LABEL = {
     # understand 등에서 쓰는 값들
     "confirm": "확인",
     "mixed": "혼합",
-    # CSV 원문이 영문 코드일 때 표시용 복원
-    "reason": "이유",
-    "hobby": "취미",
-    "reaction": "반응",
-    "self_intro": "자기소개",
-    "self_introduction": "자기소개",
-    "language_exchange": "언어교환",
 }
 
 def _sub_label(s: str) -> str:
