@@ -1411,7 +1411,7 @@ SUB_LABEL = {
     "apology": "사과",
     "work": "회사 기본",
     "meetup": "첫만남(언어모임)",
-    "first_meeting": "첫만남(언어모임)",
+    "self_introduction": "첫만남(자기소개)",
     "self_intro": "첫만남(자기소개)",
     "self_introduction": "첫만남(자기소개)",
     "language_exchange": "언어교환(모임)",
